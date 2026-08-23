@@ -6,10 +6,6 @@
   "license": "UNLICENSED",
   "type": "module",
   "packageManager": "pnpm@9.15.4",
-  "engines": {
-    "node": "22.14.0",
-    "pnpm": "9.15.4"
-  },
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "test": "pnpm -r --if-present run test",
@@ -46,5 +42,8 @@
     "typescript": "5.7.3",
     "typescript-eslint": "8.24.0",
     "vitest": "3.0.7"
+  },
+  "engines": {
+    "node": "22.14.0"
   }
 }

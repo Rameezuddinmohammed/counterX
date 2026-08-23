@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { PACKAGE_NAME } from "./index.js";
+import { PolicyEngine, InMemoryLimitStore, reduceToDecision } from "./index.js";
 
-describe("@counter/policy placeholder", () => {
-  it("exposes its package identity", () => {
-    expect(PACKAGE_NAME).toBe("@counter/policy");
+describe("@counter/policy package identity", () => {
+  it("exports PolicyEngine class", () => {
+    expect(PolicyEngine).toBeDefined();
+  });
+
+  it("exports InMemoryLimitStore class", () => {
+    expect(InMemoryLimitStore).toBeDefined();
+  });
+
+  it("exports reduceToDecision function", () => {
+    expect(reduceToDecision).toBeDefined();
   });
 });
