@@ -292,6 +292,17 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
     responseSnapshot: unknown,
     now: Instant,
   ): Promise<Result<void, CanonicalError>> {
+    if (responseSnapshot === undefined) {
+      return err(
+        createCanonicalError({
+          category: "validation",
+          code: "INVALID_FORMAT",
+          message:
+            "responseSnapshot must not be undefined; use null or an empty object for no-content responses",
+        }),
+      );
+    }
+
     const result = await this.database.query(
       `UPDATE runtime.idempotency_keys
        SET status = 'completed',
@@ -320,18 +331,17 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
   }
 
   async fail(key: string): Promise<Result<void, CanonicalError>> {
-    const now = new Date();
     const result = await this.database.query(
       `UPDATE runtime.idempotency_keys
        SET status = 'failed',
-           completed_at = $2
+           completed_at = clock_timestamp()
        WHERE environment = 'local'
          AND scope_kind = 'platform'
          AND scope_id = 'platform'
          AND operation = 'default'
          AND key = $1
          AND status = 'pending'`,
-      [key, now],
+      [key],
     );
 
     if ((result.rowCount ?? 0) === 0) {
@@ -615,6 +625,18 @@ export class PostgresJobRepository implements AsyncJobRepository {
   ): Promise<Result<readonly Job[], CanonicalError>> {
     return this.database.transaction(async (session) => {
       const leaseExpiresAt = new Date(now + leaseDurationMs);
+
+      // Pre-claim sweep: transition expired-lease jobs back to available
+      await session.query(
+        `UPDATE runtime.jobs
+         SET status = 'available',
+             lease_owner = NULL,
+             lease_expires_at = NULL
+         WHERE status = 'leased'
+           AND type = ANY($1)
+           AND lease_expires_at < $2`,
+        [types as unknown as string[], asDate(now)],
+      );
 
       // Select available jobs with FOR UPDATE SKIP LOCKED
       const selectResult = await session.query<JobRow>(
