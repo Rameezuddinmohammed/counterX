@@ -14,11 +14,20 @@
       "title": "Repository interfaces and in-memory implementations",
       "status": "completed",
       "feature_file": "features/FEAT-002.md"
+    },
+    {
+      "id": "FEAT-003",
+      "title": "Unit tests for in-memory repository implementations",
+      "status": "completed",
+      "feature_file": "features/FEAT-003.md"
     }
   ],
   "findings": [
     "TypeScript typechecks pass cleanly in both workflow and data packages",
     "All 497 existing tests continue to pass",
-    "File writes required copy from /projects/sandbox to /root/counterX due to environment path mapping"
+    "File writes required copy from /projects/sandbox to /root/counterX due to environment path mapping",
+    "45 new tests added across 4 test files, total test count now 542",
+    "The actual implementations at /root/counterX use a simpler API than what read_file shows (different filesystem layers)",
+    "Tests cover: idempotency acquire/replay/conflict/in-flight/re-acquire, outbox append/claim/dispatch/fail-backoff/deadLetter, inbox receive/dedup/markProcessed, jobs enqueue/claim/lease-takeover/renew/complete/fail/poison/deadLetter"
   ]
 }
