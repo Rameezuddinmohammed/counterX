@@ -12,3 +12,4 @@ export * from "./types.js";
 export * from "./authorization.js";
 export * from "./test-authorization.js";
 export * from "./provider.js";
+export * from "./test-provider.js";
