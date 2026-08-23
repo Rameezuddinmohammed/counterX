@@ -1709,8 +1709,7 @@ function platformOperatorClaims(permission: string): TransactionClaims {
     "counter.environment": "test",
     "counter.actor_kind": "operator",
     "counter.actor_id": ids.operator,
-    "counter.assurance":
-      permission === "identity.support_grant.read" ? "multi_factor" : "step_up",
+    "counter.assurance": permission === "identity.support_grant.read" ? "multi_factor" : "step_up",
     "counter.scope_kind": "platform",
     "counter.scope_id": "platform",
     "counter.permission": permission,

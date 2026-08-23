@@ -51,10 +51,7 @@ import {
   type WalletId,
 } from "@counter/domain";
 import { DatabaseError } from "pg";
-import type {
-  ScopedDatabaseSession,
-  ScopedTransactionManager,
-} from "./scoped-transaction.js";
+import type { ScopedDatabaseSession, ScopedTransactionManager } from "./scoped-transaction.js";
 
 interface ScopeRow {
   environment: string;
@@ -879,11 +876,7 @@ function scopeFields(scope: Scope): ScopeFields {
   }
 }
 
-function scopeFrom(
-  environment: Environment,
-  kind: string,
-  id: string,
-): Scope {
+function scopeFrom(environment: Environment, kind: string, id: string): Scope {
   switch (kind) {
     case "merchant":
       return merchantScope(environment, idFrom(id, "merchant"));
@@ -984,7 +977,9 @@ function assertOwns(context: AuthorizedContext, scope: Scope): void {
   }
 }
 
-function unwrapRecord<Value>(result: { readonly ok: true; readonly value: Value } | { readonly ok: false }): Value {
+function unwrapRecord<Value>(
+  result: { readonly ok: true; readonly value: Value } | { readonly ok: false },
+): Value {
   if (!result.ok) {
     throw corruptRecord();
   }

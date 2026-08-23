@@ -41,11 +41,7 @@ export const merchantScopes = merchantSchema.table(
     primaryKey({ columns: [table.environment, table.merchantId] }),
     foreignKey({
       columns: [table.environment, table.scopeKind, table.merchantId],
-      foreignColumns: [
-        scopeRegistry.environment,
-        scopeRegistry.scopeKind,
-        scopeRegistry.scopeId,
-      ],
+      foreignColumns: [scopeRegistry.environment, scopeRegistry.scopeKind, scopeRegistry.scopeId],
       name: "merchant_scopes_registry_fk",
     }),
     check("merchant_scopes_kind", sql`${table.scopeKind} = 'merchant'`),
@@ -64,11 +60,7 @@ export const walletScopes = walletSchema.table(
     primaryKey({ columns: [table.environment, table.walletId] }),
     foreignKey({
       columns: [table.environment, table.scopeKind, table.walletId],
-      foreignColumns: [
-        scopeRegistry.environment,
-        scopeRegistry.scopeKind,
-        scopeRegistry.scopeId,
-      ],
+      foreignColumns: [scopeRegistry.environment, scopeRegistry.scopeKind, scopeRegistry.scopeId],
       name: "wallet_scopes_registry_fk",
     }),
     check("wallet_scopes_kind", sql`${table.scopeKind} = 'wallet'`),
@@ -125,10 +117,7 @@ export const actors = identitySchema.table(
       table.ownerScopeKind,
       table.ownerScopeId,
     ),
-    check(
-      "actors_status",
-      sql`${table.status} IN ('active', 'suspended', 'revoked')`,
-    ),
+    check("actors_status", sql`${table.status} IN ('active', 'suspended', 'revoked')`),
   ],
 );
 
@@ -202,11 +191,7 @@ export const agentPublicKeys = identitySchema.table(
     primaryKey({ columns: [table.environment, table.keyId] }),
     foreignKey({
       columns: [table.environment, table.ownerScopeKind, table.ownerScopeId],
-      foreignColumns: [
-        scopeRegistry.environment,
-        scopeRegistry.scopeKind,
-        scopeRegistry.scopeId,
-      ],
+      foreignColumns: [scopeRegistry.environment, scopeRegistry.scopeKind, scopeRegistry.scopeId],
       name: "agent_public_keys_scope_fk",
     }),
     foreignKey({
@@ -294,11 +279,7 @@ export const supportGrants = identitySchema.table(
   (table) => [
     foreignKey({
       columns: [table.environment, table.targetScopeKind, table.targetScopeId],
-      foreignColumns: [
-        scopeRegistry.environment,
-        scopeRegistry.scopeKind,
-        scopeRegistry.scopeId,
-      ],
+      foreignColumns: [scopeRegistry.environment, scopeRegistry.scopeKind, scopeRegistry.scopeId],
       name: "support_grants_target_scope_fk",
     }),
   ],
@@ -318,9 +299,7 @@ export const supportGrantPermissions = identitySchema.table(
 );
 
 export const supportGrantEvents = identitySchema.table("support_grant_events", {
-  eventId: bigint("event_id", { mode: "bigint" })
-    .primaryKey()
-    .generatedAlwaysAsIdentity(),
+  eventId: bigint("event_id", { mode: "bigint" }).primaryKey().generatedAlwaysAsIdentity(),
   supportGrantId: text("support_grant_id").references(() => supportGrants.supportGrantId),
   environment: counterEnvironment("environment").notNull(),
   targetScopeKind: text("target_scope_kind").notNull(),
@@ -353,11 +332,7 @@ export const supportGrantAuthorizations = identitySchema.table(
   (table) => [
     foreignKey({
       columns: [table.environment, table.targetScopeKind, table.targetScopeId],
-      foreignColumns: [
-        scopeRegistry.environment,
-        scopeRegistry.scopeKind,
-        scopeRegistry.scopeId,
-      ],
+      foreignColumns: [scopeRegistry.environment, scopeRegistry.scopeKind, scopeRegistry.scopeId],
       name: "support_grant_authorizations_target_scope_fk",
     }),
   ],

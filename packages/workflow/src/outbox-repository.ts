@@ -37,9 +37,19 @@ export interface OutboxEventInput {
 // --- Repository interface ---
 
 export interface OutboxRepository {
-  append(events: readonly OutboxEventInput[], now: Instant): Result<readonly OutboxEvent[], CanonicalError>;
+  append(
+    events: readonly OutboxEventInput[],
+    now: Instant,
+  ): Result<readonly OutboxEvent[], CanonicalError>;
   claim(limit: number, owner: string, now: Instant): Result<readonly OutboxEvent[], CanonicalError>;
-  markDispatched(ids: readonly CounterId<"outbox-event">[], now: Instant): Result<void, CanonicalError>;
-  markFailed(id: CounterId<"outbox-event">, errorClass: string, now: Instant): Result<void, CanonicalError>;
+  markDispatched(
+    ids: readonly CounterId<"outbox-event">[],
+    now: Instant,
+  ): Result<void, CanonicalError>;
+  markFailed(
+    id: CounterId<"outbox-event">,
+    errorClass: string,
+    now: Instant,
+  ): Result<void, CanonicalError>;
   markDeadLetter(id: CounterId<"outbox-event">, owner: string): Result<void, CanonicalError>;
 }

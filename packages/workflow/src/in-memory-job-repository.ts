@@ -7,11 +7,7 @@ import {
   err,
   ok,
 } from "@counter/domain";
-import type {
-  Job,
-  JobInput,
-  JobRepository,
-} from "./job-repository.js";
+import type { Job, JobInput, JobRepository } from "./job-repository.js";
 
 export class InMemoryJobRepository implements JobRepository {
   readonly #jobs: Map<CounterId<"job">, Job> = new Map();
@@ -50,9 +46,7 @@ export class InMemoryJobRepository implements JobRepository {
 
       const isAvailable = job.status === "available" && job.availableAt <= now;
       const isExpiredLease =
-        job.status === "leased" &&
-        job.leaseExpiresAt !== undefined &&
-        job.leaseExpiresAt < now;
+        job.status === "leased" && job.leaseExpiresAt !== undefined && job.leaseExpiresAt < now;
 
       if (!isAvailable && !isExpiredLease) continue;
 
@@ -106,11 +100,7 @@ export class InMemoryJobRepository implements JobRepository {
     return ok(undefined);
   }
 
-  public complete(
-    id: CounterId<"job">,
-    owner: string,
-    now: Instant,
-  ): Result<void, CanonicalError> {
+  public complete(id: CounterId<"job">, owner: string, now: Instant): Result<void, CanonicalError> {
     const job = this.#jobs.get(id);
     if (job === undefined) {
       return err(

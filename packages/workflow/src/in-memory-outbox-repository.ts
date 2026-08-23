@@ -7,11 +7,7 @@ import {
   err,
   ok,
 } from "@counter/domain";
-import type {
-  OutboxEvent,
-  OutboxEventInput,
-  OutboxRepository,
-} from "./outbox-repository.js";
+import type { OutboxEvent, OutboxEventInput, OutboxRepository } from "./outbox-repository.js";
 
 export class InMemoryOutboxRepository implements OutboxRepository {
   readonly #events: Map<CounterId<"outbox-event">, OutboxEvent> = new Map();

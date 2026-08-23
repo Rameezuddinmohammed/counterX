@@ -24,11 +24,7 @@ import type {
   IdempotencyEntry,
   IdempotencyKeyStatus,
 } from "@counter/workflow";
-import type {
-  InboxEvent,
-  InboxEventInput,
-  InboxReceiveResult,
-} from "@counter/workflow";
+import type { InboxEvent, InboxEventInput, InboxReceiveResult } from "@counter/workflow";
 import type { Job, JobInput } from "@counter/workflow";
 import type { OutboxEvent, OutboxEventInput } from "@counter/workflow";
 import type { TransactionalDatabase } from "./database.js";
@@ -79,10 +75,7 @@ export interface AsyncInboxRepository {
     input: InboxEventInput,
     now: Instant,
   ): Promise<Result<InboxReceiveResult, CanonicalError>>;
-  markProcessed(
-    id: CounterId<"inbox-event">,
-    now: Instant,
-  ): Promise<Result<void, CanonicalError>>;
+  markProcessed(id: CounterId<"inbox-event">, now: Instant): Promise<Result<void, CanonicalError>>;
 }
 
 export interface AsyncJobRepository {
@@ -130,7 +123,7 @@ interface IdempotencyKeyRow {
   key: string;
   material_request_digest: string;
   status: string;
-  response_snapshot: unknown | null;
+  response_snapshot: unknown;
   created_at: Date;
   completed_at: Date | null;
   expires_at: Date;
@@ -914,7 +907,8 @@ function jobFromRow(row: JobRow): Job {
   return Object.freeze({
     id: row.id as CounterId<"job">,
     type: row.type,
-    payload: row.payload_reference !== null ? JSON.parse(row.payload_reference) : undefined,
+    payload:
+      row.payload_reference !== null ? (JSON.parse(row.payload_reference) as unknown) : undefined,
     correlationId: (row.correlation_id as CounterId<"correlation"> | null) ?? undefined,
     status: row.status as Job["status"],
     availableAt: instantFromDate(row.available_at),

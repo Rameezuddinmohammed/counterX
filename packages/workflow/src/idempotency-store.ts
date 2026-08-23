@@ -11,7 +11,7 @@ export interface IdempotencyEntry {
   readonly key: string;
   readonly digest: Sha256Digest;
   readonly status: IdempotencyKeyStatus;
-  readonly responseSnapshot: unknown | undefined;
+  readonly responseSnapshot: unknown;
   readonly createdAt: Instant;
   readonly completedAt: Instant | undefined;
 }
@@ -45,7 +45,11 @@ export type IdempotencyAcquireResult =
 // --- Store interface ---
 
 export interface IdempotencyStore {
-  acquire(key: string, digest: Sha256Digest, now: Instant): Result<IdempotencyAcquireResult, CanonicalError>;
+  acquire(
+    key: string,
+    digest: Sha256Digest,
+    now: Instant,
+  ): Result<IdempotencyAcquireResult, CanonicalError>;
   complete(key: string, responseSnapshot: unknown, now: Instant): Result<void, CanonicalError>;
   fail(key: string): Result<void, CanonicalError>;
 }

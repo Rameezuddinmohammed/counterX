@@ -51,9 +51,26 @@ export interface JobInput {
 
 export interface JobRepository {
   enqueue(input: JobInput, now: Instant): Result<Job, CanonicalError>;
-  claim(types: readonly string[], leaseOwner: string, leaseDurationMs: number, now: Instant): Result<readonly Job[], CanonicalError>;
-  renewLease(id: CounterId<"job">, owner: string, leaseDurationMs: number, now: Instant): Result<void, CanonicalError>;
+  claim(
+    types: readonly string[],
+    leaseOwner: string,
+    leaseDurationMs: number,
+    now: Instant,
+  ): Result<readonly Job[], CanonicalError>;
+  renewLease(
+    id: CounterId<"job">,
+    owner: string,
+    leaseDurationMs: number,
+    now: Instant,
+  ): Result<void, CanonicalError>;
   complete(id: CounterId<"job">, owner: string, now: Instant): Result<void, CanonicalError>;
-  fail(id: CounterId<"job">, owner: string, errorClass: string, errorMessage: string, baseDelayMs: number, now: Instant): Result<void, CanonicalError>;
+  fail(
+    id: CounterId<"job">,
+    owner: string,
+    errorClass: string,
+    errorMessage: string,
+    baseDelayMs: number,
+    now: Instant,
+  ): Result<void, CanonicalError>;
   deadLetter(id: CounterId<"job">, owner: string, reason: string): Result<void, CanonicalError>;
 }

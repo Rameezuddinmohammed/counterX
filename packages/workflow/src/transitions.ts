@@ -66,20 +66,13 @@ const ORDER_ALLOWED_PHASES: ReadonlySet<Phase> = new Set([
  * Phases during which fulfillment sub-state transitions are permitted.
  * Fulfillment only progresses when the transaction is actively being fulfilled.
  */
-const FULFILLMENT_ALLOWED_PHASES: ReadonlySet<Phase> = new Set([
-  "ACTIVE",
-  "INDETERMINATE",
-]);
+const FULFILLMENT_ALLOWED_PHASES: ReadonlySet<Phase> = new Set(["ACTIVE", "INDETERMINATE"]);
 
 /**
  * Phases during which return sub-state transitions are permitted.
  * Returns only happen on active or closed transactions.
  */
-const RETURN_ALLOWED_PHASES: ReadonlySet<Phase> = new Set([
-  "ACTIVE",
-  "CLOSED",
-  "INDETERMINATE",
-]);
+const RETURN_ALLOWED_PHASES: ReadonlySet<Phase> = new Set(["ACTIVE", "CLOSED", "INDETERMINATE"]);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -102,10 +95,7 @@ function advanceState(
   state: TransactionState,
   now: Instant,
   patch: Partial<
-    Pick<
-      TransactionState,
-      "phase" | "reservation" | "payment" | "order" | "fulfillment" | "return"
-    >
+    Pick<TransactionState, "phase" | "reservation" | "payment" | "order" | "fulfillment" | "return">
   >,
   subStateKey?: keyof TransactionState["subStateUpdatedAt"],
 ): TransactionState {
@@ -223,7 +213,8 @@ export function transitionReservation(
     return err({
       code: "PREREQUISITE_NOT_MET",
       phase: state.phase,
-      requirement: "reservation transitions require phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
+      requirement:
+        "reservation transitions require phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
       message: `Cannot transition reservation in phase ${state.phase}`,
     });
   }
@@ -265,7 +256,8 @@ export function transitionPayment(
     return err({
       code: "PREREQUISITE_NOT_MET",
       phase: state.phase,
-      requirement: "payment transitions require phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
+      requirement:
+        "payment transitions require phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
       message: `Cannot transition payment in phase ${state.phase}`,
     });
   }
@@ -307,7 +299,8 @@ export function transitionOrder(
     return err({
       code: "PREREQUISITE_NOT_MET",
       phase: state.phase,
-      requirement: "order transitions require phase COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
+      requirement:
+        "order transitions require phase COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
       message: `Cannot transition order in phase ${state.phase}`,
     });
   }
@@ -473,7 +466,8 @@ export function timeoutReservationToIndeterminate(
     return err({
       code: "PREREQUISITE_NOT_MET",
       phase: state.phase,
-      requirement: "reservation timeout requires phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
+      requirement:
+        "reservation timeout requires phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
       message: `Cannot timeout reservation to indeterminate in phase ${state.phase}`,
     });
   }
@@ -518,7 +512,8 @@ export function timeoutPaymentToIndeterminate(
     return err({
       code: "PREREQUISITE_NOT_MET",
       phase: state.phase,
-      requirement: "payment timeout requires phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
+      requirement:
+        "payment timeout requires phase CHECKOUT_READY, COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
       message: `Cannot timeout payment to indeterminate in phase ${state.phase}`,
     });
   }
@@ -562,7 +557,8 @@ export function timeoutOrderToIndeterminate(
     return err({
       code: "PREREQUISITE_NOT_MET",
       phase: state.phase,
-      requirement: "order timeout requires phase COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
+      requirement:
+        "order timeout requires phase COMMITTING, ACTIVE, FAILED_REQUIRES_ACTION, or INDETERMINATE",
       message: `Cannot timeout order to indeterminate in phase ${state.phase}`,
     });
   }

@@ -1568,23 +1568,18 @@ describe("property-based tests", () => {
 
   it("version always increments by exactly 1 on success", () => {
     fc.assert(
-      fc.property(
-        phaseArb,
-        phaseArb,
-        fc.integer({ min: 0, max: 1000 }),
-        (from, to, version) => {
-          const state = makeState({ phase: from, version, payment: "authorized" });
-          const result = transitionPhase({
-            state,
-            to,
-            expectedVersion: version,
-            now: LATER,
-          });
-          if (result.ok) {
-            expect(result.value.version).toBe(version + 1);
-          }
-        },
-      ),
+      fc.property(phaseArb, phaseArb, fc.integer({ min: 0, max: 1000 }), (from, to, version) => {
+        const state = makeState({ phase: from, version, payment: "authorized" });
+        const result = transitionPhase({
+          state,
+          to,
+          expectedVersion: version,
+          now: LATER,
+        });
+        if (result.ok) {
+          expect(result.value.version).toBe(version + 1);
+        }
+      }),
     );
   });
 

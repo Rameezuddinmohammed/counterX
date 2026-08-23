@@ -18,10 +18,7 @@ export class InMemoryInboxRepository implements InboxRepository {
   readonly #events: Map<CounterId<"inbox-event">, InboxEvent> = new Map();
   readonly #sourceIndex: Map<string, CounterId<"inbox-event">> = new Map();
 
-  public receive(
-    input: InboxEventInput,
-    now: Instant,
-  ): Result<InboxReceiveResult, CanonicalError> {
+  public receive(input: InboxEventInput, now: Instant): Result<InboxReceiveResult, CanonicalError> {
     const compositeKey = `${input.source}::${input.sourceEventId}`;
     const existingId = this.#sourceIndex.get(compositeKey);
 
@@ -47,10 +44,7 @@ export class InMemoryInboxRepository implements InboxRepository {
     return ok({ outcome: "new", event });
   }
 
-  public markProcessed(
-    id: CounterId<"inbox-event">,
-    now: Instant,
-  ): Result<void, CanonicalError> {
+  public markProcessed(id: CounterId<"inbox-event">, now: Instant): Result<void, CanonicalError> {
     const event = this.#events.get(id);
     if (event === undefined) {
       return err(

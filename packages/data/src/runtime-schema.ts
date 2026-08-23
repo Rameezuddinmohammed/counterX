@@ -6,7 +6,16 @@
  */
 
 import { sql } from "drizzle-orm";
-import { check, integer, jsonb, pgSchema, text, timestamp, unique, bigint } from "drizzle-orm/pg-core";
+import {
+  check,
+  integer,
+  jsonb,
+  pgSchema,
+  text,
+  timestamp,
+  unique,
+  bigint,
+} from "drizzle-orm/pg-core";
 import { counterEnvironment } from "./schema.js";
 
 export const runtimeSchema = pgSchema("runtime");
@@ -43,10 +52,7 @@ export const idempotencyKeys = runtimeSchema.table(
       "idempotency_keys_scope_kind",
       sql`${table.scopeKind} IN ('merchant', 'wallet', 'platform')`,
     ),
-    check(
-      "idempotency_keys_status",
-      sql`${table.status} IN ('pending', 'completed', 'failed')`,
-    ),
+    check("idempotency_keys_status", sql`${table.status} IN ('pending', 'completed', 'failed')`),
     check(
       "idempotency_keys_digest_format",
       sql`${table.materialRequestDigest} ~ '^sha256:[0-9a-f]{64}$'`,
@@ -148,10 +154,7 @@ export const inboxEvents = runtimeSchema.table(
   },
   (table) => [
     unique("inbox_events_dedup").on(table.environment, table.source, table.sourceEventId),
-    check(
-      "inbox_events_status",
-      sql`${table.status} IN ('received', 'processed', 'duplicate')`,
-    ),
+    check("inbox_events_status", sql`${table.status} IN ('received', 'processed', 'duplicate')`),
   ],
 );
 
@@ -182,10 +185,7 @@ export const jobs = runtimeSchema.table(
     completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
-    check(
-      "jobs_scope_kind",
-      sql`${table.scopeKind} IN ('merchant', 'wallet', 'platform')`,
-    ),
+    check("jobs_scope_kind", sql`${table.scopeKind} IN ('merchant', 'wallet', 'platform')`),
     check(
       "jobs_status",
       sql`${table.status} IN ('available', 'leased', 'completed', 'failed', 'dead_letter')`,
@@ -213,10 +213,7 @@ export const jobAttempts = runtimeSchema.table(
   },
   (table) => [
     unique("job_attempts_unique").on(table.jobId, table.attemptNumber),
-    check(
-      "job_attempts_status",
-      sql`${table.status} IN ('running', 'succeeded', 'failed')`,
-    ),
+    check("job_attempts_status", sql`${table.status} IN ('running', 'succeeded', 'failed')`),
     check("job_attempts_attempt_number_positive", sql`${table.attemptNumber} >= 1`),
   ],
 );
