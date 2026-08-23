@@ -49,6 +49,7 @@ export const PAYMENT_STATES = [
   "captured",
   "voiding",
   "voided",
+  "declining",
   "declined",
   "indeterminate",
   "failed",

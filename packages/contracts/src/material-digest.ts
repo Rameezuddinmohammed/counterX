@@ -10,6 +10,12 @@
  */
 
 import { sha256Digest, type Sha256Digest } from "@counter/domain";
+// json-canonicalize implements RFC 8785 (JSON Canonicalization Scheme), a standard
+// for deterministic JSON serialization. We use it here rather than a hand-rolled
+// sorted-key serializer to ensure spec-compliant handling of edge cases (Unicode
+// normalization, number formatting, etc.). This aligns with the trust-protocol
+// package which also uses JCS for envelope canonicalization, keeping digest
+// computation consistent across the audit trail.
 import { canonicalize } from "json-canonicalize";
 import type { Command } from "./commands.js";
 

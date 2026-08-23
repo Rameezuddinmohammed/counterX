@@ -29,6 +29,9 @@ import {
   RETURN_TRANSITIONS,
 } from "./transition-rules.js";
 import {
+  timeoutOrderToIndeterminate,
+  timeoutPaymentToIndeterminate,
+  timeoutReservationToIndeterminate,
   timeoutToIndeterminate,
   transitionFulfillment,
   transitionOrder,
@@ -38,7 +41,7 @@ import {
   transitionReturn,
 } from "./transitions.js";
 
-// --- Test Helpers ---
+// ─── Test Helpers ───────────────────────────────────────────────────────────
 
 const TEST_TRANSACTION_ID = "ctr_transaction_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"transaction">;
 const NOW = 1_700_000_000_000 as Instant;
@@ -51,7 +54,7 @@ function makeState(overrides: Partial<TransactionState> = {}): TransactionState 
   });
 }
 
-// --- createInitialState ---
+// ─── createInitialState ─────────────────────────────────────────────────────
 
 describe("createInitialState", () => {
   it("returns a frozen state in DRAFT phase with version 0", () => {
@@ -72,7 +75,7 @@ describe("createInitialState", () => {
   });
 });
 
-// --- Phase Transitions ---
+// ─── Phase Transitions ──────────────────────────────────────────────────────
 
 describe("transitionPhase", () => {
   describe("legal transitions", () => {
@@ -84,7 +87,8 @@ describe("transitionPhase", () => {
     }
 
     it.each(legalCases)("$from -> $to is allowed", ({ from, to }) => {
-      // Skip prerequisite check for COMMITTING by ensuring payment is valid
+      // Ensure valid payment state for COMMITTING prerequisite
+      // When re-entering COMMITTING from FAILED_REQUIRES_ACTION, payment must not be pending_instruction
       const state = makeState({ phase: from, payment: "authorized" });
       const result = transitionPhase({ state, to, expectedVersion: state.version, now: LATER });
 
@@ -187,9 +191,98 @@ describe("transitionPhase", () => {
       expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
     }
   });
+
+  it("rejects transition to COMMITTING when payment is declining", () => {
+    const state = makeState({ phase: "CHECKOUT_READY", payment: "declining" });
+    const result = transitionPhase({
+      state,
+      to: "COMMITTING",
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+    }
+  });
+
+  describe("FAILED_REQUIRES_ACTION -> COMMITTING prerequisite enforcement", () => {
+    it("allows re-entry when payment has been advanced to authorized", () => {
+      const state = makeState({ phase: "FAILED_REQUIRES_ACTION", payment: "authorized" });
+      const result = transitionPhase({
+        state,
+        to: "COMMITTING",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.phase).toBe("COMMITTING");
+      }
+    });
+
+    it("allows re-entry when payment is in authorizing state", () => {
+      const state = makeState({ phase: "FAILED_REQUIRES_ACTION", payment: "authorizing" });
+      const result = transitionPhase({
+        state,
+        to: "COMMITTING",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects re-entry when payment is still pending_instruction (unresolved)", () => {
+      const state = makeState({ phase: "FAILED_REQUIRES_ACTION", payment: "pending_instruction" });
+      const result = transitionPhase({
+        state,
+        to: "COMMITTING",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects re-entry when payment is failed", () => {
+      const state = makeState({ phase: "FAILED_REQUIRES_ACTION", payment: "failed" });
+      const result = transitionPhase({
+        state,
+        to: "COMMITTING",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects re-entry when payment is declined", () => {
+      const state = makeState({ phase: "FAILED_REQUIRES_ACTION", payment: "declined" });
+      const result = transitionPhase({
+        state,
+        to: "COMMITTING",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+  });
 });
 
-// --- Version Conflict ---
+// ─── Version Conflict ───────────────────────────────────────────────────────
 
 describe("optimistic version conflict", () => {
   it("rejects phase transition with wrong version", () => {
@@ -212,7 +305,7 @@ describe("optimistic version conflict", () => {
   });
 
   it("rejects reservation transition with wrong version", () => {
-    const state = makeState({ reservation: "pending", version: 5 });
+    const state = makeState({ phase: "ACTIVE", reservation: "pending", version: 5 });
     const result = transitionReservation({
       state,
       to: "reserved",
@@ -227,7 +320,7 @@ describe("optimistic version conflict", () => {
   });
 
   it("rejects payment transition with wrong version", () => {
-    const state = makeState({ payment: "pending_instruction", version: 1 });
+    const state = makeState({ phase: "COMMITTING", payment: "pending_instruction", version: 1 });
     const result = transitionPayment({
       state,
       to: "authorizing",
@@ -242,7 +335,7 @@ describe("optimistic version conflict", () => {
   });
 
   it("rejects order transition with wrong version", () => {
-    const state = makeState({ order: "absent", version: 2 });
+    const state = makeState({ phase: "COMMITTING", order: "absent", version: 2 });
     const result = transitionOrder({
       state,
       to: "committing",
@@ -257,7 +350,7 @@ describe("optimistic version conflict", () => {
   });
 
   it("rejects fulfillment transition with wrong version", () => {
-    const state = makeState({ fulfillment: "pending", version: 7 });
+    const state = makeState({ phase: "ACTIVE", fulfillment: "pending", version: 7 });
     const result = transitionFulfillment({
       state,
       to: "processing",
@@ -272,7 +365,7 @@ describe("optimistic version conflict", () => {
   });
 
   it("rejects return transition with wrong version", () => {
-    const state = makeState({ return: "none", version: 1 });
+    const state = makeState({ phase: "ACTIVE", return: "none", version: 1 });
     const result = transitionReturn({
       state,
       to: "requested",
@@ -310,7 +403,285 @@ describe("optimistic version conflict", () => {
   });
 });
 
-// --- Reservation Sub-State ---
+// ─── Phase Guards ───────────────────────────────────────────────────────────
+
+describe("phase guards", () => {
+  describe("reservation phase guards", () => {
+    it("allows reservation transition in ACTIVE phase", () => {
+      const state = makeState({ phase: "ACTIVE", reservation: "pending" });
+      const result = transitionReservation({
+        state,
+        to: "reserved",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("allows reservation transition in COMMITTING phase", () => {
+      const state = makeState({ phase: "COMMITTING", reservation: "pending" });
+      const result = transitionReservation({
+        state,
+        to: "reserved",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("allows reservation transition in CHECKOUT_READY phase", () => {
+      const state = makeState({ phase: "CHECKOUT_READY", reservation: "pending" });
+      const result = transitionReservation({
+        state,
+        to: "reserved",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects reservation transition in DRAFT phase", () => {
+      const state = makeState({ phase: "DRAFT", reservation: "pending" });
+      const result = transitionReservation({
+        state,
+        to: "reserved",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects reservation transition in QUOTED phase", () => {
+      const state = makeState({ phase: "QUOTED", reservation: "pending" });
+      const result = transitionReservation({
+        state,
+        to: "reserved",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects reservation transition in terminal phase", () => {
+      const state = makeState({ phase: "CLOSED", reservation: "pending" });
+      const result = transitionReservation({
+        state,
+        to: "reserved",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+  });
+
+  describe("payment phase guards", () => {
+    it("allows payment transition in COMMITTING phase", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "pending_instruction" });
+      const result = transitionPayment({
+        state,
+        to: "authorizing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("allows payment transition in ACTIVE phase", () => {
+      const state = makeState({ phase: "ACTIVE", payment: "authorized" });
+      const result = transitionPayment({
+        state,
+        to: "capturing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects payment transition in DRAFT phase", () => {
+      const state = makeState({ phase: "DRAFT", payment: "pending_instruction" });
+      const result = transitionPayment({
+        state,
+        to: "authorizing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects payment transition in QUOTED phase", () => {
+      const state = makeState({ phase: "QUOTED", payment: "pending_instruction" });
+      const result = transitionPayment({
+        state,
+        to: "authorizing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+  });
+
+  describe("order phase guards", () => {
+    it("allows order transition in COMMITTING phase", () => {
+      const state = makeState({ phase: "COMMITTING", order: "absent" });
+      const result = transitionOrder({
+        state,
+        to: "committing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("allows order transition in ACTIVE phase", () => {
+      const state = makeState({ phase: "ACTIVE", order: "committed" });
+      const result = transitionOrder({
+        state,
+        to: "closed",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects order transition in DRAFT phase", () => {
+      const state = makeState({ phase: "DRAFT", order: "absent" });
+      const result = transitionOrder({
+        state,
+        to: "committing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects order transition in CHECKOUT_READY phase", () => {
+      const state = makeState({ phase: "CHECKOUT_READY", order: "absent" });
+      const result = transitionOrder({
+        state,
+        to: "committing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+  });
+
+  describe("fulfillment phase guards", () => {
+    it("allows fulfillment transition in ACTIVE phase", () => {
+      const state = makeState({ phase: "ACTIVE", fulfillment: "pending" });
+      const result = transitionFulfillment({
+        state,
+        to: "processing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects fulfillment transition in DRAFT phase", () => {
+      const state = makeState({ phase: "DRAFT", fulfillment: "pending" });
+      const result = transitionFulfillment({
+        state,
+        to: "processing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects fulfillment transition in COMMITTING phase", () => {
+      const state = makeState({ phase: "COMMITTING", fulfillment: "pending" });
+      const result = transitionFulfillment({
+        state,
+        to: "processing",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+  });
+
+  describe("return phase guards", () => {
+    it("allows return transition in ACTIVE phase", () => {
+      const state = makeState({ phase: "ACTIVE", return: "none" });
+      const result = transitionReturn({
+        state,
+        to: "requested",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("allows return transition in CLOSED phase", () => {
+      const state = makeState({ phase: "CLOSED", return: "none" });
+      const result = transitionReturn({
+        state,
+        to: "requested",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects return transition in DRAFT phase", () => {
+      const state = makeState({ phase: "DRAFT", return: "none" });
+      const result = transitionReturn({
+        state,
+        to: "requested",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+
+    it("rejects return transition in COMMITTING phase", () => {
+      const state = makeState({ phase: "COMMITTING", return: "none" });
+      const result = transitionReturn({
+        state,
+        to: "requested",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+      }
+    });
+  });
+});
+
+// ─── Reservation Sub-State ──────────────────────────────────────────────────
 
 describe("transitionReservation", () => {
   describe("legal transitions", () => {
@@ -322,7 +693,8 @@ describe("transitionReservation", () => {
     }
 
     it.each(legalCases)("$from -> $to is allowed", ({ from, to }) => {
-      const state = makeState({ reservation: from });
+      // Use ACTIVE phase to satisfy phase guard
+      const state = makeState({ phase: "ACTIVE", reservation: from });
       const result = transitionReservation({
         state,
         to,
@@ -351,7 +723,8 @@ describe("transitionReservation", () => {
     }
 
     it.each(illegalCases)("$from -> $to is rejected", ({ from, to }) => {
-      const state = makeState({ reservation: from });
+      // Use ACTIVE phase to satisfy phase guard so we test the transition table
+      const state = makeState({ phase: "ACTIVE", reservation: from });
       const result = transitionReservation({
         state,
         to,
@@ -367,7 +740,7 @@ describe("transitionReservation", () => {
   });
 });
 
-// --- Payment Sub-State ---
+// ─── Payment Sub-State ──────────────────────────────────────────────────────
 
 describe("transitionPayment", () => {
   describe("legal transitions", () => {
@@ -379,7 +752,8 @@ describe("transitionPayment", () => {
     }
 
     it.each(legalCases)("$from -> $to is allowed", ({ from, to }) => {
-      const state = makeState({ payment: from });
+      // Use COMMITTING phase to satisfy phase guard
+      const state = makeState({ phase: "COMMITTING", payment: from });
       const result = transitionPayment({
         state,
         to,
@@ -408,7 +782,8 @@ describe("transitionPayment", () => {
     }
 
     it.each(illegalCases)("$from -> $to is rejected", ({ from, to }) => {
-      const state = makeState({ payment: from });
+      // Use COMMITTING phase to satisfy phase guard
+      const state = makeState({ phase: "COMMITTING", payment: from });
       const result = transitionPayment({
         state,
         to,
@@ -422,9 +797,100 @@ describe("transitionPayment", () => {
       }
     });
   });
+
+  describe("declining intermediate state", () => {
+    it("authorizing -> declining is allowed", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "authorizing" });
+      const result = transitionPayment({
+        state,
+        to: "declining",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.payment).toBe("declining");
+      }
+    });
+
+    it("declining -> declined is allowed", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "declining" });
+      const result = transitionPayment({
+        state,
+        to: "declined",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.payment).toBe("declined");
+      }
+    });
+
+    it("declining -> indeterminate is allowed (timeout scenario)", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "declining" });
+      const result = transitionPayment({
+        state,
+        to: "indeterminate",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.payment).toBe("indeterminate");
+      }
+    });
+
+    it("declining -> failed is allowed", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "declining" });
+      const result = transitionPayment({
+        state,
+        to: "failed",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.payment).toBe("failed");
+      }
+    });
+
+    it("pending_instruction -> declining is allowed", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "pending_instruction" });
+      const result = transitionPayment({
+        state,
+        to: "declining",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("action_required -> declining is allowed", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "action_required" });
+      const result = transitionPayment({
+        state,
+        to: "declining",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("authorized -> declining is NOT allowed (cannot decline after authorization)", () => {
+      const state = makeState({ phase: "COMMITTING", payment: "authorized" });
+      const result = transitionPayment({
+        state,
+        to: "declining",
+        expectedVersion: state.version,
+        now: LATER,
+      });
+      expect(result.ok).toBe(false);
+    });
+  });
 });
 
-// --- Order Sub-State ---
+// ─── Order Sub-State ────────────────────────────────────────────────────────
 
 describe("transitionOrder", () => {
   describe("legal transitions", () => {
@@ -436,7 +902,8 @@ describe("transitionOrder", () => {
     }
 
     it.each(legalCases)("$from -> $to is allowed", ({ from, to }) => {
-      const state = makeState({ order: from });
+      // Use COMMITTING phase to satisfy phase guard
+      const state = makeState({ phase: "COMMITTING", order: from });
       const result = transitionOrder({
         state,
         to,
@@ -465,7 +932,8 @@ describe("transitionOrder", () => {
     }
 
     it.each(illegalCases)("$from -> $to is rejected", ({ from, to }) => {
-      const state = makeState({ order: from });
+      // Use COMMITTING phase to satisfy phase guard
+      const state = makeState({ phase: "COMMITTING", order: from });
       const result = transitionOrder({
         state,
         to,
@@ -481,7 +949,7 @@ describe("transitionOrder", () => {
   });
 });
 
-// --- Fulfillment Sub-State ---
+// ─── Fulfillment Sub-State ──────────────────────────────────────────────────
 
 describe("transitionFulfillment", () => {
   describe("legal transitions", () => {
@@ -493,7 +961,8 @@ describe("transitionFulfillment", () => {
     }
 
     it.each(legalCases)("$from -> $to is allowed", ({ from, to }) => {
-      const state = makeState({ fulfillment: from });
+      // Use ACTIVE phase to satisfy phase guard
+      const state = makeState({ phase: "ACTIVE", fulfillment: from });
       const result = transitionFulfillment({
         state,
         to,
@@ -522,7 +991,8 @@ describe("transitionFulfillment", () => {
     }
 
     it.each(illegalCases)("$from -> $to is rejected", ({ from, to }) => {
-      const state = makeState({ fulfillment: from });
+      // Use ACTIVE phase to satisfy phase guard
+      const state = makeState({ phase: "ACTIVE", fulfillment: from });
       const result = transitionFulfillment({
         state,
         to,
@@ -538,7 +1008,7 @@ describe("transitionFulfillment", () => {
   });
 });
 
-// --- Return Sub-State ---
+// ─── Return Sub-State ───────────────────────────────────────────────────────
 
 describe("transitionReturn", () => {
   describe("legal transitions", () => {
@@ -550,7 +1020,8 @@ describe("transitionReturn", () => {
     }
 
     it.each(legalCases)("$from -> $to is allowed", ({ from, to }) => {
-      const state = makeState({ return: from });
+      // Use ACTIVE phase to satisfy phase guard
+      const state = makeState({ phase: "ACTIVE", return: from });
       const result = transitionReturn({
         state,
         to,
@@ -579,7 +1050,8 @@ describe("transitionReturn", () => {
     }
 
     it.each(illegalCases)("$from -> $to is rejected", ({ from, to }) => {
-      const state = makeState({ return: from });
+      // Use ACTIVE phase to satisfy phase guard
+      const state = makeState({ phase: "ACTIVE", return: from });
       const result = transitionReturn({
         state,
         to,
@@ -595,7 +1067,7 @@ describe("transitionReturn", () => {
   });
 });
 
-// --- Timeout to Indeterminate ---
+// ─── Timeout to Indeterminate (Phase) ───────────────────────────────────────
 
 describe("timeoutToIndeterminate", () => {
   it("transitions from COMMITTING to INDETERMINATE", () => {
@@ -684,7 +1156,371 @@ describe("timeoutToIndeterminate", () => {
   });
 });
 
-// --- State Immutability ---
+// ─── Sub-State Timeout to Indeterminate ─────────────────────────────────────
+
+describe("timeoutReservationToIndeterminate", () => {
+  it("transitions reservation from pending to indeterminate", () => {
+    const state = makeState({ phase: "ACTIVE", reservation: "pending" });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.reservation).toBe("indeterminate");
+      expect(result.value.version).toBe(state.version + 1);
+      expect(result.value.subStateUpdatedAt.reservation).toBe(LATER);
+    }
+  });
+
+  it("transitions reservation from reserved to indeterminate", () => {
+    const state = makeState({ phase: "ACTIVE", reservation: "reserved" });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.reservation).toBe("indeterminate");
+    }
+  });
+
+  it("rejects timeout from unsupported reservation state", () => {
+    const state = makeState({ phase: "ACTIVE", reservation: "unsupported" });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_RESERVATION_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from released reservation state", () => {
+    const state = makeState({ phase: "ACTIVE", reservation: "released" });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_RESERVATION_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from expired reservation state", () => {
+    const state = makeState({ phase: "ACTIVE", reservation: "expired" });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_RESERVATION_TRANSITION");
+    }
+  });
+
+  it("rejects timeout in DRAFT phase (phase guard)", () => {
+    const state = makeState({ phase: "DRAFT", reservation: "pending" });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+    }
+  });
+
+  it("rejects timeout with wrong version", () => {
+    const state = makeState({ phase: "ACTIVE", reservation: "pending", version: 3 });
+    const result = timeoutReservationToIndeterminate({
+      state,
+      expectedVersion: 2,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("VERSION_CONFLICT");
+    }
+  });
+});
+
+describe("timeoutPaymentToIndeterminate", () => {
+  it("transitions payment from authorizing to indeterminate", () => {
+    const state = makeState({ phase: "COMMITTING", payment: "authorizing" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.payment).toBe("indeterminate");
+      expect(result.value.version).toBe(state.version + 1);
+      expect(result.value.subStateUpdatedAt.payment).toBe(LATER);
+    }
+  });
+
+  it("transitions payment from capturing to indeterminate", () => {
+    const state = makeState({ phase: "ACTIVE", payment: "capturing" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.payment).toBe("indeterminate");
+    }
+  });
+
+  it("transitions payment from voiding to indeterminate", () => {
+    const state = makeState({ phase: "ACTIVE", payment: "voiding" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.payment).toBe("indeterminate");
+    }
+  });
+
+  it("transitions payment from declining to indeterminate", () => {
+    const state = makeState({ phase: "COMMITTING", payment: "declining" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.payment).toBe("indeterminate");
+    }
+  });
+
+  it("rejects timeout from pending_instruction state", () => {
+    const state = makeState({ phase: "COMMITTING", payment: "pending_instruction" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_PAYMENT_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from authorized state", () => {
+    const state = makeState({ phase: "ACTIVE", payment: "authorized" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_PAYMENT_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from captured state", () => {
+    const state = makeState({ phase: "ACTIVE", payment: "captured" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_PAYMENT_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from declined terminal state", () => {
+    const state = makeState({ phase: "ACTIVE", payment: "declined" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_PAYMENT_TRANSITION");
+    }
+  });
+
+  it("rejects timeout in DRAFT phase (phase guard)", () => {
+    const state = makeState({ phase: "DRAFT", payment: "authorizing" });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+    }
+  });
+
+  it("rejects timeout with wrong version", () => {
+    const state = makeState({ phase: "COMMITTING", payment: "authorizing", version: 4 });
+    const result = timeoutPaymentToIndeterminate({
+      state,
+      expectedVersion: 3,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("VERSION_CONFLICT");
+    }
+  });
+});
+
+describe("timeoutOrderToIndeterminate", () => {
+  it("transitions order from committing to indeterminate", () => {
+    const state = makeState({ phase: "COMMITTING", order: "committing" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.order).toBe("indeterminate");
+      expect(result.value.version).toBe(state.version + 1);
+      expect(result.value.subStateUpdatedAt.order).toBe(LATER);
+    }
+  });
+
+  it("transitions order from committed to indeterminate", () => {
+    const state = makeState({ phase: "ACTIVE", order: "committed" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.order).toBe("indeterminate");
+    }
+  });
+
+  it("rejects timeout from absent order state", () => {
+    const state = makeState({ phase: "COMMITTING", order: "absent" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_ORDER_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from canceled order state", () => {
+    const state = makeState({ phase: "ACTIVE", order: "canceled" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_ORDER_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from closed order state", () => {
+    const state = makeState({ phase: "ACTIVE", order: "closed" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_ORDER_TRANSITION");
+    }
+  });
+
+  it("rejects timeout from failed order state", () => {
+    const state = makeState({ phase: "ACTIVE", order: "failed" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("ILLEGAL_ORDER_TRANSITION");
+    }
+  });
+
+  it("rejects timeout in DRAFT phase (phase guard)", () => {
+    const state = makeState({ phase: "DRAFT", order: "committing" });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: state.version,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("PREREQUISITE_NOT_MET");
+    }
+  });
+
+  it("rejects timeout with wrong version", () => {
+    const state = makeState({ phase: "COMMITTING", order: "committing", version: 6 });
+    const result = timeoutOrderToIndeterminate({
+      state,
+      expectedVersion: 5,
+      now: LATER,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("VERSION_CONFLICT");
+    }
+  });
+});
+
+// ─── State Immutability ─────────────────────────────────────────────────────
 
 describe("state immutability", () => {
   it("transition results are frozen", () => {
@@ -720,7 +1556,7 @@ describe("state immutability", () => {
   });
 });
 
-// --- Property-Based Tests ---
+// ─── Property-Based Tests ───────────────────────────────────────────────────
 
 describe("property-based tests", () => {
   const phaseArb = fc.constantFrom(...PHASES);
@@ -755,7 +1591,8 @@ describe("property-based tests", () => {
   it("successful transitions always update the updatedAt timestamp", () => {
     fc.assert(
       fc.property(reservationArb, reservationArb, (from, to) => {
-        const state = makeState({ reservation: from });
+        // Use ACTIVE phase so reservation transitions are allowed
+        const state = makeState({ phase: "ACTIVE", reservation: from });
         const result = transitionReservation({
           state,
           to,
@@ -772,7 +1609,8 @@ describe("property-based tests", () => {
   it("failed transitions do not produce a new state value", () => {
     fc.assert(
       fc.property(paymentArb, paymentArb, (from, to) => {
-        const state = makeState({ payment: from });
+        // Use COMMITTING phase to satisfy phase guard
+        const state = makeState({ phase: "COMMITTING", payment: from });
         const allowed = new Set(PAYMENT_TRANSITIONS[from]);
         if (!allowed.has(to)) {
           const result = transitionPayment({
@@ -808,7 +1646,9 @@ describe("property-based tests", () => {
         fulfillmentArb,
         returnArb,
         (orderState, fulfillmentState, returnState) => {
+          // Use ACTIVE phase so reservation transitions are allowed
           const state = makeState({
+            phase: "ACTIVE",
             reservation: "pending",
             order: orderState,
             fulfillment: fulfillmentState,

@@ -46,14 +46,15 @@ export const RESERVATION_TRANSITIONS: Readonly<
 // ─── Payment Sub-State Transitions ──────────────────────────────────────────
 
 export const PAYMENT_TRANSITIONS: Readonly<Record<PaymentState, readonly PaymentState[]>> = {
-  pending_instruction: ["action_required", "authorizing", "declined", "failed"],
-  action_required: ["authorizing", "declined", "failed"],
-  authorizing: ["authorized", "declined", "indeterminate", "failed"],
+  pending_instruction: ["action_required", "authorizing", "declining", "failed"],
+  action_required: ["authorizing", "declining", "failed"],
+  authorizing: ["authorized", "declining", "indeterminate", "failed"],
   authorized: ["capturing", "voiding", "indeterminate"],
   capturing: ["captured", "indeterminate", "failed"],
   captured: ["voiding", "indeterminate"],
   voiding: ["voided", "indeterminate", "failed"],
   voided: [],
+  declining: ["declined", "indeterminate", "failed"],
   declined: [],
   indeterminate: ["authorized", "captured", "voided", "declined", "failed"],
   failed: [],
