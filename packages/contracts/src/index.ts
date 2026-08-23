@@ -2,9 +2,11 @@
  * packages/contracts
  *
  * Versioned API/event/command schemas shared by control-plane, agent-runtime,
- * worker, and external adapters. Schemas are defined in later foundation
- * tasks; this placeholder proves the package builds, type-checks, and tests
- * through the workspace toolchain.
+ * worker, and external adapters.
  */
 
 export const PACKAGE_NAME = "@counter/contracts";
+
+export * from "./authority-context.js";
+export * from "./commands.js";
+export * from "./material-digest.js";
