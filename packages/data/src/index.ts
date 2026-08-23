@@ -15,6 +15,8 @@ export {
   roles,
   scopeRegistry,
   serviceIdentities,
+  supportGrantAuthorizationPermissions,
+  supportGrantAuthorizations,
   supportGrantEvents,
   supportGrantPermissions,
   supportGrants,

@@ -1,0 +1,3 @@
+DROP TABLE identity.support_grant_authorization_permissions;
+DROP TABLE identity.support_grant_authorizations;
+DROP FUNCTION identity.require_support_grant_authorization_permission();

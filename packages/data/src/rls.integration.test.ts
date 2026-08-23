@@ -111,6 +111,8 @@ const protectedRelations = [
   "identity.agent_public_keys",
   "identity.scope_registry",
   "identity.service_identities",
+  "identity.support_grant_authorization_permissions",
+  "identity.support_grant_authorizations",
   "identity.support_grant_events",
   "identity.support_grant_permissions",
   "identity.support_grants",
@@ -135,6 +137,10 @@ const expectedPolicyNames = [
   "service_identities_insert",
   "service_identities_select",
   "service_identities_update",
+  "support_grant_authorization_permissions_insert",
+  "support_grant_authorization_permissions_select",
+  "support_grant_authorizations_insert",
+  "support_grant_authorizations_select",
   "support_grant_events_insert",
   "support_grant_events_select",
   "support_grant_permissions_insert",
@@ -251,7 +257,7 @@ databaseDescribe("PostgreSQL row-level security", () => {
 
     const migrations = await loadMigrations(migrationsDirectory);
     const migrationStatus = await new MigrationRunner(adminDatabase, migrations).up();
-    expect(migrationStatus.currentVersion).toBe(3);
+    expect(migrationStatus.currentVersion).toBe(4);
 
     await createApplicationRole(adminDatabase, applicationRole, applicationPassword);
     roleCreated = true;

@@ -332,3 +332,46 @@ export const supportGrantEvents = identitySchema.table("support_grant_events", {
     .notNull()
     .default(sql`clock_timestamp()`),
 });
+
+export const supportGrantAuthorizations = identitySchema.table(
+  "support_grant_authorizations",
+  {
+    supportGrantId: text("support_grant_id").primaryKey(),
+    environment: counterEnvironment("environment").notNull(),
+    targetScopeKind: text("target_scope_kind").notNull(),
+    targetScopeId: text("target_scope_id").notNull(),
+    operatorId: text("operator_id").notNull(),
+    reason: text("reason").notNull(),
+    authorizationKind: text("authorization_kind").notNull(),
+    authorizedBy: text("authorized_by").notNull(),
+    authorizedAt: timestamp("authorized_at", { withTimezone: true, mode: "date" }).notNull(),
+    authorizationReferenceSource: text("authorization_reference_source").notNull(),
+    authorizationReferenceValue: text("authorization_reference_value").notNull(),
+    validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.environment, table.targetScopeKind, table.targetScopeId],
+      foreignColumns: [
+        scopeRegistry.environment,
+        scopeRegistry.scopeKind,
+        scopeRegistry.scopeId,
+      ],
+      name: "support_grant_authorizations_target_scope_fk",
+    }),
+  ],
+);
+
+export const supportGrantAuthorizationPermissions = identitySchema.table(
+  "support_grant_authorization_permissions",
+  {
+    supportGrantId: text("support_grant_id")
+      .notNull()
+      .references(() => supportGrantAuthorizations.supportGrantId),
+    permissionKey: text("permission_key")
+      .notNull()
+      .references(() => permissions.permissionKey),
+  },
+  (table) => [primaryKey({ columns: [table.supportGrantId, table.permissionKey] })],
+);
