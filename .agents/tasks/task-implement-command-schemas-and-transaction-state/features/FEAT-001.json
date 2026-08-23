@@ -1,0 +1,17 @@
+{
+  "id": "FEAT-001",
+  "title": "Command schemas in @counter/contracts",
+  "status": "completed",
+  "description": "Define immutable command schemas with material digests, authority context, and exhaustive tests in packages/contracts.",
+  "acceptance_criteria": [
+    "AuthorityContext interface with all required fields",
+    "12 command type interfaces with discriminated union on 'type' field",
+    "computeCommandMaterialDigest using json-canonicalize + SHA-256",
+    "Exhaustive tests for digest determinism, material change detection, non-material field exclusion",
+    "All types frozen with Object.freeze",
+    "No framework/infrastructure imports"
+  ],
+  "findings": [
+    "Added RFC 8785 JCS rationale comment to json-canonicalize import per review feedback"
+  ]
+}

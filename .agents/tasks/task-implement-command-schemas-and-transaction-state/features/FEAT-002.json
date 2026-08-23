@@ -16,9 +16,10 @@
     "Exhaustive tests for all legal and illegal transitions"
   ],
   "findings": [
-    "pnpm 10.28.1 is installed (not 9.15.4 as noted in context) - use --config.engine-strict=false instead of --ignore-engines",
-    "fs_write tool does not persist to the actual filesystem in this environment - must use bash heredocs/python to write files",
-    "Object.freeze on arrays with string literals loses type narrowing - use 'as const' assertion on the whole object instead",
-    "416 tests pass covering all legal/illegal transitions for all 6 state dimensions plus property-based tests"
+    "Added phase guards to all sub-state transition functions per review",
+    "Added 'declining' intermediate payment sub-state per requirements spec",
+    "Added prerequisite enforcement for FAILED_REQUIRES_ACTION -> COMMITTING (payment must be advanced)",
+    "Added timeoutReservationToIndeterminate, timeoutPaymentToIndeterminate, timeoutOrderToIndeterminate functions",
+    "518 total tests passing after review fixes"
   ]
 }
