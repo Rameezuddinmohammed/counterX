@@ -1,0 +1,7 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement typed versioned constraint types for all policy input sources (platform, buyer, mandate, merchant, connector, provider, risk, transaction state) and the policy decision/outcome types (ALLOW/DENY/REVIEW_REQUIRED) with intersection reduction logic in packages/policy/.",
+  "status": "completed",
+  "findings": "All constraint types, decision types, rules, intersection reducer, and engine implemented. TypeScript compiles clean under strict mode. 33 tests pass."
+}
