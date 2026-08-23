@@ -94,6 +94,10 @@ export {
 export type { EnvelopeInput } from "./envelope.js";
 export { buildUnsignedEnvelope, generateNonce, isCtpEnvelope } from "./envelope.js";
 
+// Concurrent nonce/replay store
+export type { ConcurrentNonceStore } from "./nonce-replay-store.js";
+export { InMemoryConcurrentNonceStore } from "./nonce-replay-store.js";
+
 // Test fixtures (test-only)
 export {
   TEST_KID_A,

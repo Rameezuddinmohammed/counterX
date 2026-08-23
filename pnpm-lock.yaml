@@ -181,6 +181,9 @@ importers:
       '@counter/domain':
         specifier: workspace:0.1.0
         version: link:../domain
+      '@counter/trust-protocol':
+        specifier: workspace:0.1.0
+        version: link:../trust-protocol
     devDependencies:
       fast-check:
         specifier: 4.0.0
