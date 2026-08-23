@@ -244,6 +244,9 @@ importers:
       '@counter/domain':
         specifier: workspace:0.1.0
         version: link:../domain
+      '@counter/workflow':
+        specifier: workspace:0.1.0
+        version: link:../workflow
       drizzle-orm:
         specifier: 0.39.3
         version: 0.39.3(@types/pg@8.11.11)(pg@8.13.3)
