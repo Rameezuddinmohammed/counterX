@@ -20,6 +20,12 @@
       "title": "Unit tests for in-memory repository implementations",
       "status": "completed",
       "feature_file": "features/FEAT-003.md"
+    },
+    {
+      "id": "FEAT-006",
+      "title": "Fix review issues in runtime repositories",
+      "status": "completed",
+      "feature_file": "features/FEAT-006.md"
     }
   ],
   "findings": [
@@ -28,6 +34,7 @@
     "File writes required copy from /projects/sandbox to /root/counterX due to environment path mapping",
     "45 new tests added across 4 test files, total test count now 542",
     "The actual implementations at /root/counterX use a simpler API than what read_file shows (different filesystem layers)",
-    "Tests cover: idempotency acquire/replay/conflict/in-flight/re-acquire, outbox append/claim/dispatch/fail-backoff/deadLetter, inbox receive/dedup/markProcessed, jobs enqueue/claim/lease-takeover/renew/complete/fail/poison/deadLetter"
+    "Tests cover: idempotency acquire/replay/conflict/in-flight/re-acquire, outbox append/claim/dispatch/fail-backoff/deadLetter, inbox receive/dedup/markProcessed, jobs enqueue/claim/lease-takeover/renew/complete/fail/poison/deadLetter",
+    "FEAT-006: Fixed 3 review issues - expired-lease pre-claim sweep in PostgresJobRepository.claim, clock_timestamp() in PostgresIdempotencyStore.fail, undefined guard in PostgresIdempotencyStore.complete"
   ]
 }
