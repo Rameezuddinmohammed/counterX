@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Implement CounterTestPaymentProvider - a deterministic in-memory test provider that covers all PaymentProvider operations with scenario-based behavior, signed evidence via CTP trust-protocol, and explicit environment enforcement.",
+  "status": "completed",
+  "steps": [
+    "Create packages/payment-sdk/src/test-provider.ts implementing CounterTestPaymentProvider class that implements PaymentProvider. Constructor takes config: { environment: 'local'|'test', signer: Signer (from trust-protocol), kid: string, scenarios?: Map<string, TestScenario> }. The class rejects non-test environments in the constructor (throws if environment is production, pilot, or sandbox without test flag).",
+    "Define TestScenario type with variants: 'immediate_success', 'immediate_decline', 'timeout_before_effect', 'timeout_after_effect', 'pending_then_success', 'action_required', 'refund_success', 'refund_pending'. Scenario is determined by parsing the payment reference suffix (e.g., ref ending in '-decline' triggers immediate_decline) or by explicit scenario map lookup.",
+    "Implement capabilities(): returns static ProviderCapabilities declaring support for all operations, INR and USD currencies, authorize_capture lifecycle, and test-only restrictions.",
+    "Implement createInstruction(): based on scenario - immediate_success returns {kind:'confirmed', evidence} with CTP-signed evidence envelope; immediate_decline returns {kind:'declined', reason}; timeout_before_effect returns {kind:'indeterminate', reference, queryAfter} indicating no effect happened; timeout_after_effect returns {kind:'indeterminate', reference, queryAfter} indicating effect may have happened; pending_then_success returns {kind:'pending', reference}; action_required returns {kind:'action_required', action:{url,method,metadata}, expiresAt}.",
+    "Implement query(): returns deterministic ProviderPaymentEvidence based on internal state map. For pending_then_success scenarios, transitions to confirmed on query. For timeout scenarios, resolves to confirmed or declined deterministically.",
+    "Implement verifyClientReturn(): always returns {kind:'untrusted', correlationId} for the test provider (browser return is never payment truth). Or {kind:'verified', correlationId, evidence} if the reference maps to a completed scenario.",
+    "Implement authorize(), capture(), void() as optional operations that return confirmed/declined based on scenario. Store state transitions in an internal Map.",
+    "Implement refund(): returns confirmed or pending based on 'refund_success' or 'refund_pending' scenario suffix.",
+    "Implement queryRefund(): returns deterministic ProviderRefundEvidence from internal state.",
+    "Implement verifyWebhook(): verifies a test webhook structure (checking a simple HMAC or test signature) and returns VerifiedProviderEvent.",
+    "All evidence generation uses the CTP InMemorySigner from trust-protocol to sign evidence envelopes, making the test provider produce cryptographically valid (but test-only) evidence.",
+    "Export CounterTestPaymentProvider and TestScenario from index.ts"
+  ],
+  "acceptance_criteria": [
+    "CounterTestPaymentProvider implements all PaymentProvider operations",
+    "Constructor throws for non-test environments (production, pilot, sandbox)",
+    "Scenario 'immediate_success' returns kind:'confirmed' with signed evidence",
+    "Scenario 'immediate_decline' returns kind:'declined' with reason",
+    "Scenario 'timeout_before_effect' and 'timeout_after_effect' return kind:'indeterminate'",
+    "Scenario 'action_required' returns kind:'action_required' with URL and expiry",
+    "query() resolves indeterminate states to confirmed/declined deterministically",
+    "verifyClientReturn() documents and enforces that browser return is not payment truth",
+    "refund() and queryRefund() work for refund scenarios",
+    "All evidence is CTP-signed using the provided signer",
+    "No external HTTP calls - everything is in-memory",
+    "pnpm --filter @counter/payment-sdk build succeeds"
+  ],
+  "verification": [
+    "pnpm --filter @counter/payment-sdk build"
+  ],
+  "blocked_reason": null,
+  "findings": "Build passes. exactOptionalPropertyTypes required conditional object construction instead of ternary undefined assignment for optional fields in frozen objects. Used object spread pattern to satisfy the constraint."
+}
