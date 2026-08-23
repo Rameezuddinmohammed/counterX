@@ -2,8 +2,14 @@
   "task_id": "task-implement-ctp-schema-package",
   "features": {
     "FEAT-002": {
-      "status": "in_progress",
-      "title": "Implement CTP Schema Package"
+      "status": "completed",
+      "title": "Implement CTP Schema Package",
+      "findings": [
+        "@noble/ed25519 v2.2.3 requires sha512Sync/sha512Async to be configured in Node.js - created crypto-setup.ts module to handle this",
+        "Node.js version mismatch (22.23.2 vs expected 22.14.0) - temporarily relaxed engine-strict for pnpm add, restored afterward",
+        "exactOptionalPropertyTypes requires careful handling - cannot assign undefined to optional properties, must omit them instead",
+        "createCanonicalError uses predefined messages from the error definitions, not custom messages passed to it"
+      ]
     }
   }
 }
