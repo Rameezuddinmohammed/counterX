@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "shopify-storefront-dev": {
+      "url": "https://counter-test-store-rswqyftp.myshopify.com/api/ucp/mcp"
+    },
+    "razorpay-test": {
+      "url": "https://mcp.razorpay.com/mcp",
+      "headers": {
+        "Authorization": "Basic ${RAZORPAY_TEST_MERCHANT_TOKEN}"
+      }
+    },
+    "aws-mcp": {
+      "url": "https://aws-mcp.us-east-1.api.aws/mcp"
+    }
+  }
+}

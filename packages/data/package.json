@@ -1,0 +1,32 @@
+{
+  "name": "@counter/data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PostgreSQL repositories, migrations, and row-level-security/session scope helpers.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --no-file-parallelism",
+    "test:integration": "vitest run --no-file-parallelism src/migrations.integration.test.ts src/rls.integration.test.ts",
+    "schema:diff": "drizzle-kit generate --config=drizzle.config.ts",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "@types/pg": "8.11.11",
+    "drizzle-kit": "0.30.4",
+    "typescript": "5.7.3",
+    "vitest": "3.0.7"
+  },
+  "dependencies": {
+    "@counter/authorization": "workspace:0.1.0",
+    "@counter/domain": "workspace:0.1.0",
+    "drizzle-orm": "0.39.3",
+    "pg": "8.13.3"
+  }
+}

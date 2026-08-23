@@ -1,0 +1,40 @@
+# Local pinned toolchain (Node/pnpm), not committed
+.tools/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Next.js build output and generated types
+.next/
+out/
+next-env.d.ts
+
+# Test coverage
+coverage/
+
+# Environment files (never commit real secrets)
+.env
+.env.*
+!.env.example
+
+# Local generated state (schema diffs, backups, restore artifacts)
+.local/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# Secret-scan report artifacts
+gitleaks-report.json

@@ -1,0 +1,58 @@
+name: counter-platform
+
+services:
+  postgres-local:
+    image: postgres:17.4-alpine
+    environment:
+      POSTGRES_USER: ${COUNTER_LOCAL_DB_USER:?Set COUNTER_LOCAL_DB_USER in .env}
+      POSTGRES_PASSWORD: ${COUNTER_LOCAL_DB_PASSWORD:?Set COUNTER_LOCAL_DB_PASSWORD in .env}
+      POSTGRES_DB: counter_local
+      POSTGRES_INITDB_ARGS: --data-checksums
+    ports:
+      - "127.0.0.1:${COUNTER_LOCAL_DB_PORT:-5432}:5432"
+    volumes:
+      - counter-postgres-local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  postgres-test:
+    profiles: ["test"]
+    image: postgres:17.4-alpine
+    environment:
+      POSTGRES_USER: ${COUNTER_TEST_DB_USER:?Set COUNTER_TEST_DB_USER in .env}
+      POSTGRES_PASSWORD: ${COUNTER_TEST_DB_PASSWORD:?Set COUNTER_TEST_DB_PASSWORD in .env}
+      POSTGRES_DB: counter_test
+      POSTGRES_INITDB_ARGS: --data-checksums
+    ports:
+      - "127.0.0.1:${COUNTER_TEST_DB_PORT:-5433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: "no"
+    stop_grace_period: 15s
+
+  otel-collector:
+    profiles: ["telemetry"]
+    image: otel/opentelemetry-collector-contrib:0.117.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./infra/otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:${OTEL_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${OTEL_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${OTEL_HEALTH_PORT:-13133}:13133"
+    restart: unless-stopped
+
+volumes:
+  counter-postgres-local:

@@ -1,0 +1,69 @@
+{
+  "pbtResults": {
+    "4. Implement canonical primitives": {
+      "status": "passed",
+      "timestamp": 1787495340923,
+      "framework": "fast-check@4.0.0",
+      "command": "pnpm --filter @counter/domain test",
+      "testFiles": [
+        "packages/domain/src/money.test.ts",
+        "packages/domain/src/decimal-quantity.test.ts",
+        "packages/domain/src/time-and-ids.test.ts",
+        "packages/domain/src/primitives.test.ts"
+      ],
+      "testCount": 56,
+      "defaultRunsPerProperty": 100,
+      "properties": [
+        "signed-int64 Money serialization, arithmetic, overflow, ordering, and currency mismatch",
+        "numeric(38,18) quantity serialization, exact arithmetic, overflow, underflow, and unit mismatch",
+        "full-range UTC millisecond instant serialization and boundary overflow",
+        "reviewed-kind 128-bit Counter ID round-trip and non-canonical alias rejection",
+        "SHA-256 digest determinism, alteration detection, and canonical parsing",
+        "environment exhaustiveness, scope separation, Result composition, and safe error projection"
+      ],
+      "workspaceVerification": "pnpm verify",
+      "boundaryVerification": "pnpm depcruise",
+      "limitations": [
+        "Docker-backed gitleaks scan was not run because Docker is unavailable on this host (spawnSync docker ENOENT)."
+      ]
+    }
+  },
+  "executionHistory": {
+    "1. Pin the engineering baseline and create architecture decisions": [
+      {
+        "executionId": "0ebbb5e6-dd25-47b4-81c2-227d010198e7",
+        "chatSessionId": "sess_b5c8e0d4-ac2e-44d5-89e9-7277c933aa8f",
+        "timestamp": 1787481423315
+      },
+      {
+        "executionId": "0ebbb5e6-dd25-47b4-81c2-227d010198e7",
+        "chatSessionId": "sess_b5c8e0d4-ac2e-44d5-89e9-7277c933aa8f",
+        "timestamp": 1787481542728
+      }
+    ],
+    "2. Scaffold the strict TypeScript monorepo": [
+      {
+        "executionId": "6eb80941-974f-4f21-83d4-c0366451c7a2",
+        "chatSessionId": "sess_f193cd27-ec23-4cf5-96d0-e5d36dc418c4",
+        "timestamp": 1787481586029
+      },
+      {
+        "executionId": "06f17a22-e779-4a23-b710-1868c2f8fdd5",
+        "chatSessionId": "sess_f193cd27-ec23-4cf5-96d0-e5d36dc418c4",
+        "timestamp": 1787488203670
+      }
+    ],
+    "3. Establish local infrastructure and database lifecycle": [
+      {
+        "executionId": "49ef9fea-45c0-4725-a2f9-089152f71d0e",
+        "chatSessionId": "sess_91ba99eb-e50f-4be5-a0d9-25e6e5de6317",
+        "timestamp": 1787488664831
+      },
+      {
+        "executionId": "49ef9fea-45c0-4725-a2f9-089152f71d0e",
+        "chatSessionId": "sess_91ba99eb-e50f-4be5-a0d9-25e6e5de6317",
+        "timestamp": 1787489966537
+      }
+    ]
+  }
+}

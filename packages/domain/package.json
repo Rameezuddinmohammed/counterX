@@ -1,0 +1,23 @@
+{
+  "name": "@counter/domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Canonical domain entities, value objects, state transitions, and errors. No framework or infrastructure imports (ADR-0001).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "fast-check": "4.0.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.7"
+  }
+}

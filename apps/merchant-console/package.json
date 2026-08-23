@@ -1,0 +1,27 @@
+{
+  "name": "@counter/merchant-console",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js Merchant configuration console. Server code invokes control-plane-api application services; it never mutates domain tables directly.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start --port 3000",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "typescript": "5.7.3",
+    "vitest": "3.0.7"
+  }
+}

@@ -1,0 +1,110 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# No cloud credentials, secrets, or provider accounts are required by this
+# workflow (see docs/development-prerequisites.md). AWS access is only
+# required for Task 19 after Gate A approval and is never wired into CI.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22.14.0"
+  PNPM_VERSION: "9.15.4"
+
+jobs:
+  verify:
+    name: format, lint, typecheck, dependency boundaries, build, test
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://counter_ci:synthetic-ci-only@localhost:5432/counter_test
+    services:
+      postgres:
+        image: postgres:17.4-alpine
+        env:
+          POSTGRES_USER: counter_ci
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: counter_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U counter_ci -d counter_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Verify pinned toolchain versions
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build workspace dependencies and applications
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Dependency boundary and circular-import check
+        run: pnpm depcruise
+
+      - name: PostgreSQL migration lifecycle
+        run: pnpm db:test:lifecycle
+
+      - name: Test
+        run: pnpm test
+
+  secret-scan:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Pinned gitleaks CLI binary. The core CLI is MIT-licensed and needs
+      # no license key or cloud credential; only the hosted gitleaks-action
+      # PR-comment product requires one for organization accounts, which
+      # this workflow does not use.
+      - name: Install gitleaks
+        run: |
+          curl -sSL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          chmod +x gitleaks
+          ./gitleaks version
+
+      - name: Run gitleaks
+        run: ./gitleaks detect --source=. --config=.gitleaks.toml --redact --no-banner

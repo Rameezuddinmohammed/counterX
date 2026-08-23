@@ -1,0 +1,18 @@
+title = "Counter Platform Foundation gitleaks configuration"
+
+# Extend gitleaks' maintained default ruleset (secrets, tokens, private keys)
+# rather than redefining detection rules from scratch.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret placeholder values"
+paths = [
+  '''\.env\.example$''',
+  '''pnpm-lock\.yaml$''',
+]
+regexes = [
+  # Local Docker Compose PostgreSQL placeholder credentials (never used
+  # outside the developer's own machine; see docs/development-prerequisites.md).
+  '''postgresql://counter:counter@localhost:5432/counter''',
+]

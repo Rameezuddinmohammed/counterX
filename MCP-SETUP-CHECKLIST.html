@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Counter — MCP Setup Checklist</title>
+    <style>
+      :root {
+        --bg: #07111f;
+        --panel: rgba(14, 29, 48, 0.86);
+        --panel-strong: #10233a;
+        --border: rgba(169, 202, 235, 0.17);
+        --text: #eff7ff;
+        --muted: #a7b8ca;
+        --blue: #73c4ff;
+        --cyan: #55efd7;
+        --amber: #ffca76;
+        --danger: #ff8d8d;
+        --green: #83efae;
+        --shadow: 0 22px 70px rgba(0, 0, 0, 0.3);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 12% -4%, rgba(43, 126, 218, 0.32), transparent 34rem),
+          radial-gradient(circle at 92% 10%, rgba(28, 187, 154, 0.18), transparent 28rem), var(--bg);
+        font:
+          15px/1.55 Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      a {
+        color: var(--blue);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code,
+      pre {
+        font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+      }
+      .shell {
+        max-width: 1220px;
+        margin: 0 auto;
+        padding: 34px 24px 70px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: end;
+        padding: 24px 0 32px;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--cyan);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0;
+        max-width: 780px;
+        font-size: clamp(2.2rem, 6vw, 4.65rem);
+        line-height: 1.03;
+        letter-spacing: -0.055em;
+      }
+      .lede {
+        max-width: 720px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 1.04rem;
+      }
+      .progress-card {
+        min-width: 196px;
+        padding: 17px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: rgba(9, 23, 39, 0.72);
+        box-shadow: var(--shadow);
+      }
+      .progress-card span {
+        color: var(--muted);
+        font-size: 0.8rem;
+      }
+      .progress-card strong {
+        display: block;
+        margin: 1px 0 10px;
+        font-size: 1.75rem;
+      }
+      .bar {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: #0a1929;
+      }
+      .bar > i {
+        display: block;
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--blue), var(--cyan));
+        transition: width 0.25s ease;
+      }
+      .notice {
+        margin: 0 0 28px;
+        padding: 15px 17px;
+        border: 1px solid rgba(255, 202, 118, 0.36);
+        border-radius: 14px;
+        color: #ffe4b5;
+        background: rgba(126, 72, 10, 0.18);
+      }
+      .notice b {
+        color: #fff0d4;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 245px minmax(0, 1fr);
+        gap: 28px;
+      }
+      .nav {
+        position: sticky;
+        top: 18px;
+        align-self: start;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: rgba(8, 22, 38, 0.7);
+      }
+      .nav a {
+        display: block;
+        padding: 9px 10px;
+        border-radius: 9px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .nav a:hover {
+        color: var(--text);
+        text-decoration: none;
+        background: rgba(115, 196, 255, 0.1);
+      }
+      .content {
+        display: grid;
+        gap: 22px;
+      }
+      section {
+        scroll-margin-top: 20px;
+        padding: clamp(20px, 3vw, 30px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+      h2 {
+        margin: 0;
+        font-size: clamp(1.35rem, 3vw, 1.82rem);
+        letter-spacing: -0.03em;
+      }
+      h3 {
+        margin: 27px 0 10px;
+        font-size: 1rem;
+        color: #dcecff;
+      }
+      .section-top {
+        display: flex;
+        gap: 13px;
+        align-items: center;
+      }
+      .mark {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        place-items: center;
+        border-radius: 11px;
+        color: #001623;
+        background: linear-gradient(145deg, var(--blue), var(--cyan));
+        font-weight: 900;
+      }
+      .section-desc {
+        margin: 10px 0 0 51px;
+        color: var(--muted);
+      }
+      .pill {
+        display: inline-block;
+        margin: 13px 0 0 51px;
+        padding: 4px 9px;
+        border: 1px solid rgba(131, 239, 174, 0.3);
+        border-radius: 999px;
+        color: #b9f8cc;
+        background: rgba(33, 127, 69, 0.17);
+        font-size: 0.76rem;
+        font-weight: 750;
+      }
+      .pill.caution {
+        color: #ffe1aa;
+        border-color: rgba(255, 202, 118, 0.35);
+        background: rgba(139, 87, 19, 0.16);
+      }
+      .checklist {
+        display: grid;
+        gap: 9px;
+        margin: 20px 0 0;
+      }
+      label.check {
+        display: flex;
+        gap: 11px;
+        align-items: flex-start;
+        padding: 10px 11px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      label.check:hover {
+        background: rgba(115, 196, 255, 0.06);
+      }
+      input[type="checkbox"] {
+        appearance: none;
+        width: 19px;
+        height: 19px;
+        flex: 0 0 19px;
+        margin: 2px 0 0;
+        border: 1px solid #58738e;
+        border-radius: 6px;
+        background: #091a2b;
+        cursor: pointer;
+      }
+      input[type="checkbox"]:checked {
+        border-color: var(--cyan);
+        background: var(--cyan);
+        box-shadow: inset 0 0 0 4px #091a2b;
+      }
+      input[type="checkbox"]:checked + span {
+        color: #bad0e3;
+        text-decoration: line-through;
+        text-decoration-color: rgba(186, 208, 227, 0.45);
+      }
+      .step {
+        color: #d9e8f7;
+      }
+      .step small {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+      }
+      .callout {
+        margin-top: 20px;
+        padding: 13px 15px;
+        border-left: 3px solid var(--blue);
+        border-radius: 0 12px 12px 0;
+        color: #cce5fb;
+        background: rgba(70, 141, 203, 0.1);
+      }
+      .callout.warn {
+        border-color: var(--amber);
+        color: #ffe4b5;
+        background: rgba(139, 87, 19, 0.13);
+      }
+      .callout.danger {
+        border-color: var(--danger);
+        color: #ffd1d1;
+        background: rgba(151, 44, 44, 0.13);
+      }
+      .code-card {
+        position: relative;
+        margin: 13px 0 0;
+        overflow: hidden;
+        border: 1px solid rgba(169, 202, 235, 0.2);
+        border-radius: 13px;
+        background: #06121f;
+      }
+      .code-label {
+        display: block;
+        padding: 8px 13px;
+        border-bottom: 1px solid rgba(169, 202, 235, 0.12);
+        color: var(--muted);
+        font-size: 0.76rem;
+        font-weight: 750;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      pre {
+        margin: 0;
+        padding: 16px;
+        overflow-x: auto;
+        color: #d7eeff;
+        font-size: 0.82rem;
+        line-height: 1.58;
+      }
+      .copy {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        padding: 5px 9px;
+        border: 1px solid rgba(169, 202, 235, 0.25);
+        border-radius: 7px;
+        color: #d8eeff;
+        background: #132b43;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.75rem;
+      }
+      .copy:hover {
+        background: #1b3b5a;
+      }
+      .two-col {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 15px;
+        margin-top: 18px;
+      }
+      .mini {
+        padding: 15px;
+        border: 1px solid var(--border);
+        border-radius: 13px;
+        background: rgba(5, 18, 31, 0.42);
+      }
+      .mini b {
+        display: block;
+        margin-bottom: 4px;
+        color: #e4f2ff;
+      }
+      .mini p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .reset {
+        margin-top: 22px;
+        padding: 8px 11px;
+        border: 1px solid rgba(255, 141, 141, 0.45);
+        border-radius: 8px;
+        color: #ffc2c2;
+        background: transparent;
+        cursor: pointer;
+      }
+      .reset:hover {
+        background: rgba(151, 44, 44, 0.18);
+      }
+      footer {
+        padding: 14px 2px 0;
+        color: var(--muted);
+        font-size: 0.83rem;
+      }
+      @media (max-width: 820px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+        .progress-card {
+          width: 100%;
+        }
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .nav {
+          display: none;
+        }
+        .section-desc,
+        .pill {
+          margin-left: 0;
+        }
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Counter · private-pilot preparation</p>
+          <h1>MCP setup,<br />without the guesswork.</h1>
+          <p class="lede">
+            A test-first checklist for connecting Shopify, Razorpay, and AWS to Kiro. Checkboxes
+            persist in this browser; secrets never belong in this file, Git, or chat.
+          </p>
+        </div>
+        <aside class="progress-card" aria-live="polite">
+          <span>Setup progress</span>
+          <strong id="progressText">0 / 0</strong>
+          <div class="bar" aria-hidden="true"><i id="progressBar"></i></div>
+        </aside>
+      </header>
+
+      <p class="notice">
+        <b>Security boundary:</b> use a Shopify development store, Razorpay <b>Test Mode</b>, and
+        AWS documentation-only access first. Never use production/live credentials in MCP while
+        Counter is being built.
+      </p>
+
+      <div class="layout">
+        <nav class="nav" aria-label="Checklist sections">
+          <a href="#before">Before you begin</a>
+          <a href="#shopify">Shopify Storefront MCP</a>
+          <a href="#razorpay">Razorpay Test MCP</a>
+          <a href="#aws">AWS MCP</a>
+          <a href="#config">Kiro configuration</a>
+          <a href="#later">Later: provider & cloud access</a>
+          <a href="#sources">Official sources</a>
+        </nav>
+
+        <div class="content">
+          <section id="before">
+            <div class="section-top">
+              <span class="mark">0</span>
+              <h2>Before you begin</h2>
+            </div>
+            <p class="section-desc">
+              This page is a reference guide only. It does not configure anything automatically.
+            </p>
+            <div class="checklist">
+              <label class="check"
+                ><input data-key="before-1" type="checkbox" /><span class="step"
+                  >Keep all MCP configuration workspace-scoped.<small
+                    >Counter’s config file is
+                    <code>C:\Users\nazim\counter\.kiro\settings\mcp.json</code>.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="before-2" type="checkbox" /><span class="step"
+                  >Use environment variables for every secret.<small
+                    >Never paste a Key Secret, access token, webhook secret, merchant token, or AWS
+                    access key into JSON, Git, or chat.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="before-3" type="checkbox" /><span class="step"
+                  >Install Node.js LTS if needed.<small
+                    >Razorpay’s documented bridge uses <code>npx</code>. Verify with
+                    <code>node --version</code>, <code>npm --version</code>, and
+                    <code>npx --version</code>.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="before-4" type="checkbox" /><span class="step"
+                  >Open Kiro’s MCP server panel.<small
+                    >After saving the config, use the Kiro panel to confirm each server connects and
+                    only approve environment variables you recognize.</small
+                  ></span
+                ></label
+              >
+            </div>
+          </section>
+
+          <section id="shopify">
+            <div class="section-top">
+              <span class="mark">S</span>
+              <h2>Shopify Storefront MCP</h2>
+            </div>
+            <p class="section-desc">
+              A per-store, shopper-facing server for catalog search, product details, policy
+              questions, and cart interactions.
+            </p>
+            <span class="pill">No secret required for the documented storefront endpoint</span>
+            <div class="callout warn">
+              <b>Important:</b> this is not Shopify Admin API access. It cannot replace the Counter
+              Merchant work that needs an installed Shopify app, Admin API scopes, webhooks, draft
+              orders, order finalization, cancellation, and refund verification.
+            </div>
+            <div class="checklist">
+              <label class="check"
+                ><input data-key="shopify-1" type="checkbox" /><span class="step"
+                  >Create or select a Shopify <b>development store</b>.<small
+                    >Do not connect a live merchant store for this pilot preparation.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="shopify-2" type="checkbox" /><span class="step"
+                  >Add synthetic products and note the store domain.<small
+                    >Example: <code>counter-dev-store.myshopify.com</code>.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="shopify-3" type="checkbox" /><span class="step"
+                  >Replace the example domain in the config template below.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="shopify-4" type="checkbox" /><span class="step"
+                  >Save the workspace MCP configuration and test catalog discovery.<small
+                    >Ask Kiro to list Shopify tools or search a test product.</small
+                  ></span
+                ></label
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">Shopify MCP entry — merge into mcpServers</span
+              ><button class="copy" data-copy="shopifyCode">Copy</button>
+              <pre id="shopifyCode">
+"shopify-storefront-dev": {
+  "url": "https://counter-dev-store.myshopify.com/api/mcp"
+}</pre
+              >
+            </div>
+          </section>
+
+          <section id="razorpay">
+            <div class="section-top">
+              <span class="mark">R</span>
+              <h2>Razorpay Remote MCP — Test Mode</h2>
+            </div>
+            <p class="section-desc">
+              Useful for inspecting and testing the provider account. It is not a substitute for
+              Counter’s server-side payment adapter, signature verification, webhook processing, or
+              authoritative reconciliation.
+            </p>
+            <span class="pill caution">Test credentials only</span>
+            <div class="callout danger">
+              <b>Never use live Razorpay credentials here.</b> Razorpay MCP tools may be capable of
+              creating or changing payment objects. Counter’s Razorpay pilot path remains
+              human-present Standard Checkout, never unattended payment automation.
+            </div>
+            <div class="checklist">
+              <label class="check"
+                ><input data-key="razorpay-1" type="checkbox" /><span class="step"
+                  >Sign in to Razorpay and switch to <b>Test Mode</b>.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="razorpay-2" type="checkbox" /><span class="step"
+                  >Create test API keys in <b>Account &amp; Settings → API Keys</b>.<small
+                    >You need the Test Key ID and Test Key Secret. Keep both secret.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="razorpay-3" type="checkbox" /><span class="step"
+                  >Generate the Base64 merchant token locally.<small
+                    >This represents <code>Test Key ID:Test Key Secret</code>; it is also a
+                    secret.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="razorpay-4" type="checkbox" /><span class="step"
+                  >Store the token as a Windows user environment variable.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="razorpay-5" type="checkbox" /><span class="step"
+                  >Restart Kiro, save the config, and approve only
+                  <code>RAZORPAY_TEST_MERCHANT_TOKEN</code> when prompted.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="razorpay-6" type="checkbox" /><span class="step"
+                  >Test by asking Kiro to list Razorpay MCP tools.<small
+                    >Do not create payment objects until we explicitly start provider
+                    certification.</small
+                  ></span
+                ></label
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">PowerShell — create the test token locally</span
+              ><button class="copy" data-copy="razorpayTokenCode">Copy</button>
+              <pre id="razorpayTokenCode">
+$keyId = "YOUR_RAZORPAY_TEST_KEY_ID"
+$keySecret = "YOUR_RAZORPAY_TEST_KEY_SECRET"
+$pair = "${keyId}:$keySecret"
+$token = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($pair))
+$token</pre
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">PowerShell — store token as a user environment variable</span
+              ><button class="copy" data-copy="razorpayEnvCode">Copy</button>
+              <pre id="razorpayEnvCode">
+[Environment]::SetEnvironmentVariable(
+  "RAZORPAY_TEST_MERCHANT_TOKEN",
+  $token,
+  "User"
+)</pre
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">Razorpay MCP entry — merge into mcpServers</span
+              ><button class="copy" data-copy="razorpayCode">Copy</button>
+              <pre id="razorpayCode">
+"razorpay-test": {
+  "url": "https://mcp.razorpay.com/mcp",
+  "headers": {
+    "Authorization": "Basic ${RAZORPAY_TEST_MERCHANT_TOKEN}"
+  }
+}</pre
+              >
+            </div>
+          </section>
+
+          <section id="aws">
+            <div class="section-top">
+              <span class="mark">A</span>
+              <h2>AWS MCP — documentation first</h2>
+            </div>
+            <p class="section-desc">
+              Use AWS MCP now for documentation and architecture help. Add AWS credentials only when
+              Counter reaches the infrastructure deployment task.
+            </p>
+            <span class="pill">No AWS credentials required for documentation/skill discovery</span>
+            <div class="callout warn">
+              <b>Cost warning:</b> AWS MCP itself has no separate charge, but AWS resources it
+              creates or uses can cost money. The planned pilot stack is not guaranteed to fit
+              free-tier limits. Do not provision cloud resources before budgets and least-privilege
+              access are ready.
+            </div>
+            <div class="checklist">
+              <label class="check"
+                ><input data-key="aws-1" type="checkbox" /><span class="step"
+                  >Install <code>uv</code>.<small
+                    >The AWS MCP proxy uses <code>uvx</code>.</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="aws-2" type="checkbox" /><span class="step"
+                  >Verify the install with <code>uvx --version</code>.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="aws-3" type="checkbox" /><span class="step"
+                  >Add the documentation-first AWS MCP entry below.<small
+                    >The MCP service endpoint is in AWS-supported regions; the metadata targets our
+                    intended resource region, Mumbai (<code>ap-south-1</code>).</small
+                  ></span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="aws-4" type="checkbox" /><span class="step"
+                  >Test with “What AWS Regions are available?”<small
+                    >This should work without asking the agent to create resources.</small
+                  ></span
+                ></label
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">PowerShell — install uv</span
+              ><button class="copy" data-copy="uvCode">Copy</button>
+              <pre id="uvCode">
+winget install --id astral-sh.uv -e
+uvx --version</pre
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">AWS MCP entry — documentation first</span
+              ><button class="copy" data-copy="awsCode">Copy</button>
+              <pre id="awsCode">
+"aws-mcp-docs": {
+  "command": "uvx",
+  "timeout": 100000,
+  "transport": "stdio",
+  "args": [
+    "mcp-proxy-for-aws==1.6.3",
+    "https://aws-mcp.us-east-1.api.aws/mcp",
+    "--metadata",
+    "AWS_REGION=ap-south-1"
+  ]
+}</pre
+              >
+            </div>
+          </section>
+
+          <section id="config">
+            <div class="section-top">
+              <span class="mark">K</span>
+              <h2>Final Kiro configuration</h2>
+            </div>
+            <p class="section-desc">
+              Your current workspace configuration is empty, so this complete template can replace
+              it. Fill only the Shopify development-store domain. The Razorpay token stays in the
+              Windows environment, not this file.
+            </p>
+            <div class="checklist">
+              <label class="check"
+                ><input data-key="config-1" type="checkbox" /><span class="step"
+                  >Open <code>.kiro/settings/mcp.json</code> in the Counter workspace.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="config-2" type="checkbox" /><span class="step"
+                  >Replace the example Shopify domain, then paste/save the template.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="config-3" type="checkbox" /><span class="step"
+                  >Use the Kiro MCP panel to verify status for every server.</span
+                ></label
+              >
+              <label class="check"
+                ><input data-key="config-4" type="checkbox" /><span class="step"
+                  >Approve only the one environment variable used by Razorpay.</span
+                ></label
+              >
+            </div>
+            <div class="code-card">
+              <span class="code-label">C:\Users\nazim\counter\.kiro\settings\mcp.json</span
+              ><button class="copy" data-copy="fullConfig">Copy</button>
+              <pre id="fullConfig">
+{
+  "mcpServers": {
+    "shopify-storefront-dev": {
+      "url": "https://counter-dev-store.myshopify.com/api/mcp"
+    },
+    "razorpay-test": {
+      "url": "https://mcp.razorpay.com/mcp",
+      "headers": {
+        "Authorization": "Basic ${RAZORPAY_TEST_MERCHANT_TOKEN}"
+      }
+    },
+    "aws-mcp-docs": {
+      "command": "uvx",
+      "timeout": 100000,
+      "transport": "stdio",
+      "args": [
+        "mcp-proxy-for-aws==1.6.3",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=ap-south-1"
+      ]
+    }
+  }
+}</pre
+              >
+            </div>
+          </section>
+
+          <section id="later">
+            <div class="section-top">
+              <span class="mark">→</span>
+              <h2>Later — do not block local scaffolding</h2>
+            </div>
+            <p class="section-desc">
+              These are required at later Gate A/deployment milestones, not to start Counter’s
+              shared foundation.
+            </p>
+            <div class="two-col">
+              <div class="mini">
+                <b>Shopify Admin integration</b>
+                <p>
+                  Create a Shopify app, select and prove least scopes, configure webhooks, and
+                  collect Client ID/secret plus a secure Admin API authentication method. This is
+                  separate from Storefront MCP.
+                </p>
+              </div>
+              <div class="mini">
+                <b>Razorpay provider certification</b>
+                <p>
+                  Configure the human-present Standard Checkout test flow, server-side order
+                  creation, webhook secret, authoritative query, refunds, and ownership evidence for
+                  the merchant test account.
+                </p>
+              </div>
+              <div class="mini">
+                <b>AWS deployment access</b>
+                <p>
+                  Enable MFA and budgets, then use an IAM Identity Center/SSO or narrowly scoped
+                  role. Avoid root and long-lived administrator access keys. Start read-only and
+                  review IaC before deployment.
+                </p>
+              </div>
+              <div class="mini">
+                <b>Wallet Gate A</b>
+                <p>
+                  Select a human identity/step-up provider, a Windows secure-key-store
+                  implementation, local packaging/update method, and the first supported AI host.
+                </p>
+              </div>
+            </div>
+            <button class="reset" id="reset">Reset this page’s checklist progress</button>
+          </section>
+
+          <section id="sources">
+            <div class="section-top">
+              <span class="mark">↗</span>
+              <h2>Official sources</h2>
+            </div>
+            <p class="section-desc">
+              Links used to prepare this checklist. Re-check provider documentation before enabling
+              live access—provider endpoints, packages, and security requirements can change.
+            </p>
+            <ul>
+              <li>
+                <a
+                  href="https://shopify.dev/docs/apps/build/storefront-mcp/servers/storefront"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Shopify — Storefront MCP server</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://razorpay.com/docs/mcp-server/remote"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Razorpay — Remote MCP Server Setup</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://razorpay.com/docs/mcp-server/integrations/vs-code"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Razorpay — VS Code MCP integration</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://docs.aws.amazon.com/agent-toolkit/latest/userguide/getting-started-aws-mcp-server.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  >AWS — Setting up the AWS MCP Server</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://docs.aws.amazon.com/agent-toolkit/latest/userguide/quick-start.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  >AWS — Agent Toolkit quick start</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://kiro.dev/docs/mcp/configuration.md"
+                  target="_blank"
+                  rel="noreferrer"
+                  >Kiro — MCP configuration</a
+                >
+              </li>
+              <li>
+                <a href="https://kiro.dev/docs/mcp/security.md" target="_blank" rel="noreferrer"
+                  >Kiro — MCP security</a
+                >
+              </li>
+            </ul>
+            <footer>
+              Prepared for Counter’s pre-Gate-A setup. Source content is summarized and rephrased
+              for compliance with licensing restrictions.
+            </footer>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      (() => {
+        const boxes = [...document.querySelectorAll('input[type="checkbox"][data-key]')];
+        const storagePrefix = "counter-mcp-checklist:";
+        const updateProgress = () => {
+          const complete = boxes.filter((box) => box.checked).length;
+          document.getElementById("progressText").textContent = `${complete} / ${boxes.length}`;
+          document.getElementById("progressBar").style.width =
+            `${(complete / boxes.length) * 100}%`;
+        };
+        boxes.forEach((box) => {
+          box.checked = localStorage.getItem(storagePrefix + box.dataset.key) === "true";
+          box.addEventListener("change", () => {
+            localStorage.setItem(storagePrefix + box.dataset.key, String(box.checked));
+            updateProgress();
+          });
+        });
+        document.querySelectorAll("[data-copy]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const target = document.getElementById(button.dataset.copy);
+            try {
+              await navigator.clipboard.writeText(target.textContent.trim());
+              const original = button.textContent;
+              button.textContent = "Copied";
+              setTimeout(() => {
+                button.textContent = original;
+              }, 1300);
+            } catch {
+              button.textContent = "Select & copy";
+            }
+          });
+        });
+        document.getElementById("reset").addEventListener("click", () => {
+          if (!confirm("Reset all checklist progress saved in this browser?")) return;
+          boxes.forEach((box) => {
+            box.checked = false;
+            localStorage.removeItem(storagePrefix + box.dataset.key);
+          });
+          updateProgress();
+        });
+        updateProgress();
+      })();
+    </script>
+  </body>
+</html>

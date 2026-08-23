@@ -1,0 +1,9 @@
+dist
+build
+.next
+coverage
+node_modules
+pnpm-lock.yaml
+*.md
+.kiro/specs/**/*.meta.json
+.tools

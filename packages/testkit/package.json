@@ -1,0 +1,23 @@
+{
+  "name": "@counter/testkit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic factories, clocks, IDs, fixtures, and invariant test harnesses.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "vitest": "3.0.7",
+    "fast-check": "4.0.0"
+  }
+}

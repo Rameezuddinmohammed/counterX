@@ -1,0 +1,13 @@
+#!/bin/sh
+# Counter Platform Foundation pre-commit hook.
+#
+# Runs a gitleaks secret scan restricted to staged changes before allowing
+# a commit. Requires Docker Engine (see docs/development-prerequisites.md).
+# Install with: pnpm run hooks:install
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+IMAGE="zricethezav/gitleaks:v8.30.1"
+
+docker run --rm -v "${REPO_ROOT}:/repo" "${IMAGE}" \
+  protect --source=/repo --config=/repo/.gitleaks.toml --staged --redact --no-banner

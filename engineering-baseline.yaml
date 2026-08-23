@@ -1,0 +1,69 @@
+# Counter Platform Foundation engineering baseline
+# Task 1 decision record. Versions are exact and must not be floated.
+baselineVersion: 1
+supportedDevelopmentPlatforms:
+  - Windows 11 with WSL 2 (Ubuntu 24.04 LTS)
+  - macOS 14+
+  - Ubuntu 24.04 LTS
+runtime:
+  node: 22.14.0
+  packageManager:
+    name: pnpm
+    version: 9.15.4
+  typescript: 5.7.3
+applications:
+  api:
+    fastify: 5.2.1
+  web:
+    next: 15.1.6
+    react: 19.0.0
+persistence:
+  postgresql: 17.4
+  postgresqlImage: postgres:17.4-alpine
+  driver:
+    library: pg
+    version: 8.13.3
+  schemaValidation:
+    library: zod
+    version: 3.24.2
+  migrations:
+    library: drizzle-kit
+    version: 0.30.4
+    runtimeLibrary: drizzle-orm
+    runtimeVersion: 0.39.3
+quality:
+  test:
+    unitIntegration: vitest@3.0.7
+    property: fast-check@4.0.0
+  lint: eslint@9.20.1
+  typescriptLint: typescript-eslint@8.24.0
+  format: prettier@3.5.0
+  dependencyBoundaries: dependency-cruiser@16.10.0
+securityAndTrust:
+  canonicalJson: json-canonicalize@1.1.1
+  digest: SHA-256 (Node.js crypto.subtle)
+  ed25519: "@noble/ed25519@2.2.3"
+  keyEncoding: base64url RFC 4648 section 5 without padding
+observability:
+  api: "@opentelemetry/api@1.9.0"
+  sdkNode: "@opentelemetry/sdk-node@0.57.2"
+  instrumentation: "@opentelemetry/auto-instrumentations-node@0.57.0"
+  collectorImage: otel/opentelemetry-collector-contrib:0.117.0
+delivery:
+  dockerEngine: 27.5.1
+  dockerCompose: 2.32.4
+  iac:
+    tool: OpenTofu
+    version: 1.9.0
+    awsProvider: 5.85.0
+  containerBuild: docker-buildx@0.19.3
+cloud:
+  provider: AWS
+  region: ap-south-1
+  target: ECS Fargate, RDS PostgreSQL, S3, Secrets Manager, KMS, ALB, WAF, Route 53, ACM
+pinningRules:
+  - package manifests use exact versions; no caret, tilde, latest, or unbounded ranges
+  - pnpm-lock.yaml is the only dependency lockfile and is committed
+  - container images use immutable release tags and are replaced by digests in deployment manifests
+  - Node and pnpm are enforced through package.json engines/packageManager during Task 2
+  - version changes require a compatibility assessment and an ADR amendment or superseding ADR

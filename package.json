@@ -1,0 +1,50 @@
+{
+  "name": "counter-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Counter Platform Foundation monorepo",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": "22.14.0",
+    "pnpm": "9.15.4"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "test": "pnpm -r --if-present run test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "depcruise": "depcruise --config .dependency-cruiser.cjs apps packages",
+    "clean": "pnpm -r --if-present run clean",
+    "secrets:scan": "node scripts/secrets-scan.mjs",
+    "infra:up": "docker compose up -d --wait postgres-local",
+    "infra:test:up": "docker compose --profile test up -d --wait postgres-test",
+    "infra:telemetry:up": "docker compose --profile telemetry up -d otel-collector",
+    "infra:down": "docker compose --profile test --profile telemetry down",
+    "db:migrate": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js up",
+    "db:rollback": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js down",
+    "db:status": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js status",
+    "db:seed": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js seed",
+    "db:backup": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js backup",
+    "db:restore": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js restore",
+    "db:test:lifecycle": "node --env-file-if-exists=.env scripts/run-db-lifecycle.mjs",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "verify": "pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm depcruise && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.20.0",
+    "@types/node": "22.13.1",
+    "dependency-cruiser": "16.10.0",
+    "eslint": "9.20.1",
+    "eslint-config-prettier": "10.0.1",
+    "globals": "15.14.0",
+    "prettier": "3.5.0",
+    "typescript": "5.7.3",
+    "typescript-eslint": "8.24.0",
+    "vitest": "3.0.7"
+  }
+}
