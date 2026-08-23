@@ -50,7 +50,7 @@ export class InMemoryOutboxRepository implements OutboxRepository {
 
     for (const [id, event] of this.#events) {
       if (claimed.length >= limit) break;
-      if (event.status !== "pending") continue;
+      if (event.status !== "pending" && event.status !== "failed") continue;
       if (event.nextAttemptAt !== undefined && event.nextAttemptAt > now) continue;
 
       const updated: OutboxEvent = Object.freeze({

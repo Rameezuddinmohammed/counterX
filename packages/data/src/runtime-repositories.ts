@@ -85,6 +85,7 @@ export interface AsyncJobRepository {
     leaseOwner: string,
     leaseDurationMs: number,
     now: Instant,
+    limit?: number,
   ): Promise<Result<readonly Job[], CanonicalError>>;
   renewLease(
     id: CounterId<"job">,
@@ -458,13 +459,19 @@ export class PostgresOutboxRepository implements AsyncOutboxRepository {
     errorClass: string,
     now: Instant,
   ): Promise<Result<void, CanonicalError>> {
-    // Fetch current attempts to compute backoff
-    const selectResult = await this.database.query<{ attempts: number }>(
-      `SELECT attempts FROM runtime.outbox_events WHERE id = $1`,
-      [id],
+    // Atomic UPDATE: increment attempts and compute exponential backoff in a single statement
+    const result = await this.database.query<{ attempts: number }>(
+      `UPDATE runtime.outbox_events
+       SET status = 'failed',
+           attempts = attempts + 1,
+           error_class = $2,
+           next_attempt_at = $3::timestamptz + (interval '1 second' * power(2, attempts))
+       WHERE id = $1
+       RETURNING attempts`,
+      [id, errorClass, asDate(now)],
     );
-    const row = selectResult.rows[0];
-    if (row === undefined) {
+
+    if ((result.rowCount ?? 0) === 0) {
       return err(
         createCanonicalError({
           category: "validation",
@@ -473,20 +480,6 @@ export class PostgresOutboxRepository implements AsyncOutboxRepository {
         }),
       );
     }
-
-    const newAttempts = row.attempts + 1;
-    const backoffMs = 1000 * Math.pow(2, newAttempts - 1);
-    const nextAttemptAt = new Date(now + backoffMs);
-
-    await this.database.query(
-      `UPDATE runtime.outbox_events
-       SET status = 'failed',
-           attempts = $2,
-           error_class = $3,
-           next_attempt_at = $4
-       WHERE id = $1`,
-      [id, newAttempts, errorClass, nextAttemptAt],
-    );
 
     return ok(undefined);
   }
@@ -622,6 +615,7 @@ export class PostgresJobRepository implements AsyncJobRepository {
     leaseOwner: string,
     leaseDurationMs: number,
     now: Instant,
+    limit: number = 10,
   ): Promise<Result<readonly Job[], CanonicalError>> {
     return this.database.transaction(async (session) => {
       const leaseExpiresAt = new Date(now + leaseDurationMs);
@@ -635,7 +629,7 @@ export class PostgresJobRepository implements AsyncJobRepository {
          WHERE status = 'leased'
            AND type = ANY($1)
            AND lease_expires_at < $2`,
-        [types as unknown as string[], asDate(now)],
+        [types as unknown as string[], asDate(now), limit],
       );
 
       // Select available jobs with FOR UPDATE SKIP LOCKED
@@ -645,9 +639,9 @@ export class PostgresJobRepository implements AsyncJobRepository {
            AND type = ANY($1)
            AND available_at <= $2
          ORDER BY available_at
-         LIMIT 10
+         LIMIT $3
          FOR UPDATE SKIP LOCKED`,
-        [types as unknown as string[], asDate(now)],
+        [types as unknown as string[], asDate(now), limit],
       );
 
       const claimed: Job[] = [];
@@ -897,7 +891,7 @@ function outboxEventFromRow(row: OutboxEventRow): OutboxEvent {
   return Object.freeze({
     id: row.id as CounterId<"outbox-event">,
     eventType: row.event_type,
-    eventVersion: String(row.event_version),
+    eventVersion: row.event_version,
     payload: row.payload,
     correlationId: (row.correlation_id as CounterId<"correlation"> | null) ?? undefined,
     idempotencyKey: row.idempotency_key ?? undefined,

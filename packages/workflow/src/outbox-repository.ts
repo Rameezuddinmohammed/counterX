@@ -10,7 +10,7 @@ export type OutboxEventStatus = "pending" | "dispatched" | "failed" | "dead_lett
 export interface OutboxEvent {
   readonly id: CounterId<"outbox-event">;
   readonly eventType: string;
-  readonly eventVersion: string;
+  readonly eventVersion: number;
   readonly payload: unknown;
   readonly correlationId: CounterId<"correlation"> | undefined;
   readonly idempotencyKey: string | undefined;
@@ -28,7 +28,7 @@ export interface OutboxEvent {
 export interface OutboxEventInput {
   readonly id: CounterId<"outbox-event">;
   readonly eventType: string;
-  readonly eventVersion: string;
+  readonly eventVersion: number;
   readonly payload: unknown;
   readonly correlationId: CounterId<"correlation"> | undefined;
   readonly idempotencyKey: string | undefined;

@@ -10,7 +10,7 @@ function makeInput(overrides?: Partial<OutboxEventInput>): OutboxEventInput {
   return {
     id: idGen.generate("outbox-event"),
     eventType: "payment.completed",
-    eventVersion: "1.0.0",
+    eventVersion: 1,
     payload: { amount: 100, currency: "USD" },
     correlationId: undefined,
     idempotencyKey: undefined,
@@ -89,22 +89,27 @@ describe("InMemoryOutboxRepository", () => {
     expect(all[0]!.errorClass).toBe("TimeoutError");
   });
 
-  it("failed events are not claimable until nextAttemptAt", () => {
+  it("failed events are not claimable until nextAttemptAt but are claimable after", () => {
     const repo = new InMemoryOutboxRepository();
     const input = makeInput();
     repo.append([input], now);
     repo.claim(10, "worker-1", now);
     repo.markFailed(input.id, "TimeoutError", now);
 
-    // Try claiming before nextAttemptAt
+    // Try claiming before nextAttemptAt (nextAttemptAt = now + 1000)
     const tooEarly = (now + 500) as Instant;
     const resultEarly = repo.claim(10, "worker-2", tooEarly);
     expect(resultEarly.ok).toBe(true);
     if (!resultEarly.ok) return;
     expect(resultEarly.value).toHaveLength(0);
 
-    // Event becomes failed status (not pending), cannot be claimed
-    // In this implementation, failed events are not reclaimed automatically
+    // After nextAttemptAt, the failed event should be claimable
+    const afterBackoff = (now + 1001) as Instant;
+    const resultLater = repo.claim(10, "worker-2", afterBackoff);
+    expect(resultLater.ok).toBe(true);
+    if (!resultLater.ok) return;
+    expect(resultLater.value).toHaveLength(1);
+    expect(resultLater.value[0]!.status).toBe("failed");
   });
 
   it("marks event as dead letter", () => {
@@ -141,15 +146,19 @@ describe("InMemoryOutboxRepository - additional scenarios", () => {
     // Mark failed - nextAttemptAt = now + 1000
     repo.markFailed(input.id, "Timeout", now);
 
-    // At exactly nextAttemptAt, the event should not yet be claimable (> vs >=)
+    // Before nextAttemptAt, the event should not be claimable
+    const beforeNext = (now + 999) as Instant;
+    const resultBefore = repo.claim(10, "worker-2", beforeNext);
+    expect(resultBefore.ok).toBe(true);
+    if (!resultBefore.ok) return;
+    expect(resultBefore.value).toHaveLength(0);
+
+    // At exactly nextAttemptAt (nextAttemptAt <= now), the event is claimable
     const atNextAttempt = (now + 1000) as Instant;
     const resultAt = repo.claim(10, "worker-2", atNextAttempt);
     expect(resultAt.ok).toBe(true);
     if (!resultAt.ok) return;
-    // After nextAttemptAt, it should be claimable
-    const afterNext = (now + 1001) as Instant;
-    const resultAfter = repo.claim(10, "worker-2", afterNext);
-    expect(resultAfter.ok).toBe(true);
+    expect(resultAt.value).toHaveLength(1);
   });
 
   it("second markFailed increases backoff exponentially", () => {
