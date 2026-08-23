@@ -13,3 +13,4 @@ export * from "./authorization.js";
 export * from "./test-authorization.js";
 export * from "./provider.js";
 export * from "./test-provider.js";
+export * from "./contract-harness.js";
