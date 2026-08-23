@@ -1,0 +1,9 @@
+{
+  "task_id": "task-implement-ctp-schema-package",
+  "features": {
+    "FEAT-002": {
+      "status": "in_progress",
+      "title": "Implement CTP Schema Package"
+    }
+  }
+}

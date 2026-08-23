@@ -312,7 +312,20 @@ importers:
         version: 3.0.7(@types/node@22.13.1)
 
   packages/trust-protocol:
+    dependencies:
+      '@counter/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@noble/ed25519':
+        specifier: 2.2.3
+        version: 2.2.3
+      json-canonicalize:
+        specifier: 1.1.1
+        version: 1.1.1
     devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -1011,6 +1024,9 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
+
+  '@noble/ed25519@2.2.3':
+    resolution: {integrity: sha512-iHV8eI2mRcUmOx159QNrU8vTpQ/Xm70yJ2cTk3Trc86++02usfqFoNl6x0p3JN81ZDS/1gx6xiK0OwrgqCT43g==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -1784,6 +1800,9 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-canonicalize@1.1.1:
+    resolution: {integrity: sha512-iIFs/im15T8nfVz+hcU0rgJicUzY5+bH3Nji8MgGecQ0mS+xGtr3qku2phlkHr4m0mP5nadDAFojT8FT7uqLhQ==}
+
   json-schema-ref-resolver@3.0.0:
     resolution: {integrity: sha512-hOrZIVL5jyYFjzk7+y7n5JDzGlU8rfWDuYyHwGa2WA8/pcmMHezp2xsVwxrebD/Q9t8Nc5DboieySDpCp4WG4A==}
 
@@ -1868,6 +1887,7 @@ packages:
   next@15.1.6:
     resolution: {integrity: sha512-Hch4wzbaX0vKQtalpXvUiw5sYivBy4cm5rzUKrBnUB/y436LGrvOUqYvlSeNVCWFO/770gDlltR9gqZH62ct4Q==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
+    deprecated: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/CVE-2025-66478 for more details.
     hasBin: true
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
@@ -2829,6 +2849,8 @@ snapshots:
   '@next/swc-win32-x64-msvc@15.1.6':
     optional: true
 
+  '@noble/ed25519@2.2.3': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -3599,6 +3621,8 @@ snapshots:
       argparse: 2.0.1
 
   json-buffer@3.0.1: {}
+
+  json-canonicalize@1.1.1: {}
 
   json-schema-ref-resolver@3.0.0:
     dependencies:
