@@ -35,6 +35,7 @@
     "45 new tests added across 4 test files, total test count now 542",
     "The actual implementations at /root/counterX use a simpler API than what read_file shows (different filesystem layers)",
     "Tests cover: idempotency acquire/replay/conflict/in-flight/re-acquire, outbox append/claim/dispatch/fail-backoff/deadLetter, inbox receive/dedup/markProcessed, jobs enqueue/claim/lease-takeover/renew/complete/fail/poison/deadLetter",
-    "FEAT-006: Fixed 3 review issues - expired-lease pre-claim sweep in PostgresJobRepository.claim, clock_timestamp() in PostgresIdempotencyStore.fail, undefined guard in PostgresIdempotencyStore.complete"
+    "FEAT-006: Fixed 3 review issues - expired-lease pre-claim sweep in PostgresJobRepository.claim, clock_timestamp() in PostgresIdempotencyStore.fail, undefined guard in PostgresIdempotencyStore.complete",
+    "FEAT-006 (second pass): Fixed 4 additional review issues from 2025-01-15-220300-review.md: (1) in-memory outbox claim now claims both pending and failed events past nextAttemptAt, (2) eventVersion changed from string to number in OutboxEvent/OutboxEventInput interfaces, (3) AsyncJobRepository.claim now accepts limit parameter (default 10) instead of hardcoded LIMIT 10, (4) PostgresOutboxRepository.markFailed now uses atomic UPDATE with SET attempts = attempts + 1 and SQL power() for backoff"
   ]
 }

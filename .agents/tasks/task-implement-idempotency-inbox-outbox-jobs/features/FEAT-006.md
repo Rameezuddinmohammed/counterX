@@ -4,22 +4,20 @@
 
 ## Description
 
-Address priority issues identified in the code review:
+Address all priority issues identified in the code review (2025-01-15-220300-review.md):
 
-1. PostgresJobRepository.claim needs to also reclaim expired-lease jobs (pre-claim sweep)
-2. PostgresIdempotencyStore.fail uses `new Date()` instead of `clock_timestamp()` in SQL
-3. PostgresIdempotencyStore.complete needs guard for undefined responseSnapshot
+1. Outbox claim divergence: in-memory claim() now returns both pending and failed events past their nextAttemptAt, matching PostgreSQL behavior
+2. eventVersion type mismatch: changed from string to number in OutboxEvent and OutboxEventInput interfaces to match the integer DB column
+3. Hardcoded job batch size: added limit parameter (default 10) to AsyncJobRepository.claim() and PostgresJobRepository.claim()
+4. markFailed race condition: replaced SELECT-then-UPDATE with atomic UPDATE that computes backoff in SQL
 
 ## Acceptance Criteria
 
-- [x] Expired-lease jobs can be reclaimed by the PostgresJobRepository.claim method
-- [x] PostgresIdempotencyStore.fail uses clock_timestamp() in SQL for completed_at
-- [x] PostgresIdempotencyStore.complete throws a clear error if responseSnapshot is undefined
-- [x] All tests pass (542/542)
-- [x] TypeScript typechecks pass
+- [x] In-memory outbox claim returns both pending and failed events (matching Postgres)
+- [x] OutboxEvent.eventVersion and OutboxEventInput.eventVersion are type number
+- [x] AsyncJobRepository.claim accepts a configurable limit parameter
+- [x] PostgresOutboxRepository.markFailed uses a single atomic UPDATE statement
+- [x] All 542 workflow tests pass
+- [x] All 25 data tests pass
+- [x] TypeScript typechecks pass in both packages
 - [x] Lint and format pass
-
-## Notes
-
-- Issue 2 from the review (outbox claim semantics diverge) was verified to already be correct.
-  The in-memory implementation already claims both `pending` and `failed` events with backoff check.
