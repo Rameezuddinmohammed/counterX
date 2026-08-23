@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Implement the provider contract harness (test utility) and comprehensive tests: contract scenarios, no-raw-credential checks, environment enforcement, and telemetry assertions.",
+  "status": "completed",
+  "steps": [
+    "Create packages/payment-sdk/src/contract-harness.ts exporting a function runProviderContractSuite(provider: PaymentProvider, context: ProviderContext, options: ContractHarnessOptions) that returns Promise<ContractTestResult[]>. ContractHarnessOptions includes testScenarios (which scenarios to run), signer, etc. ContractTestResult has scenarioName, passed boolean, details string.",
+    "The harness runs these scenarios against ANY PaymentProvider implementation: (1) action_required: calls createInstruction, verifies result has kind:'action_required' with url and expiresAt; (2) success: calls createInstruction, verifies kind:'confirmed' with evidence; (3) decline: calls createInstruction, verifies kind:'declined' with reason code and string; (4) timeout_before_effect: calls createInstruction, verifies kind:'indeterminate' with reference and queryAfter, then calls query() to resolve; (5) timeout_after_effect: same pattern as above; (6) query_resolution: after indeterminate, calls query and verifies it returns ProviderPaymentEvidence with confirmed or declined status; (7) duplicate_events: calls createInstruction twice with same idempotency key, verifies convergence (same result); (8) capture_void: if provider supports authorize/capture/void (check capabilities), calls authorize then capture, verifies confirmed; calls authorize then void, verifies voided; (9) refund: calls refund, verifies PaymentOperationResult; (10) query_refund: calls queryRefund, verifies ProviderRefundEvidence.",
+    "Create packages/payment-sdk/src/index.test.ts with comprehensive test suites: (a) 'PaymentProvider contract - CounterTestPaymentProvider' runs the contract harness against CounterTestPaymentProvider for all scenarios; (b) 'CounterTestAuthorization' tests environment enforcement (rejects live envs, accepts test/local), test_only flag always set, correct field population; (c) 'No raw credentials' tests that scan PaymentAuthorization objects and CounterTestPaymentProvider evidence for forbidden field names; (d) 'Environment enforcement' tests that CounterTestPaymentProvider constructor rejects production/pilot/sandbox and that rejectTestAuthorizationInLive throws for live environments; (e) 'verifyClientReturn semantics' tests that confirm browser return is never treated as payment confirmation.",
+    "Ensure tests use createTestSignerA() from @counter/trust-protocol for signing in the test provider",
+    "Run pnpm --filter @counter/payment-sdk test and verify all tests pass"
+  ],
+  "acceptance_criteria": [
+    "Contract harness runs all 10 scenarios against CounterTestPaymentProvider",
+    "All scenarios produce expected result kinds",
+    "No-raw-credential scan finds no forbidden fields in PaymentAuthorization or provider evidence",
+    "Environment enforcement tests confirm live rejection",
+    "verifyClientReturn test confirms untrusted/correlation-only semantics",
+    "Duplicate/reordered event test shows idempotent convergence",
+    "pnpm --filter @counter/payment-sdk test passes with all tests green",
+    "pnpm --filter @counter/payment-sdk build succeeds"
+  ],
+  "verification": [
+    "pnpm --filter @counter/payment-sdk test",
+    "pnpm --filter @counter/payment-sdk build"
+  ],
+  "blocked_reason": null,
+  "findings": "All 23 tests pass (10 contract scenarios + 8 auth + 5 env + 6 credentials + 3 verifyClientReturn). ProviderReference import was unused and removed for noUnusedLocals strict mode. The placeholder test in index.test.ts was replaced with the comprehensive suite."
+}
