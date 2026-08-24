@@ -3,8 +3,15 @@
  *
  * Transaction state machine, idempotency scopes, outbox/inbox tables, and
  * leased PostgreSQL jobs (see design.md "Transaction and workflow design").
- * Implemented in tasks 9-10; this placeholder proves the package builds,
- * type-checks, and tests through the workspace toolchain.
  */
 
 export const PACKAGE_NAME = "@counter/workflow";
+
+export * from "./idempotency-store.js";
+export * from "./in-memory-idempotency-store.js";
+export * from "./inbox-repository.js";
+export * from "./in-memory-inbox-repository.js";
+export * from "./job-repository.js";
+export * from "./in-memory-job-repository.js";
+export * from "./outbox-repository.js";
+export * from "./in-memory-outbox-repository.js";

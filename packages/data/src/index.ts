@@ -41,3 +41,24 @@ export {
   schemaVersions,
   syntheticFixtures,
 } from "./schema.js";
+export {
+  PostgresIdempotencyStore,
+  PostgresOutboxRepository,
+  PostgresInboxRepository,
+  PostgresJobRepository,
+} from "./runtime-repositories.js";
+export type {
+  AsyncIdempotencyStore,
+  AsyncOutboxRepository,
+  AsyncInboxRepository,
+  AsyncJobRepository,
+} from "./runtime-repositories.js";
+export {
+  idempotencyKeys,
+  workflowIntents,
+  outboxEvents,
+  inboxEvents,
+  jobs,
+  jobAttempts,
+  runtimeSchema,
+} from "./runtime-schema.js";

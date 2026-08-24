@@ -21,6 +21,7 @@
     "vitest": "3.0.7"
   },
   "dependencies": {
-    "@counter/domain": "workspace:0.1.0"
+    "@counter/domain": "workspace:0.1.0",
+    "@counter/trust-protocol": "workspace:0.1.0"
   }
 }

@@ -1,0 +1,7 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement atomic rolling amount/count/quantity limit reservation and release semantics with an in-memory store implementation behind a port interface, designed for future PostgreSQL backing.",
+  "status": "completed",
+  "findings": "LimitStore port interface defined with reserve/release/getCurrentUsage/getActiveReservations. InMemoryLimitStore uses per-bucket AsyncMutex for concurrency safety. Expired reservations lazily cleaned on access. High-concurrency property tests verify N concurrent reservations against limit N never exceed total."
+}

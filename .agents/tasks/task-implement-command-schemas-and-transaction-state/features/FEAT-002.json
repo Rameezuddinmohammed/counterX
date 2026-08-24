@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "title": "Transaction state vector and legal transitions in @counter/workflow",
+  "status": "completed",
+  "description": "Implement the transaction state vector with orchestration phases, independent sub-states, optimistic versioning, and pure transition functions with exhaustive tests.",
+  "acceptance_criteria": [
+    "All orchestration phases defined as const arrays with derived types",
+    "All sub-state enums (reservation, payment, order, fulfillment, return) defined",
+    "TransactionState interface with all fields frozen",
+    "createInitialState factory function",
+    "TransitionError discriminated union with typed codes",
+    "Legal transition tables as readonly data",
+    "Pure transition functions returning Result<NewState, TransitionError>",
+    "Optimistic version conflict detection",
+    "Timeout to INDETERMINATE transitions",
+    "Exhaustive tests for all legal and illegal transitions"
+  ],
+  "findings": [
+    "Added phase guards to all sub-state transition functions per review",
+    "Added 'declining' intermediate payment sub-state per requirements spec",
+    "Added prerequisite enforcement for FAILED_REQUIRES_ACTION -> COMMITTING (payment must be advanced)",
+    "Added timeoutReservationToIndeterminate, timeoutPaymentToIndeterminate, timeoutOrderToIndeterminate functions",
+    "518 total tests passing after review fixes"
+  ]
+}

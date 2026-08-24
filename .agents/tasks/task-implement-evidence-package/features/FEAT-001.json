@@ -1,0 +1,44 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement append-only evidence schemas, audit entries, integrity checkpoints, source normalization, claims, reconciliation, findings lifecycle, and typed compensation registry for @counter/evidence package.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Update packages/evidence/package.json: Add dependencies on @counter/domain (workspace:0.1.0) and @counter/trust-protocol (workspace:0.1.0). Add fast-check 4.0.0 to devDependencies.",
+    "Step 2 - Create packages/evidence/src/types.ts: Define all core types and enumerations.",
+    "Step 3 - Create packages/evidence/src/source-authority.ts: Implement source authority rules.",
+    "Step 4 - Create packages/evidence/src/evidence-store.ts: Implement an in-memory append-only evidence store.",
+    "Step 5 - Create packages/evidence/src/audit.ts: Implement audit entry creation and integrity checkpoints.",
+    "Step 6 - Create packages/evidence/src/normalization.ts: Implement source normalization.",
+    "Step 7 - Create packages/evidence/src/reconciliation.ts: Implement reconciliation functions.",
+    "Step 8 - Create packages/evidence/src/finding-lifecycle.ts: Implement finding status transitions.",
+    "Step 9 - Create packages/evidence/src/compensation-registry.ts: Implement typed compensation registry.",
+    "Step 10 - Update packages/evidence/src/index.ts: Export everything from the new modules.",
+    "Step 11 - Create packages/evidence/src/types.test.ts: Test type guards, enum completeness.",
+    "Step 12 - Create packages/evidence/src/source-authority.test.ts: Test authority rules.",
+    "Step 13 - Create packages/evidence/src/evidence-store.test.ts: Test append-only semantics.",
+    "Step 14 - Create packages/evidence/src/audit.test.ts: Test audit and integrity chain.",
+    "Step 15 - Create packages/evidence/src/reconciliation.test.ts: Test reconciliation logic.",
+    "Step 16 - Create packages/evidence/src/finding-lifecycle.test.ts: Test finding status transitions.",
+    "Step 17 - Create packages/evidence/src/compensation-registry.test.ts: Test compensation registry."
+  ],
+  "acceptance_criteria": [
+    "pnpm --filter @counter/evidence build compiles without errors",
+    "pnpm --filter @counter/evidence typecheck passes with no type errors",
+    "pnpm --filter @counter/evidence test passes all tests",
+    "EvidenceRecord is immutable - no mutation methods exist on the store",
+    "Agent claims are never treated as authoritative for payment/order/fulfillment truth",
+    "Tampering detection works: modified entries between checkpoints cause digest mismatch",
+    "Reconciliation produces typed findings for all 10 finding types",
+    "Finding lifecycle enforces valid status transitions",
+    "Compensation checks prerequisites before execution and returns prerequisite_failed on failure",
+    "All tests exercise real logic and would fail if implementation were reverted"
+  ],
+  "verification": [
+    "Run: pnpm --filter @counter/evidence build",
+    "Run: pnpm --filter @counter/evidence typecheck",
+    "Run: pnpm --filter @counter/evidence test"
+  ],
+  "blocked_reason": null,
+  "findings": "Used npm_config_engine_strict=false to bypass node engine version mismatch (22.14.0 expected vs 22.23.2 installed). createCanonicalError always uses the definition message not custom message - tests must assert on error.code rather than error.message content."
+}

@@ -145,9 +145,7 @@ describe("ScopedTransactionManager", () => {
       context.actor.id,
       "multi_factor",
       "merchant",
-      context.effectiveScope.kind === "merchant"
-        ? context.effectiveScope.merchantId
-        : "unexpected",
+      context.effectiveScope.kind === "merchant" ? context.effectiveScope.merchantId : "unexpected",
       "identity.actor.read",
       "",
       context.correlationId,
@@ -226,9 +224,7 @@ describe("PostgresIdentityRepositories", () => {
         operationFailure: rawError,
         operationFailurePrefix: "INSERT INTO identity.actor_role_assignments",
       });
-      const repositories = new PostgresIdentityRepositories(
-        new ScopedTransactionManager(database),
-      );
+      const repositories = new PostgresIdentityRepositories(new ScopedTransactionManager(database));
       let caught: unknown;
 
       try {
@@ -251,15 +247,10 @@ describe("PostgresIdentityRepositories", () => {
       operationFailure: rawError,
       operationFailurePrefix: "SELECT environment, merchant_id AS scope_id",
     });
-    const repositories = new PostgresIdentityRepositories(
-      new ScopedTransactionManager(database),
-    );
+    const repositories = new PostgresIdentityRepositories(new ScopedTransactionManager(database));
 
     await expect(
-      repositories.findMerchantScope(
-        authorizedMerchantScopeContext(),
-        counterId("merchant", 1),
-      ),
+      repositories.findMerchantScope(authorizedMerchantScopeContext(), counterId("merchant", 1)),
     ).rejects.toBe(rawError);
   });
 
@@ -267,9 +258,7 @@ describe("PostgresIdentityRepositories", () => {
     const context = authorizedMerchantRoleContext();
     const assignment = roleAssignment(context);
     const database = new RecordingDatabase();
-    const repositories = new PostgresIdentityRepositories(
-      new ScopedTransactionManager(database),
-    );
+    const repositories = new PostgresIdentityRepositories(new ScopedTransactionManager(database));
 
     await repositories.assignRoles(context, assignment);
 
@@ -289,16 +278,10 @@ describe("PostgresIdentityRepositories", () => {
         target_scope_id: counterId("merchant", 1),
       },
     });
-    const repositories = new PostgresIdentityRepositories(
-      new ScopedTransactionManager(database),
-    );
+    const repositories = new PostgresIdentityRepositories(new ScopedTransactionManager(database));
 
     await expect(
-      repositories.revokeSupportGrant(
-        context,
-        counterId("support-grant", 8),
-        testInstant(),
-      ),
+      repositories.revokeSupportGrant(context, counterId("support-grant", 8), testInstant()),
     ).resolves.toBe(true);
 
     const update = database.calls.find((call) =>
@@ -416,9 +399,7 @@ function authorizedOperatorContext(): AuthorizedContext<"identity.support_grant.
   return authorized.value;
 }
 
-function roleAssignment(
-  context: AuthorizedContext<"identity.role.assign">,
-): RoleAssignmentInput {
+function roleAssignment(context: AuthorizedContext<"identity.role.assign">): RoleAssignmentInput {
   if (context.effectiveScope.kind !== "merchant") {
     throw new Error("test role-assignment context was not merchant-scoped");
   }
