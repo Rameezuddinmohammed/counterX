@@ -89,14 +89,11 @@ export async function verifyWebhookSignature(
   );
 
   const signature = await crypto.subtle.sign("HMAC", cryptoKey, rawBody);
-  const computedHex = Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 
-  // Timing-safe comparison using Node.js crypto.timingSafeEqual.
-  // Both buffers must be the same length; we pad to avoid a length leak.
-  const computedBuf = Buffer.from(computedHex, "utf8");
-  const headerBuf = Buffer.from(hmacHeader, "utf8");
+  // Shopify sends the HMAC as a base64-encoded value in X-Shopify-Hmac-Sha256.
+  // Compare raw bytes using timing-safe comparison to avoid timing attacks.
+  const computedBuf = Buffer.from(signature);
+  const headerBuf = Buffer.from(hmacHeader, "base64");
 
   if (computedBuf.length !== headerBuf.length) {
     // Compare computed against itself to consume constant time, then return false.

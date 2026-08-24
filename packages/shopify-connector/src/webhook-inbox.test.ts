@@ -24,9 +24,8 @@ async function computeHmac(body: Uint8Array, secret: string): Promise<string> {
     ["sign"],
   );
   const signature = await crypto.subtle.sign("HMAC", cryptoKey, body);
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  // Return base64-encoded HMAC to match Shopify's X-Shopify-Hmac-Sha256 header format
+  return Buffer.from(signature).toString("base64");
 }
 
 function makePayload(id: number, updatedAt: string): string {

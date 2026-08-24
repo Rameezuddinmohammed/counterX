@@ -110,11 +110,11 @@ describe("validateShopDomain", () => {
 });
 
 describe("verifyWebhookSignature", () => {
-  it("returns true for a valid HMAC signature", async () => {
+  it("returns true for a valid base64-encoded HMAC signature", async () => {
     const secret = "my-webhook-secret";
     const body = new TextEncoder().encode('{"test":"data"}');
 
-    // Compute expected HMAC manually
+    // Compute expected HMAC as base64 (matching Shopify's wire format)
     const keyData = new TextEncoder().encode(secret);
     const cryptoKey = await crypto.subtle.importKey(
       "raw",
@@ -124,9 +124,7 @@ describe("verifyWebhookSignature", () => {
       ["sign"],
     );
     const sig = await crypto.subtle.sign("HMAC", cryptoKey, body);
-    const expectedHmac = Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    const expectedHmac = Buffer.from(sig).toString("base64");
 
     const result = await verifyWebhookSignature(body, expectedHmac, secret);
     expect(result).toBe(true);
@@ -135,7 +133,8 @@ describe("verifyWebhookSignature", () => {
   it("returns false for an invalid HMAC signature", async () => {
     const secret = "my-webhook-secret";
     const body = new TextEncoder().encode('{"test":"data"}');
-    const invalidHmac = "a".repeat(64);
+    // Invalid base64-encoded HMAC (32 bytes of 0xAA encoded in base64)
+    const invalidHmac = Buffer.alloc(32, 0xaa).toString("base64");
 
     const result = await verifyWebhookSignature(body, invalidHmac, secret);
     expect(result).toBe(false);
@@ -146,7 +145,7 @@ describe("verifyWebhookSignature", () => {
     const originalBody = new TextEncoder().encode('{"test":"original"}');
     const tamperedBody = new TextEncoder().encode('{"test":"tampered"}');
 
-    // Sign the original body
+    // Sign the original body and encode as base64 (Shopify's format)
     const keyData = new TextEncoder().encode(secret);
     const cryptoKey = await crypto.subtle.importKey(
       "raw",
@@ -156,9 +155,7 @@ describe("verifyWebhookSignature", () => {
       ["sign"],
     );
     const sig = await crypto.subtle.sign("HMAC", cryptoKey, originalBody);
-    const hmac = Array.from(new Uint8Array(sig))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    const hmac = Buffer.from(sig).toString("base64");
 
     // Verify with tampered body
     const result = await verifyWebhookSignature(tamperedBody, hmac, secret);

@@ -48,6 +48,16 @@ export interface ImmutableQuote {
   readonly createdAt: Instant;
   readonly validUntil: Instant;
   readonly freshnessAssessment: FreshnessAssessment;
+  /**
+   * Content-based SHA-256 digest of the quote's canonical representation.
+   *
+   * The digest intentionally excludes the quote `id`, making it a content-equality
+   * check rather than an instance-identity check. Uniqueness across distinct quote
+   * instances is guaranteed by the inclusion of `createdAt` and `validUntil`
+   * timestamps, which vary per invocation (millisecond granularity from the ClockPort).
+   * The `freshnessAssessment`, `metadata`, and `ctpDigest` fields are also excluded
+   * from the hash input.
+   */
   readonly ctpDigest: Sha256Digest;
   readonly metadata: QuoteMetadata;
 }

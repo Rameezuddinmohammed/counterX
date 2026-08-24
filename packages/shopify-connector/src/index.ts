@@ -101,6 +101,7 @@ export type {
   WebhookProductPayload,
   WebhookVariantPayload,
   BackfillOptions,
+  CatalogSyncOptions,
   SyncResult,
 } from "./catalog-sync.js";
 

@@ -41,6 +41,12 @@ export function computeCanonicalJson(quote: ImmutableQuote): string {
 
 /**
  * Computes the CTP digest (SHA-256) of a quote's canonical content.
+ *
+ * The digest is intentionally content-based, not instance-based. The quote `id`
+ * is excluded from the canonical representation so that the digest reflects only
+ * the commercial content of the quote. Uniqueness across distinct quote instances
+ * is guaranteed by the inclusion of `createdAt` and `validUntil` timestamps,
+ * which vary per invocation (millisecond granularity from the ClockPort).
  */
 export function computeCtpDigest(quote: ImmutableQuote): Sha256Digest {
   const json = computeCanonicalJson(quote);

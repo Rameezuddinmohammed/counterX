@@ -64,6 +64,13 @@ export interface BackfillOptions {
   readonly storeCurrency: Money["currency"];
 }
 
+// ─── Catalog Sync Options ─────────────────────────────────────────────────────
+
+export interface CatalogSyncOptions {
+  /** Maximum number of product entries to retain in memory. Oldest entries are evicted when exceeded. Default: 50,000. */
+  readonly maxProductStateSize?: number | undefined;
+}
+
 // ─── Sync Result ──────────────────────────────────────────────────────────────
 
 export interface SyncResult {
@@ -77,14 +84,40 @@ export interface SyncResult {
 
 // ─── Catalog Sync Service ─────────────────────────────────────────────────────
 
+const DEFAULT_MAX_PRODUCT_STATE_SIZE = 50_000;
+
 export class CatalogSyncService {
   private readonly client: ShopifyGraphQLPort;
   private readonly cursorStore: CursorStore;
   private readonly productState = new Map<string, Product>();
+  private readonly maxProductStateSize: number;
 
-  constructor(client: ShopifyGraphQLPort, cursorStore: CursorStore) {
+  constructor(client: ShopifyGraphQLPort, cursorStore: CursorStore, options?: CatalogSyncOptions) {
     this.client = client;
     this.cursorStore = cursorStore;
+    this.maxProductStateSize = options?.maxProductStateSize ?? DEFAULT_MAX_PRODUCT_STATE_SIZE;
+  }
+
+  /**
+   * Inserts or updates a product in the bounded state map.
+   * Evicts the oldest entry (by insertion order) when the map exceeds maxProductStateSize.
+   */
+  private setProductState(id: string, product: Product): void {
+    // If updating an existing key, delete first to refresh insertion order
+    if (this.productState.has(id)) {
+      this.productState.delete(id);
+    }
+    this.productState.set(id, product);
+
+    // Evict oldest entries when exceeding bounds
+    while (this.productState.size > this.maxProductStateSize) {
+      const oldest = this.productState.keys().next().value;
+      if (oldest !== undefined) {
+        this.productState.delete(oldest);
+      } else {
+        break;
+      }
+    }
   }
 
   /**
@@ -177,7 +210,7 @@ export class CatalogSyncService {
         for (const edge of edges) {
           const product = mapShopifyProduct(edge.node, merchantId, fetchedAt);
           allProducts.push(product);
-          this.productState.set(product.id, product);
+          this.setProductState(product.id, product);
 
           // Extract prices and inventory from variants
           for (const variantEdge of edge.node.variants.edges) {
@@ -260,7 +293,7 @@ export class CatalogSyncService {
         createdAt: Date.parse(event.payload.created_at) as Instant,
         updatedAt: incomingUpdatedAt,
       });
-      this.productState.set(gid, tombstone);
+      this.setProductState(gid, tombstone);
       return tombstone;
     }
 
@@ -287,7 +320,7 @@ export class CatalogSyncService {
     };
 
     const product = mapShopifyProduct(shopifyNode, merchantId, fetchedAt);
-    this.productState.set(product.id, product);
+    this.setProductState(product.id, product);
     return product;
   }
 
@@ -332,7 +365,7 @@ export class CatalogSyncService {
           if (updatedAt >= since) {
             const product = mapShopifyProduct(edge.node, merchantId, fetchedAt);
             allProducts.push(product);
-            this.productState.set(product.id, product);
+            this.setProductState(product.id, product);
 
             for (const variantEdge of edge.node.variants.edges) {
               allPrices.push(mapVariantToPriceSnapshot(variantEdge.node, fetchedAt, storeCurrency));
