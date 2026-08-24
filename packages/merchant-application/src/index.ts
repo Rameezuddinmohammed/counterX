@@ -44,3 +44,12 @@ export * from "./capability-manifest.js";
 
 // Health evaluator
 export * from "./health-evaluator.js";
+
+// Pilot certification
+export * from "./pilot-certification.js";
+
+// Requirement traceability
+export * from "./requirement-traceability.js";
+
+// Evidence bundle
+export * from "./evidence-bundle.js";

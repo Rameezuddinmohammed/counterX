@@ -18,7 +18,8 @@
   "dependencies": {
     "@counter/domain": "workspace:0.1.0",
     "@counter/authorization": "workspace:0.1.0",
-    "@counter/config": "workspace:0.1.0"
+    "@counter/config": "workspace:0.1.0",
+    "@counter/trust-protocol": "workspace:0.1.0"
   },
   "devDependencies": {
     "fast-check": "4.0.0",
