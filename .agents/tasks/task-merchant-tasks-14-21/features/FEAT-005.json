@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Task 19: Add merchant operations, telemetry, and recovery evidence. Build merchant-scoped operator APIs in the Operations Console, dashboards/alerts/replay commands, support grants, runbooks. Exercise rotation, backup/restore, outage, queue backlog, crash, and offboarding scenarios. Scan storage/telemetry for credentials.",
+  "status": "pending",
+  "steps": [
+    "Create apps/operations-console/src/lib/operator-api.ts with merchant-scoped operator API types and client: (a) listMerchantTransactions(merchantId, filters), (b) getTransactionDetail(txId), (c) retryTransaction(txId), (d) voidTransaction(txId), (e) issueRefund(txId, amount), (f) suspendMerchant(merchantId, reason), (g) grantSupportAccess(merchantId, grantConfig), (h) exportAuditLog(merchantId, dateRange)",
+    "Create apps/operations-console/src/lib/projections.ts with operations console data projections: TransactionProjection (flattened view for operator dashboards), MerchantHealthProjection (aggregated health metrics), AlertProjection (threshold-based alerts), QueueProjection (job queue status)",
+    "Create apps/operations-console/src/lib/telemetry-dashboard.ts with dashboard metric definitions: (a) transaction success/failure rates, (b) reconciliation latency, (c) provider response times, (d) queue depth and processing rate, (e) error rates by category, (f) kill switch activation history",
+    "Create apps/operations-console/src/lib/recovery-commands.ts with recovery/replay commands: (a) ReplayCommand for re-processing failed/stuck transactions, (b) RotateCredentialsCommand for key rotation flow, (c) BackupRestoreCommand for merchant data backup/restore, (d) DrainQueueCommand for graceful queue drain, (e) ForceReconcileCommand for manual reconciliation trigger",
+    "Create apps/operations-console/src/lib/runbooks.ts with structured runbook definitions: (a) OutageRunbook (detection, isolation, recovery steps), (b) QueueBacklogRunbook (monitoring, drain, replay), (c) CrashRecoveryRunbook (state assessment, replay, verification), (d) OffboardingRunbook (suspension, data export, cleanup, verification), (e) RotationRunbook (credential rotation without downtime)",
+    "Create apps/operations-console/src/lib/credential-scanner.ts with secret scanning: (a) scanStorageForCredentials() checks stored data for patterns matching FORBIDDEN_CREDENTIAL_FIELDS from payment-sdk, (b) scanTelemetryForCredentials() checks log/metric payloads, (c) ScanResult with severity and remediation guidance",
+    "Create apps/operations-console/src/lib/support-grants.ts with support grant management: (a) SupportGrant type (scoped, time-limited, audited), (b) createSupportGrant() with mandatory reason and expiry, (c) revokeSupportGrant(), (d) listActiveGrants(merchantId)",
+    "Create apps/operations-console/src/lib/operator-api.test.ts testing: operator API type safety, projection correctness, recovery command validation, credential scanner detection patterns, support grant lifecycle",
+    "Update apps/operations-console/src/app/page.tsx with operations dashboard layout. Create apps/operations-console/src/app/layout.tsx with navigation. Update package.json if needed.",
+    "Create apps/operations-console/src/lib/types.ts with all operations console types."
+  ],
+  "acceptance_criteria": [
+    "Merchant-scoped operator APIs exist with proper type definitions",
+    "Operations console projections flatten complex domain data for operator views",
+    "Telemetry dashboard defines metrics for transaction health, provider performance, and queue status",
+    "Recovery commands cover replay, rotation, backup/restore, drain, and force-reconcile",
+    "Runbooks exist for outage, queue backlog, crash recovery, offboarding, and rotation",
+    "Credential scanner detects forbidden patterns from payment-sdk FORBIDDEN_CREDENTIAL_FIELDS",
+    "Support grants are scoped, time-limited, and audited",
+    "Operations console builds: pnpm --filter @counter/operations-console build",
+    "Tests pass: pnpm --filter @counter/operations-console test"
+  ],
+  "verification": [
+    "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/operations-console build && pnpm --filter @counter/operations-console test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

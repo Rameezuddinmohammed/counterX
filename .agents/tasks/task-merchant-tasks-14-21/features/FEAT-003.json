@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Task 17: Implement reconciliation, findings, and Merchant receipts. Normalize observations from Shopify/test-provider/Razorpay into uniform EvidenceRecord format. Reconcile all views using the existing reconcileTransaction function, create typed findings for discrepancies. Implement compensation commands and human tasks. Build merchant-audience receipt view using existing receipt issuance infrastructure.",
+  "status": "pending",
+  "steps": [
+    "Create packages/evidence/src/observation-normalizer.ts implementing normalizers: (a) normalizeShopifyObservation() maps Shopify order/draft status to EvidenceRecord with source='merchant_connector' and method='connector_read', (b) normalizeTestProviderObservation() maps CounterTestPaymentProvider evidence to EvidenceRecord with source='payment_provider' and method='signed_envelope', (c) normalizeRazorpayObservation() maps Razorpay payment/refund status to EvidenceRecord with source='payment_provider' and method='api_query' or 'verified_webhook', (d) normalizeAgentClaim() maps agent-reported state to EvidenceRecord with source='agent_claim' and method='local_record'",
+    "Create packages/evidence/src/transaction-reconciler.ts implementing a TransactionReconciler service that: (a) collects observations from all relevant sources for a transaction, (b) calls reconcileTransaction() from reconciliation.ts, (c) creates typed findings for discrepancies, (d) dispatches compensation commands for actionable findings (amount mismatch -> refund, unauthorized charge -> void+finding, stale order -> cancel), (e) creates human task entries for non-automated findings",
+    "Create packages/evidence/src/compensation-commands.ts with typed compensation commands: RefundCompensation, VoidCompensation, CancelCompensation, ManualReviewCompensation. Include a CompensationExecutor port interface and InMemoryCompensationExecutor for testing.",
+    "Create packages/evidence/src/merchant-receipt-view.ts implementing the merchant-audience receipt projection: (a) buildMerchantReceiptView() projects transaction data into merchant-relevant fields (order ref, amount, status, payment provider, timestamp, findings summary), (b) uses existing issueReceipt() for CTP-signed envelope, (c) MerchantReceiptProjection type with order details, payment summary, and finding indicators",
+    "Create packages/evidence/src/observation-normalizer.test.ts testing all normalizer functions with edge cases (missing fields, unexpected statuses, timezone handling)",
+    "Create packages/evidence/src/transaction-reconciler.test.ts testing: (a) clean reconciliation (no findings), (b) amount mismatch produces finding, (c) missing provider evidence produces finding, (d) stale connector observation detected, (e) compensation command dispatched for actionable finding, (f) human task created for non-automated finding",
+    "Update packages/evidence/src/index.ts to export new modules"
+  ],
+  "acceptance_criteria": [
+    "Shopify, test-provider, and Razorpay observations all normalize to uniform EvidenceRecord",
+    "TransactionReconciler produces typed findings for all discrepancy categories",
+    "Compensation commands are dispatched for actionable findings (refund, void, cancel)",
+    "Human tasks created for findings requiring manual review",
+    "Merchant receipt view projects audience-appropriate fields from transaction data",
+    "All tests pass: pnpm --filter @counter/evidence test"
+  ],
+  "verification": [
+    "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/evidence build && pnpm --filter @counter/evidence test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

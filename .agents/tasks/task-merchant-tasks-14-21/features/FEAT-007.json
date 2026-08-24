@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-007",
+  "type": "feat",
+  "description": "Task 21: Certify the Merchant pilot candidate. Run PILOT.md scenarios through reference-buyer. Perform independent receipt verification. Build evidence bundle with signed Capability Manifest. Create requirement traceability matrix linking each PILOT.md requirement to its test evidence.",
+  "status": "pending",
+  "steps": [
+    "Create packages/merchant-application/src/pilot-certification.ts with PilotCertification class: (a) runCertificationSuite(scenarios, referenceBuyer) executes all scenarios, (b) collectEvidenceBundle() gathers test results, receipts, findings, and manifest, (c) signCertificationManifest() produces a CTP-signed capability manifest with evidence hashes, (d) CertificationResult type with pass/fail per scenario",
+    "Create packages/merchant-application/src/requirement-traceability.ts with: (a) RequirementLink type (requirementId, pilotMdSection, testScenarioId, evidenceIds, status), (b) buildTraceabilityMatrix() mapping each PILOT.md requirement to its test evidence, (c) PILOT_REQUIREMENTS constant enumerating all 14 released operation candidates from PILOT.md section 3, (d) validateTraceability() ensuring no requirement has missing evidence",
+    "Create packages/merchant-application/src/evidence-bundle.ts with: (a) EvidenceBundle type (scenarios results, receipts, findings, manifest snapshot, timestamp, version), (b) buildEvidenceBundle() aggregates all certification artifacts, (c) signBundle() produces CTP-signed envelope over the bundle digest, (d) verifyBundle() independently verifies the signed bundle",
+    "Create packages/merchant-application/src/pilot-certification.test.ts testing: (a) certification suite runs all scenarios and produces results, (b) evidence bundle contains all required artifacts, (c) signed capability manifest has correct evidence hashes, (d) traceability matrix covers all PILOT.md requirements, (e) missing evidence is detected and reported",
+    "Update packages/merchant-application/src/index.ts to export pilot-certification, requirement-traceability, evidence-bundle modules"
+  ],
+  "acceptance_criteria": [
+    "PilotCertification runs all PILOT.md scenarios through reference-buyer infrastructure",
+    "Independent receipt verification validates every issued receipt in the suite",
+    "Evidence bundle contains signed Capability Manifest with evidence hashes",
+    "Requirement traceability matrix links each PILOT.md released operation to test evidence",
+    "No requirement has missing evidence (validateTraceability passes)",
+    "Signed manifest and bundle are independently verifiable via CTP signature verification",
+    "All tests pass: pnpm --filter @counter/merchant-application test"
+  ],
+  "verification": [
+    "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/merchant-application build && pnpm --filter @counter/merchant-application test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

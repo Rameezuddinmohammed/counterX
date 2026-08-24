@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Tasks 15-16: Implement Razorpay test adapter and human-present certification workflow. Task 15: full Razorpay PaymentProvider implementation (Orders API, Standard Checkout config, callback signature verification, webhook signature verification, deduplication, refund normalization). Task 16: compose the human-present Razorpay certification workflow with Shopify draft before payment action, short-lived PaymentActionGrant, PAYMENT_ACTION_REQUIRED response, post-payment continuation gate, and finalize-only-on-fresh-decision semantics.",
+  "status": "pending",
+  "steps": [
+    "Create packages/razorpay-adapter/src/types.ts with RazorpayOrder, RazorpayPayment, RazorpayRefund, RazorpayWebhookEvent, RazorpayCallbackParams, RazorpaySignatureComponents types. Include INR/paise conversion helpers (amountToPaise, paiseToAmount).",
+    "Create packages/razorpay-adapter/src/razorpay-provider.ts implementing PaymentProvider interface: (a) createInstruction() creates a Razorpay Order via HTTP POST to /v1/orders with amount in paise, receipt correlation, and returns action_required with checkout config (public Key ID only, no key secret exposed), (b) verifyClientReturn() verifies razorpay_signature = HMAC_SHA256(order_id|payment_id, key_secret), (c) query() fetches /v1/payments/:id for authoritative state, (d) refund() creates refund via /v1/payments/:id/refunds, (e) queryRefund() fetches refund status, (f) verifyWebhook() validates X-Razorpay-Signature header via HMAC_SHA256(body, webhook_secret)",
+    "Create packages/razorpay-adapter/src/http-client.ts with a typed HTTP port (RazorpayHttpPort interface) and a test double (MockRazorpayHttp). Use Basic auth (key_id:key_secret) for server-side calls. Never expose key_secret in client-facing payloads.",
+    "Create packages/razorpay-adapter/src/webhook-processor.ts with deduplication (event_id tracking), reorder tolerance (process by event timestamp, skip already-processed), and refund normalization (map Razorpay refund statuses to ProviderRefundEvidence).",
+    "Create packages/razorpay-adapter/src/payment-action-grant.ts implementing short-lived PaymentActionGrant: bound to transactionId, version, mandateRef, approvalRef, quoteDigest, amount, paymentRef. Expiry enforcement (10 min default from PILOT.md). Verification method validateGrant() checks all bindings and expiry.",
+    "Create packages/razorpay-adapter/src/certification-workflow.ts implementing the human-present workflow: (1) validate mandate and intent, (2) create Shopify draft first (DraftOrderCreateAction), (3) create Razorpay order, (4) issue PaymentActionGrant, (5) return PAYMENT_ACTION_REQUIRED with checkout config and grant, (6) on callback: verify signature, verify grant is not expired, query Razorpay for authoritative state, (7) post-payment continuation gate: re-evaluate policy with fresh decision, (8) if fresh decision allows: finalize Shopify order; otherwise block + create finding + initiate refund",
+    "Create packages/razorpay-adapter/src/razorpay-provider.test.ts testing: (a) order creation with correct paise conversion, (b) callback signature verification (valid and forged), (c) webhook signature verification, (d) webhook deduplication, (e) query returns authoritative state, (f) refund creation, (g) wrong amount rejection, (h) timeout handling, (i) duplicate event tolerance",
+    "Create packages/razorpay-adapter/src/certification-workflow.test.ts testing: (a) successful end-to-end Razorpay checkout, (b) expired grant rejection, (c) forged callback rejection, (d) stale policy blocks finalization with finding+refund, (e) revoked mandate blocks, (f) amount mismatch between grant and payment, (g) PAYMENT_ACTION_REQUIRED response shape",
+    "Update packages/razorpay-adapter/src/index.ts to export all new modules. Update packages/razorpay-adapter/package.json to add dependencies on @counter/domain, @counter/trust-protocol, @counter/payment-sdk, @counter/shopify-connector, @counter/evidence."
+  ],
+  "acceptance_criteria": [
+    "RazorpayTestProvider implements full PaymentProvider interface with all methods",
+    "Order creation converts INR to paise correctly and never exposes key_secret to client",
+    "Callback signature verification uses HMAC_SHA256(order_id|razorpay_payment_id, key_secret)",
+    "Webhook signature verification validates X-Razorpay-Signature header",
+    "Webhook deduplication tracks event_ids and skips duplicates",
+    "PaymentActionGrant is bound to transaction/version/mandate/approval/quote/amount/payment-ref with expiry",
+    "PAYMENT_ACTION_REQUIRED response includes only public Key ID for Standard Checkout",
+    "Post-payment continuation gate requires fresh policy decision before Shopify finalization",
+    "Stale/denied policy after payment triggers finding + refund (not order finalization)",
+    "All tests pass: pnpm --filter @counter/razorpay-adapter test"
+  ],
+  "verification": [
+    "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/razorpay-adapter build && pnpm --filter @counter/razorpay-adapter test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
