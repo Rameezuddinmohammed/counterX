@@ -26,7 +26,7 @@ const SENSITIVE_KEY_PATTERNS: readonly RegExp[] = Object.freeze([
   /card[_-]?number/iu,
   /cvv/iu,
   /cvc/iu,
-  /pin/iu,
+  /(?:^|[^a-z])pin(?:$|[^a-z])/iu,
 ]);
 
 /** Value patterns that indicate sensitive data. */
@@ -109,8 +109,11 @@ export function redactString(value: string): string {
 /**
  * Deep-walks an object and redacts all sensitive keys and value patterns.
  * Returns a new object with redacted values (never mutates the input).
+ *
+ * Uses a WeakSet to detect circular references and avoid stack overflow.
+ * When a previously-visited node is encountered, returns "[CIRCULAR]".
  */
-export function redactObject(obj: unknown): unknown {
+export function redactObject(obj: unknown, seen: WeakSet<object> = new WeakSet<object>()): unknown {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -123,8 +126,13 @@ export function redactObject(obj: unknown): unknown {
     return obj;
   }
 
+  if (seen.has(obj)) {
+    return "[CIRCULAR]";
+  }
+  seen.add(obj);
+
   if (Array.isArray(obj)) {
-    return obj.map((item) => redactObject(item));
+    return obj.map((item) => redactObject(item, seen));
   }
 
   const result: Record<string, unknown> = {};
@@ -132,7 +140,7 @@ export function redactObject(obj: unknown): unknown {
     if (isSensitiveKey(key)) {
       result[key] = REDACTED;
     } else if (typeof value === "object" && value !== null) {
-      result[key] = redactObject(value);
+      result[key] = redactObject(value, seen);
     } else if (typeof value === "string") {
       result[key] = redactString(value);
     } else {

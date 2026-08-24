@@ -156,5 +156,48 @@ describe("redaction", () => {
     it("redacts emails in top-level strings", () => {
       expect(redactObject("email is test@example.com here")).toBe("email is [REDACTED_EMAIL] here");
     });
+
+    it("handles circular references without stack overflow", () => {
+      const obj: Record<string, unknown> = { name: "test" };
+      obj["self"] = obj;
+      const result = redactObject(obj) as Record<string, unknown>;
+      expect(result["name"]).toBe("test");
+      expect(result["self"]).toBe("[CIRCULAR]");
+    });
+
+    it("handles deeply nested circular references", () => {
+      const inner: Record<string, unknown> = { value: "hello" };
+      const outer = { child: inner };
+      inner["parent"] = outer;
+      const result = redactObject(outer) as Record<string, Record<string, unknown>>;
+      expect(result["child"]!["value"]).toBe("hello");
+      expect(result["child"]!["parent"]).toBe("[CIRCULAR]");
+    });
+
+    it("handles circular references in arrays", () => {
+      const arr: unknown[] = [{ name: "item" }];
+      (arr[0] as Record<string, unknown>)["list"] = arr;
+      const result = redactObject(arr) as Array<Record<string, unknown>>;
+      expect(result[0]!["name"]).toBe("item");
+      expect(result[0]!["list"]).toBe("[CIRCULAR]");
+    });
+  });
+
+  describe("isSensitiveKey - pin word boundary", () => {
+    it("matches standalone pin", () => {
+      expect(isSensitiveKey("pin")).toBe(true);
+      expect(isSensitiveKey("PIN")).toBe(true);
+    });
+
+    it("matches pin with word separators", () => {
+      expect(isSensitiveKey("user_pin")).toBe(true);
+      expect(isSensitiveKey("pin_code")).toBe(true);
+    });
+
+    it("does not match pin as substring", () => {
+      expect(isSensitiveKey("spinning")).toBe(false);
+      expect(isSensitiveKey("opinion")).toBe(false);
+      expect(isSensitiveKey("pinCode")).toBe(false);
+    });
   });
 });
