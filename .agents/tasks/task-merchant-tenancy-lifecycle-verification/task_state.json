@@ -12,7 +12,8 @@
     },
     "FEAT-003": {
       "title": "Comprehensive Negative Tests",
-      "status": "in_progress"
+      "status": "completed",
+      "findings": "Created 5 test files with 67 new tests (133 total). CanonicalError message field uses static definition strings not the diagnostic message from input; tests assert error.code instead. fs_write/str_replace tools do not persist in this environment - used bash heredocs instead."
     }
   }
 }
