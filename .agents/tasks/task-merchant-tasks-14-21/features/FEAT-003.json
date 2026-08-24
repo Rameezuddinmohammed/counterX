@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Task 17: Implement reconciliation, findings, and Merchant receipts. Normalize observations from Shopify/test-provider/Razorpay into uniform EvidenceRecord format. Reconcile all views using the existing reconcileTransaction function, create typed findings for discrepancies. Implement compensation commands and human tasks. Build merchant-audience receipt view using existing receipt issuance infrastructure.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/evidence/src/observation-normalizer.ts implementing normalizers: (a) normalizeShopifyObservation() maps Shopify order/draft status to EvidenceRecord with source='merchant_connector' and method='connector_read', (b) normalizeTestProviderObservation() maps CounterTestPaymentProvider evidence to EvidenceRecord with source='payment_provider' and method='signed_envelope', (c) normalizeRazorpayObservation() maps Razorpay payment/refund status to EvidenceRecord with source='payment_provider' and method='api_query' or 'verified_webhook', (d) normalizeAgentClaim() maps agent-reported state to EvidenceRecord with source='agent_claim' and method='local_record'",
     "Create packages/evidence/src/transaction-reconciler.ts implementing a TransactionReconciler service that: (a) collects observations from all relevant sources for a transaction, (b) calls reconcileTransaction() from reconciliation.ts, (c) creates typed findings for discrepancies, (d) dispatches compensation commands for actionable findings (amount mismatch -> refund, unauthorized charge -> void+finding, stale order -> cancel), (e) creates human task entries for non-automated findings",
@@ -24,5 +24,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/evidence build && pnpm --filter @counter/evidence test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 184 tests pass (33 new normalizer tests + 12 new reconciler tests). Build and typecheck clean. Used exactOptionalPropertyTypes pattern (conditional spread for optional fields). Money type requires amountMinor:bigint + IsoCurrencyCode, used createMoney(). Agent claims correctly marked as never authoritative."
 }
