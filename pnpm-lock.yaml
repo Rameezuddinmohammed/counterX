@@ -552,6 +552,9 @@ importers:
 
   packages/shopify-connector:
     dependencies:
+      '@counter/commerce-graph':
+        specifier: workspace:0.1.0
+        version: link:../commerce-graph
       '@counter/config':
         specifier: workspace:0.1.0
         version: link:../config

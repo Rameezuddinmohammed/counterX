@@ -18,6 +18,7 @@
   "dependencies": {
     "@counter/domain": "workspace:0.1.0",
     "@counter/connector-sdk": "workspace:0.1.0",
+    "@counter/commerce-graph": "workspace:0.1.0",
     "@counter/config": "workspace:0.1.0"
   },
   "devDependencies": {

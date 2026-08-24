@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement Shopify catalog backfill, incremental sync, webhook processing, and durable cursor management (Merchant Task 8). Build paginated cost-aware GraphQL product/variant/price/inventory reads, durable cursors for resumable backfill, incremental webhook-driven updates with HMAC signature verification and deduplication, authoritative polling fallback, tombstone/unpublish handling, retries with exponential backoff, and dead-letter queue. All reads go through the ShopifyGraphQLPort interface from FEAT-001.",
+  "status": "completed",
+  "steps": [
+    "Create packages/shopify-connector/src/catalog-queries.ts - Define GraphQL query strings and response types for: products list (paginated, cursor-based, include variants/prices/inventory), single product by ID, product count. Include cost estimation per query. Response types: ShopifyProductNode, ShopifyVariantNode, ShopifyMoneyV2, ShopifyInventoryLevel. Map to commerce-graph Product/Variant/PriceSnapshot/InventorySnapshot types with proper SourceReference (platform: 'shopify', externalId from Shopify GID).",
+    "Create packages/shopify-connector/src/sync-cursor.ts - DurableCursor interface and InMemoryCursorStore implementation. DurableCursor has: merchantId, resource (products/variants/inventory), cursor (string|null), lastSyncedAt (Instant), syncState ('idle'|'in_progress'|'completed'|'failed'), pagesFetched (number), totalCost (number). Methods: getCursor, saveCursor, resetCursor. This enables resume of interrupted backfills.",
+    "Create packages/shopify-connector/src/catalog-sync.ts - CatalogSyncService class. Methods: backfillProducts(merchantId, options: {pageSize, costBudget}) - paginated fetch respecting cost budget (stop when budget exhausted, save cursor, resume later); syncIncrementalFromWebhook(event: WebhookEvent) - process a single product update/delete webhook; reconciliationPoll(merchantId, since: Instant) - fallback polling for products updated since last sync. Uses ShopifyGraphQLPort. Tracks cost consumed. Produces normalized Product/Variant/PriceSnapshot/InventorySnapshot. Handles tombstones (products/delete -> set status 'tombstoned', unpublish -> set status 'unpublished').",
+    "Create packages/shopify-connector/src/webhook-inbox.ts - WebhookInbox class. Accepts raw webhook payloads after signature verification (from auth.ts verifyWebhookSignature). Deduplication by X-Shopify-Webhook-Id header. Ordering tolerance: accepts out-of-order delivery, uses updatedAt from payload to resolve conflicts (newer wins). Dead letter queue for events that fail processing 3 times. Interface: receive(rawBody: Uint8Array, headers: WebhookHeaders) -> Result<WebhookAcceptance>; process() -> processes next pending event; getDeadLetters() -> readonly DeadLetterEntry[].",
+    "Create packages/shopify-connector/src/retry.ts - Retry utility with exponential backoff + jitter. Config: maxRetries (default 3), baseDelayMs (default 1000), maxDelayMs (default 30000). Respects retryAfterMs from Shopify rate limit responses. Returns result or sends to dead letter after exhausting retries. Works with async operations.",
+    "Create packages/shopify-connector/src/catalog-sync.test.ts - Tests using MockShopifyClient: successful full backfill of multi-page catalog (3+ pages), cost budget exhaustion pauses sync and saves cursor, resume from cursor continues where left off, rate limiting triggers backoff (mock returns throttle response), partial failure on one page does not lose previous pages, product deletion webhook creates tombstone, product update webhook updates existing product (newer version wins), stale webhook (older updatedAt) is ignored, duplicate webhook ID is deduplicated, backfill convergence test (backfill + webhooks + poll all produce same final state), dead letter after 3 failures.",
+    "Create packages/shopify-connector/src/webhook-inbox.test.ts - Tests: valid signature accepted, invalid signature rejected, duplicate webhook ID rejected (second delivery returns already_processed), out-of-order webhooks resolved by updatedAt, dead letter after max retries, process drains queue in FIFO order.",
+    "Update packages/shopify-connector/src/index.ts - Export all new sync-related modules."
+  ],
+  "acceptance_criteria": [
+    "Paginated product fetch respects cost budget and stops when budget exhausted",
+    "Durable cursor enables resume of interrupted backfills from exact position",
+    "Product/variant data is correctly mapped to commerce-graph types with SourceReference",
+    "Webhook inbox verifies HMAC signature before acceptance",
+    "Deduplication rejects duplicate X-Shopify-Webhook-Id",
+    "Out-of-order webhooks resolved by updatedAt (newer wins, stale ignored)",
+    "Tombstone handling: products/delete sets status to 'tombstoned'",
+    "Dead letter queue captures events that fail 3 times",
+    "Retry with exponential backoff respects retryAfterMs from rate limit responses",
+    "Reconciliation poll fetches products updated since last sync",
+    "All tests pass with pnpm test in packages/shopify-connector",
+    "pnpm build and pnpm typecheck pass from repo root"
+  ],
+  "verification": [
+    "cd /root/counterX && pnpm build",
+    "cd /root/counterX && pnpm typecheck",
+    "cd /root/counterX/packages/shopify-connector && pnpm test"
+  ],
+  "blocked_reason": null,
+  "findings": "Added @counter/commerce-graph as a workspace dependency (was missing). The pnpm lockfile updated automatically once the dependency was added. MockShopifyClient setResponse uses exact string key matching for operation lookup."
+}

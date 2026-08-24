@@ -11,7 +11,7 @@ export const PACKAGE_NAME = "@counter/shopify-connector";
 export { SHOPIFY_CONFIG_KEYS } from "./config.js";
 export type { ConfigKeyDescriptor } from "./config.js";
 
-// --- GraphQL Client ---
+// ─── GraphQL Client ───────────────────────────────────────────────────────────
 
 export type {
   ShopifyGraphQLPort,
@@ -40,7 +40,7 @@ export type {
   MockGraphQLClientConfig,
 } from "./mock-graphql-client.js";
 
-// --- Authentication ---
+// ─── Authentication ───────────────────────────────────────────────────────────
 
 export {
   validateToken,
@@ -54,16 +54,82 @@ export type {
   ScopeCheckResult,
 } from "./auth.js";
 
-// --- Health ---
+// ─── Health ───────────────────────────────────────────────────────────────────
 
 export { createShopifyHealthPort } from "./health.js";
 export type { ShopifyHealthConfig } from "./health.js";
 
-// --- Manifest ---
+// ─── Manifest ─────────────────────────────────────────────────────────────────
 
 export { SHOPIFY_CONNECTOR_MANIFEST } from "./shopify-manifest.js";
 
-// --- Legacy Types (backward compat) ---
+// ─── Catalog Queries ──────────────────────────────────────────────────────────
+
+export {
+  SHOPIFY_MAPPING_VERSION,
+  PRODUCTS_LIST_ESTIMATED_COST,
+  SINGLE_PRODUCT_ESTIMATED_COST,
+  PRODUCT_COUNT_ESTIMATED_COST,
+  PRODUCTS_LIST_QUERY,
+  SINGLE_PRODUCT_QUERY,
+  PRODUCT_COUNT_QUERY,
+  mapShopifyVariant,
+  mapShopifyProduct,
+  mapVariantToPriceSnapshot,
+  mapVariantToInventorySnapshot,
+} from "./catalog-queries.js";
+export type {
+  ShopifyMoneyV2,
+  ShopifyVariantNode,
+  ShopifyProductNode,
+  ShopifyProductsListResponse,
+  ShopifySingleProductResponse,
+  ShopifyProductCountResponse,
+  ShopifyInventoryLevel,
+} from "./catalog-queries.js";
+
+// ─── Sync Cursor ──────────────────────────────────────────────────────────────
+
+export { InMemoryCursorStore, SYNC_STATES } from "./sync-cursor.js";
+export type { DurableCursor, CursorStore, SyncState } from "./sync-cursor.js";
+
+// ─── Catalog Sync ─────────────────────────────────────────────────────────────
+
+export { CatalogSyncService } from "./catalog-sync.js";
+export type {
+  WebhookEvent,
+  WebhookProductPayload,
+  WebhookVariantPayload,
+  BackfillOptions,
+  SyncResult,
+} from "./catalog-sync.js";
+
+// ─── Webhook Inbox ────────────────────────────────────────────────────────────
+
+export { WebhookInbox } from "./webhook-inbox.js";
+export type {
+  WebhookHeaders,
+  WebhookAcceptance,
+  DeadLetterEntry,
+} from "./webhook-inbox.js";
+
+// ─── Retry ────────────────────────────────────────────────────────────────────
+
+export {
+  DEFAULT_RETRY_CONFIG,
+  calculateDelay,
+  sleep,
+  withRetry,
+  withRetryResult,
+  extractShopifyRateLimit,
+} from "./retry.js";
+export type {
+  RetryConfig,
+  RetryExhaustedError,
+  RateLimitContext,
+} from "./retry.js";
+
+// ─── Legacy Types (backward compat) ──────────────────────────────────────────
 
 /**
  * @deprecated Use `ConnectorManifest` from `@counter/connector-sdk` with `SHOPIFY_CONNECTOR_MANIFEST` instead.
