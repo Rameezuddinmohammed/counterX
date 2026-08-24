@@ -129,6 +129,51 @@ export type {
   RateLimitContext,
 } from "./retry.js";
 
+// ─── Product Index ────────────────────────────────────────────────────────────
+
+export { ProductIndex } from "./product-index.js";
+export type { ProductProjection, VariantProjection } from "./product-index.js";
+
+// ─── Quote Types ──────────────────────────────────────────────────────────────
+
+export type {
+  ImmutableQuote,
+  QuoteLineItem,
+  QuoteMetadata,
+  QuoteRefusalReason,
+  PriceChange,
+  InventoryChange,
+  MaterialChangeResult,
+} from "./quote-types.js";
+export { QUOTE_REFUSAL_REASONS } from "./quote-types.js";
+
+// ─── Quote Config ─────────────────────────────────────────────────────────────
+
+export { DEFAULT_PILOT_QUOTE_CONFIG } from "./quote-config.js";
+export type { PilotQuoteConfig } from "./quote-config.js";
+
+// ─── Quote Service ────────────────────────────────────────────────────────────
+
+export { QuoteService } from "./quote-service.js";
+export type {
+  CreateQuoteRequest,
+  CreateQuoteRequestItem,
+  QuoteRefusal,
+  PriceSnapshotPort,
+  InventorySnapshotPort,
+  ClockPort,
+} from "./quote-service.js";
+
+// ─── Quote Verification ───────────────────────────────────────────────────────
+
+export {
+  computeCanonicalJson,
+  computeCtpDigest,
+  verifyQuoteDigest,
+  isQuoteExpired,
+  detectMaterialChange,
+} from "./quote-verification.js";
+
 // ─── Legacy Types (backward compat) ──────────────────────────────────────────
 
 /**
