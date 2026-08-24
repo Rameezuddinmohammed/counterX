@@ -1,10 +1,16 @@
 /**
- * packages/observability
+ * @counter/observability
  *
- * OpenTelemetry-compatible traces/metrics/log correlation, redaction
- * helpers, and health/readiness signals (see design.md "Observability
- * and operations"). Implemented in task 15; this placeholder proves the
- * package builds, type-checks, and tests through the workspace toolchain.
+ * OpenTelemetry-compatible traces, metrics, structured logging, redaction
+ * helpers, and health/readiness signals for the Counter platform.
  */
 
 export const PACKAGE_NAME = "@counter/observability";
+
+export * from "./attributes.js";
+export * from "./health.js";
+export * from "./logger.js";
+export * from "./metrics.js";
+export * from "./redaction.js";
+export * from "./sdk.js";
+export * from "./tracer.js";
