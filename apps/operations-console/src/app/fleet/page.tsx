@@ -1,4 +1,4 @@
-import { createOperatorApiClient } from "../../lib/operator-api-client.js";
+import { createOperatorApiClient } from "../../lib/operator-api-client";
 
 /**
  * Fleet Health page showing dependency health status grid.

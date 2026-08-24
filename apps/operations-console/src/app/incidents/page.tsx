@@ -1,4 +1,4 @@
-import { createOperatorApiClient } from "../../lib/operator-api-client.js";
+import { createOperatorApiClient } from "../../lib/operator-api-client";
 
 /**
  * Incidents page listing active incidents with severity and scope.

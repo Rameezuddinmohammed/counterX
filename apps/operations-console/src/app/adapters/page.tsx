@@ -1,4 +1,4 @@
-import { createOperatorApiClient } from "../../lib/operator-api-client.js";
+import { createOperatorApiClient } from "../../lib/operator-api-client";
 
 /**
  * Adapter Release Status page showing connector/payment adapter versions and health.

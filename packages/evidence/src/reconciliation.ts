@@ -177,7 +177,7 @@ export function reconcileTransaction(
             type: "duplicate_effect",
             severity: "medium",
             affectedObjects: ids,
-            conflictingEvidence: ids as CounterId<"evidence">[],
+            conflictingEvidence: ids,
             missingEvidence: undefined,
           },
           options.findingIdGenerator(),
@@ -214,7 +214,7 @@ export function reconcileTransaction(
           affectedObjects: paymentEvidence.map((r) => r.id),
           conflictingEvidence: paymentEvidence.map(
             (r) => r.id,
-          ) as CounterId<"evidence">[],
+          ),
           missingEvidence: ["order_committed"],
         },
         options.findingIdGenerator(),
@@ -237,7 +237,7 @@ export function reconcileTransaction(
           affectedObjects: orderEvidence.map((r) => r.id),
           conflictingEvidence: orderEvidence.map(
             (r) => r.id,
-          ) as CounterId<"evidence">[],
+          ),
           missingEvidence: ["payment_confirmed"],
         },
         options.findingIdGenerator(),
@@ -268,7 +268,7 @@ export function reconcileTransaction(
           affectedObjects: fulfillmentEvidence.map((r) => r.id),
           conflictingEvidence: fulfillmentEvidence.map(
             (r) => r.id,
-          ) as CounterId<"evidence">[],
+          ),
           missingEvidence: ["order_committed"],
         },
         options.findingIdGenerator(),
@@ -304,7 +304,7 @@ export function reconcileTransaction(
           affectedObjects: authEvidence.map((r) => r.id),
           conflictingEvidence: authEvidence.map(
             (r) => r.id,
-          ) as CounterId<"evidence">[],
+          ),
           missingEvidence: ["payment_confirmed", "authorization_voided"],
         },
         options.findingIdGenerator(),
@@ -335,7 +335,7 @@ export function reconcileTransaction(
           affectedObjects: refundEvidence.map((r) => r.id),
           conflictingEvidence: refundEvidence.map(
             (r) => r.id,
-          ) as CounterId<"evidence">[],
+          ),
           missingEvidence: ["payment_confirmed"],
         },
         options.findingIdGenerator(),

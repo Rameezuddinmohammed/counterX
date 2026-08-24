@@ -4,7 +4,7 @@ import {
   transitionFinding,
   VALID_FINDING_TRANSITIONS,
 } from "./finding-lifecycle.js";
-import type { FindingRecord, FindingStatus } from "./types.js";
+import type { FindingRecord } from "./types.js";
 import { FINDING_STATUSES } from "./types.js";
 
 function makeFinding(overrides: Partial<FindingRecord> = {}): FindingRecord {
@@ -167,7 +167,7 @@ describe("finding-lifecycle", () => {
 
     it("all invalid transitions from each status are rejected", () => {
       for (const status of FINDING_STATUSES) {
-        const validTargets = VALID_FINDING_TRANSITIONS[status] as readonly FindingStatus[];
+        const validTargets = VALID_FINDING_TRANSITIONS[status];
         const invalidTargets = FINDING_STATUSES.filter(
           (s) => !validTargets.includes(s) && s !== status,
         );

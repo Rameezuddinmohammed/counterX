@@ -1,4 +1,4 @@
-import { createOperatorApiClient } from "../../lib/operator-api-client.js";
+import { createOperatorApiClient } from "../../lib/operator-api-client";
 
 /**
  * Support Sessions page showing active grants with scope, expiry, and purpose.

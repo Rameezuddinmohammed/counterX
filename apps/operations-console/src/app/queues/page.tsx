@@ -1,4 +1,4 @@
-import { createOperatorApiClient } from "../../lib/operator-api-client.js";
+import { createOperatorApiClient } from "../../lib/operator-api-client";
 
 /**
  * Queues page showing job queue depth and dead letters with replay option.

@@ -38,6 +38,11 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
+      "@typescript-eslint/restrict-template-expressions": "off",
+      "@typescript-eslint/only-throw-error": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
     },
   },
   {

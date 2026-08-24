@@ -48,7 +48,7 @@ const TEST_WALLET_ID = "counter://test/wallet-001";
 const TEST_AGENT_URI = "counter://test/agent-uri-001";
 const TEST_MERCHANT_ID = "counter://test/merchant-001";
 const TEST_AUDIENCE = "counter://test/verifier";
-const TEST_ENVIRONMENT = "sandbox" as const;
+const TEST_ENVIRONMENT = "sandbox";
 
 function instantOf(isoString: string): Instant {
   return Date.parse(isoString) as Instant;
@@ -95,7 +95,7 @@ async function createRegistrationEnvelope(
     throw new Error(`Failed to sign envelope: ${signedResult.error.message}`);
   }
 
-  return signedResult.value as CtpEnvelope<AgentRegistrationPayload>;
+  return signedResult.value;
 }
 
 async function createMandateEnvelope(
@@ -140,7 +140,7 @@ async function createMandateEnvelope(
     issued_at: "2025-01-15T10:00:00.000Z",
     not_before: options.notBefore ?? "2025-01-15T10:00:00.000Z",
     expires_at: options.expiresAt ?? "2025-01-15T11:00:00.000Z",
-    nonce: (options.nonce ?? generateNonce((len) => randomBytes(len))) as string,
+    nonce: (options.nonce ?? generateNonce((len) => randomBytes(len))),
     correlation_id: "ctr_correlation_mandate-001",
     payload,
     kid,
@@ -155,7 +155,7 @@ async function createMandateEnvelope(
     throw new Error(`Failed to sign mandate envelope: ${signedResult.error.message}`);
   }
 
-  return signedResult.value as CtpEnvelope<MandatePayload>;
+  return signedResult.value;
 }
 
 // ---------------------------------------------------------------------------

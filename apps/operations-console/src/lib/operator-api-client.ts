@@ -12,7 +12,7 @@ import type {
   KillSwitchView,
   QueueStatus,
   SupportSessionView,
-} from "./types.js";
+} from "./types";
 
 /**
  * Operator API client interface.

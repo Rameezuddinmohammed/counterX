@@ -12,7 +12,7 @@ import type { Brand } from "@counter/domain";
 // CTP Version & Object Types
 // ---------------------------------------------------------------------------
 
-export const CTP_VERSION = "0.1" as const;
+export const CTP_VERSION = "0.1";
 
 export const CTP_OBJECT_TYPES = [
   "counter.agent-registration.v1",
@@ -57,7 +57,7 @@ export function isCtpEnvironment(value: unknown): value is CtpEnvironment {
 // Signature Algorithm
 // ---------------------------------------------------------------------------
 
-export const CTP_SIGNATURE_ALGORITHM = "EdDSA" as const;
+export const CTP_SIGNATURE_ALGORITHM = "EdDSA";
 
 export type CtpSignatureAlgorithm = typeof CTP_SIGNATURE_ALGORITHM;
 

@@ -107,7 +107,7 @@ describe("reconciliation", () => {
       const freshRecord = makeEvidenceRecord({
         id: "ctr_evidence_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"evidence">,
         source: "payment_provider",
-        observedAt: NOW as Instant,
+        observedAt: NOW,
       });
 
       const findings = reconcileTransaction([freshRecord], {
