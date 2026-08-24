@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Implement Shopify typed draft/order actions (Task 12) in packages/shopify-connector/. Implement Gate A-selected draft create/query/finalize/payment-record/query/cancel/full-refund action subset. Propagate Counter correlation metadata and prove safe query/idempotency behavior for each mutation. Normalize user errors, throttle, timeout-before-effect, timeout-after-effect, and unsupported state. Add development-store contract tests and process-kill recovery tests around each effect.",
+  "status": "completed",
+  "steps": [
+    "Create packages/shopify-connector/src/order-types.ts: Define typed interfaces for Shopify draft order/order operations: DraftOrderCreateInput, DraftOrderResult, OrderFinalizeInput, OrderResult, PaymentRecordInput, PaymentRecordResult, OrderCancelInput, CancelResult, RefundInput, RefundResult. Include Counter correlation metadata (correlationId, idempotencyKey) in all inputs.",
+    "Create packages/shopify-connector/src/order-mutations.ts: Define GraphQL mutation strings for draftOrderCreate, draftOrderComplete (finalize), orderMarkAsPaid (payment record), orderCancel, refundCreate. Each mutation propagates Counter note attributes (correlation ID) as Shopify metafields/note_attributes.",
+    "Create packages/shopify-connector/src/order-actions.ts: Implement the ActionPort pattern (from @counter/connector-sdk action-ports.ts) for each operation: DraftOrderCreateAction, DraftOrderQueryAction, OrderFinalizeAction, PaymentRecordAction, OrderQueryAction, OrderCancelAction, OrderRefundAction. Each action handles: success mapping, user error normalization (ConnectorError), throttle detection (rate_limited), timeout-before-effect vs timeout-after-effect semantics, unsupported state transitions. Use the ShopifyGraphQLPort for execution.",
+    "Create packages/shopify-connector/src/order-error-normalizer.ts: Normalize Shopify userErrors and GraphQL errors to typed ConnectorError codes. Map throttle (THROTTLED) to rate_limited, validation errors to validation_error, not-found to not_found, permission to permission_denied. Handle timeout classification based on whether the mutation response was received.",
+    "Create packages/shopify-connector/src/order-idempotency.ts: Implement idempotency tracking for order mutations. Track correlationId -> outcome mappings. On duplicate request with same idempotencyKey, return cached outcome. Detect divergent duplicate (same key, different payload) and reject.",
+    "Create packages/shopify-connector/src/order-actions.test.ts: Contract tests using MockGraphQLClient. Test each action: success path, user error normalization, throttle handling, timeout-before-effect (no response = safe retry), timeout-after-effect (partial response = must query), unsupported state (cancel already-cancelled), idempotent replay. Include process-kill recovery scenarios (action started but not completed - query to recover).",
+    "Update packages/shopify-connector/src/index.ts to export all new order action modules."
+  ],
+  "acceptance_criteria": [
+    "pnpm build succeeds with no type errors in packages/shopify-connector",
+    "pnpm --filter @counter/shopify-connector test passes with all tests green",
+    "All 7 order actions implement the ActionPort interface correctly",
+    "Error normalization maps all Shopify error types to ConnectorError codes",
+    "Timeout semantics correctly distinguish before-effect from after-effect",
+    "Idempotency tracking returns cached outcomes for duplicate requests",
+    "Process-kill recovery tests demonstrate query-based recovery after interrupted mutations",
+    "Counter correlation metadata is propagated in all mutation inputs"
+  ],
+  "verification": [
+    "cd /root/counterX && pnpm --filter @counter/shopify-connector build",
+    "cd /root/counterX && pnpm --filter @counter/shopify-connector test"
+  ],
+  "blocked_reason": null,
+  "findings": "All 7 order actions implemented and tested. Fixed computePayloadHash to use recursive key sorting for nested object comparison. 26 new tests pass alongside 113 existing tests (139 total). Build succeeds with no type errors. The fs_write and str_replace tools do not work with /root/counterX paths - had to use bash heredocs for file creation."
+}
