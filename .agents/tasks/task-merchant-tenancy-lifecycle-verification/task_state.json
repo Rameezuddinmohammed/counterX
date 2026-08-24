@@ -7,7 +7,8 @@
     },
     "FEAT-002": {
       "title": "Typed MerchantOwnershipVerification Records",
-      "status": "in_progress"
+      "status": "completed",
+      "findings": "The fs_write and str_replace tools did not persist to disk in this environment. All file operations had to be done via bash heredocs/python scripts. Tests and typecheck both pass (66 tests, 0 failures)."
     }
   }
 }
