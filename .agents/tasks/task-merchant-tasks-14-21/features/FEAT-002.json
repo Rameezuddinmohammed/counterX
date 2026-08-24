@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Tasks 15-16: Implement Razorpay test adapter and human-present certification workflow. Task 15: full Razorpay PaymentProvider implementation (Orders API, Standard Checkout config, callback signature verification, webhook signature verification, deduplication, refund normalization). Task 16: compose the human-present Razorpay certification workflow with Shopify draft before payment action, short-lived PaymentActionGrant, PAYMENT_ACTION_REQUIRED response, post-payment continuation gate, and finalize-only-on-fresh-decision semantics.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create packages/razorpay-adapter/src/types.ts with RazorpayOrder, RazorpayPayment, RazorpayRefund, RazorpayWebhookEvent, RazorpayCallbackParams, RazorpaySignatureComponents types. Include INR/paise conversion helpers (amountToPaise, paiseToAmount).",
     "Create packages/razorpay-adapter/src/razorpay-provider.ts implementing PaymentProvider interface: (a) createInstruction() creates a Razorpay Order via HTTP POST to /v1/orders with amount in paise, receipt correlation, and returns action_required with checkout config (public Key ID only, no key secret exposed), (b) verifyClientReturn() verifies razorpay_signature = HMAC_SHA256(order_id|payment_id, key_secret), (c) query() fetches /v1/payments/:id for authoritative state, (d) refund() creates refund via /v1/payments/:id/refunds, (e) queryRefund() fetches refund status, (f) verifyWebhook() validates X-Razorpay-Signature header via HMAC_SHA256(body, webhook_secret)",
