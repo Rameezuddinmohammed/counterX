@@ -2,7 +2,7 @@
   "id": "FEAT-006",
   "type": "feat",
   "description": "Task 20: Build the deterministic reference buyer and scenario corpus. Turn apps/reference-buyer into an independent Native client (currently a placeholder). Provide deterministic test identity, mandate, intent, and approval setup. Implement scenario drivers for the full lifecycle. Create a versioned scenario corpus for Counter Agent Wallet parity, covering all PILOT.md required scenarios.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create apps/reference-buyer/src/identity.ts with deterministic test identity setup: (a) createTestBuyerIdentity() generates a deterministic Ed25519 keypair (seeded for reproducibility), (b) test wallet/agent registration, (c) TestBuyerIdentity type with walletId, agentId, signing key",
     "Create apps/reference-buyer/src/mandate-builder.ts using @counter/payment-sdk and @counter/trust-protocol to create signed bounded mandates: buildTestMandate() with amount ceilings, currency (INR), merchant scope, validity window (24h max per PILOT.md)",
@@ -29,5 +29,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/reference-buyer build && pnpm --filter @counter/reference-buyer test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 35 tests pass. Build compiles cleanly. Used deterministic seeded PRNG for identity generation to ensure reproducibility. Receipt verifier delegates to @counter/evidence verifyReceipt with proper handling of exactOptionalPropertyTypes. Scenario corpus covers all 17 required PILOT.md scenarios with setup/assertion functions. ScenarioDriver uses port interfaces for mock/real service interchangeability."
 }
