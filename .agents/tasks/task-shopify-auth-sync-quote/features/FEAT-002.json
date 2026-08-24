@@ -33,5 +33,5 @@
     "cd /root/counterX/packages/shopify-connector && pnpm test"
   ],
   "blocked_reason": null,
-  "findings": "Added @counter/commerce-graph as a workspace dependency (was missing). The pnpm lockfile updated automatically once the dependency was added. MockShopifyClient setResponse uses exact string key matching for operation lookup."
+  "findings": "Addressed v2 semantic review: (1) Fixed HMAC encoding mismatch - now uses base64 to match Shopify wire format, (2) Added bounded eviction (maxProductStateSize) to CatalogSyncService.productState map, (3) Added JSDoc documenting CTP digest is intentionally content-based with timestamp uniqueness."
 }
