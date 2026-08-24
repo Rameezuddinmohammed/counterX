@@ -18,6 +18,8 @@ const protectedRelations = [
   ["identity", "support_grants"],
   ["identity", "support_grant_permissions"],
   ["identity", "support_grant_events"],
+  ["identity", "support_grant_authorizations"],
+  ["identity", "support_grant_authorization_permissions"],
 ] as const;
 
 const identityFunctionSignatures = [
@@ -62,8 +64,8 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const empty = await runner.status();
     expect(empty.currentVersion).toBe(0);
-    expect(empty.latestVersion).toBe(3);
-    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3]);
+    expect(empty.latestVersion).toBe(4);
+    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
 
     const firstVersion = await runner.up(1);
     expect(firstVersion.currentVersion).toBe(1);
@@ -78,13 +80,14 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     await expect(schemaExists(database, "merchant")).resolves.toBe(false);
     await expect(schemaExists(database, "wallet")).resolves.toBe(false);
 
-    const upgraded = await runner.up(3);
-    expect(upgraded.currentVersion).toBe(3);
+    const upgraded = await runner.up(4);
+    expect(upgraded.currentVersion).toBe(4);
     expect(upgraded.pending).toHaveLength(0);
     expect(upgraded.applied.map(({ version, name }) => ({ version, name }))).toEqual([
       { version: 1, name: "environment-registry" },
       { version: 2, name: "synthetic-fixtures" },
       { version: 3, name: "identity-tenancy-scope" },
+      { version: 4, name: "support-grant-authorizations" },
     ]);
     await expect(schemaExists(database, "identity")).resolves.toBe(true);
     await expect(schemaExists(database, "merchant")).resolves.toBe(true);
@@ -134,8 +137,8 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     await expect(tableExists(database, "platform", "environment_registry")).resolves.toBe(false);
 
     const restored = await runner.up();
-    expect(restored.currentVersion).toBe(3);
-    expect(restored.applied.map((migration) => migration.version)).toEqual([1, 2, 3]);
+    expect(restored.currentVersion).toBe(4);
+    expect(restored.applied.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
     await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length);
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
   });

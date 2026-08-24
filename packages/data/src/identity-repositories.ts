@@ -21,6 +21,7 @@ import {
   type ServiceIdentityRecord,
   type ServiceIdentityRepository,
   type SupportGrantRecord,
+  type SupportGrantAuthorizationInput,
   type SupportGrantRepository,
   type TenantScopeRepository,
   type WalletScopeRecord,
@@ -489,6 +490,78 @@ export class PostgresIdentityRepositories
         [context.environment, operatorId],
       );
       return Object.freeze(result.rows.map(supportGrantFrom));
+    });
+  }
+
+  authorizeSupportGrant(
+    context: AuthorizedContext<"identity.support_grant.issue">,
+    authorization: SupportGrantAuthorizationInput,
+  ): Promise<void> {
+    if (
+      context.actor.kind !== "operator" ||
+      context.effectiveScope.kind !== "platform" ||
+      context.environment !== authorization.environment
+    ) {
+      throw unauthorizedPersistence();
+    }
+    const fullAuthorization =
+      authorization.authorization.kind === "approved"
+        ? {
+            kind: "approved" as const,
+            authorizedBy: context.actor.id,
+            authorizedAt: authorization.authorization.authorizedAt,
+            approvalReference: authorization.authorization.approvalReference,
+          }
+        : {
+            kind: "incident" as const,
+            authorizedBy: context.actor.id,
+            authorizedAt: authorization.authorization.authorizedAt,
+            incidentReference: authorization.authorization.incidentReference,
+          };
+    const validated = unwrapRecord(
+      createSupportGrantAuthorizationRecord({
+        ...authorization,
+        authorization: fullAuthorization,
+      }),
+    );
+    const target = scopeFields(validated.targetScope);
+    const authorizationReference =
+      validated.authorization.kind === "approved"
+        ? validated.authorization.approvalReference
+        : validated.authorization.incidentReference;
+
+    return this.repositoryTransaction(context, async (session) => {
+      await session.query(
+        `INSERT INTO identity.support_grant_authorizations (
+           support_grant_id, environment, target_scope_kind, target_scope_id, operator_id,
+           reason, authorization_kind, authorized_by, authorized_at,
+           authorization_reference_source, authorization_reference_value,
+           valid_from, expires_at
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+         )`,
+        [
+          validated.supportGrantId,
+          validated.environment,
+          target.kind,
+          target.id,
+          validated.operatorId,
+          validated.reason,
+          validated.authorization.kind,
+          validated.authorization.authorizedBy,
+          asDate(validated.authorization.authorizedAt),
+          authorizationReference.source,
+          authorizationReference.value,
+          asDate(validated.validFrom),
+          asDate(validated.expiresAt),
+        ],
+      );
+      await session.query(
+        `INSERT INTO identity.support_grant_authorization_permissions (support_grant_id, permission_key)
+         SELECT $1, permission_key
+         FROM unnest($2::text[]) AS permission_key`,
+        [validated.supportGrantId, validated.permissions],
+      );
     });
   }
 
