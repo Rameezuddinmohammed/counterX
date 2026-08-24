@@ -1,0 +1,16 @@
+{
+  "task_id": "task-merchant-gate-a-decisions",
+  "features": {
+    "FEAT-001": {
+      "status": "completed",
+      "title": "Create Merchant Gate A integration decisions documentation",
+      "findings": [
+        "All 5 documentation files created under docs/merchant/",
+        ".env.example updated with Shopify and Razorpay placeholder variables",
+        "engineering-baseline.yaml updated with merchant section (shopify + razorpay versions)",
+        "Build and lint pass cleanly after changes",
+        "No real credentials included in any file"
+      ]
+    }
+  }
+}
