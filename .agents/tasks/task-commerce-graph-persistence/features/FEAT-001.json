@@ -33,5 +33,5 @@
     "Run: cd /root/counterX && pnpm --filter @counter/commerce-graph build"
   ],
   "blocked_reason": null,
-  "findings": "Implemented local freshness evaluation in freshness.ts rather than importing from @counter/connector-sdk to avoid circular dependency (both depend on @counter/domain). The algorithm is identical to connector-sdk evaluateFreshness. FreshnessPolicy was updated to include resourceName and warningThresholdMs (matching connector-sdk pattern) instead of the original staleWhileRevalidate boolean. Variant now includes merchantId for proper uniqueness within merchant scope. All 47 tests pass across 2 test files."
+  "findings": "Review iteration 1 complete. Fixed all 7 issues: (1) Shopify transform now accepts optional TransformContext for merchantId/fetchedAt, (2) resolveConflict uses deterministic ID suffix instead of Date.now(), (3) InMemoryInventoryRepository now has out-of-order protection, (4) dead code branch removed from InMemoryPriceRepository.save, (5) computeDifferences now detects value changes via deepEqual, (6) publish() revokes previous published version for same merchant, (7) ConflictRepository.resolve uses ResolutionStrategy type."
 }
