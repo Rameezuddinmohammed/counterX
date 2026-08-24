@@ -1,0 +1,41 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Implement merchant search, product detail projections, and immutable quote service with CTP digest/signature (Merchant Task 9). Index only 'released' products. Expose safe agent projections (no internal IDs leaked). Implement variant/quantity resolution with current source freshness checks. Apply pilot tax/shipping rules (fixed GST rate in basis points, flat shipping in paise, INR only, India only). Generate immutable quotes with expiry, CTP digest (SHA-256 of quote content), and signature. Refuse ambiguous/unsupported totals, stale data, non-INR, non-India, and excluded (non-released) products.",
+  "status": "completed",
+  "steps": [
+    "Create packages/shopify-connector/src/product-index.ts - ProductIndex class that maintains an index of released products only. Methods: indexProducts(products: readonly Product[]) - adds/updates products, only indexes those with status 'released'; search(query: string, limit?: number) -> readonly ProductProjection[] - text search across title/description/SKU returning safe agent projections; getProduct(productId: string) -> ProductProjection | null; getVariant(variantId: string) -> VariantProjection | null. ProductProjection includes: id, title, description, variants (as VariantProjection[]), status, source. VariantProjection: id, productId, sku, title, active. No internal merchant IDs or raw source references exposed.",
+    "Create packages/shopify-connector/src/quote-config.ts - PilotQuoteConfig type: taxRateBps (number, e.g. 1800 for 18% GST), shippingFlatPaise (bigint, e.g. 5000n for 50 INR), currency ('INR' only), country ('IN' only), quoteValidityMs (number, e.g. 900000 for 15 minutes), freshnessPolicy (FreshnessPolicy from commerce-graph). Include DEFAULT_PILOT_QUOTE_CONFIG. QuoteLineItem type: variantId, quantity (positive integer), unitPricePaise (bigint).",
+    "Create packages/shopify-connector/src/quote-service.ts - QuoteService class. Method: createQuote(request: CreateQuoteRequest) -> Result<ImmutableQuote>. CreateQuoteRequest: merchantId, items (readonly {variantId, quantity}[]), config (PilotQuoteConfig). Logic: 1) Resolve each variant from index (refuse if not found or not released). 2) Check freshness of price/inventory for each variant (refuse if stale per policy). 3) Validate quantity > 0 and <= available inventory. 4) Calculate: lineItemSubtotal = sum(price * quantity), taxAmount = floor(subtotal * taxRateBps / 10000), shippingAmount = config.shippingFlatPaise, total = subtotal + tax + shipping. 5) Refuse if currency != INR. 6) Refuse if country != IN. 7) Generate quote ID (ctr_quote_*). 8) Set validUntil = now + quoteValidityMs. 9) Compute CTP digest: SHA-256 of canonical JSON of quote content (sorted keys, deterministic). 10) Return ImmutableQuote.",
+    "Create packages/shopify-connector/src/quote-types.ts - ImmutableQuote type: id (string), merchantId, items (readonly QuoteLineItem[]), subtotalPaise (bigint), taxAmountPaise (bigint), taxRateBps (number), shippingAmountPaise (bigint), totalPaise (bigint), currency ('INR'), country ('IN'), createdAt (Instant), validUntil (Instant), freshnessAssessment (FreshnessAssessment), ctpDigest (Sha256Digest), metadata: {taxSource: 'merchant_pilot_config', shippingSource: 'merchant_pilot_config', calculationMethod: 'fixed_pilot_v1'}. QuoteRefusalReason enum: 'product_not_found' | 'product_not_released' | 'variant_not_found' | 'stale_data' | 'insufficient_inventory' | 'invalid_quantity' | 'unsupported_currency' | 'unsupported_country' | 'quote_expired' | 'ambiguous_total'.",
+    "Create packages/shopify-connector/src/quote-verification.ts - Functions: verifyQuoteDigest(quote: ImmutableQuote) -> boolean (recomputes digest and compares); isQuoteExpired(quote: ImmutableQuote, now: Instant) -> boolean; detectMaterialChange(original: ImmutableQuote, currentPrices: Map<string, bigint>, currentInventory: Map<string, number>) -> MaterialChangeResult. MaterialChangeResult: { changed: boolean, priceChanges: readonly PriceChange[], inventoryChanges: readonly InventoryChange[] }.",
+    "Create packages/shopify-connector/src/quote-service.test.ts - Tests: successful quote creation with correct arithmetic (verify subtotal, tax with floor rounding, shipping, total), refuse non-released product, refuse stale price data, refuse insufficient inventory, refuse zero/negative quantity, refuse non-INR currency, refuse non-India country, CTP digest is deterministic (same inputs produce same digest), quote expiry detection, material change detection (price change, inventory reduction below requested quantity), concurrent inventory test (two quotes for same variant where total exceeds available).",
+    "Create packages/shopify-connector/src/product-index.test.ts - Tests: only released products are indexed, search returns matching products, search excludes non-released, getProduct returns safe projection without internal IDs, getVariant works, re-indexing updates existing products.",
+    "Update packages/shopify-connector/src/index.ts - Export quote service, product index, and all related types.",
+    "Update packages/shopify-connector/package.json - Add @counter/commerce-graph as dependency (workspace:0.1.0) since quote-service references commerce-graph types (Product, FreshnessPolicy, etc)."
+  ],
+  "acceptance_criteria": [
+    "Product index only contains products with status 'released'",
+    "Search returns safe agent projections without internal IDs or raw source references",
+    "Quote arithmetic is correct: subtotal = sum(price * qty), tax = floor(subtotal * bps / 10000), total = subtotal + tax + shipping",
+    "Quote refuses non-released products with appropriate reason",
+    "Quote refuses stale data when freshness policy violated",
+    "Quote refuses insufficient inventory",
+    "Quote refuses non-INR currency and non-India country",
+    "Quote refuses invalid quantities (zero, negative)",
+    "CTP digest is SHA-256 of deterministic canonical JSON",
+    "Quote verification detects tampering (modified digest fails verification)",
+    "Quote expiry is correctly computed and detected",
+    "Material change detection identifies price and inventory changes",
+    "Concurrent inventory scenario correctly identified (two quotes exceeding available)",
+    "All tests pass with pnpm test in packages/shopify-connector",
+    "pnpm build and pnpm typecheck pass from repo root"
+  ],
+  "verification": [
+    "cd /root/counterX && pnpm build",
+    "cd /root/counterX && pnpm typecheck",
+    "cd /root/counterX/packages/shopify-connector && pnpm test"
+  ],
+  "blocked_reason": null,
+  "findings": "The @counter/commerce-graph dependency was already in package.json from FEAT-002. CTP digest computation uses a canonical JSON with sorted keys and bigint-to-string serialization. The digest field itself is excluded from the hash (set to empty string during computation). All 35 new tests passing (113 total in package). Build and typecheck pass."
+}
