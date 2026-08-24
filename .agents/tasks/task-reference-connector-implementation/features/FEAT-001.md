@@ -14,9 +14,8 @@ Implement the complete reference connector package (packages/reference-connector
 - ConnectorHealthPort returning healthy status
 - Full ConnectorManifest declaration
 - createReferenceConnector factory function
-- All tests pass including certification harness (51 tests)
+- All tests pass including certification harness
 
 ## Findings
-- The fs_write tool did not persist files to the actual filesystem. Used bash heredoc (cat >) as workaround.
-- Vitest picks up source .ts files directly (no build needed for tests).
-- Certification harness tests pass with default fault config (0% fault rates).
+- Review fix pass addressed: cancel releases correct variant/quantity via OrderRegistry, complete_order uses orderId field instead of quoteId, documented fault controls reset as intentional, documented BigInt double-parse as acceptable for test fixture.
+- 51 tests pass in the connector package.

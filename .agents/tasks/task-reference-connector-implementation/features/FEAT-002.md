@@ -14,6 +14,5 @@ Implement the reference-services app as a local Fastify REST server that wraps t
 - TypeScript strict mode passes with no errors
 
 ## Findings
-- BigInt serialization requires a preSerialization hook since Fastify's default JSON serializer cannot handle bigint values from the connector's catalog (priceMinor) and actions (totalMinor)
-- exactOptionalPropertyTypes requires careful construction of payload objects to avoid assigning undefined to optional properties
-- Route order matters for Fastify - /products/search must be registered before /products/:id to avoid conflicts
+- Review fix pass addressed: HTTP status codes now reflect action outcomes (409 for failed, 202 for indeterminate, success code for succeeded), OrderRegistry wired into complete/cancel actions, fault-controls endpoint documented as full state reset, BigInt serialization hook documented.
+- 14 tests pass in the services package.
