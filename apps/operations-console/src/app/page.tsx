@@ -1,5 +1,6 @@
 /**
  * Dashboard overview linking to each section with summary counts.
+ * Includes merchant operations, telemetry, and recovery capabilities.
  */
 export default function OperationsConsoleDashboard() {
   const sections = [
@@ -25,6 +26,31 @@ export default function OperationsConsoleDashboard() {
       description: "Active grants with expiry and purpose",
     },
     { href: "/adapters", title: "Adapter Releases", description: "Connector versions and health" },
+    {
+      href: "/merchant-ops",
+      title: "Merchant Operations",
+      description: "Merchant-scoped transactions, refunds, voids, and suspensions",
+    },
+    {
+      href: "/telemetry",
+      title: "Telemetry Dashboard",
+      description: "Transaction success rates, provider latency, queue depth metrics",
+    },
+    {
+      href: "/recovery",
+      title: "Recovery Commands",
+      description: "Replay, rotation, backup/restore, drain, and force reconcile",
+    },
+    {
+      href: "/runbooks",
+      title: "Runbooks",
+      description: "Structured guides for outage, backlog, crash, offboarding, and rotation",
+    },
+    {
+      href: "/credential-scan",
+      title: "Credential Scanner",
+      description: "Scan storage and telemetry for forbidden credential patterns",
+    },
   ] as const;
 
   return (

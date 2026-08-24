@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "feat",
   "description": "Task 19: Add merchant operations, telemetry, and recovery evidence. Build merchant-scoped operator APIs in the Operations Console, dashboards/alerts/replay commands, support grants, runbooks. Exercise rotation, backup/restore, outage, queue backlog, crash, and offboarding scenarios. Scan storage/telemetry for credentials.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create apps/operations-console/src/lib/operator-api.ts with merchant-scoped operator API types and client: (a) listMerchantTransactions(merchantId, filters), (b) getTransactionDetail(txId), (c) retryTransaction(txId), (d) voidTransaction(txId), (e) issueRefund(txId, amount), (f) suspendMerchant(merchantId, reason), (g) grantSupportAccess(merchantId, grantConfig), (h) exportAuditLog(merchantId, dateRange)",
     "Create apps/operations-console/src/lib/projections.ts with operations console data projections: TransactionProjection (flattened view for operator dashboards), MerchantHealthProjection (aggregated health metrics), AlertProjection (threshold-based alerts), QueueProjection (job queue status)",

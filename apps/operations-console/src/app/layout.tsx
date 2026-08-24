@@ -16,6 +16,11 @@ const NAV_ITEMS = [
   { href: "/kill-switches", label: "Kill Switches" },
   { href: "/support", label: "Support Sessions" },
   { href: "/adapters", label: "Adapters" },
+  { href: "/merchant-ops", label: "Merchant Ops" },
+  { href: "/telemetry", label: "Telemetry" },
+  { href: "/recovery", label: "Recovery" },
+  { href: "/runbooks", label: "Runbooks" },
+  { href: "/credential-scan", label: "Credential Scan" },
 ] as const;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
