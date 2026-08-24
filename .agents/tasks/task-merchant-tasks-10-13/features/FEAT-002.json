@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement readiness engine and Capability Manifest (Task 11) in packages/merchant-application/. Implement typed readiness checks with Blocking/Accepted-Limitation/Advisory/Expiring lifecycle states. Bind scenario evidence and all connector/mapping/policy/payment/protocol versions to activation. Generate and sign the pilot Capability Manifest. Evaluate runtime health/suspension without adding capabilities. Test expired evidence, limitation acknowledgment, activation races, and discovery/runtime consistency.",
+  "status": "completed",
+  "steps": [
+    "Create packages/merchant-application/src/readiness-types.ts: Define ReadinessCheck discriminated union with check kinds (connector_health, mapping_freshness, policy_compiled, payment_configured, protocol_version, evidence_valid). Define ReadinessStatus enum: Blocking, AcceptedLimitation, Advisory, Expiring. Each check has typed evidence binding (version refs, digests, timestamps).",
+    "Create packages/merchant-application/src/readiness-engine.ts: Implement ReadinessEngine class. evaluateAll(merchantId, checks[]) returns ReadinessResult with overall status (worst-of semantics: any Blocking = not ready), individual check results, expiring items with time-to-expiry. Bind connector/mapping/policy/payment/protocol versions. No new capabilities added - only evaluates existing state.",
+    "Create packages/merchant-application/src/capability-manifest.ts: Implement CapabilityManifest type: merchantId, manifestVersion (semver), capabilities list referencing released operation subset from PILOT.md, version bindings (connectorVersion, mappingSchemaHash, policyVersion, protocolVersion, paymentProviderVersion), generatedAt, signatureDigest (SHA-256 of canonical JSON). Implement generateManifest() and signManifest() using @counter/domain sha256Digest.",
+    "Create packages/merchant-application/src/health-evaluator.ts: Implement runtime health evaluation. Given current readiness state + manifest, determine if merchant should be suspended (any Blocking check fails at runtime). Return health status: Healthy, Degraded (Advisory/Expiring issues), Suspended (Blocking). Do not mutate state - pure evaluation.",
+    "Create packages/merchant-application/src/readiness-engine.test.ts: Test all check kinds pass/fail, worst-of semantics, expired evidence detection (check with expiresAt < now), limitation acknowledgment flow (AcceptedLimitation transitions), concurrent activation race detection (two activations with same manifest version).",
+    "Create packages/merchant-application/src/capability-manifest.test.ts: Test manifest generation with all version bindings, signature determinism (same inputs = same digest), manifest version validation, discovery/runtime consistency (manifest capabilities match what readiness allows).",
+    "Create packages/merchant-application/src/health-evaluator.test.ts: Test health evaluation with various readiness combinations, suspension trigger, degraded detection, healthy baseline.",
+    "Update packages/merchant-application/src/index.ts to export all new readiness/manifest/health modules."
+  ],
+  "acceptance_criteria": [
+    "pnpm build succeeds with no type errors in packages/merchant-application",
+    "pnpm --filter @counter/merchant-application test passes with all new tests green",
+    "ReadinessEngine correctly evaluates all check kinds with worst-of semantics",
+    "Expired evidence is detected and produces Blocking status",
+    "Capability Manifest is generated with deterministic signature digest",
+    "Health evaluator correctly derives Healthy/Degraded/Suspended from readiness state",
+    "Activation race detection works (concurrent same-version activations rejected)"
+  ],
+  "verification": [
+    "cd /root/counterX && pnpm --filter @counter/merchant-application build",
+    "cd /root/counterX && pnpm --filter @counter/merchant-application test"
+  ],
+  "blocked_reason": null,
+  "findings": "Built from feat/implement-ctp-schema-package branch which has the merchant-application package. Build and all 167 tests pass (34 new). Used bash heredocs for file creation since fs_write targets /projects/sandbox/ which differs from git workspace at /root/counterX/."
+}
