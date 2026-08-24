@@ -2,7 +2,7 @@
   "id": "FEAT-007",
   "type": "feat",
   "description": "Task 21: Certify the Merchant pilot candidate. Run PILOT.md scenarios through reference-buyer. Perform independent receipt verification. Build evidence bundle with signed Capability Manifest. Create requirement traceability matrix linking each PILOT.md requirement to its test evidence.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/merchant-application/src/pilot-certification.ts with PilotCertification class: (a) runCertificationSuite(scenarios, referenceBuyer) executes all scenarios, (b) collectEvidenceBundle() gathers test results, receipts, findings, and manifest, (c) signCertificationManifest() produces a CTP-signed capability manifest with evidence hashes, (d) CertificationResult type with pass/fail per scenario",
     "Create packages/merchant-application/src/requirement-traceability.ts with: (a) RequirementLink type (requirementId, pilotMdSection, testScenarioId, evidenceIds, status), (b) buildTraceabilityMatrix() mapping each PILOT.md requirement to its test evidence, (c) PILOT_REQUIREMENTS constant enumerating all 14 released operation candidates from PILOT.md section 3, (d) validateTraceability() ensuring no requirement has missing evidence",
@@ -23,5 +23,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/merchant-application build && pnpm --filter @counter/merchant-application test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Added @counter/trust-protocol dependency to merchant-application. InMemoryKeyRegistry uses .add() method (not .register()). 199 total tests passing (30 new). Build and test both pass cleanly."
 }
