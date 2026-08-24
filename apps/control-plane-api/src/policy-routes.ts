@@ -7,6 +7,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import {
   getCorrelationId,
+  getActorContext,
   registerRoutePermission,
 } from "@counter/http-api-kit";
 
@@ -149,6 +150,25 @@ function validatePolicyBody(body: unknown): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+// Tenant isolation: verify the authenticated principal owns the merchantId
+// ---------------------------------------------------------------------------
+
+function verifyTenantAccess(request: FastifyRequest, merchantId: string): boolean {
+  const actorContext = getActorContext(request);
+  if (actorContext === undefined) {
+    return false;
+  }
+  const scope = actorContext.scope;
+  if (scope.kind === "platform") {
+    return true;
+  }
+  if (scope.kind === "merchant") {
+    return scope.merchantId === merchantId;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Plugin
 // ---------------------------------------------------------------------------
 
@@ -171,6 +191,17 @@ export async function policyRoutesPlugin(
   fastify.post(ROUTE_PREFIX, async (request: FastifyRequest, reply: FastifyReply) => {
     const params = request.params as Record<string, string>;
     const merchantId = params["merchantId"] ?? "";
+
+    if (!verifyTenantAccess(request, merchantId)) {
+      void reply.status(403).send({
+        error: {
+          code: "FORBIDDEN",
+          message: "Access denied for the requested merchant",
+        },
+      });
+      return;
+    }
+
     const correlationId = getCorrelationId(request);
     const body = request.body as Record<string, unknown> | undefined;
 
@@ -261,6 +292,17 @@ export async function policyRoutesPlugin(
   fastify.get(ROUTE_PREFIX, async (request: FastifyRequest, reply: FastifyReply) => {
     const params = request.params as Record<string, string>;
     const merchantId = params["merchantId"] ?? "";
+
+    if (!verifyTenantAccess(request, merchantId)) {
+      void reply.status(403).send({
+        error: {
+          code: "FORBIDDEN",
+          message: "Access denied for the requested merchant",
+        },
+      });
+      return;
+    }
+
     const correlationId = getCorrelationId(request);
 
     const entry = store.get(merchantId);

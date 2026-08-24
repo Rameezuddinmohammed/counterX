@@ -556,4 +556,30 @@ describe("merchant routes", () => {
       expect(response.headers["x-correlation-id"]).toBe(correlationId);
     });
   });
+
+  describe("tenant isolation - negative path", () => {
+    it("token scoped to merchant B requesting merchant A resources returns 403", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test" });
+      await server.ready();
+
+      const OTHER_MERCHANT_ID = "ctr_merchant_BBBBBBBBBBBBBBBBBBBBBB";
+
+      // Create token scoped to merchant B
+      const token = await createTestToken({
+        [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: OTHER_MERCHANT_ID },
+      });
+
+      // Request merchant A resources (TEST_MERCHANT_ID)
+      const response = await server.inject({
+        method: "GET",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/capabilities`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body) as { error: { code: string; message: string } };
+      expect(body.error.code).toBe("UNAUTHORIZED");
+      expect(body.error.message).toContain("Access denied");
+    });
+  });
 });
