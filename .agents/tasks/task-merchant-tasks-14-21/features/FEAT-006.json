@@ -2,7 +2,7 @@
   "id": "FEAT-006",
   "type": "feat",
   "description": "Task 20: Build the deterministic reference buyer and scenario corpus. Turn apps/reference-buyer into an independent Native client (currently a placeholder). Provide deterministic test identity, mandate, intent, and approval setup. Implement scenario drivers for the full lifecycle. Create a versioned scenario corpus for Counter Agent Wallet parity, covering all PILOT.md required scenarios.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create apps/reference-buyer/src/identity.ts with deterministic test identity setup: (a) createTestBuyerIdentity() generates a deterministic Ed25519 keypair (seeded for reproducibility), (b) test wallet/agent registration, (c) TestBuyerIdentity type with walletId, agentId, signing key",
     "Create apps/reference-buyer/src/mandate-builder.ts using @counter/payment-sdk and @counter/trust-protocol to create signed bounded mandates: buildTestMandate() with amount ceilings, currency (INR), merchant scope, validity window (24h max per PILOT.md)",

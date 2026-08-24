@@ -152,6 +152,19 @@ importers:
         version: 3.0.7(@types/node@22.13.1)
 
   apps/reference-buyer:
+    dependencies:
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../../packages/domain
+      '@counter/evidence':
+        specifier: workspace:0.1.0
+        version: link:../../packages/evidence
+      '@counter/payment-sdk':
+        specifier: workspace:0.1.0
+        version: link:../../packages/payment-sdk
+      '@counter/trust-protocol':
+        specifier: workspace:0.1.0
+        version: link:../../packages/trust-protocol
     devDependencies:
       typescript:
         specifier: 5.7.3
