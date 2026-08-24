@@ -34,3 +34,13 @@ export * from "./verification.js";
 export * from "./verification-methods.js";
 export * from "./verification-service.js";
 export * from "./verification-repository.js";
+
+// Readiness engine and types
+export * from "./readiness-types.js";
+export * from "./readiness-engine.js";
+
+// Capability manifest
+export * from "./capability-manifest.js";
+
+// Health evaluator
+export * from "./health-evaluator.js";
