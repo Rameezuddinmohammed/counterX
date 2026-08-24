@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Task 18: Build the Merchant Console pilot screens (Next.js). Create the complete merchant console interface with screens for: invite/lifecycle, Shopify setup, mapping preview, policy simulation, Razorpay status, readiness/scenario runner, manifest activation, transaction timeline, findings, kill switches, audit/export, suspension, and offboarding.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create apps/merchant-console/src/lib/api-client.ts with a typed API client that communicates with control-plane-api. Include auth token management, error mapping, and typed request/response interfaces for each merchant API endpoint.",
     "Create apps/merchant-console/src/lib/types.ts with MerchantConsoleState, Screen enum, and all UI model types (InvitationStatus, ShopifySetupStatus, MappingPreview, PolicySimulationResult, ReadinessStatus, ManifestStatus, Transaction, Finding, KillSwitchState, AuditEntry).",
