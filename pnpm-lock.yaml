@@ -158,6 +158,13 @@ importers:
         version: 3.0.7(@types/node@22.13.1)
 
   apps/reference-services:
+    dependencies:
+      '@counter/reference-connector':
+        specifier: workspace:0.1.0
+        version: link:../../packages/reference-connector
+      fastify:
+        specifier: 5.2.1
+        version: 5.2.1
     devDependencies:
       typescript:
         specifier: 5.7.3
