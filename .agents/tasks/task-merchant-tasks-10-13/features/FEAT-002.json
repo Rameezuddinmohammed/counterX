@@ -27,5 +27,5 @@
     "cd /root/counterX && pnpm --filter @counter/merchant-application test"
   ],
   "blocked_reason": null,
-  "findings": "Built from feat/implement-ctp-schema-package branch which has the merchant-application package. Build and all 167 tests pass (34 new). Used bash heredocs for file creation since fs_write targets /projects/sandbox/ which differs from git workspace at /root/counterX/."
+  "findings": "All 7 review issues addressed: tenant isolation, recursive payload hashing, manifest cross-check in health evaluator, engine-strict restored, idempotency store TTL/max-size, prefix-based simulation filter, and policy version-conflict detection via If-Match/ETag."
 }

@@ -27,5 +27,5 @@
     "cd /root/counterX && pnpm --filter @counter/shopify-connector test"
   ],
   "blocked_reason": null,
-  "findings": "All 7 order actions implemented and tested. Fixed computePayloadHash to use recursive key sorting for nested object comparison. 26 new tests pass alongside 113 existing tests (139 total). Build succeeds with no type errors. The fs_write and str_replace tools do not work with /root/counterX paths - had to use bash heredocs for file creation."
+  "findings": "All 7 review issues addressed: tenant isolation, recursive payload hashing, manifest cross-check in health evaluator, engine-strict restored, idempotency store TTL/max-size, prefix-based simulation filter, and policy version-conflict detection via If-Match/ETag."
 }

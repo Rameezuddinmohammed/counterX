@@ -29,5 +29,5 @@
     "cd /root/counterX && pnpm --filter @counter/merchant-policy test"
   ],
   "blocked_reason": null,
-  "findings": "Engine-strict in .npmrc prevents pnpm commands (Node 22.23.2 vs required 22.14.0). Used npx tsc and npx vitest directly to build and test. All 87 tests pass, tsc compiles with 0 errors. The dist/ output was regenerated from scratch."
+  "findings": "All 7 review issues addressed: tenant isolation, recursive payload hashing, manifest cross-check in health evaluator, engine-strict restored, idempotency store TTL/max-size, prefix-based simulation filter, and policy version-conflict detection via If-Match/ETag."
 }
