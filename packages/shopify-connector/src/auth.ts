@@ -7,8 +7,10 @@
 
 import { createCanonicalError, ok, err } from "@counter/domain";
 import type { Result } from "@counter/domain";
+import { timingSafeEqual } from "node:crypto";
+import { isPrivateIp, METADATA_ENDPOINTS, MYSHOPIFY_DOMAIN_PATTERN } from "./ssrf-validation.js";
 
-// --- Types ---
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ShopifyAuthConfig {
   readonly shopDomain: string;
@@ -29,27 +31,11 @@ export interface ScopeCheckResult {
   readonly extra: readonly string[];
 }
 
-// --- Constants ---
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const SHOPIFY_TOKEN_PREFIX = "shpat_";
-const MYSHOPIFY_DOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/u;
 
-const PRIVATE_IP_PATTERNS: readonly RegExp[] = [
-  /^10\./u,
-  /^172\.(1[6-9]|2\d|3[01])\./u,
-  /^192\.168\./u,
-  /^127\./u,
-  /^169\.254\./u,
-  /^0\./u,
-  /^::1$/u,
-  /^fc00:/iu,
-  /^fe80:/iu,
-  /^fd[0-9a-f]{2}:/iu,
-];
-
-const METADATA_ENDPOINTS: readonly string[] = ["169.254.169.254", "metadata.google.internal"];
-
-// --- Token Validation ---
+// ─── Token Validation ─────────────────────────────────────────────────────────
 
 export function validateToken(config: ShopifyAuthConfig): Result<ShopifyTokenValidation> {
   if (!config.accessToken.startsWith(SHOPIFY_TOKEN_PREFIX)) {
@@ -84,7 +70,7 @@ export function validateToken(config: ShopifyAuthConfig): Result<ShopifyTokenVal
   });
 }
 
-// --- Webhook Signature Verification ---
+// ─── Webhook Signature Verification ──────────────────────────────────────────
 
 export async function verifyWebhookSignature(
   rawBody: Uint8Array,
@@ -107,24 +93,21 @@ export async function verifyWebhookSignature(
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Timing-safe comparison
-  return timingSafeEqual(computedHex, hmacHeader);
-}
+  // Timing-safe comparison using Node.js crypto.timingSafeEqual.
+  // Both buffers must be the same length; we pad to avoid a length leak.
+  const computedBuf = Buffer.from(computedHex, "utf8");
+  const headerBuf = Buffer.from(hmacHeader, "utf8");
 
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
+  if (computedBuf.length !== headerBuf.length) {
+    // Compare computed against itself to consume constant time, then return false.
+    timingSafeEqual(computedBuf, computedBuf);
     return false;
   }
 
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return result === 0;
+  return timingSafeEqual(computedBuf, headerBuf);
 }
 
-// --- Scope Checking ---
+// ─── Scope Checking ───────────────────────────────────────────────────────────
 
 export function checkScopes(
   granted: readonly string[],
@@ -155,7 +138,7 @@ export function checkScopes(
   });
 }
 
-// --- Domain Validation ---
+// ─── Domain Validation ────────────────────────────────────────────────────────
 
 export function validateShopDomain(domain: string): Result<string> {
   const normalized = domain.toLowerCase().trim();
@@ -186,22 +169,20 @@ export function validateShopDomain(domain: string): Result<string> {
   // Check for private IPs embedded in domain (e.g. 10-0-0-1.myshopify.com is suspicious)
   const subdomain = normalized.replace(".myshopify.com", "");
   const possibleIp = subdomain.replace(/-/gu, ".");
-  for (const pattern of PRIVATE_IP_PATTERNS) {
-    if (pattern.test(possibleIp)) {
-      return err(
-        createCanonicalError({
-          category: "validation",
-          code: "INVALID_FORMAT",
-          message: "Domain resolves to a private IP range",
-        }),
-      );
-    }
+  if (isPrivateIp(possibleIp)) {
+    return err(
+      createCanonicalError({
+        category: "validation",
+        code: "INVALID_FORMAT",
+        message: "Domain resolves to a private IP range",
+      }),
+    );
   }
 
   return ok(normalized);
 }
 
-// --- Credential Redaction ---
+// ─── Credential Redaction ─────────────────────────────────────────────────────
 
 const CREDENTIAL_PATTERNS: readonly RegExp[] = [
   /shpat_[a-zA-Z0-9_-]+/gu,

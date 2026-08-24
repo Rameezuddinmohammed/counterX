@@ -6,64 +6,20 @@
  */
 
 import type { ShopifyGraphQLPort, ShopifyGraphQLResponse, ShopifyThrottleStatus } from "./graphql-client.js";
+import { validateShopDomainSsrf } from "./ssrf-validation.js";
 
-// --- Constants ---
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const SHOPIFY_API_VERSION = "2025-07";
-const MYSHOPIFY_DOMAIN_PATTERN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/u;
 const BUCKET_CAPACITY = 1000;
 const LOW_BUCKET_THRESHOLD = 0.2;
 
-// --- Private IP Ranges ---
+// ─── Re-exports for backward compatibility ───────────────────────────────────
 
-const PRIVATE_IP_PATTERNS: readonly RegExp[] = [
-  /^10\./u,
-  /^172\.(1[6-9]|2\d|3[01])\./u,
-  /^192\.168\./u,
-  /^127\./u,
-  /^169\.254\./u,
-  /^0\./u,
-  /^::1$/u,
-  /^fc00:/iu,
-  /^fe80:/iu,
-  /^fd[0-9a-f]{2}:/iu,
-];
+export { validateShopDomainSsrf, isPrivateIp } from "./ssrf-validation.js";
+export type { DomainValidationResult } from "./ssrf-validation.js";
 
-const METADATA_ENDPOINTS: readonly string[] = ["169.254.169.254", "metadata.google.internal"];
-
-// --- SSRF Validation ---
-
-export interface DomainValidationResult {
-  readonly valid: boolean;
-  readonly reason: string | undefined;
-}
-
-export function validateShopDomainSsrf(domain: string): DomainValidationResult {
-  const normalizedDomain = domain.toLowerCase().trim();
-
-  if (!MYSHOPIFY_DOMAIN_PATTERN.test(normalizedDomain)) {
-    return { valid: false, reason: "Domain must match *.myshopify.com pattern" };
-  }
-
-  for (const endpoint of METADATA_ENDPOINTS) {
-    if (normalizedDomain === endpoint || normalizedDomain.includes(endpoint)) {
-      return { valid: false, reason: "Metadata endpoint access is not permitted" };
-    }
-  }
-
-  return { valid: true, reason: undefined };
-}
-
-export function isPrivateIp(ip: string): boolean {
-  for (const pattern of PRIVATE_IP_PATTERNS) {
-    if (pattern.test(ip)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// --- HTTP Client Configuration ---
+// ─── HTTP Client Configuration ────────────────────────────────────────────────
 
 export interface HttpGraphQLClientConfig {
   readonly shopDomain: string;
@@ -71,7 +27,7 @@ export interface HttpGraphQLClientConfig {
   readonly apiVersion?: string | undefined;
 }
 
-// --- HTTP Client Implementation ---
+// ─── HTTP Client Implementation ───────────────────────────────────────────────
 
 export function createHttpGraphQLClient(config: HttpGraphQLClientConfig): ShopifyGraphQLPort {
   const apiVersion = config.apiVersion ?? SHOPIFY_API_VERSION;

@@ -46,12 +46,66 @@ interface PendingEntry {
   attempts: number;
 }
 
+// ─── Bounded Deduplication Set ────────────────────────────────────────────────
+
+/**
+ * A bounded set that evicts entries older than a configured TTL.
+ * Prevents unbounded memory growth from webhook deduplication.
+ */
+class BoundedIdSet {
+  private readonly maxSize: number;
+  private readonly ttlMs: number;
+  private readonly entries = new Map<string, number>();
+
+  constructor(maxSize = 10_000, ttlMs = 3_600_000) {
+    this.maxSize = maxSize;
+    this.ttlMs = ttlMs;
+  }
+
+  add(id: string): void {
+    // Evict expired entries if at capacity
+    if (this.entries.size >= this.maxSize) {
+      this.evictExpired();
+    }
+    // If still at capacity after eviction, remove oldest entry
+    if (this.entries.size >= this.maxSize) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest !== undefined) {
+        this.entries.delete(oldest);
+      }
+    }
+    this.entries.set(id, Date.now());
+  }
+
+  has(id: string): boolean {
+    const timestamp = this.entries.get(id);
+    if (timestamp === undefined) {
+      return false;
+    }
+    // Check if entry has expired
+    if (Date.now() - timestamp > this.ttlMs) {
+      this.entries.delete(id);
+      return false;
+    }
+    return true;
+  }
+
+  private evictExpired(): void {
+    const now = Date.now();
+    for (const [id, timestamp] of this.entries) {
+      if (now - timestamp > this.ttlMs) {
+        this.entries.delete(id);
+      }
+    }
+  }
+}
+
 // ─── Webhook Inbox ────────────────────────────────────────────────────────────
 
 export class WebhookInbox {
   private readonly secret: string;
   private readonly maxRetries: number;
-  private readonly processedIds = new Set<string>();
+  private readonly processedIds: BoundedIdSet;
   private readonly pendingQueue: PendingEntry[] = [];
   private readonly deadLetters: DeadLetterEntry[] = [];
   private readonly handler: ((event: WebhookEvent) => void) | undefined;
@@ -60,10 +114,13 @@ export class WebhookInbox {
     secret: string,
     handler?: (event: WebhookEvent) => void,
     maxRetries = 3,
+    maxDeduplicationSize = 10_000,
+    deduplicationTtlMs = 3_600_000,
   ) {
     this.secret = secret;
     this.handler = handler;
     this.maxRetries = maxRetries;
+    this.processedIds = new BoundedIdSet(maxDeduplicationSize, deduplicationTtlMs);
   }
 
   /**

@@ -30,8 +30,8 @@ export const PRODUCT_COUNT_ESTIMATED_COST = 2;
 
 // ─── GraphQL Query Strings ────────────────────────────────────────────────────
 
-export const PRODUCTS_LIST_QUERY = `query ProductsList($first: Int!, $after: String) {
-  products(first: $first, after: $after) {
+export const PRODUCTS_LIST_QUERY = `query ProductsList($first: Int!, $after: String, $query: String) {
+  products(first: $first, after: $after, query: $query) {
     edges {
       cursor
       node {
@@ -177,14 +177,14 @@ function parseShopifyInstant(isoString: string): Instant {
   return Date.parse(isoString) as Instant;
 }
 
-function parseShopifyPrice(priceString: string): Money {
+function parseShopifyPrice(priceString: string, currency: Money["currency"]): Money {
   // Shopify returns prices as decimal strings like "19.99"
-  // Convert to minor units (cents) as bigint
+  // Convert to minor units (cents/paise) as bigint
   const parts = priceString.split(".");
   const whole = parts[0] ?? "0";
   const fractional = (parts[1] ?? "00").padEnd(2, "0").slice(0, 2);
   const amountMinor = BigInt(whole) * 100n + BigInt(fractional);
-  return Object.freeze({ amountMinor, currency: "USD" as Money["currency"] });
+  return Object.freeze({ amountMinor, currency });
 }
 
 export function mapShopifyVariant(
@@ -233,10 +233,11 @@ export function mapShopifyProduct(
 export function mapVariantToPriceSnapshot(
   variantNode: ShopifyVariantNode,
   fetchedAt: Instant,
+  currency: Money["currency"],
 ): PriceSnapshot {
   return Object.freeze({
     variantId: parseShopifyGid(variantNode.id),
-    amount: parseShopifyPrice(variantNode.price),
+    amount: parseShopifyPrice(variantNode.price, currency),
     observedAt: fetchedAt,
     source: createSourceReference(variantNode.id, fetchedAt),
   });

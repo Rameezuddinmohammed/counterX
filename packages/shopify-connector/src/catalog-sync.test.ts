@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import type { Instant } from "@counter/domain";
+import type { Instant, IsoCurrencyCode } from "@counter/domain";
 import { createMockGraphQLClient } from "./mock-graphql-client.js";
 import type { MockShopifyClient } from "./mock-graphql-client.js";
 import { InMemoryCursorStore } from "./sync-cursor.js";
@@ -15,6 +15,8 @@ import { PRODUCTS_LIST_QUERY } from "./catalog-queries.js";
 import type { ShopifyGraphQLResponse } from "./graphql-client.js";
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
+
+const INR = "INR" as IsoCurrencyCode;
 
 function makeProductNode(id: number, title: string, updatedAt: string) {
   return {
@@ -137,23 +139,25 @@ describe("CatalogSyncService", () => {
         null,
       );
 
-      // Sequential responses using call counting
+      // Mock client responds based on call order
       let callCount = 0;
       const pages = [page1, page2, page3];
       client.setResponse(PRODUCTS_LIST_QUERY, page1);
 
+      // Override the query behavior with sequential responses
       const originalQuery = client.query.bind(client);
       client.query = async <T>(operation: string, variables: Record<string, unknown>) => {
-        const idx = callCount;
+        const result = pages[callCount]!;
         callCount++;
-        // Still record the call via original
-        void originalQuery<T>(operation, variables);
-        return pages[idx] as ShopifyGraphQLResponse<T>;
+        // Still record the call
+        await originalQuery<T>(operation, variables);
+        return result as ShopifyGraphQLResponse<T>;
       };
 
       const result = await service.backfillProducts("merchant-1", {
         pageSize: 1,
         costBudget: 100,
+        storeCurrency: INR,
       });
 
       expect(result.products).toHaveLength(3);
@@ -177,6 +181,7 @@ describe("CatalogSyncService", () => {
       const result = await service.backfillProducts("merchant-1", {
         pageSize: 1,
         costBudget: 15,
+        storeCurrency: INR,
       });
 
       expect(result.products).toHaveLength(1);
@@ -214,6 +219,7 @@ describe("CatalogSyncService", () => {
       const result = await service.backfillProducts("merchant-1", {
         pageSize: 1,
         costBudget: 100,
+        storeCurrency: INR,
       });
 
       expect(result.products).toHaveLength(1);
@@ -248,6 +254,7 @@ describe("CatalogSyncService", () => {
       const result = await service.backfillProducts("merchant-1", {
         pageSize: 10,
         costBudget: 100,
+        storeCurrency: INR,
       });
 
       expect(result.products).toHaveLength(0);
@@ -273,15 +280,16 @@ describe("CatalogSyncService", () => {
       const responses = [page1, errorResponse];
       const originalQuery = client.query.bind(client);
       client.query = async <T>(operation: string, variables: Record<string, unknown>) => {
-        const idx = callCount;
+        const result = responses[callCount]!;
         callCount++;
-        void originalQuery<T>(operation, variables);
-        return responses[idx] as ShopifyGraphQLResponse<T>;
+        await originalQuery<T>(operation, variables);
+        return result as ShopifyGraphQLResponse<T>;
       };
 
       const result = await service.backfillProducts("merchant-1", {
         pageSize: 1,
         costBudget: 100,
+        storeCurrency: INR,
       });
 
       // First page products should be retained
@@ -301,10 +309,12 @@ describe("CatalogSyncService", () => {
       const result = await service.backfillProducts("merchant-1", {
         pageSize: 10,
         costBudget: 100,
+        storeCurrency: INR,
       });
 
       expect(result.prices).toHaveLength(1);
       expect(result.prices[0]!.amount.amountMinor).toBe(1999n);
+      expect(result.prices[0]!.amount.currency).toBe("INR");
       expect(result.inventory).toHaveLength(1);
       expect(result.inventory[0]!.availableQuantity).toBe(100);
     });
@@ -365,7 +375,7 @@ describe("CatalogSyncService", () => {
       client.setResponse(PRODUCTS_LIST_QUERY, response);
 
       const since = Date.parse("2024-06-01T00:00:00.000Z") as Instant;
-      const result = await service.reconciliationPoll("merchant-1", since);
+      const result = await service.reconciliationPoll("merchant-1", since, INR);
 
       // Only the recent product should pass the filter
       expect(result.products).toHaveLength(1);
@@ -387,6 +397,7 @@ describe("CatalogSyncService", () => {
       await service.backfillProducts("merchant-1", {
         pageSize: 10,
         costBudget: 100,
+        storeCurrency: INR,
       });
 
       // Webhook updates product 1 with newer data

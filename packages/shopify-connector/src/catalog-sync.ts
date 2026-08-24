@@ -7,6 +7,7 @@
  */
 
 import type { Instant } from "@counter/domain";
+import type { Money } from "@counter/domain";
 import type {
   Product,
   PriceSnapshot,
@@ -60,6 +61,7 @@ export interface WebhookVariantPayload {
 export interface BackfillOptions {
   readonly pageSize: number;
   readonly costBudget: number;
+  readonly storeCurrency: Money["currency"];
 }
 
 // ─── Sync Result ──────────────────────────────────────────────────────────────
@@ -90,7 +92,7 @@ export class CatalogSyncService {
    * Stops when budget is exhausted and saves cursor for resumption.
    */
   async backfillProducts(merchantId: string, options: BackfillOptions): Promise<SyncResult> {
-    const { pageSize, costBudget } = options;
+    const { pageSize, costBudget, storeCurrency } = options;
 
     // Load existing cursor for resume
     const existingCursor = this.cursorStore.getCursor(merchantId, "products");
@@ -179,7 +181,7 @@ export class CatalogSyncService {
 
           // Extract prices and inventory from variants
           for (const variantEdge of edge.node.variants.edges) {
-            allPrices.push(mapVariantToPriceSnapshot(variantEdge.node, fetchedAt));
+            allPrices.push(mapVariantToPriceSnapshot(variantEdge.node, fetchedAt, storeCurrency));
             allInventory.push(mapVariantToInventorySnapshot(variantEdge.node, fetchedAt));
           }
         }
@@ -291,39 +293,58 @@ export class CatalogSyncService {
 
   /**
    * Fallback reconciliation poll: fetches products updated since last sync.
-   * Uses the same pagination approach as backfill but filters by updatedAt.
+   * Paginates through all pages using a server-side query filter where
+   * supported, with client-side filtering as a safety net.
    */
-  async reconciliationPoll(merchantId: string, since: Instant): Promise<SyncResult> {
+  async reconciliationPoll(merchantId: string, since: Instant, storeCurrency: Money["currency"]): Promise<SyncResult> {
     const allProducts: Product[] = [];
     const allPrices: PriceSnapshot[] = [];
     const allInventory: InventorySnapshot[] = [];
     let costConsumed = 0;
     let pagesFetched = 0;
+    let hasNextPage = true;
+    let cursor: string | null = null;
 
-    // Fetch first page - in a real implementation we would use a query filter
-    // For now we fetch products and filter client-side
-    const response = await this.client.query<ShopifyProductsListResponse>(
-      PRODUCTS_LIST_QUERY,
-      { first: 50 },
-    );
+    // Paginate through all products, filtering by updatedAt >= since.
+    // We pass a query parameter for server-side filtering when supported,
+    // and apply client-side filtering as a safety net.
+    const sinceIso = new Date(since as number).toISOString();
+    const queryFilter = `updated_at:>='${sinceIso}'`;
 
-    costConsumed += PRODUCTS_LIST_ESTIMATED_COST;
-    pagesFetched++;
+    while (hasNextPage) {
+      const variables: Record<string, unknown> = { first: 50, query: queryFilter };
+      if (cursor !== null) {
+        variables["after"] = cursor;
+      }
 
-    if (response.data) {
-      const fetchedAt = Date.now() as Instant;
-      for (const edge of response.data.products.edges) {
-        const updatedAt = Date.parse(edge.node.updatedAt) as Instant;
-        if (updatedAt >= since) {
-          const product = mapShopifyProduct(edge.node, merchantId, fetchedAt);
-          allProducts.push(product);
-          this.productState.set(product.id, product);
+      const response = await this.client.query<ShopifyProductsListResponse>(
+        PRODUCTS_LIST_QUERY,
+        variables,
+      );
 
-          for (const variantEdge of edge.node.variants.edges) {
-            allPrices.push(mapVariantToPriceSnapshot(variantEdge.node, fetchedAt));
-            allInventory.push(mapVariantToInventorySnapshot(variantEdge.node, fetchedAt));
+      costConsumed += PRODUCTS_LIST_ESTIMATED_COST;
+      pagesFetched++;
+
+      if (response.data) {
+        const fetchedAt = Date.now() as Instant;
+        for (const edge of response.data.products.edges) {
+          const updatedAt = Date.parse(edge.node.updatedAt) as Instant;
+          if (updatedAt >= since) {
+            const product = mapShopifyProduct(edge.node, merchantId, fetchedAt);
+            allProducts.push(product);
+            this.productState.set(product.id, product);
+
+            for (const variantEdge of edge.node.variants.edges) {
+              allPrices.push(mapVariantToPriceSnapshot(variantEdge.node, fetchedAt, storeCurrency));
+              allInventory.push(mapVariantToInventorySnapshot(variantEdge.node, fetchedAt));
+            }
           }
         }
+
+        hasNextPage = response.data.products.pageInfo.hasNextPage;
+        cursor = response.data.products.pageInfo.endCursor;
+      } else {
+        hasNextPage = false;
       }
     }
 
