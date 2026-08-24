@@ -304,6 +304,34 @@ importers:
         specifier: 3.0.7
         version: 3.0.7(@types/node@22.13.1)
 
+  packages/http-api-kit:
+    dependencies:
+      '@counter/authorization':
+        specifier: workspace:0.1.0
+        version: link:../authorization
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+      fastify:
+        specifier: 5.2.1
+        version: 5.2.1
+      fastify-plugin:
+        specifier: 5.0.1
+        version: 5.0.1
+      jose:
+        specifier: 6.0.11
+        version: 6.0.11
+    devDependencies:
+      '@types/node':
+        specifier: 22.13.1
+        version: 22.13.1
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
   packages/observability:
     devDependencies:
       typescript:
@@ -1708,6 +1736,9 @@ packages:
   fast-uri@4.1.3:
     resolution: {integrity: sha512-7+72G6vLt7jjNas8SmSATx2qeyRIjxeqO3i4IkmDTxlqYZRKANhOe1bnovcp4WZmvsYrp60WyqPyHqgRiX0yXw==}
 
+  fastify-plugin@5.0.1:
+    resolution: {integrity: sha512-HCxs+YnRaWzCl+cWRYFnHmeRFyR5GVnJTAaCJQiYzQSDwK9MgJdyAsuL3nh0EWRCYMgQ5MeziymvmAhUHYHDUQ==}
+
   fastify@5.2.1:
     resolution: {integrity: sha512-rslrNBF67eg8/Gyn7P2URV8/6pz8kSAscFL4EThZJ8JBMaXacVdVE4hmUcnPNKERl5o/xTiBSLfdowBRhVF1WA==}
 
@@ -1848,6 +1879,9 @@ packages:
 
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
+
+  jose@6.0.11:
+    resolution: {integrity: sha512-QxG7EaliDARm1O1S8BGakqncGT9s25bKL1WSf6/oa17Tkqwi8D2ZNglqCF+DsYF88/rV66Q/Q2mFAy697E1DUg==}
 
   js-yaml@4.3.1:
     resolution: {integrity: sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ==}
@@ -3544,6 +3578,8 @@ snapshots:
 
   fast-uri@4.1.3: {}
 
+  fastify-plugin@5.0.1: {}
+
   fastify@5.2.1:
     dependencies:
       '@fastify/ajv-compiler': 4.0.6
@@ -3671,6 +3707,8 @@ snapshots:
   is-path-inside@4.0.0: {}
 
   isexe@2.0.0: {}
+
+  jose@6.0.11: {}
 
   js-yaml@4.3.1:
     dependencies:
