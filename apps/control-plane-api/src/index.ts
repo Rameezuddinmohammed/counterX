@@ -15,6 +15,13 @@ import {
   registerRoutePermission,
   type ServerFactoryOptions,
 } from "@counter/http-api-kit";
+import {
+  policyRoutesPlugin,
+  createInMemoryPolicyStore,
+  createDefaultPolicyCompiler,
+  type PolicyStore,
+  type PolicyCompiler,
+} from "./policy-routes.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -24,10 +31,12 @@ const AUTH_ISSUER = "https://dev-jzw3etjxnn3svs56.us.auth0.com/";
 const AUTH_AUDIENCE = "https://api.counter.dev";
 
 export interface CreateServerOptions {
-  readonly version?: string;
-  readonly environment?: string;
-  readonly jwks?: JWTVerifyGetKey | string;
-  readonly logger?: boolean;
+  readonly version?: string | undefined;
+  readonly environment?: string | undefined;
+  readonly jwks?: JWTVerifyGetKey | string | undefined;
+  readonly logger?: boolean | undefined;
+  readonly policyStore?: PolicyStore | undefined;
+  readonly policyCompiler?: PolicyCompiler | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -37,7 +46,7 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   const jwks: JWTVerifyGetKey | string =
     options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
 
-  const baseOptions = {
+  const serverOptions: ServerFactoryOptions = {
     name: APP_NAME,
     version,
     environment,
@@ -46,13 +55,11 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
       audience: AUTH_AUDIENCE,
       jwks,
     },
+    ...(environment !== "production"
+      ? { openApi: { title: "Counter Control Plane API", version } }
+      : {}),
     logger: options?.logger ?? false,
-  } as const;
-
-  const serverOptions: ServerFactoryOptions =
-    environment !== "production"
-      ? { ...baseOptions, openApi: { title: "Counter Control Plane API", version } }
-      : baseOptions;
+  };
 
   const server = createHttpServer(serverOptions);
 
@@ -77,6 +84,11 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
       message: "Merchant routes - to be implemented in Merchant Task 3",
     });
   });
+
+  // Register policy management routes
+  const store = options?.policyStore ?? createInMemoryPolicyStore();
+  const compiler = options?.policyCompiler ?? createDefaultPolicyCompiler();
+  void server.register(policyRoutesPlugin, { store, compiler });
 
   return server;
 }

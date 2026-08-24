@@ -1,89 +1,113 @@
 import { describe, expect, it } from "vitest";
-import {
-  PACKAGE_NAME,
-} from "./index.js";
-import type {
-  MerchantCapabilitySchema,
-  MerchantSearchSchema,
-  MerchantQuoteSchema,
-  MerchantTransactionSchema,
-  MerchantReceiptSchema,
-  MerchantReceiptItem,
-} from "./index.js";
+import { generateOpenApiSpec } from "./openapi-generator.js";
+import { MERCHANT_ROUTES } from "./route-schemas.js";
 
 describe("@counter/merchant-contracts", () => {
-  it("exposes its package identity", () => {
-    expect(PACKAGE_NAME).toBe("@counter/merchant-contracts");
+  describe("OpenAPI spec generation", () => {
+    it("generates valid OpenAPI 3.1 JSON", () => {
+      const spec = generateOpenApiSpec();
+      expect(spec.openapi).toBe("3.1.0");
+      expect(spec.info.title).toBe("Counter Merchant Runtime API");
+      expect(spec.info.version).toBe("1.0.0");
+    });
+
+    it("includes all expected route paths", () => {
+      const spec = generateOpenApiSpec();
+      const paths = Object.keys(spec.paths);
+
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/capabilities");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/search");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/products/{variantId}");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/quotes");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/payment-result");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/cancel");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/refund");
+      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/receipt");
+    });
+
+    it("defines security scheme for Bearer JWT", () => {
+      const spec = generateOpenApiSpec();
+      const bearerAuth = spec.components.securitySchemes["bearerAuth"] as Record<string, unknown>;
+      expect(bearerAuth).toBeDefined();
+      expect(bearerAuth["type"]).toBe("http");
+      expect(bearerAuth["scheme"]).toBe("bearer");
+      expect(bearerAuth["bearerFormat"]).toBe("JWT");
+    });
+
+    it("defines error schemas for all error types", () => {
+      const spec = generateOpenApiSpec();
+      const schemas = spec.components.schemas;
+      expect(schemas["UnauthorizedError"]).toBeDefined();
+      expect(schemas["ValidationError"]).toBeDefined();
+      expect(schemas["StaleError"]).toBeDefined();
+      expect(schemas["ReviewRequiredResponse"]).toBeDefined();
+      expect(schemas["IndeterminateError"]).toBeDefined();
+    });
+
+    it("produces deterministic JSON output", () => {
+      const spec1 = generateOpenApiSpec();
+      const spec2 = generateOpenApiSpec();
+      expect(JSON.stringify(spec1)).toBe(JSON.stringify(spec2));
+    });
+
+    it("unauthorized error shape does not leak resource existence", () => {
+      const spec = generateOpenApiSpec();
+      const unauthorized = spec.components.schemas["UnauthorizedError"] as Record<string, unknown>;
+      const props = (unauthorized as { properties: { error: { properties: Record<string, unknown> } } }).properties.error.properties;
+      // Code and message are fixed constants - no dynamic resource information
+      expect((props["code"] as Record<string, unknown>)["const"]).toBe("UNAUTHENTICATED");
+      expect((props["message"] as Record<string, unknown>)["const"]).toBe("Authentication is required");
+    });
   });
 
-  it("MerchantCapabilitySchema type is structurally correct", () => {
-    const schema: MerchantCapabilitySchema = {
-      merchantId: "m-1",
-      capabilities: ["search", "quote", "transaction"],
-      connectorStatus: "connected",
-    };
-    expect(schema.connectorStatus).toBe("connected");
-  });
+  describe("route schemas", () => {
+    it("defines all pilot route contracts", () => {
+      expect(MERCHANT_ROUTES).toHaveLength(10);
+    });
 
-  it("MerchantSearchSchema type is structurally correct", () => {
-    const schema: MerchantSearchSchema = {
-      query: "blue shirt",
-      merchantId: "m-1",
-      limit: 20,
-      offset: 0,
-      filters: { category: "apparel" },
-    };
-    expect(schema.query).toBe("blue shirt");
-    expect(schema.limit).toBe(20);
-  });
+    it("all routes require authentication", () => {
+      for (const route of MERCHANT_ROUTES) {
+        expect(route.requiresAuth).toBe(true);
+      }
+    });
 
-  it("MerchantQuoteSchema type is structurally correct", () => {
-    const schema: MerchantQuoteSchema = {
-      merchantId: "m-1",
-      variantId: "var-1",
-      quantity: 2,
-      requestedAt: "2024-01-01T00:00:00Z",
-    };
-    expect(schema.quantity).toBe(2);
-  });
+    it("mutation routes require idempotency", () => {
+      const mutationPaths = [
+        "/runtime/v1/merchants/:merchantId/quotes",
+        "/runtime/v1/merchants/:merchantId/transactions",
+        "/runtime/v1/merchants/:merchantId/transactions/:transactionId/payment-result",
+        "/runtime/v1/merchants/:merchantId/transactions/:transactionId/cancel",
+        "/runtime/v1/merchants/:merchantId/transactions/:transactionId/refund",
+      ];
 
-  it("MerchantTransactionSchema type is structurally correct", () => {
-    const schema: MerchantTransactionSchema = {
-      transactionId: "txn-1",
-      merchantId: "m-1",
-      action: "create",
-      amount: "99.99",
-      currency: "USD",
-    };
-    expect(schema.action).toBe("create");
-  });
+      for (const path of mutationPaths) {
+        const route = MERCHANT_ROUTES.find((r) => r.path === path);
+        expect(route).toBeDefined();
+        expect(route!.requiresIdempotency).toBe(true);
+      }
+    });
 
-  it("MerchantReceiptSchema type is structurally correct", () => {
-    const schema: MerchantReceiptSchema = {
-      receiptId: "rcpt-1",
-      transactionId: "txn-1",
-      merchantId: "m-1",
-      issuedAt: "2024-01-01T00:00:00Z",
-      items: [
-        {
-          variantId: "var-1",
-          quantity: 1,
-          unitPrice: "49.99",
-          total: "49.99",
-        },
-      ],
-    };
-    expect(schema.items).toHaveLength(1);
-  });
+    it("all routes include 401 in error responses", () => {
+      for (const route of MERCHANT_ROUTES) {
+        expect(route.errorResponses).toContain(401);
+      }
+    });
 
-  it("MerchantReceiptItem type is structurally correct", () => {
-    const item: MerchantReceiptItem = {
-      variantId: "var-2",
-      quantity: 3,
-      unitPrice: "10.00",
-      total: "30.00",
-    };
-    expect(item.quantity).toBe(3);
-    expect(item.total).toBe("30.00");
+    it("stale-capable routes include 409 in error responses", () => {
+      const stalePaths = [
+        "/runtime/v1/merchants/:merchantId/products/:variantId",
+        "/runtime/v1/merchants/:merchantId/transactions/:transactionId",
+        "/runtime/v1/merchants/:merchantId/transactions/:transactionId/cancel",
+        "/runtime/v1/merchants/:merchantId/transactions/:transactionId/refund",
+      ];
+
+      for (const path of stalePaths) {
+        const route = MERCHANT_ROUTES.find((r) => r.path === path);
+        expect(route).toBeDefined();
+        expect(route!.errorResponses).toContain(409);
+      }
+    });
   });
 });

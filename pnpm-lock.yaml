@@ -50,6 +50,9 @@ importers:
       '@counter/http-api-kit':
         specifier: workspace:0.1.0
         version: link:../../packages/http-api-kit
+      '@counter/merchant-contracts':
+        specifier: workspace:0.1.0
+        version: link:../../packages/merchant-contracts
       fastify:
         specifier: 5.2.1
         version: 5.2.1
@@ -75,6 +78,9 @@ importers:
       '@counter/http-api-kit':
         specifier: workspace:0.1.0
         version: link:../../packages/http-api-kit
+      '@counter/merchant-policy':
+        specifier: workspace:0.1.0
+        version: link:../../packages/merchant-policy
       fastify:
         specifier: 5.2.1
         version: 5.2.1

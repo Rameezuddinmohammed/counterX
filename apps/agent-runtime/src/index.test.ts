@@ -174,7 +174,7 @@ describe("@counter/agent-runtime", () => {
     expect(body.error.code).toBe("UNAUTHENTICATED");
   });
 
-  it("authenticated GET /runtime/v1/merchants/:merchantId/capabilities returns placeholder response", async () => {
+  it("authenticated GET /runtime/v1/merchants/:merchantId/capabilities returns capability response", async () => {
     const { jwks } = await getTestKeys();
     server = createServer({ jwks, environment: "test" });
     await server.ready();
@@ -186,8 +186,8 @@ describe("@counter/agent-runtime", () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { placeholder: boolean; message: string };
-    expect(body.placeholder).toBe(true);
-    expect(body.message).toBe("Merchant runtime routes - to be implemented in later tasks");
+    const body = JSON.parse(response.body) as { merchantId: string; capabilities: string[] };
+    expect(body.merchantId).toBe("ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA");
+    expect(body.capabilities).toBeInstanceOf(Array);
   });
 });
