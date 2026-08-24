@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  isSensitiveKey,
-  redactObject,
-  redactValue,
-  REDACTED,
-} from "./redaction.js";
+import { isSensitiveKey, redactObject, redactValue, REDACTED } from "./redaction.js";
 
 describe("Telemetry leakage - secret/PII redaction", () => {
   describe("sensitive key detection", () => {

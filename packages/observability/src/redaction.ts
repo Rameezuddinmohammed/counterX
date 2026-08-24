@@ -60,7 +60,7 @@ const SENSITIVE_VALUE_PATTERNS: readonly {
   },
 ]);
 
-export const REDACTED = "[REDACTED]" as const;
+export const REDACTED = "[REDACTED]";
 
 /**
  * Determines whether a key name indicates a sensitive field.

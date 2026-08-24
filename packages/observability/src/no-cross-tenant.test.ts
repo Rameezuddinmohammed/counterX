@@ -9,11 +9,7 @@ import {
   TOGGLE_KILL_SWITCH_COMMAND,
   type OperatorCommandContext,
 } from "./operator-commands.js";
-import {
-  isKilled,
-  type KillSwitchRecord,
-  type KillSwitchScope,
-} from "./kill-switch.js";
+import { isKilled, type KillSwitchRecord, type KillSwitchScope } from "./kill-switch.js";
 
 const NOW = 1_700_000_000_000 as Instant;
 
@@ -44,7 +40,10 @@ describe("No cross-tenant access - operator command authorization", () => {
       { name: "replay_job" as const, params: { jobId: "j1" } },
       { name: "reconcile" as const, params: { targetScope: "merchant:m1" } },
       { name: "toggle_kill_switch" as const, params: { switchId: "ks1", active: true } },
-      { name: "issue_grant" as const, params: { targetScope: "m1", permissions: [], reason: "test" } },
+      {
+        name: "issue_grant" as const,
+        params: { targetScope: "m1", permissions: [], reason: "test" },
+      },
       { name: "revoke_grant" as const, params: { grantId: "g1", reason: "test" } },
     ];
 

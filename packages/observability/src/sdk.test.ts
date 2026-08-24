@@ -9,8 +9,8 @@ describe("observability SDK", () => {
     });
 
     expect(sdk).toBeDefined();
-    expect(sdk.start).toBeTypeOf("function");
-    expect(sdk.shutdown).toBeTypeOf("function");
+    expect(typeof sdk.start).toBe("function");
+    expect(typeof sdk.shutdown).toBe("function");
   });
 
   it("starts and shuts down cleanly", async () => {

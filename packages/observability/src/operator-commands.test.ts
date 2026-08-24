@@ -107,12 +107,7 @@ describe("CommandRegistry", () => {
     registry.register(RECONCILE_COMMAND);
 
     const context = makeContext({ reason: "quarterly audit", scope: "merchant:m1" });
-    const result = registry.execute(
-      "reconcile",
-      context,
-      { targetScope: "merchant:m1" },
-      false,
-    );
+    const result = registry.execute("reconcile", context, { targetScope: "merchant:m1" }, false);
 
     expect(result.ok).toBe(true);
     if (result.ok && result.kind === "executed") {

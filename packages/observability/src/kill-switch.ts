@@ -49,7 +49,10 @@ export interface KillSwitchRegistry {
   create(record: KillSwitchRecord): void;
   get(id: string): KillSwitchRecord | undefined;
   list(): readonly KillSwitchRecord[];
-  update(id: string, patch: Partial<Pick<KillSwitchRecord, "status" | "reason" | "expiresAt">>): KillSwitchRecord | undefined;
+  update(
+    id: string,
+    patch: Partial<Pick<KillSwitchRecord, "status" | "reason" | "expiresAt">>,
+  ): KillSwitchRecord | undefined;
   remove(id: string): boolean;
 }
 
@@ -113,10 +116,7 @@ export interface KillSwitchQuery {
  *  - Its entityId is null (blocks all in that scope) or matches the query entityId
  *  - It has not expired (expiresAt is null or > now)
  */
-export function isKilled(
-  switches: readonly KillSwitchRecord[],
-  query: KillSwitchQuery,
-): boolean {
+export function isKilled(switches: readonly KillSwitchRecord[], query: KillSwitchQuery): boolean {
   return switches.some((sw) => killSwitchApplies(sw, query));
 }
 

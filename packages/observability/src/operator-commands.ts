@@ -83,7 +83,12 @@ export interface OperatorCommandContext {
  */
 export type CommandExecutionResult<Preview, Result> =
   | Readonly<{ ok: true; kind: "executed"; result: Result; audit: CommandAuditEntry }>
-  | Readonly<{ ok: true; kind: "preview"; preview: CommandPreview<Preview>; audit: CommandAuditEntry }>
+  | Readonly<{
+      ok: true;
+      kind: "preview";
+      preview: CommandPreview<Preview>;
+      audit: CommandAuditEntry;
+    }>
   | Readonly<{ ok: false; kind: "unauthorized"; message: string }>;
 
 /**
@@ -93,7 +98,9 @@ export interface CommandRegistry {
   register<Params, Preview, Result>(
     definition: OperatorCommandDefinition<Params, Preview, Result>,
   ): void;
-  lookup(name: OperatorCommandName): OperatorCommandDefinition<unknown, unknown, unknown> | undefined;
+  lookup(
+    name: OperatorCommandName,
+  ): OperatorCommandDefinition<unknown, unknown, unknown> | undefined;
   execute<Params, Preview, Result>(
     name: OperatorCommandName,
     context: OperatorCommandContext,
@@ -106,7 +113,10 @@ export interface CommandRegistry {
  * Creates a new command registry.
  */
 export function createCommandRegistry(): CommandRegistry {
-  const commands = new Map<OperatorCommandName, OperatorCommandDefinition<unknown, unknown, unknown>>();
+  const commands = new Map<
+    OperatorCommandName,
+    OperatorCommandDefinition<unknown, unknown, unknown>
+  >();
 
   function register<Params, Preview, Result>(
     definition: OperatorCommandDefinition<Params, Preview, Result>,

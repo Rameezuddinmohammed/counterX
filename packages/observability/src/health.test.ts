@@ -12,12 +12,12 @@ function createMockCheck(
 ): DependencyHealthCheck {
   return {
     name,
-    async check(): Promise<DependencyHealthResult> {
-      return {
+    check(): Promise<DependencyHealthResult> {
+      return Promise.resolve({
         name,
         status,
         lastChecked: Date.now() as Instant,
-      };
+      });
     },
   };
 }

@@ -134,10 +134,7 @@ describe("redaction", () => {
     });
 
     it("handles arrays", () => {
-      const input = [
-        { password: "secret", name: "test" },
-        { email: "user@example.com" },
-      ];
+      const input = [{ password: "secret", name: "test" }, { email: "user@example.com" }];
       const result = redactObject(input) as Array<Record<string, unknown>>;
       expect(result[0]!["password"]).toBe(REDACTED);
       expect(result[0]!["name"]).toBe("test");
@@ -157,9 +154,7 @@ describe("redaction", () => {
     });
 
     it("redacts emails in top-level strings", () => {
-      expect(redactObject("email is test@example.com here")).toBe(
-        "email is [REDACTED_EMAIL] here",
-      );
+      expect(redactObject("email is test@example.com here")).toBe("email is [REDACTED_EMAIL] here");
     });
   });
 });

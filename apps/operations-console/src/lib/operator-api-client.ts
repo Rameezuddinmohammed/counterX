@@ -33,32 +33,32 @@ export interface OperatorApiClient {
  */
 export function createOperatorApiClient(): OperatorApiClient {
   return Object.freeze({
-    async getFleetHealth(): Promise<readonly FleetHealth[]> {
-      return Object.freeze([]);
+    getFleetHealth(): Promise<readonly FleetHealth[]> {
+      return Promise.resolve(Object.freeze([]));
     },
 
-    async getIncidents(): Promise<readonly IncidentSummary[]> {
-      return Object.freeze([]);
+    getIncidents(): Promise<readonly IncidentSummary[]> {
+      return Promise.resolve(Object.freeze([]));
     },
 
-    async getQueues(): Promise<readonly QueueStatus[]> {
-      return Object.freeze([]);
+    getQueues(): Promise<readonly QueueStatus[]> {
+      return Promise.resolve(Object.freeze([]));
     },
 
-    async getDeadLetters(): Promise<readonly DeadLetterEntry[]> {
-      return Object.freeze([]);
+    getDeadLetters(): Promise<readonly DeadLetterEntry[]> {
+      return Promise.resolve(Object.freeze([]));
     },
 
-    async getKillSwitches(): Promise<readonly KillSwitchView[]> {
-      return Object.freeze([]);
+    getKillSwitches(): Promise<readonly KillSwitchView[]> {
+      return Promise.resolve(Object.freeze([]));
     },
 
-    async getSupportSessions(): Promise<readonly SupportSessionView[]> {
-      return Object.freeze([]);
+    getSupportSessions(): Promise<readonly SupportSessionView[]> {
+      return Promise.resolve(Object.freeze([]));
     },
 
-    async getAdapterReleases(): Promise<readonly AdapterReleaseStatus[]> {
-      return Object.freeze([]);
+    getAdapterReleases(): Promise<readonly AdapterReleaseStatus[]> {
+      return Promise.resolve(Object.freeze([]));
     },
   });
 }

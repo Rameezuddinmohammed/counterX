@@ -11,7 +11,12 @@ describe("Type guard functions", () => {
     it("returns true for valid fleet health array", () => {
       const valid = [
         { name: "database", status: "healthy", lastChecked: "2024-01-01T00:00:00.000Z" },
-        { name: "redis", status: "degraded", lastChecked: "2024-01-01T00:00:00.000Z", message: "slow" },
+        {
+          name: "redis",
+          status: "degraded",
+          lastChecked: "2024-01-01T00:00:00.000Z",
+          message: "slow",
+        },
       ];
       expect(isFleetHealthArray(valid)).toBe(true);
     });
@@ -57,9 +62,7 @@ describe("Type guard functions", () => {
 
   describe("isQueueStatusArray", () => {
     it("returns true for valid queue status array", () => {
-      const valid = [
-        { name: "jobs", depth: 100, oldestJobAge: 30, processingRate: 50 },
-      ];
+      const valid = [{ name: "jobs", depth: 100, oldestJobAge: 30, processingRate: 50 }];
       expect(isQueueStatusArray(valid)).toBe(true);
     });
 
