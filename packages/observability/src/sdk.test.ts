@@ -69,11 +69,10 @@ describe("observability SDK", () => {
     expect(sdk).toBeDefined();
   });
 
-  it("accepts OTLP endpoint configuration", () => {
+  it("accepts environment configuration as resource attribute", () => {
     const sdk = createObservabilitySdk({
       serviceName: "test-service",
       environment: "sandbox",
-      otlpEndpoint: "http://localhost:4318",
       signals: { traces: false, metrics: false, logs: false },
     });
 

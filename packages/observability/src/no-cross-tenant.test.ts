@@ -18,6 +18,12 @@ function makeContext(overrides?: Partial<OperatorCommandContext>): OperatorComma
     operatorId: "ctr_operator_AAAAAAAAAAAAAAAAAAAAAA" as OperatorId,
     correlationId: "ctr_correlation_AAAAAAAAAAAAAAAAAAAAAA" as CorrelationId,
     roles: ["platform.operator"],
+    permissions: [
+      "identity.support_grant.use",
+      "identity.support_grant.issue",
+      "identity.support_grant.revoke",
+    ],
+    assuranceLevel: "step_up",
     reason: "incident response",
     scope: "platform",
     now: NOW,
@@ -34,7 +40,11 @@ describe("No cross-tenant access - operator command authorization", () => {
     registry.register(ISSUE_GRANT_COMMAND);
     registry.register(REVOKE_GRANT_COMMAND);
 
-    const merchantContext = makeContext({ roles: ["merchant.owner"] });
+    const merchantContext = makeContext({
+      roles: ["merchant.owner"],
+      permissions: [],
+      assuranceLevel: "standard",
+    });
 
     const commands = [
       { name: "replay_job" as const, params: { jobId: "j1" } },
@@ -60,7 +70,11 @@ describe("No cross-tenant access - operator command authorization", () => {
     const registry = createCommandRegistry();
     registry.register(REPLAY_JOB_COMMAND);
 
-    const walletContext = makeContext({ roles: ["wallet.owner"] });
+    const walletContext = makeContext({
+      roles: ["wallet.owner"],
+      permissions: [],
+      assuranceLevel: "standard",
+    });
     const result = registry.execute("replay_job", walletContext, { jobId: "j1" }, false);
     expect(result.ok).toBe(false);
   });
@@ -69,7 +83,11 @@ describe("No cross-tenant access - operator command authorization", () => {
     const registry = createCommandRegistry();
     registry.register(REPLAY_JOB_COMMAND);
 
-    const noRolesContext = makeContext({ roles: [] });
+    const noRolesContext = makeContext({
+      roles: [],
+      permissions: [],
+      assuranceLevel: "standard",
+    });
     const result = registry.execute("replay_job", noRolesContext, { jobId: "j1" }, false);
     expect(result.ok).toBe(false);
   });
@@ -115,7 +133,12 @@ describe("No cross-tenant access - support grants cannot be self-issued", () => 
     const registry = createCommandRegistry();
     registry.register(ISSUE_GRANT_COMMAND);
 
-    const serviceContext = makeContext({ roles: ["service.identity"] });
+    // A service or merchant role cannot issue grants
+    const serviceContext = makeContext({
+      roles: ["service.identity"],
+      permissions: [],
+      assuranceLevel: "standard",
+    });
     const result = registry.execute(
       "issue_grant",
       serviceContext,

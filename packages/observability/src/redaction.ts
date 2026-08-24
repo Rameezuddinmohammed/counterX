@@ -47,7 +47,11 @@ const SENSITIVE_VALUE_PATTERNS: readonly {
     replacement: "[REDACTED_EMAIL]",
   },
   {
-    pattern: /\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b/gu,
+    pattern: /(?:\+\d{1,3}[-.\s]?)?\(\d{3}\)[-.\s]?\d{3}[-.\s]?\d{4}\b/gu,
+    replacement: "[REDACTED_PHONE]",
+  },
+  {
+    pattern: /\+\d{1,3}[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/gu,
     replacement: "[REDACTED_PHONE]",
   },
   {
@@ -92,7 +96,7 @@ export function redactValue(key: string, value: unknown): unknown {
 /**
  * Applies value-based pattern redaction to a string.
  */
-function redactString(value: string): string {
+export function redactString(value: string): string {
   let result = value;
   for (const { pattern, replacement } of SENSITIVE_VALUE_PATTERNS) {
     // Reset regex state for global patterns

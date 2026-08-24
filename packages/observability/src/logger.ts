@@ -6,7 +6,7 @@
  * before emission to prevent secrets and PII from leaking into log stores.
  */
 import type { CorrelationId, Environment } from "@counter/domain";
-import { redactObject } from "./redaction.js";
+import { redactObject, redactString } from "./redaction.js";
 
 export const LOG_LEVELS = ["trace", "debug", "info", "warn", "error", "fatal"] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -36,7 +36,7 @@ export interface LogEntry {
   readonly service?: string;
   readonly scope?: string;
   readonly data?: unknown;
-  readonly error?: { readonly message: string; readonly stack?: string | undefined };
+  readonly error?: { message: string; stack?: string };
 }
 
 export interface LogWriter {
@@ -99,7 +99,10 @@ export function createLogger(options: LoggerOptions): Logger {
       ...(context.scope !== undefined && { scope: context.scope }),
       ...(data !== undefined && { data: redactObject(data) }),
       ...(err !== undefined && {
-        error: { message: err.message, stack: err.stack },
+        error: {
+          message: redactString(err.message),
+          ...(err.stack !== undefined && { stack: redactString(err.stack) }),
+        },
       }),
     };
 

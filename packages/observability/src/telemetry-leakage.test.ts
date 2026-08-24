@@ -75,9 +75,19 @@ describe("Telemetry leakage - secret/PII redaction", () => {
       expect(result).toContain("[REDACTED_EMAIL]");
     });
 
-    it("redacts phone numbers", () => {
+    it("redacts phone numbers with leading +", () => {
       const result = redactValue("note", "Call: +1-555-123-4567");
       expect(result).toContain("[REDACTED_PHONE]");
+    });
+
+    it("redacts phone numbers with parenthesized area code", () => {
+      const result = redactValue("note", "Call: (555) 123-4567");
+      expect(result).toContain("[REDACTED_PHONE]");
+    });
+
+    it("does not redact plain 7-digit numeric IDs", () => {
+      const result = redactValue("note", "Transaction ID: 1234567");
+      expect(result).not.toContain("[REDACTED_PHONE]");
     });
 
     it("redacts Bearer tokens", () => {

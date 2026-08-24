@@ -73,6 +73,8 @@ export interface OperatorCommandContext {
   readonly operatorId: OperatorId;
   readonly correlationId: CorrelationId;
   readonly roles: readonly string[];
+  readonly permissions: readonly string[];
+  readonly assuranceLevel: "standard" | "step_up";
   readonly reason: string;
   readonly scope: string;
   readonly now: Instant;
@@ -156,6 +158,24 @@ export function createCommandRegistry(): CommandRegistry {
       });
     }
 
+    if (definition.authorization.requiresStepUp && context.assuranceLevel !== "step_up") {
+      return Object.freeze({
+        ok: false,
+        kind: "unauthorized",
+        message: `Command "${name}" requires step-up authentication`,
+      });
+    }
+
+    const missingPermissions = definition.authorization.permissions.filter(
+      (perm) => !context.permissions.includes(perm),
+    );
+    if (missingPermissions.length > 0) {
+      return Object.freeze({
+        ok: false,
+        kind: "unauthorized",
+        message: `Operator lacks required permissions: ${missingPermissions.join(", ")}`,
+      });
+    }
     if (dryRun) {
       const preview = definition.previewFn(params) as Preview;
       const audit = createAuditEntry(name, context, params, preview, null, true);

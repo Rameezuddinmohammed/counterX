@@ -112,6 +112,40 @@ describe("structured logger", () => {
     expect(entry.error?.stack).toContain("Connection failed");
   });
 
+  it("redacts PII from error messages", () => {
+    const writer = createTestWriter();
+    const logger = createLogger({
+      level: "error",
+      context: {},
+      writer,
+    });
+
+    const testError = new Error("User user@example.com not found");
+    logger.error("Auth error", undefined, testError);
+
+    const entry = writer.entries[0]!;
+    expect(entry.error?.message).not.toContain("user@example.com");
+    expect(entry.error?.message).toContain("[REDACTED_EMAIL]");
+  });
+
+  it("redacts credentials from error stacks", () => {
+    const writer = createTestWriter();
+    const logger = createLogger({
+      level: "error",
+      context: {},
+      writer,
+    });
+
+    const testError = new Error("Failed to connect");
+    // Simulate a stack trace that contains a token
+    testError.stack = "Error: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig\n    at Object.connect";
+    logger.error("Connection error", undefined, testError);
+
+    const entry = writer.entries[0]!;
+    expect(entry.error?.stack).not.toContain("eyJhbGciOiJIUzI1NiJ9");
+    expect(entry.error?.stack).toContain("Bearer [REDACTED]");
+  });
+
   it("creates child loggers with merged context", () => {
     const writer = createTestWriter();
     const logger = createLogger({
