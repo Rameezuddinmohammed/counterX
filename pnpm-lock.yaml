@@ -219,6 +219,22 @@ importers:
         specifier: 3.0.7
         version: 3.0.7(@types/node@22.13.1)
 
+  packages/commerce-graph:
+    dependencies:
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
   packages/config:
     dependencies:
       zod:
@@ -356,6 +372,66 @@ importers:
         specifier: 3.0.7
         version: 3.0.7(@types/node@22.13.1)
 
+  packages/merchant-application:
+    dependencies:
+      '@counter/authorization':
+        specifier: workspace:0.1.0
+        version: link:../authorization
+      '@counter/config':
+        specifier: workspace:0.1.0
+        version: link:../config
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
+  packages/merchant-contracts:
+    dependencies:
+      '@counter/contracts':
+        specifier: workspace:0.1.0
+        version: link:../contracts
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
+  packages/merchant-policy:
+    dependencies:
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+      '@counter/policy':
+        specifier: workspace:0.1.0
+        version: link:../policy
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
   packages/observability:
     devDependencies:
       typescript:
@@ -386,6 +462,69 @@ importers:
 
   packages/policy:
     dependencies:
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
+  packages/razorpay-adapter:
+    dependencies:
+      '@counter/config':
+        specifier: workspace:0.1.0
+        version: link:../config
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+      '@counter/payment-sdk':
+        specifier: workspace:0.1.0
+        version: link:../payment-sdk
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
+  packages/reference-connector:
+    dependencies:
+      '@counter/connector-sdk':
+        specifier: workspace:0.1.0
+        version: link:../connector-sdk
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../domain
+    devDependencies:
+      fast-check:
+        specifier: 4.0.0
+        version: 4.0.0
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)
+
+  packages/shopify-connector:
+    dependencies:
+      '@counter/config':
+        specifier: workspace:0.1.0
+        version: link:../config
+      '@counter/connector-sdk':
+        specifier: workspace:0.1.0
+        version: link:../connector-sdk
       '@counter/domain':
         specifier: workspace:0.1.0
         version: link:../domain
