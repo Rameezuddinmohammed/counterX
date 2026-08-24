@@ -45,5 +45,5 @@
     "pnpm --filter @counter/operations-console test"
   ],
   "blocked_reason": null,
-  "findings": "Review findings addressed: (1) OperatorCommandContext extended with permissions[] and assuranceLevel, enforced at runtime. (2) Error stacks now redacted via redactString() before log emission. (3) SDK cleaned up: removed otlpEndpoint and createOtlpExporter, environment attached as resource attribute, signals.metrics/logs documented as future hooks. (4) Phone regex tightened to require + prefix or parenthesized area code. (5) Dead createOtlpExporter removed. Added @opentelemetry/resources and @opentelemetry/semantic-conventions as direct deps."
+  "findings": "Review issues addressed: (1) redactObject now uses WeakSet for circular reference detection, (2) pin regex uses custom word-boundary pattern (?:^|[^a-z])pin(?:$|[^a-z]) instead of \\bpin\\b because JS word boundary treats underscore as word char, (3) Next.js middleware added for auth guard. All 1202 tests pass, zero lint/prettier issues."
 }
