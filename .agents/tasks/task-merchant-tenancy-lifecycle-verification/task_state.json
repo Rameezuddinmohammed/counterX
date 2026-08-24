@@ -1,0 +1,15 @@
+{
+  "task_id": "task-merchant-tenancy-lifecycle-verification",
+  "features": {
+    "FEAT-001": {
+      "title": "Merchant Tenancy, Lifecycle State Machine, Organization Model",
+      "status": "completed",
+      "findings": [
+        "fs_write tool did not persist to disk; used bash heredocs instead",
+        "Strict noUnusedLocals requires all test variables to be used in assertions",
+        "All 25 tests pass, typecheck and build both succeed",
+        "Old stub types (MerchantProfile, ActivationRecord, MerchantEnvironment, ReadinessCheck, ReadinessFinding) removed from index.ts"
+      ]
+    }
+  }
+}
