@@ -28,3 +28,9 @@ export * from "./suspension.js";
 
 // Persistence port interfaces
 export * from "./repositories.js";
+
+// Ownership verification
+export * from "./verification.js";
+export * from "./verification-methods.js";
+export * from "./verification-service.js";
+export * from "./verification-repository.js";
