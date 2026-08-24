@@ -1,7 +1,14 @@
 {
   "task_id": "task-merchant-tasks-14-21",
   "task_description": "Implement Merchant Tasks 14-21: autonomous Counter test-provider checkout, Razorpay test adapter and certification workflow, reconciliation/findings/receipts, Merchant Console pilot screens, operations telemetry and recovery, reference buyer and scenario corpus, and pilot certification with evidence bundle.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005", "FEAT-006", "FEAT-007"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Full monorepo build passes. 1038 tests passing across 12 packages. Both Next.js apps (merchant-console, operations-console) build and serve all routes. All 7 features verified independently."
+  }
 }

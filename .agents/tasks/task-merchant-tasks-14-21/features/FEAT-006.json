@@ -29,5 +29,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/reference-buyer build && pnpm --filter @counter/reference-buyer test"
   ],
   "blocked_reason": null,
-  "findings": "All 35 tests pass. Build compiles cleanly. Used deterministic seeded PRNG for identity generation to ensure reproducibility. Receipt verifier delegates to @counter/evidence verifyReceipt with proper handling of exactOptionalPropertyTypes. Scenario corpus covers all 17 required PILOT.md scenarios with setup/assertion functions. ScenarioDriver uses port interfaces for mock/real service interchangeability."
+  "findings": "35 tests passing. Full reference buyer with deterministic identity, mandate/intent/approval builders, scenario driver with ports, versioned 17-scenario corpus, independent receipt verifier."
 }

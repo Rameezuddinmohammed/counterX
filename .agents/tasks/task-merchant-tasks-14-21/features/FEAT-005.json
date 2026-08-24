@@ -30,5 +30,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/operations-console build && pnpm --filter @counter/operations-console test"
   ],
   "blocked_reason": null,
-  "findings": "All 110 tests pass (89 new tests across operator-api, projections, telemetry-dashboard, recovery-commands, runbooks, credential-scanner, support-grants + 21 existing). Build succeeds cleanly. ESLint required using typeof checks instead of direct method references to avoid unbound-method warnings. RECONCILIATION_LATENCY and PROVIDER_RESPONSE_TIME imports needed to remain for the toContain assertions."
+  "findings": "110 tests passing. All 7 operator modules implemented: merchant-scoped APIs, projections, telemetry, recovery commands, runbooks, credential scanner, support grants."
 }

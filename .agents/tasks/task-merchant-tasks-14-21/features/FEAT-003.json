@@ -24,5 +24,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/evidence build && pnpm --filter @counter/evidence test"
   ],
   "blocked_reason": null,
-  "findings": "All 184 tests pass (33 new normalizer tests + 12 new reconciler tests). Build and typecheck clean. Used exactOptionalPropertyTypes pattern (conditional spread for optional fields). Money type requires amountMinor:bigint + IsoCurrencyCode, used createMoney(). Agent claims correctly marked as never authoritative."
+  "findings": "184 total tests passing in evidence package. Observation normalizers, transaction reconciler, compensation commands, merchant receipt view all implemented."
 }

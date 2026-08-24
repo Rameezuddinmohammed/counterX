@@ -23,5 +23,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/merchant-application build && pnpm --filter @counter/merchant-application test"
   ],
   "blocked_reason": null,
-  "findings": "Added @counter/trust-protocol dependency to merchant-application. InMemoryKeyRegistry uses .add() method (not .register()). 199 total tests passing (30 new). Build and test both pass cleanly."
+  "findings": "199 total tests passing in merchant-application (30 new). Pilot certification, requirement traceability matrix (14 PILOT.md operations), evidence bundle with CTP-signed manifest."
 }
