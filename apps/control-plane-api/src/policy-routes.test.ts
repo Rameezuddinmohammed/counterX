@@ -270,4 +270,127 @@ describe("policy routes", () => {
       expect(body.compiled.constraintCount).toBe(2);
     });
   });
+
+  describe("version-conflict detection", () => {
+    it("POST /policy with correct If-Match version succeeds", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const token = await createTestToken();
+
+      // Create initial policy (version becomes 1)
+      const response1 = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+      expect(response1.statusCode).toBe(201);
+      expect(response1.headers["etag"]).toBe("1");
+
+      // Update with correct If-Match (current version is 1)
+      const response2 = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "if-match": "1",
+        },
+        payload: { ...VALID_POLICY_BODY, policyVersion: "2.0.0" },
+      });
+      expect(response2.statusCode).toBe(201);
+      expect(response2.headers["etag"]).toBe("2");
+    });
+
+    it("POST /policy with stale If-Match version returns 409", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const token = await createTestToken();
+
+      // Create initial policy (version becomes 1)
+      await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+
+      // Try to update with stale version (claiming version 0)
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "if-match": "0",
+        },
+        payload: { ...VALID_POLICY_BODY, policyVersion: "2.0.0" },
+      });
+      expect(response.statusCode).toBe(409);
+      const body = JSON.parse(response.body) as {
+        error: { code: string; message: string; details: { currentVersion: number; expectedVersion: number } };
+      };
+      expect(body.error.code).toBe("VERSION_CONFLICT");
+      expect(body.error.details.currentVersion).toBe(1);
+      expect(body.error.details.expectedVersion).toBe(0);
+    });
+
+    it("POST /policy without If-Match header succeeds unconditionally", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const token = await createTestToken();
+
+      // Create initial policy
+      await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+
+      // Update without If-Match (unconditional write)
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: { ...VALID_POLICY_BODY, policyVersion: "2.0.0" },
+      });
+      expect(response.statusCode).toBe(201);
+    });
+
+    it("GET /policy returns etag header with version", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const token = await createTestToken();
+
+      // Create policy
+      await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+
+      // GET returns etag
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers["etag"]).toBe("1");
+    });
+  });
 });

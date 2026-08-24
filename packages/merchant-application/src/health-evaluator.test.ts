@@ -8,7 +8,7 @@ import {
   type Sha256Digest,
 } from "@counter/domain";
 import { evaluateHealth } from "./health-evaluator.js";
-import { generateManifest, type CapabilityManifest } from "./capability-manifest.js";
+import { generateManifest, type CapabilityManifest, type PilotCapability } from "./capability-manifest.js";
 import type { ReadinessCheckResult, ReadinessResult } from "./readiness-types.js";
 
 // ─── Test Helpers ───────────────────────────────────────────────────────────
@@ -49,6 +49,28 @@ function testManifest(): CapabilityManifest {
   return result.value;
 }
 
+/**
+ * Creates a manifest with no capabilities for testing the healthy baseline.
+ * Since generateManifest requires at least one capability, we construct
+ * the manifest directly.
+ */
+function emptyCapabilityManifest(): CapabilityManifest {
+  return Object.freeze({
+    merchantId: testMerchantId(),
+    manifestVersion: "1.0.0",
+    capabilities: Object.freeze([] as PilotCapability[]),
+    versionBindings: Object.freeze({
+      connectorVersion: "1.2.0",
+      mappingSchemaHash: testDigest(),
+      policyVersion: "2.0.0",
+      protocolVersion: "1.0.0",
+      paymentProviderVersion: "3.1.0",
+    }),
+    generatedAt: unwrapInstant(NOW_MS),
+    signatureDigest: testDigest(),
+  }) as CapabilityManifest;
+}
+
 function makeReadinessResult(
   overrides: Partial<ReadinessResult> & { checkResults: readonly ReadinessCheckResult[] },
 ): ReadinessResult {
@@ -66,18 +88,60 @@ describe("HealthEvaluator", () => {
   const manifest = testManifest();
 
   describe("healthy baseline", () => {
-    it("returns Healthy when all checks are passing with no issues", () => {
+    it("returns Healthy when all checks are passing with no issues and no manifest gaps", () => {
+      // Use a manifest with no capabilities so the cross-check does not flag gaps.
       const readiness = makeReadinessResult({
         overallStatus: "Advisory",
         checkResults: [],
         isReady: true,
       });
 
-      const health = evaluateHealth(readiness, manifest);
+      const health = evaluateHealth(readiness, emptyCapabilityManifest());
 
       expect(health.status).toBe("Healthy");
       expect(health.blockingChecks).toHaveLength(0);
       expect(health.degradedChecks).toHaveLength(0);
+    });
+  });
+
+  describe("manifest cross-check", () => {
+    it("returns Degraded when manifest declares capabilities without corresponding readiness checks", () => {
+      const readiness = makeReadinessResult({
+        overallStatus: "Advisory",
+        checkResults: [],
+        isReady: true,
+      });
+
+      // The test manifest declares quote.create and quote.accept which require
+      // connector_health, mapping_freshness, policy_compiled checks
+      const health = evaluateHealth(readiness, manifest);
+
+      expect(health.status).toBe("Degraded");
+      expect(health.degradedChecks).toContain("connector_health");
+      expect(health.degradedChecks).toContain("mapping_freshness");
+      expect(health.degradedChecks).toContain("policy_compiled");
+    });
+
+    it("does not flag gaps when all required checks are present", () => {
+      const readiness = makeReadinessResult({
+        overallStatus: "Advisory",
+        isReady: true,
+        checkResults: [
+          { checkKind: "connector_health", status: "Advisory", reason: "OK", timeToExpiryMs: null },
+          { checkKind: "mapping_freshness", status: "Advisory", reason: "OK", timeToExpiryMs: null },
+          { checkKind: "policy_compiled", status: "Advisory", reason: "OK", timeToExpiryMs: null },
+        ],
+      });
+
+      const health = evaluateHealth(readiness, manifest);
+
+      expect(health.status).toBe("Degraded");
+      // These are degraded because of their Advisory status, not because of manifest gaps
+      expect(health.degradedChecks).toContain("connector_health");
+      expect(health.degradedChecks).toContain("mapping_freshness");
+      expect(health.degradedChecks).toContain("policy_compiled");
+      // No duplicate entries from the cross-check
+      expect(health.degradedChecks).toHaveLength(3);
     });
   });
 

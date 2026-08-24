@@ -45,9 +45,19 @@ export interface PolicyValidationResult {
 // Types
 // ---------------------------------------------------------------------------
 
+export interface PolicyStoreEntry {
+  readonly config: MerchantPolicyConfig;
+  readonly version: number;
+}
+
 export interface PolicyStore {
-  get(merchantId: string): MerchantPolicyConfig | undefined;
-  set(merchantId: string, config: MerchantPolicyConfig): void;
+  get(merchantId: string): PolicyStoreEntry | undefined;
+  /**
+   * Conditionally stores a policy config. If expectedVersion is provided,
+   * the write succeeds only if the current version matches. Returns the
+   * outcome with the current version number.
+   */
+  set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): { readonly success: boolean; readonly currentVersion: number };
 }
 
 export interface PolicyCompiler {
@@ -65,13 +75,23 @@ export interface PolicyRoutesOptions {
 // ---------------------------------------------------------------------------
 
 export function createInMemoryPolicyStore(): PolicyStore {
-  const policies = new Map<string, MerchantPolicyConfig>();
+  const policies = new Map<string, PolicyStoreEntry>();
   return {
     get(merchantId: string) {
       return policies.get(merchantId);
     },
-    set(merchantId: string, config: MerchantPolicyConfig) {
-      policies.set(merchantId, config);
+    set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): { readonly success: boolean; readonly currentVersion: number } {
+      const existing = policies.get(merchantId);
+      const currentVersion = existing?.version ?? 0;
+
+      // If expectedVersion is provided, enforce optimistic concurrency
+      if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
+        return { success: false, currentVersion };
+      }
+
+      const newVersion = currentVersion + 1;
+      policies.set(merchantId, { config, version: newVersion });
+      return { success: true, currentVersion: newVersion };
     },
   };
 }
@@ -193,13 +213,43 @@ export async function policyRoutesPlugin(
       return;
     }
 
+    // Parse If-Match header for version-conflict detection
+    const ifMatchHeader = request.headers["if-match"];
+    let expectedVersion: number | undefined;
+    if (typeof ifMatchHeader === "string" && ifMatchHeader !== "") {
+      const parsed = Number(ifMatchHeader);
+      if (Number.isNaN(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+        void reply.status(400).send({
+          error: {
+            code: "INVALID_FORMAT",
+            message: "If-Match header must be a non-negative integer version",
+          },
+        });
+        return;
+      }
+      expectedVersion = parsed;
+    }
+
     // Compile
     const compiled = compiler.compile(config);
 
-    // Store
-    store.set(merchantId, config);
+    // Store with optimistic concurrency
+    const storeResult = store.set(merchantId, config, expectedVersion);
+    if (!storeResult.success) {
+      void reply.status(409).send({
+        error: {
+          code: "VERSION_CONFLICT",
+          message: "Policy was modified by another writer",
+          details: {
+            currentVersion: storeResult.currentVersion,
+            expectedVersion,
+          },
+        },
+      });
+      return;
+    }
 
-    void reply.status(201).send({
+    void reply.status(201).header("etag", String(storeResult.currentVersion)).send({
       merchantId,
       policyVersion: config.policyVersion,
       compiled,
@@ -213,8 +263,8 @@ export async function policyRoutesPlugin(
     const merchantId = params["merchantId"] ?? "";
     const correlationId = getCorrelationId(request);
 
-    const policy = store.get(merchantId);
-    if (policy === undefined) {
+    const entry = store.get(merchantId);
+    if (entry === undefined) {
       void reply.status(404).send({
         error: {
           code: "NOT_FOUND",
@@ -224,9 +274,9 @@ export async function policyRoutesPlugin(
       return;
     }
 
-    void reply.send({
+    void reply.header("etag", String(entry.version)).send({
       merchantId,
-      policy,
+      policy: entry.config,
       correlationId,
     });
   });

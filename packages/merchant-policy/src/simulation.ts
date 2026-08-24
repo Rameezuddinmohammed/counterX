@@ -111,16 +111,11 @@ export function simulateWalletAuthority(
   // Run all rules (some will deny due to missing sources - expected in simulation)
   const allResults = evaluateAllRules(evalInput);
 
-  // For bilateral simulation, only consider buyer and merchant rule results
+  // For bilateral simulation, only consider buyer and merchant rule results.
+  // Uses prefix-based filtering to remain resilient if the policy engine adds
+  // or renames rules under these namespaces.
   const bilateralResults = allResults.filter(
-    (r) => r.ruleId === "buyer_allowlist" ||
-           r.ruleId === "buyer_amount_limit" ||
-           r.ruleId === "buyer_category_sku" ||
-           r.ruleId === "buyer_geography" ||
-           r.ruleId === "buyer_time_window" ||
-           r.ruleId === "buyer_operations" ||
-           r.ruleId === "buyer_approval_threshold" ||
-           r.ruleId === "merchant_policy",
+    (r) => r.ruleId.startsWith("buyer_") || r.ruleId.startsWith("merchant_"),
   );
 
   if (bilateralResults.length === 0) {

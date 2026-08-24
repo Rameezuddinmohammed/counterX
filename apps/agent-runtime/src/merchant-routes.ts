@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import {
   getCorrelationId,
   getIdempotencyKey,
+  getActorContext,
   registerRoutePermission,
 } from "@counter/http-api-kit";
 import type { MerchantHandlers, HandlerContext, HandlerError } from "./merchant-handlers.js";
@@ -122,6 +123,38 @@ function sendValidationError(reply: FastifyReply, message: string, field?: strin
 }
 
 // ---------------------------------------------------------------------------
+// Tenant isolation: verify the authenticated principal owns the merchantId
+// ---------------------------------------------------------------------------
+
+function verifyTenantAccess(request: FastifyRequest, merchantId: string): boolean {
+  const actorContext = getActorContext(request);
+  if (actorContext === undefined) {
+    // No actor context means auth did not complete - should not reach here
+    return false;
+  }
+  const scope = actorContext.scope;
+  // Platform scope has access to all merchants
+  if (scope.kind === "platform") {
+    return true;
+  }
+  // Merchant scope must match the requested merchantId
+  if (scope.kind === "merchant") {
+    return scope.merchantId === merchantId;
+  }
+  // Wallet scope does not have merchant access
+  return false;
+}
+
+function sendForbiddenError(reply: FastifyReply): void {
+  void reply.status(403).send({
+    error: {
+      code: "UNAUTHORIZED",
+      message: "Access denied for the requested merchant",
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Plugin: Merchant Routes
 // ---------------------------------------------------------------------------
 
@@ -143,6 +176,10 @@ export async function merchantRoutesPlugin(
   // --- Capability Route ---
   fastify.get(`${ROUTE_PREFIX}/capabilities`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const result = await handlers.capability.handle(ctx);
     if (!result.ok) {
       sendHandlerError(reply, result.error, ctx.correlationId);
@@ -154,6 +191,10 @@ export async function merchantRoutesPlugin(
   // --- Search Route ---
   fastify.post(`${ROUTE_PREFIX}/search`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const body = request.body as Record<string, unknown> | undefined;
     const validationError = validateBody(body, ["query"]);
     if (validationError !== undefined) {
@@ -176,6 +217,10 @@ export async function merchantRoutesPlugin(
   // --- Product Route ---
   fastify.get(`${ROUTE_PREFIX}/products/:variantId`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const params = request.params as Record<string, string>;
     const variantId = params["variantId"] ?? "";
     if (variantId === "") {
@@ -193,6 +238,10 @@ export async function merchantRoutesPlugin(
   // --- Quote Route ---
   fastify.post(`${ROUTE_PREFIX}/quotes`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const body = request.body as Record<string, unknown> | undefined;
     const validationError = validateBody(body, ["variantId", "quantity", "currency"]);
     if (validationError !== undefined) {
@@ -223,6 +272,10 @@ export async function merchantRoutesPlugin(
   // --- Transaction Create Route ---
   fastify.post(`${ROUTE_PREFIX}/transactions`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const body = request.body as Record<string, unknown> | undefined;
     const validationError = validateBody(body, ["quoteId", "paymentMethod"]);
     if (validationError !== undefined) {
@@ -249,6 +302,10 @@ export async function merchantRoutesPlugin(
   // --- Transaction Status Route ---
   fastify.get(`${ROUTE_PREFIX}/transactions/:transactionId`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const params = request.params as Record<string, string>;
     const transactionId = params["transactionId"] ?? "";
     if (transactionId === "") {
@@ -266,6 +323,10 @@ export async function merchantRoutesPlugin(
   // --- Payment Action Result Route ---
   fastify.post(`${ROUTE_PREFIX}/transactions/:transactionId/payment-result`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const params = request.params as Record<string, string>;
     const transactionId = params["transactionId"] ?? "";
     const body = request.body as Record<string, unknown> | undefined;
@@ -299,6 +360,10 @@ export async function merchantRoutesPlugin(
   // --- Cancel Route ---
   fastify.post(`${ROUTE_PREFIX}/transactions/:transactionId/cancel`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const params = request.params as Record<string, string>;
     const transactionId = params["transactionId"] ?? "";
     const body = request.body as Record<string, unknown> | undefined;
@@ -321,6 +386,10 @@ export async function merchantRoutesPlugin(
   // --- Refund Route ---
   fastify.post(`${ROUTE_PREFIX}/transactions/:transactionId/refund`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const params = request.params as Record<string, string>;
     const transactionId = params["transactionId"] ?? "";
     const body = request.body as Record<string, unknown> | undefined;
@@ -343,6 +412,10 @@ export async function merchantRoutesPlugin(
   // --- Receipt Route ---
   fastify.get(`${ROUTE_PREFIX}/transactions/:transactionId/receipt`, async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = buildContext(request);
+    if (!verifyTenantAccess(request, ctx.merchantId)) {
+      sendForbiddenError(reply);
+      return;
+    }
     const params = request.params as Record<string, string>;
     const transactionId = params["transactionId"] ?? "";
     if (transactionId === "") {

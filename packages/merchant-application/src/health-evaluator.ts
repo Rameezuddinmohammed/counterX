@@ -6,7 +6,7 @@
  * Degraded, or Suspended based on their readiness check results.
  */
 
-import type { ReadinessResult } from "./readiness-types.js";
+import type { ReadinessResult, ReadinessCheckKind } from "./readiness-types.js";
 import type { CapabilityManifest } from "./capability-manifest.js";
 
 // ─── Health Status ──────────────────────────────────────────────────────────
@@ -24,21 +24,38 @@ export interface HealthEvaluation {
   readonly degradedChecks: readonly string[];
 }
 
+// ─── Capability-to-Check Mapping ────────────────────────────────────────────
+
+/**
+ * Maps pilot capabilities to the readiness check kinds that must be present
+ * for the capability to function correctly. If a manifest declares a capability
+ * but the readiness result lacks the corresponding check, the merchant is
+ * considered Degraded (gap in discovery/runtime consistency).
+ */
+const CAPABILITY_REQUIRED_CHECKS: Readonly<Record<string, readonly ReadinessCheckKind[]>> = {
+  "quote.create": ["connector_health", "mapping_freshness", "policy_compiled"],
+  "quote.accept": ["connector_health", "mapping_freshness", "policy_compiled"],
+  "payment.initiate": ["connector_health", "payment_configured", "protocol_version"],
+  "payment.confirm": ["connector_health", "payment_configured", "protocol_version"],
+  "refund.initiate": ["connector_health", "payment_configured"],
+};
+
 // ─── Health Evaluator ───────────────────────────────────────────────────────
 
 /**
  * Evaluates the runtime health of a merchant based on readiness state.
  *
  * - Suspended: Any Blocking check fails at runtime
- * - Degraded: Advisory or Expiring issues present (non-blocking)
+ * - Degraded: Advisory or Expiring issues present, or manifest declares
+ *   capabilities without corresponding readiness checks
  * - Healthy: All checks pass with no issues
  *
- * The manifest parameter is used to ensure consistency between what the manifest
+ * The manifest parameter enforces consistency between what the manifest
  * declares and what the readiness engine reports.
  */
 export function evaluateHealth(
   readiness: ReadinessResult,
-  _manifest: CapabilityManifest,
+  manifest: CapabilityManifest,
 ): HealthEvaluation {
   const blockingChecks: string[] = [];
   const degradedChecks: string[] = [];
@@ -52,6 +69,18 @@ export function evaluateHealth(
       result.status === "AcceptedLimitation"
     ) {
       degradedChecks.push(result.checkKind);
+    }
+  }
+
+  // Cross-check: manifest capabilities must have corresponding readiness checks
+  const presentCheckKinds = new Set(readiness.checkResults.map((r) => r.checkKind));
+  for (const capability of manifest.capabilities) {
+    const requiredChecks = CAPABILITY_REQUIRED_CHECKS[capability];
+    if (requiredChecks === undefined) continue;
+    for (const requiredCheck of requiredChecks) {
+      if (!presentCheckKinds.has(requiredCheck) && !degradedChecks.includes(requiredCheck)) {
+        degradedChecks.push(requiredCheck);
+      }
     }
   }
 
