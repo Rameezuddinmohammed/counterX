@@ -11,7 +11,13 @@ import type { Product, RawNormalizedPreview, SourceReference } from "./index.js"
 
 // ─── Transform Function Type ──────────────────────────────────────────────────
 
-export type TransformFn = (rawData: unknown) => unknown;
+export type TransformFn = (rawData: unknown, context?: TransformContext) => unknown;
+
+/** Context parameters for transforms that need runtime information. */
+export interface TransformContext {
+  readonly merchantId: string;
+  readonly fetchedAt: Instant;
+}
 
 // ─── Transform Registry ───────────────────────────────────────────────────────
 
@@ -49,6 +55,7 @@ export function applyTransform(
   rawData: unknown,
   transformId: string,
   version: string,
+  context?: TransformContext,
 ): Result<unknown> {
   const transform = registry.get(transformId, version);
   if (transform === undefined) {
@@ -60,7 +67,7 @@ export function applyTransform(
       }),
     );
   }
-  const result = transform.fn(rawData);
+  const result = transform.fn(rawData, context);
   return ok(result);
 }
 
@@ -71,6 +78,7 @@ export function previewTransform(
   rawData: unknown,
   transformId: string,
   version: string,
+  context?: TransformContext,
 ): Result<RawNormalizedPreview> {
   const transform = registry.get(transformId, version);
   if (transform === undefined) {
@@ -83,7 +91,7 @@ export function previewTransform(
     );
   }
 
-  const normalizedData = transform.fn(rawData);
+  const normalizedData = transform.fn(rawData, context);
   const differences = computeDifferences(rawData, normalizedData);
 
   return ok(
@@ -121,6 +129,13 @@ function computeDifferences(raw: unknown, normalized: unknown): string[] {
   for (const key of rawKeys) {
     if (!normKeys.has(key)) {
       diffs.push(`${key}: removed`);
+    } else {
+      // Key exists in both - check for value changes
+      const rawVal = rawObj[key];
+      const normVal = normObj[key];
+      if (!deepEqual(rawVal, normVal)) {
+        diffs.push(`${key}: changed`);
+      }
     }
   }
 
@@ -131,6 +146,40 @@ function computeDifferences(raw: unknown, normalized: unknown): string[] {
   }
 
   return diffs;
+}
+
+/**
+ * Deep equality check for comparing raw and normalized values.
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (a === undefined || b === undefined) return false;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== "object") return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) return false;
+
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const aKeys = Object.keys(aObj);
+  const bKeys = Object.keys(bObj);
+
+  if (aKeys.length !== bKeys.length) return false;
+
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(bObj, key)) return false;
+    if (!deepEqual(aObj[key], bObj[key])) return false;
+  }
+
+  return true;
 }
 
 // ─── Built-in Shopify Product Transform ───────────────────────────────────────
@@ -155,22 +204,28 @@ interface ShopifyRawVariant {
 /**
  * Transforms a raw Shopify-like product JSON into the normalized Product type.
  * This is a pure, deterministic function.
+ *
+ * When no context is provided, uses placeholder values (fetchedAt: 0, merchantId: "").
+ * For production usage, always supply a TransformContext with the actual merchantId
+ * and fetchedAt values.
  */
-export function shopifyProductTransform(rawData: unknown): unknown {
+export function shopifyProductTransform(rawData: unknown, context?: TransformContext): unknown {
   const raw = rawData as ShopifyRawProduct;
 
-  const now = 0 as Instant;
+  const fetchedAt = context?.fetchedAt ?? (0 as Instant);
+  const merchantId = context?.merchantId ?? "";
+
   const sourceRef: SourceReference = {
     platform: "shopify",
     externalId: String(raw.id),
-    fetchedAt: now,
+    fetchedAt,
     mappingVersion: { version: "1.0.0", schemaHash: "shopify-v1" },
   };
 
   const variants = (raw.variants ?? []).map((v) => ({
     id: String(v.id),
     productId: String(raw.id),
-    merchantId: "",
+    merchantId,
     sku: v.sku ?? "",
     title: v.title ?? "Default",
     active: true,
@@ -178,7 +233,7 @@ export function shopifyProductTransform(rawData: unknown): unknown {
 
   const product: Omit<Product, "merchantId"> & { readonly merchantId: string } = {
     id: String(raw.id),
-    merchantId: "",
+    merchantId,
     title: raw.title ?? "",
     description: raw.body_html ?? "",
     variants: Object.freeze(variants),
@@ -186,8 +241,8 @@ export function shopifyProductTransform(rawData: unknown): unknown {
     sourceReferences: Object.freeze([sourceRef]),
     status: "active",
     tombstonedAt: undefined,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: fetchedAt,
+    updatedAt: fetchedAt,
   };
 
   return Object.freeze(product);

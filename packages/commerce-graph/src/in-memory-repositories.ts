@@ -132,6 +132,19 @@ export class InMemoryPriceRepository implements PriceRepository {
   readonly #snapshots: PriceSnapshot[] = [];
 
   public save(snapshot: PriceSnapshot): Result<PriceSnapshot> {
+    // Out-of-order handling: check if existing observation for same variant+source is newer
+    const existingIdx = this.#snapshots.findIndex(
+      (s) => s.variantId === snapshot.variantId && s.source.platform === snapshot.source.platform,
+    );
+    if (existingIdx !== -1) {
+      const existing = this.#snapshots[existingIdx]!;
+      if ((snapshot.observedAt as number) <= (existing.observedAt as number)) {
+        // Out-of-order: existing is newer, keep history but don't replace latest
+        const frozen = Object.freeze({ ...snapshot });
+        this.#snapshots.push(frozen);
+        return ok(frozen);
+      }
+    }
     const frozen = Object.freeze({ ...snapshot });
     this.#snapshots.push(frozen);
     return ok(frozen);
@@ -175,6 +188,19 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   readonly #snapshots: InventorySnapshot[] = [];
 
   public save(snapshot: InventorySnapshot): Result<InventorySnapshot> {
+    // Out-of-order handling: check if existing observation for same variant+source is newer
+    const existingIdx = this.#snapshots.findIndex(
+      (s) => s.variantId === snapshot.variantId && s.source.platform === snapshot.source.platform,
+    );
+    if (existingIdx !== -1) {
+      const existing = this.#snapshots[existingIdx]!;
+      if ((snapshot.observedAt as number) <= (existing.observedAt as number)) {
+        // Out-of-order: existing is newer, keep history but don't replace latest
+        const frozen = Object.freeze({ ...snapshot });
+        this.#snapshots.push(frozen);
+        return ok(frozen);
+      }
+    }
     const frozen = Object.freeze({ ...snapshot });
     this.#snapshots.push(frozen);
     return ok(frozen);
@@ -245,6 +271,19 @@ export class InMemoryMappingVersionRepository implements MappingVersionRepositor
     if (existing === undefined) {
       return ok(null);
     }
+
+    // Revoke any previously published version for the same merchant
+    for (const [recordId, record] of this.#records) {
+      if (record.merchantId === existing.merchantId && record.status === "published" && recordId !== id) {
+        const revoked: MappingVersionRecord = Object.freeze({
+          ...record,
+          status: "rolledBack" as const,
+          rolledBackAt: publishedAt as Instant,
+        });
+        this.#records.set(recordId, revoked);
+      }
+    }
+
     const updated: MappingVersionRecord = Object.freeze({
       ...existing,
       status: "published" as const,
@@ -307,7 +346,7 @@ export class InMemoryConflictRepository implements ConflictRepository {
 
   public resolve(
     id: string,
-    resolution: string,
+    resolution: ResolutionStrategy,
     resolvedAt: number,
   ): Result<ConflictRecord | null> {
     const existing = this.#records.get(id);
@@ -316,7 +355,7 @@ export class InMemoryConflictRepository implements ConflictRepository {
     }
     const updated: ConflictRecord = Object.freeze({
       ...existing,
-      resolution: resolution as ResolutionStrategy,
+      resolution,
       resolvedAt: resolvedAt as Instant,
     });
     this.#records.set(id, updated);

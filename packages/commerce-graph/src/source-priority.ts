@@ -34,12 +34,20 @@ export interface ResolutionResult {
  * - Higher priority number = higher priority source
  * - When same priority, newer observedAt wins
  * - When conflict cannot be resolved cleanly, creates a ConflictRecord
+ *
+ * @param observations - The sourced observations to resolve
+ * @param priorities - Source priority configuration
+ * @param entityId - The entity ID for conflict records
+ * @param entityType - The entity type for conflict records
+ * @param conflictIdSuffix - A deterministic suffix for conflict IDs (e.g. a timestamp or counter).
+ *   When omitted, defaults to the winner's observedAt for deterministic behavior.
  */
 export function resolveConflict(
   observations: readonly SourcedObservation[],
   priorities: readonly SourcePriority[],
   entityId: string,
   entityType: string,
+  conflictIdSuffix?: number,
 ): Result<ResolutionResult> {
   if (observations.length === 0) {
     return ok({
@@ -89,8 +97,9 @@ export function resolveConflict(
   let conflict: ConflictRecord | null = null;
   if (hasValueMismatch && resolution === "newer_wins") {
     const conflictType: ConflictType = "value_mismatch";
+    const idSuffix = conflictIdSuffix ?? (winner.observedAt as number);
     conflict = Object.freeze({
-      id: `conflict-${entityId}-${Date.now()}`,
+      id: `conflict-${entityId}-${idSuffix}`,
       entityId,
       entityType,
       sources: Object.freeze(observations.map((o) => o.source)),

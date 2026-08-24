@@ -197,6 +197,7 @@ export {
 } from "./in-memory-repositories.js";
 
 export { TransformRegistry, applyTransform, previewTransform } from "./transforms.js";
+export type { TransformContext } from "./transforms.js";
 
 export {
   resolveConflict,
