@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "feat",
   "description": "Task 19: Add merchant operations, telemetry, and recovery evidence. Build merchant-scoped operator APIs in the Operations Console, dashboards/alerts/replay commands, support grants, runbooks. Exercise rotation, backup/restore, outage, queue backlog, crash, and offboarding scenarios. Scan storage/telemetry for credentials.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create apps/operations-console/src/lib/operator-api.ts with merchant-scoped operator API types and client: (a) listMerchantTransactions(merchantId, filters), (b) getTransactionDetail(txId), (c) retryTransaction(txId), (d) voidTransaction(txId), (e) issueRefund(txId, amount), (f) suspendMerchant(merchantId, reason), (g) grantSupportAccess(merchantId, grantConfig), (h) exportAuditLog(merchantId, dateRange)",
     "Create apps/operations-console/src/lib/projections.ts with operations console data projections: TransactionProjection (flattened view for operator dashboards), MerchantHealthProjection (aggregated health metrics), AlertProjection (threshold-based alerts), QueueProjection (job queue status)",
@@ -30,5 +30,5 @@
     "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/operations-console build && pnpm --filter @counter/operations-console test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 110 tests pass (89 new tests across operator-api, projections, telemetry-dashboard, recovery-commands, runbooks, credential-scanner, support-grants + 21 existing). Build succeeds cleanly. ESLint required using typeof checks instead of direct method references to avoid unbound-method warnings. RECONCILIATION_LATENCY and PROVIDER_RESPONSE_TIME imports needed to remain for the toContain assertions."
 }
