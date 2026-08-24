@@ -1,0 +1,49 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement typed operator commands, kill switches, and the Operations Console shell. This includes: operator command types with authorization/step-up/preview/audit/reason/scope, kill switch configuration records, expiring support grant flows for content access, and the Next.js operations-console app with typed pages for fleet health, incidents, queues/dead letters, adapter release status, kill switches, and scoped support sessions. Also includes initial alert definitions, runbook templates, and security tests for no ambient cross-tenant access and telemetry secret/PII leakage.",
+  "status": "completed",
+  "steps": [
+    "Create packages/observability/src/operator-commands.ts - typed operator command framework: OperatorCommand<Params, Preview, Result> generic, CommandAuthorization (requires AuthorizedContext with operator role + optional step-up), CommandPreview type (dry-run output), CommandAuditEntry (who/when/what/reason/scope/preview/result), CommandRegistry for registering/looking up commands. Include specific commands: ReplayJobCommand, ReconcileCommand, ToggleKillSwitchCommand, IssueGrantCommand, RevokeGrantCommand.",
+    "Create packages/observability/src/kill-switch.ts - KillSwitch configuration record type with scopes (platform, merchant, wallet, agent, mandate, connector, payment_adapter), status (active/inactive), reason, activatedBy, activatedAt, expiresAt. KillSwitchRegistry interface for CRUD. InMemoryKillSwitchRegistry for tests. KillSwitch evaluation function that checks if a given scope/entity is killed.",
+    "Create packages/observability/src/alerts.ts - AlertDefinition types with name, severity (critical/warning/info), condition description, threshold, metric reference, runbook reference. Define initial alert catalog: high_error_rate, high_latency_p99, job_queue_depth, outbox_lag_critical, dead_letter_accumulation, indeterminate_age_critical, reconciliation_lag_critical, authority_failure_spike, receipt_signing_failure.",
+    "Create packages/observability/src/runbooks.ts - RunbookEntry type with title, alert references, symptoms, investigation steps, resolution steps, escalation path. Define initial runbook stubs for each alert.",
+    "Create packages/observability/src/operator-commands.test.ts - test command registry: register/lookup, authorization check (rejects non-operator), preview mode returns preview without executing, audit entry creation captures all required fields.",
+    "Create packages/observability/src/kill-switch.test.ts - test KillSwitch evaluation: active switch blocks, inactive does not block, expired does not block, scope matching works for each scope type, registry CRUD operations.",
+    "Create packages/observability/src/alerts.test.ts - test alert catalog completeness: all defined alerts have severity, condition, threshold, and runbook reference.",
+    "Update packages/observability/src/index.ts to export operator commands, kill switches, alerts, and runbooks.",
+    "Create apps/operations-console/src/lib/types.ts - shared TypeScript types for the console: FleetHealth, IncidentSummary, QueueStatus, DeadLetterEntry, KillSwitchView, SupportSessionView, AdapterReleaseStatus. These represent the data shapes the UI consumes from operator APIs.",
+    "Create apps/operations-console/src/lib/operator-api-client.ts - typed client interface for operator APIs: getFleetHealth(), getIncidents(), getQueues(), getDeadLetters(), getKillSwitches(), getSupportSessions(), getAdapterReleases(). Returns typed responses. Implementation is a stub that returns empty/mock data (real API integration comes later with the API endpoints).",
+    "Create apps/operations-console/src/app/fleet/page.tsx - Fleet Health page showing dependency health status grid.",
+    "Create apps/operations-console/src/app/incidents/page.tsx - Incidents page listing active incidents with severity/scope.",
+    "Create apps/operations-console/src/app/queues/page.tsx - Queues page showing job queue depth, dead letters with replay option.",
+    "Create apps/operations-console/src/app/kill-switches/page.tsx - Kill Switches page listing active/inactive switches with toggle controls.",
+    "Create apps/operations-console/src/app/support/page.tsx - Support Sessions page showing active grants with scope/expiry/purpose.",
+    "Create apps/operations-console/src/app/adapters/page.tsx - Adapter Release Status page showing connector/payment adapter versions and health.",
+    "Update apps/operations-console/src/app/layout.tsx - add navigation sidebar with links to all operator pages.",
+    "Update apps/operations-console/src/app/page.tsx - dashboard overview linking to each section with summary counts.",
+    "Create apps/operations-console/src/lib/types.test.ts - test type guard functions for operator API response types.",
+    "Create packages/observability/src/telemetry-leakage.test.ts - security test: verify redaction utilities catch all known secret/PII patterns, verify safe attribute helpers never emit credential-like values, verify logger redacts before output.",
+    "Create packages/observability/src/no-cross-tenant.test.ts - security test: verify operator commands require platform scope, verify kill switch scope matching prevents cross-tenant activation, verify support grants cannot be self-issued (operatorId !== authorizedBy already enforced by authorization package but verify at command level)."
+  ],
+  "acceptance_criteria": [
+    "pnpm --filter @counter/observability build succeeds",
+    "pnpm --filter @counter/observability test passes all tests including security tests",
+    "pnpm --filter @counter/operations-console typecheck succeeds",
+    "pnpm --filter @counter/operations-console test passes",
+    "Operator command framework enforces authorization, supports preview mode, and creates audit entries",
+    "Kill switch evaluation correctly blocks/allows based on scope and expiry",
+    "Alert catalog covers all metrics defined in the design document",
+    "Telemetry leakage test confirms no secret/PII patterns pass through redaction",
+    "No cross-tenant test confirms operator commands require correct scope/authorization",
+    "Operations console has navigable pages for fleet, incidents, queues, kill-switches, support, adapters"
+  ],
+  "verification": [
+    "pnpm --filter @counter/observability build",
+    "pnpm --filter @counter/observability test",
+    "pnpm --filter @counter/operations-console typecheck",
+    "pnpm --filter @counter/operations-console test"
+  ],
+  "blocked_reason": null,
+  "findings": "Review issues addressed: (1) redactObject now uses WeakSet for circular reference detection, (2) pin regex uses custom word-boundary pattern (?:^|[^a-z])pin(?:$|[^a-z]) instead of \\bpin\\b because JS word boundary treats underscore as word char, (3) Next.js middleware added for auth guard. All 1202 tests pass, zero lint/prettier issues."
+}
