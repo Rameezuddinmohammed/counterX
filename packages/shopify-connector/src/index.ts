@@ -175,6 +175,74 @@ export {
   detectMaterialChange,
 } from "./quote-verification.js";
 
+// ─── Order Types ──────────────────────────────────────────────────────────────
+
+export type {
+  CorrelationMetadata,
+  DraftOrderLineItem,
+  DraftOrderCreateInput,
+  DraftOrderResult,
+  OrderFinalizeInput,
+  OrderResult,
+  PaymentRecordInput,
+  PaymentRecordResult,
+  OrderCancelInput,
+  CancelResult,
+  RefundInput,
+  RefundResult,
+} from "./order-types.js";
+
+// ─── Order Mutations ──────────────────────────────────────────────────────────
+
+export {
+  DRAFT_ORDER_CREATE_MUTATION,
+  DRAFT_ORDER_COMPLETE_MUTATION,
+  ORDER_MARK_AS_PAID_MUTATION,
+  ORDER_CANCEL_MUTATION,
+  REFUND_CREATE_MUTATION,
+  DRAFT_ORDER_QUERY,
+  ORDER_QUERY,
+  buildNoteAttributes,
+} from "./order-mutations.js";
+
+// ─── Order Error Normalizer ───────────────────────────────────────────────────
+
+export {
+  isThrottled,
+  computeRetryAfterMs,
+  normalizeGraphQLErrors,
+  normalizeUserErrors,
+  classifyTimeout,
+} from "./order-error-normalizer.js";
+export type { ShopifyUserError } from "./order-error-normalizer.js";
+
+// ─── Order Idempotency ────────────────────────────────────────────────────────
+
+export {
+  computePayloadHash,
+  createIdempotencyStore,
+} from "./order-idempotency.js";
+export type {
+  IdempotencyLookup,
+  IdempotencyStore,
+} from "./order-idempotency.js";
+
+// ─── Order Actions ────────────────────────────────────────────────────────────
+
+export {
+  DraftOrderCreateAction,
+  DraftOrderQueryAction,
+  OrderFinalizeAction,
+  PaymentRecordAction,
+  OrderQueryAction,
+  OrderCancelAction,
+  OrderRefundAction,
+} from "./order-actions.js";
+export type {
+  DraftOrderQueryInput,
+  OrderQueryInput,
+} from "./order-actions.js";
+
 // ─── Legacy Types (backward compat) ──────────────────────────────────────────
 
 /**
