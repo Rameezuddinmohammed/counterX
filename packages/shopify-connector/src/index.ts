@@ -11,7 +11,63 @@ export const PACKAGE_NAME = "@counter/shopify-connector";
 export { SHOPIFY_CONFIG_KEYS } from "./config.js";
 export type { ConfigKeyDescriptor } from "./config.js";
 
-/** Manifest describing the Shopify connector capabilities. */
+// --- GraphQL Client ---
+
+export type {
+  ShopifyGraphQLPort,
+  ShopifyGraphQLResponse,
+  ShopifyGraphQLError,
+  ShopifyThrottleStatus,
+} from "./graphql-client.js";
+
+export {
+  createHttpGraphQLClient,
+  validateShopDomainSsrf,
+  isPrivateIp,
+} from "./http-graphql-client.js";
+export type {
+  HttpGraphQLClientConfig,
+  DomainValidationResult,
+} from "./http-graphql-client.js";
+
+export {
+  createMockGraphQLClient,
+} from "./mock-graphql-client.js";
+export type {
+  MockShopifyClient,
+  MockCallRecord,
+  MockFault,
+  MockGraphQLClientConfig,
+} from "./mock-graphql-client.js";
+
+// --- Authentication ---
+
+export {
+  validateToken,
+  verifyWebhookSignature,
+  checkScopes,
+  validateShopDomain,
+  redactCredentials,
+} from "./auth.js";
+export type {
+  ShopifyTokenValidation,
+  ScopeCheckResult,
+} from "./auth.js";
+
+// --- Health ---
+
+export { createShopifyHealthPort } from "./health.js";
+export type { ShopifyHealthConfig } from "./health.js";
+
+// --- Manifest ---
+
+export { SHOPIFY_CONNECTOR_MANIFEST } from "./shopify-manifest.js";
+
+// --- Legacy Types (backward compat) ---
+
+/**
+ * @deprecated Use `ConnectorManifest` from `@counter/connector-sdk` with `SHOPIFY_CONNECTOR_MANIFEST` instead.
+ */
 export interface ShopifyConnectorManifest {
   readonly connectorId: string;
   readonly platform: "shopify";
@@ -20,10 +76,7 @@ export interface ShopifyConnectorManifest {
   readonly supportedActions: readonly string[];
 }
 
-/** Authentication configuration for connecting to Shopify. */
-export interface ShopifyAuthConfig {
-  readonly shopDomain: string;
-  readonly accessToken: string;
-  readonly apiVersion: string;
-  readonly scopes: readonly string[];
-}
+/**
+ * @deprecated Use `ShopifyAuthConfig` from `./auth.js` instead.
+ */
+export type { ShopifyAuthConfig } from "./auth.js";
