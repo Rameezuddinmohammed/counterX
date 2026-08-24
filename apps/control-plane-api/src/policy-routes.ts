@@ -9,12 +9,37 @@ import {
   getCorrelationId,
   registerRoutePermission,
 } from "@counter/http-api-kit";
-import type {
-  MerchantPolicyConfig,
-  MerchantPolicyRule,
-  CompiledPolicyResult,
-  PolicyValidationResult,
-} from "@counter/merchant-policy";
+
+// ---------------------------------------------------------------------------
+// Control-plane policy types (API-layer representations)
+// ---------------------------------------------------------------------------
+
+export interface MerchantPolicyRule {
+  readonly ruleId: string;
+  readonly category: string;
+  readonly constraint: string;
+  readonly parameters: Record<string, unknown>;
+  readonly enabled: boolean;
+}
+
+export interface MerchantPolicyConfig {
+  readonly merchantId: string;
+  readonly policyVersion: string;
+  readonly rules: readonly MerchantPolicyRule[];
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
+}
+
+export interface CompiledPolicyResult {
+  readonly success: boolean;
+  readonly constraintCount: number;
+  readonly compiledAt: string;
+}
+
+export interface PolicyValidationResult {
+  readonly valid: boolean;
+  readonly errors: readonly string[];
+}
 
 // ---------------------------------------------------------------------------
 // Types

@@ -1,48 +1,52 @@
 /**
- * packages/merchant-policy
+ * @counter/merchant-policy
  *
  * Merchant-specific policy rules compiled to shared Policy Engine
- * constraints. Allows merchants to define custom business rules that
- * integrate with the platform's policy evaluation system.
+ * constraints. Allows merchants to define typed business rules that
+ * integrate with the platform's bilateral policy evaluation system.
  */
 
-export const PACKAGE_NAME = "@counter/merchant-policy";
+// Policy configuration types
+export type {
+  CancellationPolicyRule,
+  CategoryAllowlistRule,
+  CountLimitRule,
+  FreshnessRequirementRule,
+  IndiaDestinationRule,
+  InrOnlyRule,
+  MerchantPolicyRuleConfig,
+  MerchantPolicyRuleSet,
+  OperatingWindowRule,
+  PaymentPathRule,
+  ProductAllowlistRule,
+  QuantityLimitRule,
+  RefundPolicyRule,
+  ReviewThresholdRule,
+  RuleKind,
+} from "./policy-config.js";
+export {
+  isValidRuleKind,
+  RULE_KINDS,
+  validateRuleConfig,
+  validateRuleSet,
+} from "./policy-config.js";
 
-/** Configuration for merchant-specific policy rules. */
-export interface MerchantPolicyConfig {
-  readonly merchantId: string;
-  readonly policyVersion: string;
-  readonly rules: readonly MerchantPolicyRule[];
-  readonly effectiveFrom: string;
-  readonly effectiveUntil: string | null;
-}
+// Compiler
+export type { CompiledMerchantPolicy } from "./compiler.js";
+export { compileMerchantPolicy } from "./compiler.js";
 
-/** A single merchant policy rule definition. */
-export interface MerchantPolicyRule {
-  readonly ruleId: string;
-  readonly category: string;
-  readonly constraint: string;
-  readonly parameters: Record<string, unknown>;
-  readonly enabled: boolean;
-}
+// Summary renderer
+export { renderPolicySummary } from "./summary-renderer.js";
 
-/** Interface for compiling merchant policy rules to engine constraints. */
-export interface MerchantPolicyCompiler {
-  /** Compile a merchant policy config into engine-ready constraints. */
-  compile(config: MerchantPolicyConfig): CompiledPolicyResult;
-  /** Validate a policy config without compiling it. */
-  validate(config: MerchantPolicyConfig): PolicyValidationResult;
-}
+// Simulation
+export type { SimulationInput, SimulationResult } from "./simulation.js";
+export { simulateWalletAuthority } from "./simulation.js";
 
-/** Result of compiling merchant policies. */
-export interface CompiledPolicyResult {
-  readonly success: boolean;
-  readonly constraintCount: number;
-  readonly compiledAt: string;
-}
-
-/** Result of validating a merchant policy config. */
-export interface PolicyValidationResult {
-  readonly valid: boolean;
-  readonly errors: readonly string[];
-}
+// Versioning
+export type { PolicyVersionRecord, VersionComparison, VersionTransition } from "./versioning.js";
+export {
+  advanceVersion,
+  compareVersions,
+  detectVersionTransition,
+  isMonotonicHistory,
+} from "./versioning.js";
