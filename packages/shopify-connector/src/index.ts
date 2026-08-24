@@ -8,6 +8,9 @@
 
 export const PACKAGE_NAME = "@counter/shopify-connector";
 
+export { SHOPIFY_CONFIG_KEYS } from "./config.js";
+export type { ConfigKeyDescriptor } from "./config.js";
+
 /** Manifest describing the Shopify connector capabilities. */
 export interface ShopifyConnectorManifest {
   readonly connectorId: string;

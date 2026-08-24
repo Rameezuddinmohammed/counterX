@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PACKAGE_NAME,
+  MERCHANT_APP_CONFIG_KEYS,
 } from "./index.js";
 import type {
   MerchantLifecycleState,
@@ -9,6 +10,7 @@ import type {
   MerchantEnvironment,
   ReadinessCheck,
   ReadinessFinding,
+  ConfigKeyDescriptor,
 } from "./index.js";
 
 describe("@counter/merchant-application", () => {
@@ -77,5 +79,15 @@ describe("@counter/merchant-application", () => {
       remediation: "Configure at least one payment provider",
     };
     expect(finding.severity).toBe("error");
+  });
+
+  it("exports MERCHANT_APP_CONFIG_KEYS describing expected environment variables", () => {
+    expect(MERCHANT_APP_CONFIG_KEYS.length).toBeGreaterThan(0);
+    for (const key of MERCHANT_APP_CONFIG_KEYS) {
+      const descriptor: ConfigKeyDescriptor = key;
+      expect(descriptor.name).toBeTruthy();
+      expect(descriptor.purpose).toBeTruthy();
+      expect(typeof descriptor.required).toBe("boolean");
+    }
   });
 });

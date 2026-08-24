@@ -8,6 +8,9 @@
 
 export const PACKAGE_NAME = "@counter/razorpay-adapter";
 
+export { RAZORPAY_CONFIG_KEYS } from "./config.js";
+export type { ConfigKeyDescriptor } from "./config.js";
+
 /** Configuration for the Razorpay test adapter. */
 export interface RazorpayTestAdapterConfig {
   readonly keyId: string;

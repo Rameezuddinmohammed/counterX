@@ -122,4 +122,32 @@ describe("@counter/control-plane-api", () => {
     expect(body.openapi).toBe("3.1.0");
     expect(body.info.title).toBe("Counter Control Plane API");
   });
+
+  it("unauthenticated GET /control/v1/merchants returns 401", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({ jwks, environment: "test" });
+    await server.ready();
+
+    const response = await server.inject({ method: "GET", url: "/control/v1/merchants" });
+    expect(response.statusCode).toBe(401);
+    const body = JSON.parse(response.body) as { error: { code: string } };
+    expect(body.error.code).toBe("UNAUTHENTICATED");
+  });
+
+  it("authenticated GET /control/v1/merchants returns placeholder response", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({ jwks, environment: "test" });
+    await server.ready();
+
+    const token = await createTestToken();
+    const response = await server.inject({
+      method: "GET",
+      url: "/control/v1/merchants",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { placeholder: boolean; message: string };
+    expect(body.placeholder).toBe(true);
+    expect(body.message).toBe("Merchant routes - to be implemented in Merchant Task 3");
+  });
 });

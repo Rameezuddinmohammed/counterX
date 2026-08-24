@@ -8,6 +8,9 @@
 
 export const PACKAGE_NAME = "@counter/merchant-application";
 
+export { MERCHANT_APP_CONFIG_KEYS } from "./config.js";
+export type { ConfigKeyDescriptor } from "./config.js";
+
 /** The possible states in a merchant's lifecycle. */
 export type MerchantLifecycleState =
   | "pending"

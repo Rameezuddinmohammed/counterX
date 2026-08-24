@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   PACKAGE_NAME,
+  RAZORPAY_CONFIG_KEYS,
 } from "./index.js";
 import type {
   RazorpayTestAdapterConfig,
   RazorpayOrderParams,
+  ConfigKeyDescriptor,
 } from "./index.js";
 
 describe("@counter/razorpay-adapter", () => {
@@ -34,5 +36,15 @@ describe("@counter/razorpay-adapter", () => {
     };
     expect(params.amount).toBe(50000);
     expect(params.currency).toBe("INR");
+  });
+
+  it("exports RAZORPAY_CONFIG_KEYS describing expected environment variables", () => {
+    expect(RAZORPAY_CONFIG_KEYS.length).toBeGreaterThan(0);
+    for (const key of RAZORPAY_CONFIG_KEYS) {
+      const descriptor: ConfigKeyDescriptor = key;
+      expect(descriptor.name).toBeTruthy();
+      expect(descriptor.purpose).toBeTruthy();
+      expect(typeof descriptor.required).toBe("boolean");
+    }
   });
 });

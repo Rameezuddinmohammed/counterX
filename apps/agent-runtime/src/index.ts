@@ -67,9 +67,21 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     permission: "identity.scope.read",
   });
 
+  registerRoutePermission("GET:/runtime/v1/merchants/:merchantId/capabilities", {
+    permission: "identity.scope.read",
+  });
+
   // Sample protected route for testing auth and scope enforcement
   server.get("/runtime/v1/status", async (_request, reply) => {
     void reply.send({ status: "operational", version, environment });
+  });
+
+  // Merchant runtime route placeholders
+  server.get("/runtime/v1/merchants/:merchantId/capabilities", async (_request, reply) => {
+    void reply.send({
+      placeholder: true,
+      message: "Merchant runtime routes - to be implemented in later tasks",
+    });
   });
 
   return server;

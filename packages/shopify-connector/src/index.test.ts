@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   PACKAGE_NAME,
+  SHOPIFY_CONFIG_KEYS,
 } from "./index.js";
 import type {
   ShopifyConnectorManifest,
   ShopifyAuthConfig,
+  ConfigKeyDescriptor,
 } from "./index.js";
 
 describe("@counter/shopify-connector", () => {
@@ -33,5 +35,15 @@ describe("@counter/shopify-connector", () => {
     };
     expect(config.shopDomain).toBe("test-store.myshopify.com");
     expect(config.scopes).toHaveLength(2);
+  });
+
+  it("exports SHOPIFY_CONFIG_KEYS describing expected environment variables", () => {
+    expect(SHOPIFY_CONFIG_KEYS.length).toBeGreaterThan(0);
+    for (const key of SHOPIFY_CONFIG_KEYS) {
+      const descriptor: ConfigKeyDescriptor = key;
+      expect(descriptor.name).toBeTruthy();
+      expect(descriptor.purpose).toBeTruthy();
+      expect(typeof descriptor.required).toBe("boolean");
+    }
   });
 });
