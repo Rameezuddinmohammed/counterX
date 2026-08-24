@@ -27,6 +27,7 @@ export interface QuotePayload {
 }
 
 export interface OrderPayload {
+  readonly orderId?: string;
   readonly quoteId?: string;
   readonly variantId?: string;
   readonly quantity?: number;
@@ -71,6 +72,29 @@ export interface RefundResult {
   readonly orderId: string;
   readonly amountMinor: number;
   readonly status: string;
+}
+
+// ─── Order Registry ───────────────────────────────────────────────────────────
+
+/**
+ * Tracks completed orders so that cancel can release the correct variant/quantity.
+ */
+export interface OrderRecord {
+  readonly orderId: string;
+  readonly variantId: string;
+  readonly quantity: number;
+}
+
+export class OrderRegistry {
+  readonly #orders = new Map<string, OrderRecord>();
+
+  register(record: OrderRecord): void {
+    this.#orders.set(record.orderId, record);
+  }
+
+  get(orderId: string): OrderRecord | undefined {
+    return this.#orders.get(orderId);
+  }
 }
 
 // ─── Inventory Store ──────────────────────────────────────────────────────────
@@ -248,6 +272,7 @@ export function createCompleteOrderAction(
   eventStream: DeterministicEventStream,
   inventory: InventoryStore,
   faultControls?: FaultControls,
+  orderRegistry?: OrderRegistry,
 ): ActionPort<OrderPayload, OrderResult> {
   const idempotencyStore = new Map<string, ActionOutcome<OrderResult>>();
   const correlationStore = new Map<string, ActionOutcome<OrderResult>>();
@@ -275,7 +300,7 @@ export function createCompleteOrderAction(
       const payload = input.payload;
       const variantId = payload.variantId ?? "unknown";
       const quantity = payload.quantity ?? 1;
-      const orderId = payload.quoteId ?? `order-completed-${Date.now()}`;
+      const orderId = payload.orderId ?? `order-completed-${Date.now()}`;
 
       const reserved = inventory.reserve(variantId, quantity);
       if (!reserved) {
@@ -292,6 +317,9 @@ export function createCompleteOrderAction(
         correlationStore.set(input.correlationId, outcome);
         return outcome;
       }
+
+      // Track the completed order so cancel can release the correct variant/quantity
+      orderRegistry?.register({ orderId, variantId, quantity });
 
       const result: OrderResult = {
         orderId,
@@ -321,6 +349,7 @@ export function createCancelOrderAction(
   eventStream: DeterministicEventStream,
   inventory: InventoryStore,
   faultControls?: FaultControls,
+  orderRegistry?: OrderRegistry,
 ): ActionPort<CancelPayload, CancelResult> {
   const idempotencyStore = new Map<string, ActionOutcome<CancelResult>>();
   const correlationStore = new Map<string, ActionOutcome<CancelResult>>();
@@ -348,8 +377,14 @@ export function createCancelOrderAction(
       const payload = input.payload;
       const orderId = payload.orderId ?? "unknown-order";
 
-      // Release inventory (assume 1 unit for simplicity in ref connector)
-      inventory.release("unknown", 1);
+      // Look up the original order to release the correct variant/quantity
+      const orderRecord = orderRegistry?.get(orderId);
+      if (orderRecord) {
+        inventory.release(orderRecord.variantId, orderRecord.quantity);
+      } else {
+        // Fallback: release 1 unit to a default variant when no record is found
+        inventory.release("unknown", 1);
+      }
 
       const result: CancelResult = {
         orderId,

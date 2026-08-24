@@ -19,6 +19,7 @@ import {
   createCancelOrderAction,
   createRefundAction,
   InventoryStore,
+  OrderRegistry,
   DeterministicEventStream,
   ALL_VARIANTS,
   REFERENCE_CONNECTOR_MANIFEST,
@@ -55,7 +56,13 @@ function buildQuotePayload(
   return payload as QuotePayload;
 }
 
-function buildOrderPayload(quoteId: string | undefined): OrderPayload {
+function buildCompleteOrderPayload(orderId: string | undefined): OrderPayload {
+  const payload: Record<string, unknown> = {};
+  if (orderId !== undefined) payload["orderId"] = orderId;
+  return payload as OrderPayload;
+}
+
+function buildDraftOrderPayload(quoteId: string | undefined): OrderPayload {
   const payload: Record<string, unknown> = {};
   if (quoteId !== undefined) payload["quoteId"] = quoteId;
   return payload as OrderPayload;
@@ -67,14 +74,39 @@ function buildRefundPayload(orderId: string, amountMinor: number | undefined): R
   return payload as RefundPayload;
 }
 
+/**
+ * Returns the appropriate HTTP status code for an action outcome.
+ * - succeeded: uses the provided default (201 for creation, 200 otherwise)
+ * - failed: 409 Conflict (action was rejected)
+ * - indeterminate: 202 Accepted (outcome unknown, caller should poll)
+ */
+function statusCodeForOutcome(
+  outcome: { status: string },
+  successCode: number,
+): number {
+  switch (outcome.status) {
+    case "succeeded":
+      return successCode;
+    case "failed":
+      return 409;
+    case "indeterminate":
+      return 202;
+    default:
+      return successCode;
+  }
+}
+
 // ─── Server Factory ───────────────────────────────────────────────────────────
 
 export function buildServer(): FastifyInstance {
   const app = Fastify({ logger: false });
 
-  // Configure BigInt-safe serialization for all replies
+  // Configure BigInt-safe serialization for all replies.
+  // NOTE: This performs a double serialize-parse pass (stringify with replacer, then
+  // parse back to a plain object for Fastify to re-serialize). This is intentional
+  // for a test fixture where correctness matters more than throughput. A production
+  // connector would use a custom Fastify serializer instead.
   app.addHook("preSerialization", async (_request, _reply, payload) => {
-    // Return the pre-serialized string wrapped in a raw marker
     return JSON.parse(serializeWithBigInt(payload)) as unknown;
   });
 
@@ -87,6 +119,7 @@ export function buildServer(): FastifyInstance {
     initialInventory.set(variant.variantId, variant.inventoryQuantity);
   }
   let inventory = new InventoryStore(initialInventory);
+  let orderRegistry = new OrderRegistry();
 
   let products = createProductResourcePort(faultControls);
   let variants = createVariantResourcePort(faultControls);
@@ -94,8 +127,8 @@ export function buildServer(): FastifyInstance {
 
   let quoteAction = createQuoteAction(eventStream, faultControls);
   let draftOrderAction = createDraftOrderAction(eventStream, inventory, faultControls);
-  let completeOrderAction = createCompleteOrderAction(eventStream, inventory, faultControls);
-  let cancelOrderAction = createCancelOrderAction(eventStream, inventory, faultControls);
+  let completeOrderAction = createCompleteOrderAction(eventStream, inventory, faultControls, orderRegistry);
+  let cancelOrderAction = createCancelOrderAction(eventStream, inventory, faultControls, orderRegistry);
   let refundAction = createRefundAction(eventStream, faultControls);
 
   // ─── Health ───────────────────────────────────────────────────────────────
@@ -187,7 +220,7 @@ export function buildServer(): FastifyInstance {
       preconditions: [],
       timeoutMs: 5000,
     });
-    return reply.status(201).send(result);
+    return reply.status(statusCodeForOutcome(result, 201)).send(result);
   });
 
   // ─── Draft Orders ────────────────────────────────────────────────────────
@@ -199,13 +232,13 @@ export function buildServer(): FastifyInstance {
     const correlationId = (body["correlationId"] as string) ?? crypto.randomUUID();
 
     const result = await draftOrderAction.execute({
-      payload: buildOrderPayload(quoteId),
+      payload: buildDraftOrderPayload(quoteId),
       idempotencyKey,
       correlationId,
       preconditions: [],
       timeoutMs: 5000,
     });
-    return reply.status(201).send(result);
+    return reply.status(statusCodeForOutcome(result, 201)).send(result);
   });
 
   // ─── Complete Order ──────────────────────────────────────────────────────
@@ -218,13 +251,13 @@ export function buildServer(): FastifyInstance {
     const correlationId = (body["correlationId"] as string) ?? crypto.randomUUID();
 
     const result = await completeOrderAction.execute({
-      payload: buildOrderPayload(orderId),
+      payload: buildCompleteOrderPayload(orderId),
       idempotencyKey,
       correlationId,
       preconditions: [],
       timeoutMs: 5000,
     });
-    return reply.send(result);
+    return reply.status(statusCodeForOutcome(result, 200)).send(result);
   });
 
   // ─── Cancel Order ────────────────────────────────────────────────────────
@@ -243,7 +276,7 @@ export function buildServer(): FastifyInstance {
       preconditions: [],
       timeoutMs: 5000,
     });
-    return reply.send(result);
+    return reply.status(statusCodeForOutcome(result, 200)).send(result);
   });
 
   // ─── Refund ──────────────────────────────────────────────────────────────
@@ -263,7 +296,7 @@ export function buildServer(): FastifyInstance {
       preconditions: [],
       timeoutMs: 5000,
     });
-    return reply.send(result);
+    return reply.status(statusCodeForOutcome(result, 200)).send(result);
   });
 
   // ─── Events ──────────────────────────────────────────────────────────────
@@ -278,10 +311,15 @@ export function buildServer(): FastifyInstance {
 
   // ─── Fault Controls ──────────────────────────────────────────────────────
 
+  // NOTE: This endpoint performs a full world-reset, not just a fault config update.
+  // It intentionally wipes all idempotency stores, inventory, event history, and
+  // sequential counters. This is by design for test isolation: callers use this
+  // between test scenarios to get a clean slate. The endpoint name is kept as
+  // "fault-controls" for API stability.
   app.post("/fault-controls", async (request, reply) => {
     const body = request.body as Partial<FaultControlsConfig>;
 
-    // Rebuild with new fault config
+    // Rebuild all connector state with new fault config
     faultControls = createFaultControls(body);
     eventStream = new DeterministicEventStream(faultControls);
 
@@ -290,13 +328,14 @@ export function buildServer(): FastifyInstance {
       newInventory.set(variant.variantId, variant.inventoryQuantity);
     }
     inventory = new InventoryStore(newInventory);
+    orderRegistry = new OrderRegistry();
 
     products = createProductResourcePort(faultControls);
     variants = createVariantResourcePort(faultControls);
     quoteAction = createQuoteAction(eventStream, faultControls);
     draftOrderAction = createDraftOrderAction(eventStream, inventory, faultControls);
-    completeOrderAction = createCompleteOrderAction(eventStream, inventory, faultControls);
-    cancelOrderAction = createCancelOrderAction(eventStream, inventory, faultControls);
+    completeOrderAction = createCompleteOrderAction(eventStream, inventory, faultControls, orderRegistry);
+    cancelOrderAction = createCancelOrderAction(eventStream, inventory, faultControls, orderRegistry);
     refundAction = createRefundAction(eventStream, faultControls);
 
     return reply.send({ status: "updated", config: faultControls.config });

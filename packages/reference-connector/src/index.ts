@@ -15,6 +15,7 @@ import {
   createCancelOrderAction,
   createRefundAction,
   InventoryStore,
+  OrderRegistry,
 } from "./actions.js";
 import { ALL_VARIANTS } from "./catalog.js";
 import { DeterministicEventStream } from "./event-stream.js";
@@ -44,6 +45,7 @@ export {
   createCancelOrderAction,
   createRefundAction,
   InventoryStore,
+  OrderRegistry,
 } from "./actions.js";
 export type {
   QuotePayload,
@@ -54,6 +56,7 @@ export type {
   CancelResult,
   RefundPayload,
   RefundResult,
+  OrderRecord,
 } from "./actions.js";
 export {
   CATALOG_PRODUCTS,
@@ -88,6 +91,7 @@ export function createReferenceConnector(
     initialInventory.set(variant.variantId, variant.inventoryQuantity);
   }
   const inventory = new InventoryStore(initialInventory);
+  const orderRegistry = new OrderRegistry();
 
   const resources: Readonly<Record<string, ResourceReadPort<unknown>>> = {
     products: createProductResourcePort(faultControls),
@@ -97,8 +101,8 @@ export function createReferenceConnector(
   const actions: Readonly<Record<string, ActionPort<unknown, unknown>>> = {
     create_quote: createQuoteAction(eventStream, faultControls) as ActionPort<unknown, unknown>,
     create_draft_order: createDraftOrderAction(eventStream, inventory, faultControls) as ActionPort<unknown, unknown>,
-    complete_order: createCompleteOrderAction(eventStream, inventory, faultControls) as ActionPort<unknown, unknown>,
-    cancel_order: createCancelOrderAction(eventStream, inventory, faultControls) as ActionPort<unknown, unknown>,
+    complete_order: createCompleteOrderAction(eventStream, inventory, faultControls, orderRegistry) as ActionPort<unknown, unknown>,
+    cancel_order: createCancelOrderAction(eventStream, inventory, faultControls, orderRegistry) as ActionPort<unknown, unknown>,
     create_refund: createRefundAction(eventStream, faultControls) as ActionPort<unknown, unknown>,
   };
 
