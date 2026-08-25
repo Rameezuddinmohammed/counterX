@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Wallet Tasks 5-6: Windows SecureKeyStore adapter (Ed25519 key generation, signing, storage via trust-protocol conformance harness) and secure device pairing with agent registration (one-time pairing, proof-of-possession, Agent URI)",
+  "status": "completed",
+  "steps": [
+    "Task 5 - SecureKeyStore port in packages/wallet-domain/src/secure-key-store.ts: Define the SecureKeyStore interface (port) with methods: generateKey(scope), getPublicDescriptor(keyId), sign(keyId, canonicalBytes), revokeKey(keyId), lockStore(), unlockStore(credential), isLocked(). Key material must never be exported. Use Ed25519 via @noble/ed25519. This consumes the foundation conformance harness pattern from @counter/trust-protocol.",
+    "Task 5 - In-memory SecureKeyStore implementation in packages/wallet-domain/src/in-memory-key-store.ts: Implement InMemorySecureKeyStore for testing that stores keys in a Map, enforces lock/unlock semantics, refuses sign() when locked, and tracks key status (active, revoked). Private keys never exposed through any public API.",
+    "Task 5 - Windows adapter stub in packages/wallet-domain/src/windows-key-store.ts: Create a WindowsSecureKeyStore class that implements SecureKeyStore interface. For the pilot, this uses the InMemorySecureKeyStore internally but documents the Windows Credential Manager/DPAPI integration point. Mark with TODO for production OS-specific implementation.",
+    "Task 5 - SecureKeyStore conformance test harness in packages/wallet-domain/src/secure-key-store.test.ts: Tests covering: key generation produces valid Ed25519 public key descriptor, sign() produces verifiable signatures, sign() rejects when locked, revoked key refuses sign(), key material never appears in errors/logs/exports, concurrent sign operations are safe, corrupt/missing storage handled gracefully, process restart preserves key status.",
+    "Task 6 - Device pairing in packages/wallet-application/src/device-pairing.ts: Implement PairingRequest (short-lived, one-time, contains proof-of-possession challenge, walletId, expiresAt, status: pending/consumed/expired/cancelled). Implement PairingService with: createPairingRequest(walletId, principalId), consumePairing(requestId, proofOfPossession, deviceInfo), cancelPairing(requestId). Atomic consume prevents replay.",
+    "Task 6 - Agent registration in packages/wallet-application/src/agent-registration.ts: Implement AgentRegistration (agentId as stable Agent URI, walletId, publicKeyDescriptor, registeredAt, status, deviceId, registrationCertificate). Implement AgentRegistrationService with: register(walletId, pairingProof, publicKey, deviceInfo), rotate(agentId, newPublicKey, proofOfOldKey), suspend(agentId), revoke(agentId). Registration requires completed pairing + step-up approval.",
+    "Task 6 - Agent URI generation: Create stable, non-secret Agent URIs using CounterId with 'agent' kind. Distinct from payment references.",
+    "Task 6 - Registration certificate: Generate a CTP envelope (counter.agent-registration.v1) binding agent, wallet, public key, device, and principal approval.",
+    "Task 6 - Negative tests for Task 6: Test expired pairing rejected, replay of consumed pairing rejected, wrong-wallet pairing rejected, duplicate registration rejected, pairing grants no mandate/transaction authority, interception attempt (wrong proof-of-possession) rejected.",
+    "Ensure private key never appears in any toString(), toJSON(), log, error message, or diagnostic output. Run all verification commands."
+  ],
+  "acceptance_criteria": [
+    "SecureKeyStore port defines complete interface for key lifecycle without key export",
+    "InMemorySecureKeyStore passes conformance harness (generate, sign, lock/unlock, revoke)",
+    "Ed25519 signatures produced by SecureKeyStore verify correctly with trust-protocol verify",
+    "Pairing is one-time atomic consume with proof-of-possession",
+    "Agent registration produces stable Agent URI and CTP registration certificate",
+    "Revoked keys refuse sign(), expired pairings refuse consume",
+    "Private key material never appears in any public surface (APIs, errors, logs, diagnostics)",
+    "All builds, tests, lint, and depcruise pass"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": "The fs_write tool did not persist files to the filesystem in this session; had to use bash heredocs (cat > file << EOF) instead. exactOptionalPropertyTypes is enforced globally - optional fields in interfaces must use '?: T | undefined' syntax to avoid assignment errors when using spread. The dep cruiser allows wallet-domain to import trust-protocol - no boundary violation. Added @noble/ed25519 2.2.3 to wallet-domain and wallet-application - both resolved from existing lockfile without network. wallet-domain tests: 103 total (59 existing + 44 new). wallet-application tests: 70 total (52 existing + 18 new)."
+}
