@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Wallet Tasks 9-10: Opaque test payment references (CounterTestAuthorization binding to wallet with step-up for changes, no balance/credential fields) and typed Wallet/Merchant runtime clients (generated from merchant-contracts with manifest verification, error normalization)",
+  "status": "completed",
+  "steps": [
+    "Task 9 - CounterTestAuthorization in packages/wallet-domain/src/payment-references.ts: Define PaymentAuthorizationReference interface (opaque, wallet-bound, principal-bound, environment-scoped, validity window). Define CounterTestAuthorization extending it with explicit test_only environment marker and bounds (amount ceiling, currency, eligible merchants, eligible operations). Reference is opaque - no balance/top-up/raw credential fields in schemas.",
+    "Task 9 - Payment reference service in packages/wallet-application/src/payment-reference-service.ts: Implement create/update/revoke for payment references. Changing a reference requires principal step-up. On change, reevaluate all affected mandates and invalidate/revoke those that no longer satisfy the reference constraint.",
+    "Task 9 - Schema enforcement: Verify that PaymentAuthorizationReference and CounterTestAuthorization types have NO fields for: balance, top_up, raw_credential, pan, cvv, upi_pin, bank_credential, provider_secret, token. Add a compile-time/test-time check that these fields do not exist.",
+    "Task 9 - Test payment reference tests: Test that test references are rejected by any live adapter check (environment mismatch), no balance/secret fields exist in the type, step-up required for reference changes, affected mandates are invalidated on reference change, reference binding to wallet/principal/agent/merchant/operation is enforced.",
+    "Task 10 - Merchant runtime client types in packages/wallet-contracts/src/merchant-client-types.ts: Define typed client interfaces for: CapabilityClient (verify signed merchant manifest, check environment/domain/India metadata, operation health), SearchClient (product search with source freshness), QuoteClient (get quote, verify digest/freshness/signature), TransactionClient (create transaction, check version, poll status), ActionClient (list pending actions, get action details), ReceiptClient (fetch receipt, verify signature/audience/chain).",
+    "Task 10 - Merchant runtime client implementation in packages/wallet-application/src/merchant-runtime-client.ts: Implement MerchantRuntimeClient that consumes contracts from @counter/merchant-contracts. Verify signed merchant manifest before any operation. Check environment/domain match, India metadata (legal/settlement country), operation health. Normalize errors to safe structured types. Preserve Indeterminate/review/action-required states without collapsing them.",
+    "Task 10 - Manifest verification: Verify merchant capability manifest signature, check that manifest environment matches wallet environment, verify domain ownership claims, confirm India geography metadata, check operation health/availability status.",
+    "Task 10 - Error normalization in packages/wallet-application/src/client-errors.ts: Define structured error types for client operations: NetworkError, TimeoutError, MalformedResponseError, ManifestVerificationError, StaleManifestError, UnknownExtensionError, ServerError. Map all errors to safe representations (no internal details leaked).",
+    "Task 10 - Runtime client tests: Test malicious/malformed responses handled gracefully, downgrade attempts rejected (e.g., weaker signature), stale manifest detection (expired/superseded), unknown extension fields handled safely, network timeout produces Indeterminate (not failure), manifest verification failure blocks all operations, quote digest verification catches tampering.",
+    "Run all verification commands to confirm everything passes."
+  ],
+  "acceptance_criteria": [
+    "CounterTestAuthorization has explicit test_only marker and no balance/credential fields",
+    "Payment reference changes require step-up and trigger mandate reevaluation",
+    "Test references are environment-bound and rejected outside test contexts",
+    "Typed merchant runtime client consumes merchant-contracts with full type safety",
+    "Manifest verification checks signature, environment, domain, India metadata, and health",
+    "Errors normalized to safe structured types preserving Indeterminate state",
+    "Malformed/malicious responses and stale manifests handled gracefully",
+    "All builds, tests, lint, and depcruise pass"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": "Used bash heredocs for file creation (fs_write tool writes to snapshot layer, not actual filesystem at /root/counterX). BuyerPolicyConstraints uses 'merchantAllowlist.allowedMerchantIds' and 'operations.allowedOperations' (not 'merchants.allowed'). exactOptionalPropertyTypes is enabled so optional properties must include '| undefined' in the type and not be explicitly set to undefined. The pnpm-lock.yaml was updated by pnpm install after adding @counter/merchant-contracts dependency."
+}
