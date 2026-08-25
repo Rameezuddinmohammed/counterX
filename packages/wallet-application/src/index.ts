@@ -291,3 +291,71 @@ export type {
   ReceiptConsumptionResult,
   ClaimLedgerError,
 } from "./claim-ledger.js";
+
+// Recovery service
+export { RecoveryService } from "./recovery-service.js";
+
+export type {
+  RecoveryLockRecord,
+  RecoveryError,
+  RecoveryResult,
+  ReRegistrationOutput,
+} from "./recovery-service.js";
+
+// Export service
+export {
+  ExportService,
+  InMemoryWalletDataStore,
+} from "./export-service.js";
+
+export type {
+  WalletExportData,
+  ExportedTransaction,
+  ExportedMandate,
+  ExportedDevice,
+  ExportedPolicy,
+  AuditEntry,
+  RetentionHold,
+  ClosureReceiptPayload,
+  ExportError,
+  ExportResult,
+  WalletDataStore,
+} from "./export-service.js";
+
+// Operations service
+export {
+  METRIC_EVENT_TYPES,
+  ANOMALY_TYPES,
+  ANOMALY_SEVERITIES,
+  OPERATIONS_KILL_SWITCH_SCOPES,
+  OperationsService,
+} from "./operations-service.js";
+
+export type {
+  WalletMetrics,
+  MetricEvent,
+  MetricEventType,
+  AnomalyAlert,
+  AnomalyType,
+  AnomalySeverity,
+  AnomalyDetectionConfig,
+  OperationsKillSwitchScope,
+  OperationsKillSwitch,
+  OperationsError,
+  OperationsResult,
+} from "./operations-service.js";
+
+// Pilot evidence bundle
+export {
+  COVERAGE_TYPES,
+  PilotEvidenceBundle,
+} from "./pilot-evidence.js";
+
+export type {
+  ScenarioResult,
+  EvidenceMapping,
+  CoverageType,
+  PilotEvidencePayload,
+  PilotEvidenceError,
+  PilotEvidenceResult,
+} from "./pilot-evidence.js";
