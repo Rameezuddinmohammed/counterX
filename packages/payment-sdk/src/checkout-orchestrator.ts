@@ -17,6 +17,7 @@
  */
 
 import type { Environment, Instant } from "@counter/domain";
+import { instantFromEpochMilliseconds } from "@counter/domain";
 
 import { assertTestEnvironment, rejectTestAuthorizationInLive } from "./test-authorization.js";
 import type { PaymentProvider } from "./provider.js";
@@ -482,10 +483,15 @@ export class CheckoutOrchestrator {
 
     // Validate quote/draft binding: amount must match
     const expectedMinorStr = command.amount.amountMinor.toString();
-    // Convert draft total price (e.g. "5000.00") to minor units for comparison
-    const draftMinor = parseFloat(draftTotalPrice) * 100;
-    const commandMinor = Number(command.amount.amountMinor);
-    if (Math.abs(draftMinor - commandMinor) > 1) {
+    // Convert draft total price (e.g. "5000.00") to minor units (paise) for comparison
+    // Use integer parsing to avoid floating-point rounding artifacts
+    const parts = draftTotalPrice.split(".");
+    const wholePaise = BigInt(parts[0] ?? "0") * 100n;
+    const fracStr = (parts[1] ?? "00").padEnd(2, "0").slice(0, 2);
+    const fracPaise = BigInt(fracStr);
+    const draftMinorBigInt = wholePaise + fracPaise;
+    const commandMinorBigInt = command.amount.amountMinor;
+    if (draftMinorBigInt !== commandMinorBigInt) {
       return this.#buildResult(
         "declined",
         "continuation_gate",
@@ -503,7 +509,9 @@ export class CheckoutOrchestrator {
   }
 
   #now(): Instant {
-    return this.#clock() as Instant;
+    const result = instantFromEpochMilliseconds(this.#clock());
+    if (!result.ok) throw new TypeError("Clock produced invalid instant");
+    return result.value;
   }
 
   #buildResult(
