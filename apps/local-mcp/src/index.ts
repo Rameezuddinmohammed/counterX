@@ -12,20 +12,34 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerReadTools } from "./tools/read-tools.js";
+import { registerWriteTools } from "./tools/write-tools.js";
+import type { WriteToolDependencies } from "./tools/write-tools.js";
 
 export const APP_NAME = "@counter/local-mcp";
 
 // Re-export read tools for testing
 export { registerReadTools } from "./tools/read-tools.js";
 
+// Re-export write tools for testing
+export { registerWriteTools } from "./tools/write-tools.js";
+export type { WriteToolDependencies } from "./tools/write-tools.js";
+
 // ---------------------------------------------------------------------------
 // Denylist: tools that must NEVER be exposed locally
 // ---------------------------------------------------------------------------
 
 export const DENIED_TOOL_PATTERNS = [
-  "policy.mutate",
   "key.export",
   "key.rotate",
+  "key.derive",
+  "policy.mutate",
+  "policy.override",
+  "approval.grant",
+  "approval.override",
+  "recovery.initiate",
+  "recovery.complete",
+  "settlement.assert",
+  "settlement.override",
   "payment-secret.read",
   "payment-secret.write",
 ] as const;
@@ -45,8 +59,9 @@ export function isDeniedTool(toolName: string): boolean {
 /**
  * Creates and configures the MCP server with tool registrations.
  * Uses stdio transport for local process communication.
+ * Optionally accepts write tool dependencies for consequential tools.
  */
-export function createMcpServer(): McpServer {
+export function createMcpServer(writeDeps?: WriteToolDependencies): McpServer {
   const server = new McpServer({
     name: APP_NAME,
     version: "0.1.0",
@@ -54,6 +69,11 @@ export function createMcpServer(): McpServer {
 
   // Register all read-only tools
   registerReadTools(server);
+
+  // Register consequential (write) tools if dependencies are provided
+  if (writeDeps) {
+    registerWriteTools(server, writeDeps);
+  }
 
   // Register wallet list tool
   server.tool(

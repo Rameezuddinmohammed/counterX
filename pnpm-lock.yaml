@@ -94,6 +94,24 @@ importers:
 
   apps/local-mcp:
     dependencies:
+      '@counter/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@counter/evidence':
+        specifier: workspace:*
+        version: link:../../packages/evidence
+      '@counter/merchant-contracts':
+        specifier: workspace:*
+        version: link:../../packages/merchant-contracts
+      '@counter/payment-sdk':
+        specifier: workspace:*
+        version: link:../../packages/payment-sdk
+      '@counter/trust-protocol':
+        specifier: workspace:*
+        version: link:../../packages/trust-protocol
+      '@counter/wallet-application':
+        specifier: workspace:*
+        version: link:../../packages/wallet-application
       '@counter/wallet-contracts':
         specifier: workspace:*
         version: link:../../packages/wallet-contracts

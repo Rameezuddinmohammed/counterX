@@ -16,6 +16,21 @@
     },
     {
       "path": "../../packages/wallet-application"
+    },
+    {
+      "path": "../../packages/payment-sdk"
+    },
+    {
+      "path": "../../packages/evidence"
+    },
+    {
+      "path": "../../packages/trust-protocol"
+    },
+    {
+      "path": "../../packages/merchant-contracts"
+    },
+    {
+      "path": "../../packages/domain"
     }
   ]
 }
