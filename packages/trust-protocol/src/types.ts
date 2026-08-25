@@ -206,6 +206,10 @@ export interface PrincipalConsentAttestationPayload {
   readonly auth_method: string;
   readonly auth_assurance: string;
   readonly auth_time: string;
+  readonly auth_timestamp: string;
+  readonly audience: readonly string[];
+  readonly expiry: string;
+  readonly nonce: string;
   readonly step_up_evidence_ref?: string;
   readonly revocation_locator?: string;
 }

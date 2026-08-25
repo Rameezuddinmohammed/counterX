@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../domain" },
+    { "path": "../wallet-domain" },
+    { "path": "../wallet-contracts" },
+    { "path": "../trust-protocol" },
+    { "path": "../authorization" }
+  ]
+}

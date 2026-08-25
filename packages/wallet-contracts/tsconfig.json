@@ -5,8 +5,5 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "references": [
-    { "path": "../../packages/wallet-domain" },
-    { "path": "../../packages/wallet-contracts" }
-  ]
+  "references": [{ "path": "../domain" }, { "path": "../contracts" }]
 }

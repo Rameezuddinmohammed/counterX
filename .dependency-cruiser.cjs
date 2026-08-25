@@ -7,6 +7,7 @@
  *  - packages/* never depend on apps/* (dependency direction is inward: apps -> packages).
  *  - No circular imports anywhere in the workspace.
  *  - Merchant packages must not import from wallet-related packages or apps.
+ *  - Wallet packages must not import from merchant implementation packages.
  *  - Merchant packages must not import database drivers or @counter/data internals directly.
  */
 
@@ -66,6 +67,24 @@ module.exports = {
       },
       to: {
         path: ["^apps/wallet-console", "^packages/wallet"],
+      },
+    },
+    {
+      name: "wallet-no-merchant-implementation",
+      severity: "error",
+      comment:
+        "Wallet packages must not import from merchant implementation packages.",
+      from: {
+        path: "^packages/wallet",
+      },
+      to: {
+        path: [
+          "^packages/shopify-connector",
+          "^packages/razorpay-adapter",
+          "^packages/reference-connector",
+          "^packages/merchant-application",
+          "^packages/merchant-policy",
+        ],
       },
     },
     {

@@ -1,8 +1,8 @@
 {
-  "name": "@counter/local-mcp",
+  "name": "@counter/wallet-domain",
   "version": "0.1.0",
   "private": true,
-  "description": "Local MCP tool server and signer boundary. Enforces a hard denylist for policy/key/payment-secret mutation tools.",
+  "description": "Core wallet domain types, lifecycle states, and value objects for Counter wallet packages.",
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
@@ -16,13 +16,11 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {
+    "fast-check": "4.0.0",
     "typescript": "5.7.3",
     "vitest": "3.0.7"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "@counter/wallet-domain": "workspace:*",
-    "@counter/wallet-contracts": "workspace:*",
-    "zod": "3.25.76"
+    "@counter/domain": "workspace:*"
   }
 }
