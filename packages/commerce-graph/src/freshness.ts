@@ -8,7 +8,7 @@
 
 import type { Instant, Result } from "@counter/domain";
 import { createCanonicalError, err, ok } from "@counter/domain";
-import type { FreshnessPolicy } from "./index.js";
+import type { FreshnessPolicy } from "./types.js";
 
 // ─── Freshness Status ─────────────────────────────────────────────────────────
 

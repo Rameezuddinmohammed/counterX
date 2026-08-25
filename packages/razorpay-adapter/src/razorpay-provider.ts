@@ -45,7 +45,7 @@ import type {
   RazorpayWebhookEvent,
 } from "./types.js";
 import { amountToPaise, paiseToAmount } from "./types.js";
-import type { RazorpayTestAdapterConfig } from "./index.js";
+import type { RazorpayTestAdapterConfig } from "./adapter-config.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

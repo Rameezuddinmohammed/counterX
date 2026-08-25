@@ -15,7 +15,7 @@ import type {
   ProductStatus,
   ResolutionStrategy,
   Variant,
-} from "./index.js";
+} from "./types.js";
 
 // ─── Product Repository ───────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@
 
 import type { Instant, Result } from "@counter/domain";
 import { ok } from "@counter/domain";
-import type { ConflictRecord, ConflictType, SourcePriority, SourceReference } from "./index.js";
+import type { ConflictRecord, ConflictType, SourcePriority, SourceReference } from "./types.js";
 
 // ─── Observation for Conflict Resolution ──────────────────────────────────────
 

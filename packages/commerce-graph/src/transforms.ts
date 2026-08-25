@@ -7,7 +7,7 @@
 
 import type { Instant, Result } from "@counter/domain";
 import { createCanonicalError, err, ok } from "@counter/domain";
-import type { Product, RawNormalizedPreview, SourceReference } from "./index.js";
+import type { Product, RawNormalizedPreview, SourceReference } from "./types.js";
 
 // ─── Transform Function Type ──────────────────────────────────────────────────
 

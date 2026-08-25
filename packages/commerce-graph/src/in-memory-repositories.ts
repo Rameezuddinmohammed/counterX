@@ -17,7 +17,7 @@ import type {
   ProductStatus,
   ResolutionStrategy,
   Variant,
-} from "./index.js";
+} from "./types.js";
 import type {
   ConflictRepository,
   InventoryRepository,
