@@ -72,3 +72,42 @@ export type {
 // Secure key store implementations
 export { InMemorySecureKeyStore } from "./in-memory-key-store.js";
 export { WindowsSecureKeyStore } from "./windows-key-store.js";
+
+// Buyer policy types
+export type {
+  MerchantAllowlistConstraint,
+  GeographyConstraint,
+  CategoryConstraint,
+  CurrencyConstraint,
+  AmountLimitsConstraint,
+  CountLimitsConstraint,
+  OperationConstraint,
+  TimeConstraint,
+  ApprovalThresholdConstraint,
+  PaymentReferenceConstraint,
+  BuyerPolicyConstraints,
+  BuyerPolicyVersion,
+} from "./buyer-policy.js";
+
+// Buyer policy store
+export type { BuyerPolicyRepository } from "./buyer-policy-store.js";
+export { InMemoryBuyerPolicyRepository } from "./buyer-policy-store.js";
+
+// Policy evaluator
+export type {
+  ProposedAction,
+  AccumulatedUsage,
+  PolicyDecision,
+} from "./policy-evaluator.js";
+export { evaluatePolicy } from "./policy-evaluator.js";
+
+// Policy widening detection
+export { isWidening } from "./policy-widening.js";
+
+// Policy simulator
+export type { SimulationResult, SimulationSummary } from "./policy-simulator.js";
+export { simulatePolicy } from "./policy-simulator.js";
+
+// Mandate types
+export { MANDATE_STATUSES, isMandateStatus, InMemoryMandateRepository } from "./mandate.js";
+export type { MandateStatus, WalletMandate, MandateRepository } from "./mandate.js";

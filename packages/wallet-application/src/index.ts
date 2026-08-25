@@ -96,3 +96,49 @@ export type {
   RegistrationError,
   RegistrationOutcome,
 } from "./agent-registration.js";
+
+// Mandate service
+export {
+  MandateService,
+} from "./mandate-service.js";
+
+export type {
+  MandateIssuanceParams,
+  MandateIssuanceOutput,
+  MandateIssuanceError,
+  MandateIssuanceResult,
+  AgentLookup,
+  ConsentDigestValidator,
+} from "./mandate-service.js";
+
+// Mandate sync
+export {
+  FRESHNESS_STATUSES,
+  MandateSyncService,
+} from "./mandate-sync.js";
+
+export type {
+  FreshnessStatus,
+  CachedMandate,
+  MandateSyncResult,
+} from "./mandate-sync.js";
+
+// Revocation service
+export {
+  REVOCATION_SCOPE_TYPES,
+  REVOCATION_REASON_CLASSES,
+  isRevocationScopeType,
+  InMemoryRevocationStore,
+  WalletRevocationService,
+} from "./revocation-service.js";
+
+export type {
+  RevocationScopeType,
+  RevocationReasonClass,
+  RevocationRecord,
+  RevocationInput,
+  RevocationOutput,
+  RevocationError,
+  RevocationResult,
+  RevocationStore,
+} from "./revocation-service.js";
