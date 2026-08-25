@@ -235,3 +235,59 @@ export type {
   NotificationRecord,
   ApprovalResult,
 } from "./approval-inbox.js";
+
+// Payment action service
+export {
+  PAYMENT_ACTION_STATES,
+  isPaymentActionState,
+  PaymentActionService,
+} from "./payment-action.js";
+
+export type {
+  PaymentActionState,
+  PaymentLineItem,
+  MerchantInfo,
+  GrantBinding,
+  HostedPaymentAction,
+  PaymentActionEvent,
+  ContinuationCheckDeps,
+  PaymentActionSubscriber,
+} from "./payment-action.js";
+
+// Time trigger scheduler
+export {
+  TimeTriggerScheduler,
+} from "./time-trigger.js";
+
+export type {
+  CronSchedule,
+  IntervalSchedule,
+  TriggerSchedule,
+  PurchaseTemplate,
+  TimeTrigger,
+  TriggerExecutionRecord,
+  CreateTriggerParams,
+  TriggerCreationResult,
+  TriggerCreationError,
+  TriggerExecutionResult,
+  TriggerExecutionError,
+  TriggerExecutionDeps,
+} from "./time-trigger.js";
+
+// Claim ledger
+export {
+  CLAIM_SOURCE_TYPES,
+  isClaimSourceType,
+  ClaimLedger,
+} from "./claim-ledger.js";
+
+export type {
+  ClaimSourceType,
+  ClaimRecord,
+  ReceiptConsumption,
+  RecordClaimParams,
+  ConsumeReceiptParams,
+  ClaimRecordResult,
+  ReceiptConsumptionResult,
+  ClaimLedgerError,
+} from "./claim-ledger.js";

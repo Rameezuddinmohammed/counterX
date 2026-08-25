@@ -670,6 +670,9 @@ importers:
       '@counter/domain':
         specifier: workspace:*
         version: link:../domain
+      '@counter/evidence':
+        specifier: workspace:*
+        version: link:../evidence
       '@counter/merchant-contracts':
         specifier: workspace:*
         version: link:../merchant-contracts

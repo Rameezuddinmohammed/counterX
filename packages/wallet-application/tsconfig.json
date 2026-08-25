@@ -11,6 +11,7 @@
     { "path": "../wallet-contracts" },
     { "path": "../trust-protocol" },
     { "path": "../authorization" },
-    { "path": "../merchant-contracts" }
+    { "path": "../merchant-contracts" },
+    { "path": "../evidence" }
   ]
 }
