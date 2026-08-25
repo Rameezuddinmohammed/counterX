@@ -451,12 +451,12 @@ export interface TransactionReceiptPayload {
 // ---------------------------------------------------------------------------
 
 export interface MoneyAmount {
-  readonly amount: number;
+  readonly amount: number | string;
   readonly currency: string;
 }
 
 export interface RollingLimit {
-  readonly amount: number;
+  readonly amount: number | string;
   readonly currency: string;
   readonly period: string;
 }

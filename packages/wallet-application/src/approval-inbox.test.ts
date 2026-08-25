@@ -79,7 +79,7 @@ describe("ApprovalInbox", () => {
 
     it("generates handoff URL with task reference", () => {
       const stepUp = new StepUpService();
-      const inbox = new ApprovalInbox(stepUp, "https://example.com/approve");
+      const inbox = new ApprovalInbox(stepUp, undefined, "https://example.com/approve");
 
       const task = inbox.createTask(createTaskParams());
       const notifications = inbox.getNotifications();

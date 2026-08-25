@@ -126,11 +126,13 @@ export class OperationsService {
   readonly #alerts: AnomalyAlert[] = [];
   readonly #killSwitches = new Map<string, OperationsKillSwitch>();
   readonly #config: AnomalyDetectionConfig;
+  readonly #clock: () => string;
   #switchCounter = 0;
   #alertCounter = 0;
 
-  constructor(config?: Partial<AnomalyDetectionConfig>) {
+  constructor(config?: Partial<AnomalyDetectionConfig>, clock?: () => string) {
     this.#config = { ...DEFAULT_ANOMALY_CONFIG, ...config };
+    this.#clock = clock ?? (() => new Date().toISOString());
   }
 
   // -------------------------------------------------------------------------
@@ -200,7 +202,7 @@ export class OperationsService {
       entityId,
       active: true,
       reason,
-      activatedAt: new Date().toISOString(),
+      activatedAt: this.#clock(),
       activatedBy,
     };
 
@@ -292,7 +294,7 @@ export class OperationsService {
 
     // Check frequency spike
     if (event.eventType === "transaction") {
-      const windowStart = Date.now() - this.#config.frequencyWindowMs;
+      const windowStart = new Date(this.#clock()).getTime() - this.#config.frequencyWindowMs;
       const recentCount = this.#events.filter(
         (e) =>
           e.walletId === event.walletId &&
@@ -334,7 +336,7 @@ export class OperationsService {
       anomalyType,
       severity,
       description,
-      detectedAt: new Date().toISOString(),
+      detectedAt: this.#clock(),
       context,
     });
   }

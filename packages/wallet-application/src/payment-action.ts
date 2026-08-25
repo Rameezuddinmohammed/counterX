@@ -81,6 +81,7 @@ export interface GrantBinding {
 
 export interface HostedPaymentAction {
   readonly actionId: string;
+  readonly walletId: WalletId;
   readonly state: PaymentActionState;
   readonly merchant: MerchantInfo;
   readonly lineItems: readonly PaymentLineItem[];
@@ -146,11 +147,12 @@ export class PaymentActionService {
    */
   render(params: {
     readonly actionId: string;
+    readonly walletId: WalletId;
     readonly merchant: MerchantInfo;
     readonly lineItems: readonly PaymentLineItem[];
     readonly grantBinding: GrantBinding;
   }): HostedPaymentAction {
-    const { actionId, merchant, lineItems, grantBinding } = params;
+    const { actionId, walletId, merchant, lineItems, grantBinding } = params;
 
     const totalAmountPaise = lineItems.reduce(
       (sum, item) => sum + item.unitPricePaise * BigInt(item.quantity),
@@ -159,6 +161,7 @@ export class PaymentActionService {
 
     const action: HostedPaymentAction = Object.freeze({
       actionId,
+      walletId,
       state: "rendering" as PaymentActionState,
       merchant,
       lineItems: Object.freeze([...lineItems]),
@@ -247,7 +250,7 @@ export class PaymentActionService {
     }
 
     const killSwitchActive = this.#continuationDeps.killSwitchActive(
-      action.merchant.merchantId as unknown as WalletId,
+      action.walletId,
       action.merchant.merchantId,
     );
     if (killSwitchActive) {

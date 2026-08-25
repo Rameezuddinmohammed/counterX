@@ -278,6 +278,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
     },
   );
 
+
   // -------------------------------------------------------------------------
   // purchase.execute - Executes a purchase with an approved intent
   // -------------------------------------------------------------------------
@@ -292,6 +293,8 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
       quote_digest: z.string().min(1).describe("SHA-256 digest of the quote"),
       amount_paise: z.string().min(1).describe("Amount in paise"),
       currency: z.string().length(3).describe("ISO 4217 currency code"),
+      merchant_country: z.string().length(2).describe("Merchant country code (e.g. IN)"),
+      delivery_country: z.string().length(2).describe("Delivery country code"),
       quote_expires_at: z.string().min(1).describe("Quote expiration ISO timestamp"),
       payment_reference_id: z.string().min(1).describe("Payment authorization reference ID"),
       kid: z.string().min(1).describe("Key ID for signing"),
@@ -299,6 +302,49 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
       correlation_id: z.string().min(1).describe("Correlation ID for tracing"),
       payment_method: z.string().min(1).describe("Payment method (e.g. counter_test)"),
       idempotency_key: z.string().optional().describe("Client-supplied idempotency key"),
+      policy_version_id: z.string().min(1).describe("Policy version ID to evaluate against"),
+      policy: z.object({
+        merchant_allowlist: z.object({
+          allowed_merchant_ids: z.array(z.string()),
+          allowed_domains: z.array(z.string()),
+        }),
+        geography: z.object({
+          allowed_merchant_countries: z.array(z.string()),
+          allowed_delivery_countries: z.array(z.string()),
+        }),
+        category: z.object({
+          allowed_categories: z.array(z.string()),
+          allowed_skus: z.array(z.string()).optional(),
+        }),
+        currency: z.object({
+          allowed_currencies: z.array(z.string()),
+        }),
+        amount_limits: z.object({
+          per_transaction_max_paise: z.string(),
+          rolling_max_paise: z.string().optional(),
+          aggregate_max_paise: z.string().optional(),
+        }),
+        count_limits: z.object({
+          max_transactions: z.number().optional(),
+        }),
+        operations: z.object({
+          allowed_operations: z.array(z.string()),
+        }),
+        time_constraints: z.object({
+          expires_at: z.string().optional(),
+        }),
+        approval_threshold: z.object({
+          threshold_paise: z.string(),
+        }),
+        payment_references: z.object({
+          allowed_reference_ids: z.array(z.string()),
+        }),
+      }).describe("Policy constraints to evaluate against"),
+      accumulated_usage: z.object({
+        rolling_period_total_paise: z.string().default("0"),
+        aggregate_total_paise: z.string().default("0"),
+        transaction_count: z.number().default(0),
+      }).optional().describe("Accumulated usage for rolling/aggregate checks"),
     },
     async (args) => {
       try {
@@ -319,6 +365,92 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             });
           }
 
+          // Run policy precheck before execution
+          const amountPaise = BigInt(args.amount_paise);
+
+          const policyConstraints = {
+            merchantAllowlist: {
+              allowedMerchantIds: args.policy.merchant_allowlist.allowed_merchant_ids,
+              allowedDomains: args.policy.merchant_allowlist.allowed_domains,
+            },
+            geography: {
+              allowedMerchantCountries: args.policy.geography.allowed_merchant_countries,
+              allowedDeliveryCountries: args.policy.geography.allowed_delivery_countries,
+            },
+            category: {
+              allowedCategories: args.policy.category.allowed_categories,
+              allowedSkus: args.policy.category.allowed_skus,
+            },
+            currency: {
+              allowedCurrencies: args.policy.currency.allowed_currencies,
+            },
+            amountLimits: {
+              perTransactionMaxPaise: BigInt(args.policy.amount_limits.per_transaction_max_paise),
+              rollingMaxPaise: args.policy.amount_limits.rolling_max_paise
+                ? BigInt(args.policy.amount_limits.rolling_max_paise)
+                : undefined,
+              aggregateMaxPaise: args.policy.amount_limits.aggregate_max_paise
+                ? BigInt(args.policy.amount_limits.aggregate_max_paise)
+                : undefined,
+            },
+            countLimits: {
+              maxTransactions: args.policy.count_limits.max_transactions,
+            },
+            operations: {
+              allowedOperations: args.policy.operations.allowed_operations,
+            },
+            timeConstraints: {
+              expiresAt: args.policy.time_constraints.expires_at,
+            },
+            approvalThreshold: {
+              thresholdPaise: BigInt(args.policy.approval_threshold.threshold_paise),
+            },
+            paymentReferences: {
+              allowedReferenceIds: args.policy.payment_references.allowed_reference_ids,
+            },
+          } as const;
+
+          const accUsage = {
+            rollingPeriodTotalPaise: BigInt(args.accumulated_usage?.rolling_period_total_paise ?? "0"),
+            aggregateTotalPaise: BigInt(args.accumulated_usage?.aggregate_total_paise ?? "0"),
+            transactionCount: args.accumulated_usage?.transaction_count ?? 0,
+          };
+
+          const quote = {
+            quoteId: args.quote_id,
+            merchantId: args.merchant_id,
+            merchantCountry: args.merchant_country,
+            deliveryCountry: args.delivery_country,
+            currency: args.currency,
+            totalAmountPaise: amountPaise,
+            expiresAt: args.quote_expires_at,
+            quoteDigest: args.quote_digest,
+          };
+
+          const mandate = { mandateId: args.mandate_id, walletId: args.wallet_id };
+
+          const precheckResult = precheckService.precheck({
+            quote,
+            policy: policyConstraints,
+            policyVersionId: args.policy_version_id,
+            mandate: mandate as unknown as undefined,
+            accumulatedUsage: accUsage,
+            paymentReferenceId: args.payment_reference_id,
+            timestamp: new Date().toISOString(),
+          });
+
+          if (precheckResult.outcome === "denied") {
+            return jsonResponse({
+              status: "rejected",
+              reason: `Policy precheck denied: ${precheckResult.reasons.join(", ")}`,
+              precheck_outcome: precheckResult.outcome,
+              precheck_reasons: precheckResult.reasons,
+            });
+          }
+
+          // Generate a random idempotency key if not supplied
+          const idempotencyKey = args.idempotency_key ?? crypto.randomUUID();
+
           // Build a proposal shape for the intent builder
           const proposalForIntent = {
             proposalId: "execute-direct",
@@ -326,13 +458,13 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             merchantId: args.merchant_id,
             quoteId: args.quote_id,
             quoteDigest: args.quote_digest,
-            amountPaise: BigInt(args.amount_paise),
+            amountPaise,
             currency: args.currency,
-            precheckOutcome: "allowed" as const,
-            precheckReasons: [] as readonly string[],
-            policyVersionId: "inline",
+            precheckOutcome: precheckResult.outcome,
+            precheckReasons: precheckResult.reasons,
+            policyVersionId: args.policy_version_id,
             mandateId: args.mandate_id,
-            idempotencyKey: args.idempotency_key ?? "",
+            idempotencyKey,
             createdAt: new Date().toISOString(),
           };
 

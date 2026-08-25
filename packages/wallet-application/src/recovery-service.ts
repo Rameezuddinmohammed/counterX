@@ -58,15 +58,18 @@ export class RecoveryService {
   readonly #revocationService: WalletRevocationService;
   readonly #pairingService: PairingService;
   readonly #locks = new Map<string, RecoveryLockRecord>();
+  readonly #clock: () => string;
 
   constructor(
     keyStore: SecureKeyStore,
     revocationService: WalletRevocationService,
     pairingService: PairingService,
+    clock?: () => string,
   ) {
     this.#keyStore = keyStore;
     this.#revocationService = revocationService;
     this.#pairingService = pairingService;
+    this.#clock = clock ?? (() => new Date().toISOString());
   }
 
   /**
@@ -90,7 +93,7 @@ export class RecoveryService {
 
     const record: RecoveryLockRecord = {
       walletId,
-      lockedAt: new Date().toISOString(),
+      lockedAt: this.#clock(),
       reason,
       principalId,
     };

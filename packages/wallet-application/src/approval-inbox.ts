@@ -8,6 +8,7 @@
  * - Stale detection: material change in quote/policy invalidates tasks
  * - PAYMENT_ACTION_REQUIRED notification records
  * - Browser handoff URL generation
+ * - Persistence via ApprovalTaskStore port
  */
 
 import { createHash } from "node:crypto";
@@ -71,18 +72,63 @@ export interface ApprovalResult {
 }
 
 // ---------------------------------------------------------------------------
+// Approval Task Store (persistence port)
+// ---------------------------------------------------------------------------
+
+/**
+ * Port for approval task persistence.
+ * Implementations may be in-memory (tests) or database-backed (production).
+ */
+export interface ApprovalTaskStore {
+  save(task: ApprovalTask): void;
+  get(taskId: string): ApprovalTask | undefined;
+  findByWalletAndStatus(walletId: string, status: ApprovalTaskStatus): readonly ApprovalTask[];
+  listAll(): readonly ApprovalTask[];
+}
+
+/**
+ * In-memory implementation of ApprovalTaskStore for testing.
+ */
+export class InMemoryApprovalTaskStore implements ApprovalTaskStore {
+  readonly #tasks = new Map<string, ApprovalTask>();
+
+  save(task: ApprovalTask): void {
+    this.#tasks.set(task.taskId, task);
+  }
+
+  get(taskId: string): ApprovalTask | undefined {
+    return this.#tasks.get(taskId);
+  }
+
+  findByWalletAndStatus(walletId: string, status: ApprovalTaskStatus): readonly ApprovalTask[] {
+    return [...this.#tasks.values()].filter(
+      (t) => t.walletId === walletId && t.status === status,
+    );
+  }
+
+  listAll(): readonly ApprovalTask[] {
+    return [...this.#tasks.values()];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Approval Inbox
 // ---------------------------------------------------------------------------
 
 export class ApprovalInbox {
-  readonly #tasks = new Map<string, ApprovalTask>();
+  readonly #store: ApprovalTaskStore;
   readonly #notifications: NotificationRecord[] = [];
   readonly #stepUpService: StepUpService;
   readonly #handoffBaseUrl: string;
 
-  constructor(stepUpService: StepUpService, handoffBaseUrl = "https://wallet.counter.dev/approve") {
+  constructor(
+    stepUpService: StepUpService,
+    store?: ApprovalTaskStore,
+    handoffBaseUrl?: string,
+  ) {
     this.#stepUpService = stepUpService;
-    this.#handoffBaseUrl = handoffBaseUrl;
+    this.#store = store ?? new InMemoryApprovalTaskStore();
+    this.#handoffBaseUrl = handoffBaseUrl ?? "https://wallet.counter.dev/approve";
   }
 
   /**
@@ -134,7 +180,7 @@ export class ApprovalInbox {
       status: "pending",
     };
 
-    this.#tasks.set(taskId, task);
+    this.#store.save(task);
 
     // Generate notification record
     const handoffUrl = this.#generateHandoffUrl(taskId);
@@ -162,7 +208,7 @@ export class ApprovalInbox {
    * Approves a task. Requires step-up validation.
    */
   approve(taskId: string, session: StepUpSession, now: string): ApprovalResult {
-    const task = this.#tasks.get(taskId);
+    const task = this.#store.get(taskId);
     if (!task) {
       return { ok: false, reason: "Task not found" };
     }
@@ -173,7 +219,7 @@ export class ApprovalInbox {
 
     // Check expiry
     if (now >= task.expiresAt) {
-      this.#tasks.set(taskId, { ...task, status: "expired", resolvedAt: now });
+      this.#store.save({ ...task, status: "expired", resolvedAt: now });
       return { ok: false, reason: "Task has expired" };
     }
 
@@ -186,7 +232,7 @@ export class ApprovalInbox {
     // Consume nonce to prevent replay
     this.#stepUpService.consumeNonce(session.nonce);
 
-    this.#tasks.set(taskId, {
+    this.#store.save({
       ...task,
       status: "approved",
       resolvedAt: now,
@@ -200,7 +246,7 @@ export class ApprovalInbox {
    * Denies a task. Does NOT require step-up.
    */
   deny(taskId: string, principalId: string, now: string): ApprovalResult {
-    const task = this.#tasks.get(taskId);
+    const task = this.#store.get(taskId);
     if (!task) {
       return { ok: false, reason: "Task not found" };
     }
@@ -211,11 +257,11 @@ export class ApprovalInbox {
 
     // Check expiry
     if (now >= task.expiresAt) {
-      this.#tasks.set(taskId, { ...task, status: "expired", resolvedAt: now });
+      this.#store.save({ ...task, status: "expired", resolvedAt: now });
       return { ok: false, reason: "Task has expired" };
     }
 
-    this.#tasks.set(taskId, {
+    this.#store.save({
       ...task,
       status: "denied",
       resolvedAt: now,
@@ -236,7 +282,7 @@ export class ApprovalInbox {
     const { currentQuoteDigest, currentPolicyVersionId } = params;
     const invalidated: ApprovalTask[] = [];
 
-    for (const [taskId, task] of this.#tasks) {
+    for (const task of this.#store.listAll()) {
       if (task.status !== "pending") {
         continue;
       }
@@ -253,7 +299,7 @@ export class ApprovalInbox {
 
       if (isStale) {
         const staleTask = { ...task, status: "stale" as const };
-        this.#tasks.set(taskId, staleTask);
+        this.#store.save(staleTask);
         invalidated.push(staleTask);
       }
     }
@@ -265,16 +311,14 @@ export class ApprovalInbox {
    * Gets a task by ID.
    */
   getTask(taskId: string): ApprovalTask | undefined {
-    return this.#tasks.get(taskId);
+    return this.#store.get(taskId);
   }
 
   /**
    * Gets all pending tasks for a wallet.
    */
   getPendingTasks(walletId: string): readonly ApprovalTask[] {
-    return [...this.#tasks.values()].filter(
-      (t) => t.walletId === walletId && t.status === "pending",
-    );
+    return this.#store.findByWalletAndStatus(walletId, "pending");
   }
 
   /**

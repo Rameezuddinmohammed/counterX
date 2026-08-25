@@ -147,7 +147,7 @@ export class PurchaseIntentBuilder {
       quote_expires_at: quoteExpiresAt,
       currency: proposal.currency,
       max_amount: {
-        amount: Number(proposal.amountPaise),
+        amount: proposal.amountPaise.toString(),
         currency: proposal.currency,
       },
       payment_authorization_ref: paymentReferenceId,

@@ -227,6 +227,7 @@ export type {
 export {
   APPROVAL_TASK_STATUSES,
   ApprovalInbox,
+  InMemoryApprovalTaskStore,
 } from "./approval-inbox.js";
 
 export type {
@@ -234,6 +235,7 @@ export type {
   ApprovalTask,
   NotificationRecord,
   ApprovalResult,
+  ApprovalTaskStore,
 } from "./approval-inbox.js";
 
 // Payment action service

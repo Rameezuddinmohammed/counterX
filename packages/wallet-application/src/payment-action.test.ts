@@ -14,11 +14,13 @@ import type {
 } from "./payment-action.js";
 import { PaymentActionService } from "./payment-action.js";
 import type { PrecheckResult } from "./policy-precheck.js";
-import type { Instant, IsoCurrencyCode, MerchantId } from "@counter/domain";
+import type { Instant, IsoCurrencyCode, MerchantId, WalletId } from "@counter/domain";
 
 // ---------------------------------------------------------------------------
 // Test Helpers
 // ---------------------------------------------------------------------------
+
+const TEST_WALLET_ID = "ctr_wallet_test123" as WalletId;
 
 function makeMerchantInfo(overrides?: Partial<MerchantInfo>): MerchantInfo {
   return {
@@ -101,6 +103,7 @@ describe("PaymentActionService", () => {
       const service = createService();
       const action = service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -125,6 +128,7 @@ describe("PaymentActionService", () => {
       ];
       const action = service.render({
         actionId: "action-002",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: items,
         grantBinding: makeGrantBinding(),
@@ -138,6 +142,7 @@ describe("PaymentActionService", () => {
       const service = createService();
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -156,6 +161,7 @@ describe("PaymentActionService", () => {
       const service = createService();
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -177,6 +183,7 @@ describe("PaymentActionService", () => {
       const service = createService();
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -201,6 +208,7 @@ describe("PaymentActionService", () => {
       const service = createService();
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -225,6 +233,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -241,6 +250,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -261,6 +271,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -278,6 +289,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -296,6 +308,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -311,6 +324,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -333,6 +347,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -350,6 +365,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -372,6 +388,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),
@@ -387,6 +404,7 @@ describe("PaymentActionService", () => {
 
       service.render({
         actionId: "action-001",
+        walletId: TEST_WALLET_ID,
         merchant: makeMerchantInfo(),
         lineItems: makeLineItems(),
         grantBinding: makeGrantBinding(),

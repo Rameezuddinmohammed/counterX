@@ -195,10 +195,12 @@ export class InMemoryWalletDataStore implements WalletDataStore {
 export class ExportService {
   readonly #dataStore: WalletDataStore;
   readonly #holds = new Map<string, RetentionHold>();
+  readonly #clock: () => string;
   #holdCounter = 0;
 
-  constructor(dataStore: WalletDataStore) {
+  constructor(dataStore: WalletDataStore, clock?: () => string) {
     this.#dataStore = dataStore;
+    this.#clock = clock ?? (() => new Date().toISOString());
   }
 
   /**
@@ -210,7 +212,7 @@ export class ExportService {
   ): ExportResult<WalletExportData> {
     const data: WalletExportData = {
       walletId,
-      exportedAt: new Date().toISOString(),
+      exportedAt: this.#clock(),
       principalId,
       transactions: this.#dataStore.getTransactions(walletId),
       mandates: this.#dataStore.getMandates(walletId),
@@ -237,7 +239,7 @@ export class ExportService {
       walletId,
       holdId,
       reason,
-      createdAt: new Date().toISOString(),
+      createdAt: this.#clock(),
       createdBy,
     };
 
@@ -303,8 +305,8 @@ export class ExportService {
     dataDeleted: boolean,
     kid: string,
   ): ExportResult<UnsignedCtpEnvelope<ClosureReceiptPayload>> {
-    const now = new Date().toISOString();
-    const farFuture = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
+    const now = this.#clock();
+    const farFuture = new Date(new Date(now).getTime() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
 
     const payload: ClosureReceiptPayload = {
       wallet_id: walletId,
@@ -326,7 +328,7 @@ export class ExportService {
 
     const result = buildUnsignedEnvelope<ClosureReceiptPayload>({
       type: "counter.revocation.v1",
-      id: `closure-${walletId}-${Date.now()}`,
+      id: `closure-${walletId}-${new Date(now).getTime()}`,
       issuer: `counter://wallet/${walletId}`,
       subject: `counter://wallet/${walletId}`,
       audience: [`counter://wallet/${walletId}`],
