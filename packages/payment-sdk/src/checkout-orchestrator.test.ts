@@ -18,7 +18,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Environment, Instant, IsoCurrencyCode, MerchantId, WalletId } from "@counter/domain";
+import type { AgentId, Environment, Instant, IsoCurrencyCode, MerchantId, WalletId } from "@counter/domain";
 import { CryptoIdGenerator } from "@counter/domain";
 import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
 
@@ -137,7 +137,7 @@ function createTestAuth(
 ): PaymentAuthorization {
   return createCounterTestAuthorization({
     walletId,
-    agentId: idGen.generate("agent") as import("@counter/domain").AgentId,
+    agentId: idGen.generate("agent") as AgentId,
     merchantId,
     amountCeiling: overrides?.amountCeiling ?? 500_000n,
     currency: "INR" as IsoCurrencyCode,

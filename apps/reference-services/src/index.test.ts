@@ -27,7 +27,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/health" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { status: string; lastCheckedAt: number; details: unknown[] };
       expect(body.status).toBe("healthy");
       expect(body.lastCheckedAt).toBeTypeOf("number");
       expect(body.details).toBeInstanceOf(Array);
@@ -42,7 +42,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/products" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { items: unknown[]; totalCount: number; hasMore: boolean; nextCursor: string | null };
       expect(body.items).toBeInstanceOf(Array);
       expect(body.items.length).toBeGreaterThan(0);
       expect(body.totalCount).toBeTypeOf("number");
@@ -55,14 +55,14 @@ describe("@counter/reference-services", () => {
     it("returns a specific product", async () => {
       // First get the product list to find a valid ID
       const listResponse = await app.inject({ method: "GET", url: "/products" });
-      const list = listResponse.json();
-      const firstItem = list.items[0];
+      const list = listResponse.json() as { items: { sourceReference: { value: string } }[] };
+      const firstItem = list.items[0]!;
       const productId = firstItem.sourceReference.value;
 
       const response = await app.inject({ method: "GET", url: `/products/${productId}` });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { data: unknown; sourceReference: { value: string } };
       expect(body.data).toBeDefined();
       expect(body.sourceReference.value).toBe(productId);
     });
@@ -78,7 +78,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/products/search?q=shirt" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { items: unknown[]; totalCount: number };
       expect(body.items).toBeInstanceOf(Array);
       expect(body).toHaveProperty("totalCount");
     });
@@ -91,7 +91,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/variants" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { items: unknown[] };
       expect(body.items).toBeInstanceOf(Array);
       expect(body.items.length).toBeGreaterThan(0);
     });
@@ -100,14 +100,14 @@ describe("@counter/reference-services", () => {
   describe("GET /variants/:id", () => {
     it("returns a specific variant", async () => {
       const listResponse = await app.inject({ method: "GET", url: "/variants" });
-      const list = listResponse.json();
-      const firstItem = list.items[0];
+      const list = listResponse.json() as { items: { sourceReference: { value: string } }[] };
+      const firstItem = list.items[0]!;
       const variantId = firstItem.sourceReference.value;
 
       const response = await app.inject({ method: "GET", url: `/variants/${variantId}` });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { data: unknown; sourceReference: { value: string } };
       expect(body.data).toBeDefined();
       expect(body.sourceReference.value).toBe(variantId);
     });
@@ -128,7 +128,7 @@ describe("@counter/reference-services", () => {
       });
       expect(response.statusCode).toBe(201);
 
-      const body = response.json();
+      const body = response.json() as { status: string; result: { quoteId: string; variantId: string; quantity: number } };
       expect(body.status).toBe("succeeded");
       expect(body.result.quoteId).toBeDefined();
       expect(body.result.variantId).toBe("var-001");
@@ -151,7 +151,7 @@ describe("@counter/reference-services", () => {
       });
       expect(response.statusCode).toBe(201);
 
-      const body = response.json();
+      const body = response.json() as { status: string; result: { orderId: string; status: string } };
       expect(body.status).toBe("succeeded");
       expect(body.result.orderId).toBeDefined();
       expect(body.result.status).toBe("draft");
@@ -165,7 +165,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/events" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { events: unknown[] };
       expect(body.events).toBeInstanceOf(Array);
     });
 
@@ -173,7 +173,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/events?since=0" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { events: unknown[] };
       expect(body.events).toBeInstanceOf(Array);
       // Events were created by the quote and draft-order tests above
       expect(body.events.length).toBeGreaterThan(0);
@@ -195,7 +195,7 @@ describe("@counter/reference-services", () => {
       });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { status: string; config: { delayMs: number; conflictErrorRate: number; seed: number } };
       expect(body.status).toBe("updated");
       expect(body.config.delayMs).toBe(100);
       expect(body.config.conflictErrorRate).toBe(0.5);
@@ -210,7 +210,7 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/manifest" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json();
+      const body = response.json() as { connectorId: string; platform: string; version: string; resources: unknown[]; actions: unknown[] };
       expect(body.connectorId).toBeDefined();
       expect(body.platform).toBeDefined();
       expect(body.version).toBeDefined();

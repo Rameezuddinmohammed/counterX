@@ -13,7 +13,7 @@
  *    Otherwise: block + create finding + initiate refund
  */
 
-import type { Instant, IsoCurrencyCode, Money } from "@counter/domain";
+import type { Instant, IsoCurrencyCode, MerchantId, Money } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
 
 import type {
@@ -227,7 +227,7 @@ export class RazorpayCertificationWorkflow {
       authorizationRef: command.approvalRef,
       amount: command.amount,
       currency: command.currency,
-      merchantId: "" as any, // Will be set by caller context
+      merchantId: "" as unknown as MerchantId, // Will be set by caller context
       idempotencyKey: command.idempotencyKey,
       ...(command.metadata !== undefined ? { metadata: command.metadata } : {}),
     });

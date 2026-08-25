@@ -223,7 +223,7 @@ describe("RazorpayCertificationWorkflow", () => {
       });
 
       // Use a BigInt-safe serializer to check for secret leakage
-      const serialized = JSON.stringify(result, (_key, value) =>
+      const serialized = JSON.stringify(result, (_key: string, value: unknown): unknown =>
         typeof value === "bigint" ? value.toString() : value,
       );
       expect(serialized).not.toContain("rzp_test_secret456");
