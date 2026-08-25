@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Address review findings: policy precheck in purchase.execute, walletId bug in PaymentActionService, BigInt-to-Number truncation, clock injection, ApprovalInbox persistence port, and idempotency key default.",
+  "status": "completed",
+  "steps": [
+    "Fix purchase.execute to run PolicyPrecheckService before execution instead of hardcoding precheckOutcome: allowed",
+    "Fix PaymentActionService.attemptOrderConfirmation to pass walletId not merchantId to kill-switch check - add walletId field to HostedPaymentAction",
+    "Fix BigInt-to-Number truncation in PurchaseIntentBuilder.build() by using string representation for max_amount.amount",
+    "Add clock injection to ExportService, RecoveryService, and OperationsService",
+    "Add persistence port interface to ApprovalInbox",
+    "Fix purchase.execute idempotency key to generate a random key when not supplied instead of defaulting to empty string"
+  ],
+  "acceptance_criteria": [
+    "purchase.execute runs PolicyPrecheckService.precheck() and rejects if denied",
+    "PaymentActionService passes correct walletId to kill-switch check",
+    "PurchaseIntentBuilder uses string representation for BigInt amount in payload",
+    "ExportService, RecoveryService, and OperationsService accept injectable clock parameter",
+    "ApprovalInbox defines and uses an ApprovalTaskStore persistence port",
+    "purchase.execute generates a random idempotency key when none is supplied",
+    "All existing tests continue to pass"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test"
+  ],
+  "blocked_reason": null,
+  "findings": "MoneyAmount.amount in trust-protocol was changed from number to number | string, requiring a downstream type update in authorization/authority-verifier.ts (perTransactionLimit.amount). All 2777 tests pass. The fs_write tool does not persist to /root/counterX - bash heredocs and sed must be used for file modifications."
+}
