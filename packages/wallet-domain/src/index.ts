@@ -32,3 +32,32 @@ export {
   WALLET_INVITATION_STATUSES,
   isWalletInvitationStatus,
 } from "./value-objects.js";
+
+// Transition records
+export { validateAndRecordTransition } from "./transition-record.js";
+
+export type {
+  StateTransitionRecord,
+  TransitionError,
+  TransitionResult,
+  TransitionInput,
+} from "./transition-record.js";
+
+// Repository ports
+export {
+  MUTATION_REJECTING_STATES,
+  isMutationRejectingState,
+  createMutationRejection,
+} from "./repositories.js";
+
+export type {
+  WalletRepository,
+  InvitationRepository,
+  MutationRejection,
+} from "./repositories.js";
+
+// In-memory repository implementations
+export {
+  InMemoryWalletRepository,
+  InMemoryInvitationRepository,
+} from "./in-memory-repositories.js";
