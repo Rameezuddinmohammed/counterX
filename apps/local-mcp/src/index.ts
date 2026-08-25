@@ -11,9 +11,12 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
+import { registerReadTools } from "./tools/read-tools.js";
 
 export const APP_NAME = "@counter/local-mcp";
+
+// Re-export read tools for testing
+export { registerReadTools } from "./tools/read-tools.js";
 
 // ---------------------------------------------------------------------------
 // Denylist: tools that must NEVER be exposed locally
@@ -49,22 +52,8 @@ export function createMcpServer(): McpServer {
     version: "0.1.0",
   });
 
-  // Register wallet status tool
-  server.tool(
-    "wallet.status",
-    "Retrieve the current status of a wallet by ID.",
-    { wallet_id: z.string().describe("The wallet ID to query") },
-    async ({ wallet_id }) => {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({ wallet_id, status: "not_implemented" }),
-          },
-        ],
-      };
-    },
-  );
+  // Register all read-only tools
+  registerReadTools(server);
 
   // Register wallet list tool
   server.tool(

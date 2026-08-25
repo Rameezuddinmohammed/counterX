@@ -4,9 +4,18 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../../packages/wallet-domain" },
-    { "path": "../../packages/wallet-contracts" }
+    {
+      "path": "../../packages/wallet-domain"
+    },
+    {
+      "path": "../../packages/wallet-contracts"
+    },
+    {
+      "path": "../../packages/wallet-application"
+    }
   ]
 }

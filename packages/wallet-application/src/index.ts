@@ -193,3 +193,45 @@ export type {
   HttpClientOptions,
   SimulatedFailure,
 } from "./merchant-runtime-client.js";
+
+// Policy precheck service
+export { PolicyPrecheckService } from "./policy-precheck.js";
+
+export type {
+  MerchantQuote,
+  PrecheckResult,
+} from "./policy-precheck.js";
+
+// Purchase proposal builder
+export {
+  PurchaseProposalBuilder,
+  deriveProposalIdempotencyKey,
+} from "./purchase-proposal.js";
+
+export type {
+  PurchaseProposal,
+} from "./purchase-proposal.js";
+
+// Purchase intent builder
+export {
+  PurchaseIntentBuilder,
+  deriveIntentIdempotencyKey,
+} from "./purchase-intent.js";
+
+export type {
+  PurchaseIntent,
+  SignedPurchaseIntent,
+} from "./purchase-intent.js";
+
+// Approval inbox
+export {
+  APPROVAL_TASK_STATUSES,
+  ApprovalInbox,
+} from "./approval-inbox.js";
+
+export type {
+  ApprovalTaskStatus,
+  ApprovalTask,
+  NotificationRecord,
+  ApprovalResult,
+} from "./approval-inbox.js";

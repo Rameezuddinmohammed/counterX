@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_NAME, isDeniedTool, DENIED_TOOL_PATTERNS, createMcpServer } from "./index.js";
+import { APP_NAME, isDeniedTool, DENIED_TOOL_PATTERNS, createMcpServer, registerReadTools } from "./index.js";
 
 describe("@counter/local-mcp", () => {
   it("exposes its app identity", () => {
@@ -34,5 +34,9 @@ describe("MCP Server", () => {
   it("createMcpServer returns a configured server", () => {
     const server = createMcpServer();
     expect(server).toBeDefined();
+  });
+
+  it("registerReadTools is exported for testing", () => {
+    expect(typeof registerReadTools).toBe("function");
   });
 });
