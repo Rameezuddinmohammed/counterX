@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Wallet Tasks 1-2: Pin MCP SDK, freeze consent attestation semantics, scaffold wallet packages (wallet-domain, wallet-application, wallet-contracts), and update apps/local-mcp with MCP SDK dependency",
+  "status": "completed",
+  "steps": [
+    "Task 1 - Pin MCP SDK: Add @modelcontextprotocol/sdk as a dependency to apps/local-mcp/package.json with exact version (use latest stable, e.g., 1.12.1 - check what's available in node_modules or lockfile). Use stdio transport profile.",
+    "Task 1 - Consent attestation semantics: Add a consent attestation type definition in packages/trust-protocol matching the existing CTP_OBJECT_TYPES entry 'counter.principal-consent-attestation.v1'. The PrincipalConsentAttestationPayload already exists in types.ts - ensure it includes: exact digest of consented content, authentication method, assurance level, auth timestamp, audience, expiry, nonce, and revocation locator fields.",
+    "Task 2 - Create packages/wallet-domain package: Create package.json (name: @counter/wallet-domain, deps: @counter/domain workspace:*), tsconfig.json extending ../../tsconfig.base.json, src/index.ts barrel. Define wallet lifecycle states (INVITED, ENROLLED, VERIFIED, ACTIVE, SUSPENDED, RECOVERY_LOCKED, OFFBOARDING, CLOSED) with type guards and transition validation. Define WalletAccount, WalletPrincipal, WalletInvitation value object interfaces.",
+    "Task 2 - Create packages/wallet-application package: Create package.json (name: @counter/wallet-application, deps: @counter/domain, @counter/wallet-domain, @counter/wallet-contracts, @counter/trust-protocol, @counter/authorization all workspace:*), tsconfig.json, src/index.ts barrel. Define application service ports/interfaces for wallet lifecycle management, invitation flow, and consent attestation.",
+    "Task 2 - Create packages/wallet-contracts package: Create package.json (name: @counter/wallet-contracts, deps: @counter/domain, @counter/contracts all workspace:*), tsconfig.json, src/index.ts barrel. Define API contract types for wallet endpoints (create, invite, enroll, verify, status, suspend, close).",
+    "Task 2 - Update apps/local-mcp: Add @modelcontextprotocol/sdk dependency, add @counter/wallet-domain and @counter/wallet-contracts as workspace deps. Update src/index.ts to configure the MCP server with stdio transport and basic tool registration skeleton.",
+    "Ensure pnpm-workspace.yaml already covers packages/* (it does). Run pnpm install to resolve workspace links.",
+    "Add index.test.ts files for each new package with at least package identity and basic type validation tests.",
+    "Update .dependency-cruiser.cjs if needed: wallet packages must not import from merchant implementation packages (shopify-connector, razorpay-adapter, reference-connector, merchant-application, merchant-policy).",
+    "Run pnpm build, pnpm test, pnpm lint, pnpm depcruise to verify everything passes."
+  ],
+  "acceptance_criteria": [
+    "packages/wallet-domain builds with tsc and exports wallet lifecycle states, WalletAccount, WalletPrincipal, WalletInvitation types",
+    "packages/wallet-application builds and exports service port interfaces",
+    "packages/wallet-contracts builds and exports wallet API contract types",
+    "apps/local-mcp has @modelcontextprotocol/sdk dependency and a working MCP server skeleton with stdio transport",
+    "Principal consent attestation CTP type is complete with all required fields (digest, auth method, assurance, time, audience, expiry, nonce, revocation)",
+    "No circular dependencies or boundary violations in depcruise",
+    "All tests pass including new package tests",
+    "pnpm lint shows 0 errors"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm install && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": "Used MCP SDK 1.30.0 (latest stable). zod pinned at 3.25.76 to satisfy MCP SDK peer dep (project had 3.24.2 elsewhere). fs_write tool did not sync to disk in this environment - all file creation done via bash heredocs. The 3 new wallet packages bring the workspace to 34 projects total. All verifications pass: build (0 errors), test (all pass including 26+9+10+5 tests in new packages), lint (0 errors), depcruise (no violations, 1295 modules)."
+}
