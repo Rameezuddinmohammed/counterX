@@ -142,3 +142,54 @@ export type {
   RevocationResult,
   RevocationStore,
 } from "./revocation-service.js";
+
+// Payment reference service
+export { PaymentReferenceService } from "./payment-reference-service.js";
+
+export type {
+  PaymentReferenceErrorKind,
+  PaymentReferenceError,
+  PaymentReferenceResult,
+  CreatePaymentReferenceParams,
+  UpdatePaymentReferenceParams,
+  PaymentReferenceOutput,
+} from "./payment-reference-service.js";
+
+// Client errors
+export {
+  CLIENT_ERROR_KINDS,
+  createNetworkError,
+  createTimeoutError,
+  createMalformedResponseError,
+  createManifestVerificationError,
+  createStaleManifestError,
+  createUnknownExtensionError,
+  createServerError,
+  createUnauthorizedError,
+  createIndeterminateError,
+} from "./client-errors.js";
+
+export type {
+  ClientErrorKind,
+  MerchantClientError,
+} from "./client-errors.js";
+
+// Merchant client types
+export type {
+  ClientResult,
+  ManifestVerificationResult,
+  SearchFilters,
+  PaginationParams,
+  MerchantRuntimeClient,
+} from "./merchant-client-types.js";
+
+// Merchant runtime client implementations
+export {
+  HttpMerchantRuntimeClient,
+  InMemoryMerchantRuntimeClient,
+} from "./merchant-runtime-client.js";
+
+export type {
+  HttpClientOptions,
+  SimulatedFailure,
+} from "./merchant-runtime-client.js";

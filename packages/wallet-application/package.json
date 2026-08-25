@@ -26,6 +26,7 @@
     "@counter/wallet-contracts": "workspace:*",
     "@counter/trust-protocol": "workspace:*",
     "@counter/authorization": "workspace:*",
+    "@counter/merchant-contracts": "workspace:*",
     "@noble/ed25519": "2.2.3"
   }
 }

@@ -652,6 +652,9 @@ importers:
       '@counter/domain':
         specifier: workspace:*
         version: link:../domain
+      '@counter/merchant-contracts':
+        specifier: workspace:*
+        version: link:../merchant-contracts
       '@counter/trust-protocol':
         specifier: workspace:*
         version: link:../trust-protocol

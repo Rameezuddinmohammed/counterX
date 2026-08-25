@@ -111,3 +111,22 @@ export { simulatePolicy } from "./policy-simulator.js";
 // Mandate types
 export { MANDATE_STATUSES, isMandateStatus, InMemoryMandateRepository } from "./mandate.js";
 export type { MandateStatus, WalletMandate, MandateRepository } from "./mandate.js";
+
+// Payment references
+export {
+  PAYMENT_REFERENCE_ENVIRONMENTS,
+  PAYMENT_REFERENCE_STATUSES,
+  isPaymentReferenceEnvironment,
+  createCounterTestReference,
+  isTestEnvironmentOnly,
+  InMemoryPaymentReferenceRepository,
+} from "./payment-references.js";
+
+export type {
+  PaymentReferenceEnvironment,
+  PaymentReferenceStatus,
+  PaymentAuthorizationReference,
+  CounterTestAuthorization,
+  CreateCounterTestReferenceParams,
+  PaymentReferenceRepository,
+} from "./payment-references.js";
