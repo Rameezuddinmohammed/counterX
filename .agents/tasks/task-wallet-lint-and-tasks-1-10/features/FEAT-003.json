@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Wallet Tasks 3-4: Implement wallet account/invitation/isolation with lifecycle state machine, and human step-up with principal consent attestation (CTP counter.principal-consent-attestation.v1)",
+  "status": "completed",
+  "steps": [
+    "Task 3 - Wallet lifecycle state machine in packages/wallet-domain/src/: Implement validated state transitions (INVITED->ENROLLED->VERIFIED->ACTIVE, ACTIVE->SUSPENDED, ACTIVE->RECOVERY_LOCKED, ACTIVE->OFFBOARDING->CLOSED, SUSPENDED->ACTIVE, RECOVERY_LOCKED->ACTIVE). Each transition records actor, reason, prior/new state, timestamp, and evidence reference. Invalid transitions fail with descriptive errors.",
+    "Task 3 - Wallet/Principal/Invite schemas in packages/wallet-domain/src/: Define WalletAccount (id, principalId, state, environment, createdAt, metadata), WalletPrincipal (id, walletId, authMethod, enrolledAt, verifiedAt), WalletInvitation (id, walletId, email/identifier, status: pending/accepted/expired/revoked, expiresAt, allowlistEntry). All use CounterId branded types from @counter/domain.",
+    "Task 3 - Repository ports in packages/wallet-domain/src/repositories.ts: Define WalletRepository, PrincipalRepository, InvitationRepository interfaces with CRUD + query operations. Include isolation guarantees (all queries scoped by walletId).",
+    "Task 3 - In-memory repository implementations for testing in packages/wallet-domain/src/: Implement InMemoryWalletRepository, InMemoryPrincipalRepository, InMemoryInvitationRepository with proper isolation (Wallet A cannot see Wallet B data).",
+    "Task 3 - Isolation tests: Add comprehensive tests in packages/wallet-domain/src/index.test.ts covering: state transition validation (valid transitions succeed, invalid fail), cross-wallet isolation (Wallet A data invisible to Wallet B queries), suspended/locked/closed wallets reject mutations, invite allowlist enforcement.",
+    "Task 4 - Step-up service in packages/wallet-application/src/step-up-service.ts: Define StepUpRequirement (operation types requiring step-up: policy_widening, agent_key_change, payment_reference_change, mandate_consent, approval, recovery, export, closure). Implement staleness check (step-up expires after configurable TTL). Define StepUpSession (principalId, method, assurance, authenticatedAt, expiresAt, nonce).",
+    "Task 4 - Principal consent attestation builder in packages/wallet-application/src/consent-attestation.ts: Build CTP 'counter.principal-consent-attestation.v1' envelope with: exact SHA-256 digest of consented content, auth method (pilot_password, webauthn, external_provider), assurance level (basic, substantial, high), auth timestamp, audience array, expiry, unique nonce, revocation locator. Use @counter/trust-protocol buildUnsignedEnvelope and computeSha256Digest. Mandates reference attestation by digest rather than embedding it.",
+    "Task 4 - Consent text rendering: Implement plain-language consent text generation with version tracking. Consent text is immutable once generated for a given version.",
+    "Task 4 - Negative tests for Task 4: Test session downgrade rejection, stale step-up rejection, replay attack (same nonce), wrong digest/audience, self-bypass attempt, concurrent changes during consent, and assurance non-inflation (service-witnessed consent cannot satisfy WebAuthn/direct-principal requirements).",
+    "Run pnpm build, pnpm test, pnpm lint, pnpm depcruise to verify everything passes."
+  ],
+  "acceptance_criteria": [
+    "Wallet lifecycle state machine validates all transitions and rejects invalid ones with errors",
+    "WalletAccount, WalletPrincipal, WalletInvitation types defined with proper branded IDs",
+    "In-memory repositories enforce wallet isolation (cross-wallet queries return empty)",
+    "Suspended/recovery-locked/offboarding/closed wallets reject consequential mutations",
+    "Step-up service correctly identifies privileged operations and validates session freshness",
+    "Consent attestation creates valid CTP envelopes with all required fields",
+    "Negative tests prove: stale step-up rejected, replay blocked, wrong digest/audience rejected, assurance non-inflation enforced",
+    "All builds, tests, lint, and depcruise pass"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": "The fs_write tool writes to /projects/sandbox/ workspace root which is different from /root/counterX/ where the git repo lives. Used execute_bash with heredocs for all file creation. exactOptionalPropertyTypes requires explicit | undefined on optional properties. Vitest resolves imports through compiled dist/ - must rebuild after source changes for tests to pick up new exports."
+}
