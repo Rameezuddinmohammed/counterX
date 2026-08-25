@@ -155,7 +155,7 @@ function computeEffectiveConstraints(input: PolicyEvaluationInput): EffectiveCon
 
   return Object.freeze({
     maxAmount,
-    allowedCurrencies: Object.freeze(allowedCurrencies as IsoCurrencyCode[]),
+    allowedCurrencies: Object.freeze(allowedCurrencies),
     allowedOperations: Object.freeze(allowedOperations) as EffectiveConstraints["allowedOperations"],
     allowedPaymentMethods: Object.freeze(allowedPaymentMethods) as EffectiveConstraints["allowedPaymentMethods"],
     validFrom,

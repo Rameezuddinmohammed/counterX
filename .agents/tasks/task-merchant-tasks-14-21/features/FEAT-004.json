@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Task 18: Build the Merchant Console pilot screens (Next.js). Create the complete merchant console interface with screens for: invite/lifecycle, Shopify setup, mapping preview, policy simulation, Razorpay status, readiness/scenario runner, manifest activation, transaction timeline, findings, kill switches, audit/export, suspension, and offboarding.",
+  "status": "completed",
+  "steps": [
+    "Create apps/merchant-console/src/lib/api-client.ts with a typed API client that communicates with control-plane-api. Include auth token management, error mapping, and typed request/response interfaces for each merchant API endpoint.",
+    "Create apps/merchant-console/src/lib/types.ts with MerchantConsoleState, Screen enum, and all UI model types (InvitationStatus, ShopifySetupStatus, MappingPreview, PolicySimulationResult, ReadinessStatus, ManifestStatus, Transaction, Finding, KillSwitchState, AuditEntry).",
+    "Create apps/merchant-console/src/app/invite/page.tsx - Invite/Lifecycle screen showing invitation status, acceptance flow, merchant lifecycle state machine visualization.",
+    "Create apps/merchant-console/src/app/shopify/page.tsx - Shopify Setup screen showing store connection status, credential validation, webhook configuration, and sync status.",
+    "Create apps/merchant-console/src/app/mapping/page.tsx - Mapping Preview screen showing product catalog mapping from Shopify to Counter format, version diffs.",
+    "Create apps/merchant-console/src/app/policy/page.tsx - Policy Simulation screen using simulateWalletAuthority from merchant-policy to show rule evaluation results, bilateral policy visualization.",
+    "Create apps/merchant-console/src/app/razorpay/page.tsx - Razorpay Status screen showing test account configuration, payment method availability, and recent transaction attempts.",
+    "Create apps/merchant-console/src/app/readiness/page.tsx - Readiness/Scenario Runner screen showing readiness check results (Blocking/AcceptedLimitation/Advisory/Expiring) and ability to trigger test scenarios.",
+    "Create apps/merchant-console/src/app/manifest/page.tsx - Manifest Activation screen showing current capability manifest, activation gates, and publish controls.",
+    "Create apps/merchant-console/src/app/transactions/page.tsx - Transaction Timeline screen with chronological view of all transactions, states, evidence, and outcomes.",
+    "Create apps/merchant-console/src/app/findings/page.tsx - Findings screen showing reconciliation findings, severity, affected objects, resolution status, and compensation commands.",
+    "Create apps/merchant-console/src/app/killswitch/page.tsx - Kill Switches screen with toggle controls for merchant/global kill switches, immediate suspension capability.",
+    "Create apps/merchant-console/src/app/audit/page.tsx - Audit/Export screen showing immutable audit trail, export controls, and data retention information.",
+    "Create apps/merchant-console/src/app/suspension/page.tsx - Suspension & Offboarding screen with controls for merchant suspension and structured offboarding flow.",
+    "Create apps/merchant-console/src/app/layout.tsx - Navigation layout with sidebar linking all screens, merchant identity display, and environment indicator.",
+    "Create apps/merchant-console/src/lib/identity.test.ts and update apps/merchant-console/src/lib/identity.ts for proper merchant identity handling with tests."
+  ],
+  "acceptance_criteria": [
+    "All 12+ merchant console screens exist as separate Next.js pages under /app/",
+    "Navigation layout links all screens with proper active state indication",
+    "API client provides typed interfaces for all merchant control-plane operations",
+    "Policy simulation screen integrates with merchant-policy simulation types",
+    "Readiness screen displays all ReadinessStatus categories (Blocking, AcceptedLimitation, Advisory, Expiring)",
+    "Kill switch screen provides immediate suspension capability",
+    "Transaction timeline shows state transitions and evidence",
+    "Merchant console builds successfully: pnpm --filter @counter/merchant-console build",
+    "Tests pass: pnpm --filter @counter/merchant-console test"
+  ],
+  "verification": [
+    "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/merchant-console build && pnpm --filter @counter/merchant-console test"
+  ],
+  "blocked_reason": null,
+  "findings": "35 tests passing. All 12+ merchant console screens built with navigation layout, typed API client, and identity management."
+}

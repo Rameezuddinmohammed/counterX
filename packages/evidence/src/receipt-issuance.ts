@@ -132,7 +132,7 @@ export async function issueReceipt(
     version,
     canonicalCommitmentDigest: commitmentDigest,
     receiptEnvelope: signedResult.value,
-    predecessorReceiptId: predecessorReceiptId as CounterId<"receipt"> | undefined,
+    predecessorReceiptId: predecessorReceiptId,
     issuedAt: now,
     signingKeyId: signer.kid,
   };

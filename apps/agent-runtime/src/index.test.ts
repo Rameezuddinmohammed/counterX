@@ -159,4 +159,35 @@ describe("@counter/agent-runtime", () => {
     expect(body.openapi).toBe("3.1.0");
     expect(body.info.title).toBe("Counter Agent Runtime API");
   });
+
+  it("unauthenticated GET /runtime/v1/merchants/:merchantId/capabilities returns 401", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({ jwks, environment: "test" });
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/runtime/v1/merchants/ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA/capabilities",
+    });
+    expect(response.statusCode).toBe(401);
+    const body = JSON.parse(response.body) as { error: { code: string } };
+    expect(body.error.code).toBe("UNAUTHENTICATED");
+  });
+
+  it("authenticated GET /runtime/v1/merchants/:merchantId/capabilities returns capability response", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({ jwks, environment: "test" });
+    await server.ready();
+
+    const token = await createTestToken();
+    const response = await server.inject({
+      method: "GET",
+      url: "/runtime/v1/merchants/ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA/capabilities",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { merchantId: string; capabilities: string[] };
+    expect(body.merchantId).toBe("ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA");
+    expect(body.capabilities).toBeInstanceOf(Array);
+  });
 });

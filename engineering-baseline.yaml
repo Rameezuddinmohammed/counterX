@@ -61,6 +61,14 @@ cloud:
   provider: AWS
   region: ap-south-1
   target: ECS Fargate, RDS PostgreSQL, S3, Secrets Manager, KMS, ALB, WAF, Route 53, ACM
+merchant:
+  shopify:
+    adminApiVersion: "2025-07"
+    graphqlEndpoint: "https://{shop}/admin/api/2025-07/graphql.json"
+  razorpay:
+    apiVersion: v1
+    checkoutProfile: standard
+    environment: test
 pinningRules:
   - package manifests use exact versions; no caret, tilde, latest, or unbounded ranges
   - pnpm-lock.yaml is the only dependency lockfile and is committed

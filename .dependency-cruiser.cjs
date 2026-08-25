@@ -6,6 +6,8 @@
  *    AWS SDKs, MCP, or adapter code.
  *  - packages/* never depend on apps/* (dependency direction is inward: apps -> packages).
  *  - No circular imports anywhere in the workspace.
+ *  - Merchant packages must not import from wallet-related packages or apps.
+ *  - Merchant packages must not import database drivers or @counter/data internals directly.
  */
 
 /** @type {import('dependency-cruiser').IConfiguration} */
@@ -53,6 +55,38 @@ module.exports = {
         "Shared packages must not import from deployable apps; dependency direction is apps -> packages only.",
       from: { path: "^packages" },
       to: { path: "^apps" },
+    },
+    {
+      name: "merchant-no-wallet-imports",
+      severity: "error",
+      comment:
+        "Merchant packages must not import from wallet-related packages or apps.",
+      from: {
+        path: "^packages/(commerce-graph|merchant-application|merchant-policy|shopify-connector|reference-connector|razorpay-adapter|merchant-contracts)",
+      },
+      to: {
+        path: ["^apps/wallet-console", "^packages/wallet"],
+      },
+    },
+    {
+      name: "merchant-no-direct-persistence",
+      severity: "error",
+      comment:
+        "Merchant packages must not import database drivers or @counter/data internals directly.",
+      from: {
+        path: "^packages/(commerce-graph|merchant-application|merchant-policy|shopify-connector|reference-connector|razorpay-adapter|merchant-contracts)",
+      },
+      to: {
+        path: [
+          "^pg",
+          "node_modules/pg",
+          "^drizzle-orm",
+          "node_modules/drizzle-orm",
+          "^drizzle-kit",
+          "node_modules/drizzle-kit",
+          "^packages/data",
+        ],
+      },
     },
   ],
   options: {

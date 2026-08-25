@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Task 20: Build the deterministic reference buyer and scenario corpus. Turn apps/reference-buyer into an independent Native client (currently a placeholder). Provide deterministic test identity, mandate, intent, and approval setup. Implement scenario drivers for the full lifecycle. Create a versioned scenario corpus for Counter Agent Wallet parity, covering all PILOT.md required scenarios.",
+  "status": "completed",
+  "steps": [
+    "Create apps/reference-buyer/src/identity.ts with deterministic test identity setup: (a) createTestBuyerIdentity() generates a deterministic Ed25519 keypair (seeded for reproducibility), (b) test wallet/agent registration, (c) TestBuyerIdentity type with walletId, agentId, signing key",
+    "Create apps/reference-buyer/src/mandate-builder.ts using @counter/payment-sdk and @counter/trust-protocol to create signed bounded mandates: buildTestMandate() with amount ceilings, currency (INR), merchant scope, validity window (24h max per PILOT.md)",
+    "Create apps/reference-buyer/src/intent-builder.ts to create signed purchase intents bound to a quote digest, with validity (15 min max, never beyond quote expiry per PILOT.md)",
+    "Create apps/reference-buyer/src/approval-builder.ts to create approvals for above-threshold transactions (10 min validity max per PILOT.md)",
+    "Create apps/reference-buyer/src/scenario-driver.ts with a ScenarioDriver class that drives the full lifecycle using only published contracts (no internal shortcuts): discover -> search -> quote -> verify digest -> create intent -> policy decision -> payment -> order -> reconcile -> verify receipt",
+    "Create apps/reference-buyer/src/scenario-corpus.ts with a versioned corpus (CORPUS_VERSION constant) covering all PILOT.md required scenarios: (1) prompt-triggered unattended purchase below threshold, (2) time-triggered purchase within mandate, (3) above-threshold with approval, (4) search/quote provenance, (5) test payment full lifecycle, (6) Razorpay PAYMENT_ACTION_REQUIRED flow, (7) non-allowlisted merchant denial, (8) non-India denial, (9) disallowed category/currency/operation, (10) limit breaches, (11) expired/revoked mandate/intent/approval, (12) material change, (13) approval self-bypass attempt, (14) duplicate/concurrent single-effect, (15) conflicting idempotency rejection, (16) process failure before/after intent, (17) timeout indeterminate",
+    "Create apps/reference-buyer/src/receipt-verifier.ts implementing independent receipt verification using @counter/evidence receipt-verifier (verifies CTP signature, commitment digest, and supersession chain independently)",
+    "Update apps/reference-buyer/src/index.ts to export identity, mandate-builder, intent-builder, approval-builder, scenario-driver, scenario-corpus, receipt-verifier, and CORPUS_VERSION",
+    "Create apps/reference-buyer/src/scenario-corpus.test.ts running the full corpus and asserting each scenario reaches its expected terminal state. Create apps/reference-buyer/src/identity.test.ts, apps/reference-buyer/src/scenario-driver.test.ts",
+    "Update apps/reference-buyer/package.json to add dependencies: @counter/domain, @counter/trust-protocol, @counter/payment-sdk, @counter/shopify-connector, @counter/razorpay-adapter, @counter/evidence, @counter/merchant-policy"
+  ],
+  "acceptance_criteria": [
+    "reference-buyer is an independent Native client using only published contracts (no DB/internal shortcuts)",
+    "Deterministic test identity, mandate, intent, and approval builders produce reproducible signed objects",
+    "ScenarioDriver drives the full lifecycle end-to-end",
+    "Versioned scenario corpus covers all 17+ PILOT.md required scenarios",
+    "Independent receipt verifier validates CTP signature, commitment, and supersession",
+    "Each corpus scenario reaches its expected terminal state in tests",
+    "Builds: pnpm --filter @counter/reference-buyer build",
+    "Tests pass: pnpm --filter @counter/reference-buyer test"
+  ],
+  "verification": [
+    "export NVM_DIR=/opt/toolchains/.nvm && source $NVM_DIR/nvm.sh && nvm use 22 && cd /projects/sandbox/counterX && pnpm --filter @counter/reference-buyer build && pnpm --filter @counter/reference-buyer test"
+  ],
+  "blocked_reason": null,
+  "findings": "35 tests passing. Full reference buyer with deterministic identity, mandate/intent/approval builders, scenario driver with ports, versioned 17-scenario corpus, independent receipt verifier."
+}

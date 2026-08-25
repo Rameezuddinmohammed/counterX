@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement merchant policy compiler and simulation (Task 10) in packages/merchant-policy/. Build typed policy configuration covering product/category, INR currency, quantity/count, India destination, operating window, freshness, payment path, review, cancellation, and refund rules. Compile to MerchantPolicyConstraints from @counter/policy. Render deterministic plain-language summaries. Simulate representative Wallet authorities and reject ambiguous/invalid rule sets. Test buyer/merchant intersection and policy rollback/version behavior.",
+  "status": "completed",
+  "steps": [
+    "Create packages/merchant-policy/src/policy-config.ts",
+    "Create packages/merchant-policy/src/compiler.ts",
+    "Create packages/merchant-policy/src/summary-renderer.ts",
+    "Create packages/merchant-policy/src/simulation.ts",
+    "Create packages/merchant-policy/src/versioning.ts",
+    "Create packages/merchant-policy/src/policy-config.test.ts",
+    "Create packages/merchant-policy/src/compiler.test.ts",
+    "Create packages/merchant-policy/src/simulation.test.ts",
+    "Create packages/merchant-policy/src/versioning.test.ts",
+    "Update packages/merchant-policy/src/index.ts"
+  ],
+  "acceptance_criteria": [
+    "pnpm build succeeds with no type errors in packages/merchant-policy",
+    "pnpm --filter @counter/merchant-policy test passes with all new tests green",
+    "Compiler correctly maps all 10+ rule types to MerchantPolicyConstraints fields",
+    "Summary renderer produces deterministic output (same input always same output)",
+    "Simulation correctly computes bilateral intersection via @counter/policy engine",
+    "Invalid/ambiguous rule sets are rejected with appropriate CanonicalError codes",
+    "Policy rollback detection correctly identifies version regression"
+  ],
+  "verification": [
+    "cd /root/counterX && pnpm --filter @counter/merchant-policy build",
+    "cd /root/counterX && pnpm --filter @counter/merchant-policy test"
+  ],
+  "blocked_reason": null,
+  "findings": "All 7 review issues addressed: tenant isolation, recursive payload hashing, manifest cross-check in health evaluator, engine-strict restored, idempotency store TTL/max-size, prefix-based simulation filter, and policy version-conflict detection via If-Match/ETag."
+}

@@ -10,7 +10,6 @@ import {
   createCanonicalError,
   type ActorKind,
   type ActorReference,
-  type CorrelationId,
   type Environment,
   type MerchantId,
   type Scope,
@@ -164,7 +163,7 @@ export const actorExtractionPlugin = fp(
         scope,
         assurance,
         roles,
-        correlationId: correlationId as CorrelationId,
+        correlationId: correlationId,
       });
 
       if (!result.ok) {

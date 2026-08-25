@@ -17,6 +17,9 @@ import {
   type ServerFactoryOptions,
   type WebhookIngressOptions,
 } from "@counter/http-api-kit";
+import { merchantRoutesPlugin } from "./merchant-routes.js";
+import type { MerchantHandlers } from "./merchant-handlers.js";
+import { createMockHandlers } from "./merchant-handlers.js";
 
 export const APP_NAME = "@counter/agent-runtime";
 
@@ -26,11 +29,12 @@ const AUTH_ISSUER = "https://dev-jzw3etjxnn3svs56.us.auth0.com/";
 const AUTH_AUDIENCE = "https://api.counter.dev";
 
 export interface CreateServerOptions {
-  readonly version?: string;
-  readonly environment?: string;
-  readonly jwks?: JWTVerifyGetKey | string;
-  readonly logger?: boolean;
-  readonly webhooks?: WebhookIngressOptions;
+  readonly version?: string | undefined;
+  readonly environment?: string | undefined;
+  readonly jwks?: JWTVerifyGetKey | string | undefined;
+  readonly logger?: boolean | undefined;
+  readonly webhooks?: WebhookIngressOptions | undefined;
+  readonly merchantHandlers?: MerchantHandlers | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -40,7 +44,7 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   const jwks: JWTVerifyGetKey | string =
     options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
 
-  const baseOptions = {
+  const serverOptions: ServerFactoryOptions = {
     name: APP_NAME,
     version,
     environment,
@@ -49,18 +53,20 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
       audience: AUTH_AUDIENCE,
       jwks,
     },
+    ...(environment !== "production"
+      ? { openApi: { title: "Counter Agent Runtime API", version } }
+      : {}),
     logger: options?.logger ?? false,
-  } as const;
-
-  const serverOptions: ServerFactoryOptions =
-    environment !== "production"
-      ? { ...baseOptions, openApi: { title: "Counter Agent Runtime API", version } }
-      : baseOptions;
+  };
 
   const server = createHttpServer(serverOptions);
 
   // Register webhook ingress (raw body, no auth, content-type agnostic)
-  void server.register(webhookIngressPlugin, options?.webhooks ?? {});
+  if (options?.webhooks !== undefined) {
+    void server.register(webhookIngressPlugin, options.webhooks);
+  } else {
+    void server.register(webhookIngressPlugin, {});
+  }
 
   // Register route permissions for runtime routes
   registerRoutePermission("GET:/runtime/v1/status", {
@@ -71,6 +77,10 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   server.get("/runtime/v1/status", async (_request, reply) => {
     void reply.send({ status: "operational", version, environment });
   });
+
+  // Register merchant runtime routes with handler ports
+  const handlers = options?.merchantHandlers ?? createMockHandlers();
+  void server.register(merchantRoutesPlugin, { handlers });
 
   return server;
 }

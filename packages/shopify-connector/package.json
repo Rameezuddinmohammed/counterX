@@ -1,0 +1,29 @@
+{
+  "name": "@counter/shopify-connector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shopify Admin API adapter: authentication, catalog sync, typed draft/order actions.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@counter/domain": "workspace:0.1.0",
+    "@counter/connector-sdk": "workspace:0.1.0",
+    "@counter/commerce-graph": "workspace:0.1.0",
+    "@counter/config": "workspace:0.1.0"
+  },
+  "devDependencies": {
+    "fast-check": "4.0.0",
+    "typescript": "5.7.3",
+    "vitest": "3.0.7"
+  }
+}

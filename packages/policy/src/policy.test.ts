@@ -462,7 +462,7 @@ describe("boundary conditions", () => {
   });
 
   it("timestamp one ms outside window produces DENY", () => {
-    const windowStart = TEST_NOW as Instant;
+    const windowStart = TEST_NOW;
     const windowEnd = (TEST_NOW + 100_000) as Instant;
 
     const input = makeValidInput({

@@ -1,0 +1,19 @@
+{
+  "task_id": "task-merchant-tenancy-lifecycle-verification",
+  "features": {
+    "FEAT-001": {
+      "title": "Merchant Tenancy, Lifecycle State Machine, Organization Model",
+      "status": "completed"
+    },
+    "FEAT-002": {
+      "title": "Typed MerchantOwnershipVerification Records",
+      "status": "completed",
+      "findings": "The fs_write and str_replace tools did not persist to disk in this environment. All file operations had to be done via bash heredocs/python scripts. Tests and typecheck both pass (66 tests, 0 failures)."
+    },
+    "FEAT-003": {
+      "title": "Comprehensive Negative Tests",
+      "status": "completed",
+      "findings": "Created 5 test files with 67 new tests (133 total). CanonicalError message field uses static definition strings not the diagnostic message from input; tests assert error.code instead. fs_write/str_replace tools do not persist in this environment - used bash heredocs instead."
+    }
+  }
+}
