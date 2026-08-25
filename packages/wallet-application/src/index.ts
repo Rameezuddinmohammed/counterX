@@ -70,3 +70,29 @@ export type {
 export type {
   ConsentAttestationResult as ConsentBuildResult,
 } from "./consent-attestation.js";
+
+// Device pairing
+export {
+  PAIRING_STATUSES,
+  PairingService,
+} from "./device-pairing.js";
+
+export type {
+  PairingStatus,
+  PairingRequest,
+  PairingResult,
+  PairingError,
+  PairingOutcome,
+} from "./device-pairing.js";
+
+// Agent registration
+export {
+  AgentRegistrationService,
+} from "./agent-registration.js";
+
+export type {
+  AgentPublicKeyDescriptor,
+  AgentRegistration,
+  RegistrationError,
+  RegistrationOutcome,
+} from "./agent-registration.js";

@@ -61,3 +61,14 @@ export {
   InMemoryWalletRepository,
   InMemoryInvitationRepository,
 } from "./in-memory-repositories.js";
+
+// Secure key store port
+export type {
+  SecureKeyStore,
+  PublicKeyDescriptor,
+  GeneratedKeyResult,
+} from "./secure-key-store.js";
+
+// Secure key store implementations
+export { InMemorySecureKeyStore } from "./in-memory-key-store.js";
+export { WindowsSecureKeyStore } from "./windows-key-store.js";

@@ -661,6 +661,9 @@ importers:
       '@counter/wallet-domain':
         specifier: workspace:*
         version: link:../wallet-domain
+      '@noble/ed25519':
+        specifier: 2.2.3
+        version: 2.2.3
     devDependencies:
       fast-check:
         specifier: 4.0.0
@@ -696,6 +699,12 @@ importers:
       '@counter/domain':
         specifier: workspace:*
         version: link:../domain
+      '@counter/trust-protocol':
+        specifier: workspace:*
+        version: link:../trust-protocol
+      '@noble/ed25519':
+        specifier: 2.2.3
+        version: 2.2.3
     devDependencies:
       fast-check:
         specifier: 4.0.0
