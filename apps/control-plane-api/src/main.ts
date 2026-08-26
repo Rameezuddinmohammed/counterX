@@ -1,18 +1,21 @@
 /**
  * Deployment entry point for control-plane-api.
- * Unconditionally starts the server on the configured port.
+ * Binds to 0.0.0.0 so the Fly.io proxy can reach the server.
  */
-import { startServer, APP_NAME } from "./index.js";
+import { createServer, APP_NAME } from "./index.js";
 
-const DEFAULT_VERSION = "0.1.0";
 const port = parseInt(process.env["PORT"] || "8080", 10);
 
-const server = startServer({
+const server = createServer({
   logger: true,
   environment: process.env["NODE_ENV"] || "production",
-  version: process.env["APP_VERSION"] || DEFAULT_VERSION,
+  version: process.env["APP_VERSION"] || "0.1.0",
 });
 
 server.listen({ port, host: "0.0.0.0" }).then((address) => {
-  server.log.info(`${APP_NAME} listening on ${address}`);
+  console.log(`${APP_NAME} listening on ${address}`);
+});
+
+process.on("SIGTERM", () => {
+  server.close();
 });
