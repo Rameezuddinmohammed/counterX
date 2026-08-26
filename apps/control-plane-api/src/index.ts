@@ -101,3 +101,23 @@ export function startServer(options?: CreateServerOptions): FastifyInstance {
   attachGracefulShutdown(server);
   return server;
 }
+
+// --- Auto-start when executed directly (e.g., via Dockerfile CMD) ---
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
+const isMainModule =
+  resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  const port = parseInt(process.env["PORT"] || "8080", 10);
+  const server = startServer({
+    logger: true,
+    environment: process.env["NODE_ENV"] || "production",
+    version: process.env["APP_VERSION"] || DEFAULT_VERSION,
+  });
+
+  server.listen({ port, host: "0.0.0.0" }).then((address) => {
+    server.log.info(`${APP_NAME} listening on ${address}`);
+  });
+}
