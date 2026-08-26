@@ -1,4 +1,8 @@
-import { Pool, type PoolConfig, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+import pg from "pg";
+import type { PoolConfig, PoolClient, QueryResult, QueryResultRow } from "pg";
+
+const { Pool } = pg;
+type Pool = InstanceType<typeof Pool>;
 
 export interface DatabaseSession {
   query<Row extends QueryResultRow = QueryResultRow>(
