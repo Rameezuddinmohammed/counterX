@@ -7,12 +7,19 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "@/lib/api-client";
-import { createApiClient } from "@/lib/api-client";
+import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "../lib/api-client.js";
+import { createApiClient } from "../lib/api-client.js";
 
 // ---------------------------------------------------------------------------
 // Token provider (uses Auth0 session in production)
 // ---------------------------------------------------------------------------
+
+class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
 
 function createBrowserTokenProvider(): AuthTokenProvider {
   let cachedToken: string | null = null;
@@ -21,19 +28,19 @@ function createBrowserTokenProvider(): AuthTokenProvider {
     async getToken(): Promise<string> {
       if (cachedToken) return cachedToken;
 
-      try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          cachedToken = data.accessToken ?? "demo-token";
-          return cachedToken!;
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json() as Record<string, unknown>;
+        const token = data["accessToken"];
+        if (typeof token === "string" && token.length > 0) {
+          cachedToken = token;
+          return cachedToken;
         }
-      } catch {
-        // Fall through to demo token
       }
 
-      cachedToken = "demo-token";
-      return cachedToken;
+      throw new AuthError(
+        "Unable to obtain authentication token. Please sign in again.",
+      );
     },
     invalidate() {
       cachedToken = null;
@@ -45,13 +52,21 @@ function createBrowserTokenProvider(): AuthTokenProvider {
 // Singleton API client
 // ---------------------------------------------------------------------------
 
+let tokenProviderInstance: AuthTokenProvider | null = null;
 let apiClientInstance: MerchantApiClient | null = null;
+
+function getTokenProvider(): AuthTokenProvider {
+  if (!tokenProviderInstance) {
+    tokenProviderInstance = createBrowserTokenProvider();
+  }
+  return tokenProviderInstance;
+}
 
 export function getApiClient(): MerchantApiClient {
   if (!apiClientInstance) {
     apiClientInstance = createApiClient({
       baseUrl: "https://counter-control-plane-api.fly.dev/control/v1",
-      tokenProvider: createBrowserTokenProvider(),
+      tokenProvider: getTokenProvider(),
       timeout: 15_000,
     });
   }
@@ -88,10 +103,25 @@ export function useApi<T>(
       if (result.ok) {
         setData(result.data);
       } else {
-        setError(result.error.message);
+        // On 401, invalidate token and retry once with a fresh token
+        if (result.error.code === "UNAUTHORIZED") {
+          getTokenProvider().invalidate();
+          const retry = await fetcher(client);
+          if (retry.ok) {
+            setData(retry.data);
+          } else {
+            setError(retry.error.message);
+          }
+        } else {
+          setError(result.error.message);
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (err instanceof AuthError) {
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     } finally {
       setLoading(false);
     }

@@ -106,3 +106,5 @@ export {
 } from "./components/data-table.js";
 export { StatCard, type StatCardProps } from "./components/stat-card.js";
 export { CounterLogo, CounterWordmark, type LogoProps } from "./components/logo.js";
+export { ConsoleShell, type ConsoleShellProps } from "./components/console-shell.js";
+export { PageWrapper, type PageWrapperProps } from "./components/page-wrapper.js";

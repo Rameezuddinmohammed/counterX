@@ -861,6 +861,9 @@ importers:
       typescript:
         specifier: 5.7.3
         version: 5.7.3
+      vitest:
+        specifier: 3.0.7
+        version: 3.0.7(@types/node@22.13.1)(jiti@2.7.0)(lightningcss@1.32.0)
 
   packages/wallet-application:
     dependencies:

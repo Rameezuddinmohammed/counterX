@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { SidebarProvider, Toaster } from "@counter/ui";
+import { ConsoleShell as SharedConsoleShell } from "@counter/ui";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/top-bar";
 import { CommandPaletteProvider } from "@/components/command-palette-provider";
@@ -11,25 +10,17 @@ interface ConsoleShellProps {
 }
 
 export function ConsoleShell({ children }: ConsoleShellProps) {
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-
   return (
-    <SidebarProvider>
-      <CommandPaletteProvider
-        open={commandPaletteOpen}
-        onOpenChange={setCommandPaletteOpen}
-      >
-        <div className="flex h-screen overflow-hidden bg-[var(--background)]">
-          <AppSidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <TopBar onCommandPaletteOpen={() => setCommandPaletteOpen(true)} />
-            <main className="flex-1 overflow-y-auto p-6 console-grid-bg">
-              {children}
-            </main>
-          </div>
-        </div>
-        <Toaster />
-      </CommandPaletteProvider>
-    </SidebarProvider>
+    <SharedConsoleShell
+      renderSidebar={() => <AppSidebar />}
+      renderTopBar={(onOpen) => <TopBar onCommandPaletteOpen={onOpen} />}
+      renderCommandPalette={(open, onOpenChange, content) => (
+        <CommandPaletteProvider open={open} onOpenChange={onOpenChange}>
+          {content}
+        </CommandPaletteProvider>
+      )}
+    >
+      {children}
+    </SharedConsoleShell>
   );
 }
