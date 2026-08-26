@@ -1,13 +1,8 @@
 import type { NextConfig } from "next";
 
-/**
- * apps/operations-console
- *
- * Separately authorized Next.js Operations console shell. Real
- * fleet/incident/queue/kill-switch surfaces are implemented in task 15.
- */
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  transpilePackages: ["@counter/ui"],
 };
 
 export default nextConfig;

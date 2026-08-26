@@ -229,22 +229,52 @@ importers:
 
   apps/operations-console:
     dependencies:
+      '@auth0/nextjs-auth0':
+        specifier: ^4.5.1
+        version: 4.27.0(next@16.3.3(@opentelemetry/api@1.9.0)(@types/node@22.13.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@counter/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      cmdk:
+        specifier: ^1.0.4
+        version: 1.1.1(@types/react-dom@19.0.3(@types/react@19.0.8))(@types/react@19.0.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      framer-motion:
+        specifier: ^12.0.0
+        version: 12.43.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      lucide-react:
+        specifier: ^0.469.0
+        version: 0.469.0(react@19.1.0)
       next:
         specifier: 16.3.3
         version: 16.3.3(@opentelemetry/api@1.9.0)(@types/node@22.13.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      next-themes:
+        specifier: ^0.4.4
+        version: 0.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react:
         specifier: 19.1.0
         version: 19.1.0
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
+      sonner:
+        specifier: ^1.7.4
+        version: 1.7.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
     devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.3.3
       '@types/react':
         specifier: 19.0.8
         version: 19.0.8
       '@types/react-dom':
         specifier: 19.0.3
         version: 19.0.3(@types/react@19.0.8)
+      postcss:
+        specifier: ^8.5.1
+        version: 8.5.26
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
       typescript:
         specifier: 5.7.3
         version: 5.7.3
