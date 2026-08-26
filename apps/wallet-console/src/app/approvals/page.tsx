@@ -1,105 +1,128 @@
-/**
- * Approval inbox page.
- */
-export default function ApprovalsPage() {
-  const pendingApprovals = [
-    {
-      id: "task-001",
-      merchant: "BookStore India",
-      amount: "35,000 INR",
-      reason: "Exceeds approval threshold (25,000 INR)",
-      requestedAt: "2025-01-15 10:30",
-    },
-  ];
+"use client";
 
-  const recentDecisions = [
-    {
-      id: "task-002",
-      merchant: "CloudHost Pro",
-      amount: "12,000 INR",
-      decision: "approved",
-      decidedAt: "2025-01-14 16:00",
-    },
-    {
-      id: "task-003",
-      merchant: "Unknown Vendor",
-      amount: "99,000 INR",
-      decision: "rejected",
-      decidedAt: "2025-01-14 09:15",
-    },
-  ];
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Separator } from "@counter/ui";
+import { CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
+import { toast } from "@counter/ui";
+import { PageWrapper } from "@/components/page-wrapper";
+
+interface ApprovalRequest {
+  id: string;
+  merchant: string;
+  amount: string;
+  description: string;
+  requestedAt: string;
+  expiresAt: string;
+  risk: "low" | "medium" | "high";
+}
+
+const MOCK_APPROVALS: ApprovalRequest[] = [
+  {
+    id: "apr-001",
+    merchant: "ShopEase",
+    amount: "INR 8,750",
+    description: "One-time purchase - Electronics",
+    requestedAt: "2025-01-15 10:30",
+    expiresAt: "2025-01-15 22:30",
+    risk: "medium",
+  },
+  {
+    id: "apr-002",
+    merchant: "TravelBook",
+    amount: "INR 45,000",
+    description: "Flight booking - DEL to BLR",
+    requestedAt: "2025-01-15 09:15",
+    expiresAt: "2025-01-16 09:15",
+    risk: "high",
+  },
+];
+
+const RISK_VARIANT: Record<string, "success" | "warning" | "error"> = {
+  low: "success",
+  medium: "warning",
+  high: "error",
+};
+
+export default function ApprovalsPage() {
+  const handleApprove = (id: string) => {
+    toast.success("Approval " + id + " confirmed");
+  };
+
+  const handleReject = (id: string) => {
+    toast.error("Approval " + id + " rejected");
+  };
 
   return (
-    <main>
-      <h1>Approval Inbox</h1>
-      <p>
-        Review and decide on transactions that exceed your buyer policy
-        thresholds and require explicit principal approval.
-      </p>
+    <PageWrapper>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Approvals</h1>
+          <p className="mt-1 text-[var(--foreground-secondary)]">
+            Review and authorize pending transaction requests.
+          </p>
+        </div>
 
-      <section>
-        <h2>Pending Approvals</h2>
-        {pendingApprovals.length === 0 ? (
-          <p>No pending approvals.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Merchant</th>
-                <th>Amount</th>
-                <th>Reason</th>
-                <th>Requested</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingApprovals.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.merchant}</td>
-                  <td>{item.amount}</td>
-                  <td>{item.reason}</td>
-                  <td>{item.requestedAt}</td>
-                  <td>Approve | Reject</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-[var(--brand-orange)]" />
+          <span className="text-sm text-[var(--foreground-secondary)]">
+            <strong className="text-[var(--foreground)]">{MOCK_APPROVALS.length}</strong> pending approvals
+          </span>
+        </div>
 
-      <section>
-        <h2>Recent Decisions</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Merchant</th>
-              <th>Amount</th>
-              <th>Decision</th>
-              <th>Decided</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentDecisions.map((item) => (
-              <tr key={item.id}>
-                <td>{item.merchant}</td>
-                <td>{item.amount}</td>
-                <td>{item.decision}</td>
-                <td>{item.decidedAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+        <div className="space-y-4">
+          {MOCK_APPROVALS.map((approval) => (
+            <Card key={approval.id} className="transition-all hover:border-[var(--brand-orange)]/20">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{approval.merchant}</CardTitle>
+                  <Badge variant={RISK_VARIANT[approval.risk]}>
+                    {approval.risk} risk
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-[var(--foreground-muted)]">Amount</p>
+                    <p className="font-mono font-semibold text-[var(--foreground)]">{approval.amount}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--foreground-muted)]">Description</p>
+                    <p className="text-[var(--foreground)]">{approval.description}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--foreground-muted)]">Requested</p>
+                    <p className="text-[var(--foreground)]">{approval.requestedAt}</p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--foreground-muted)]">Expires</p>
+                    <p className="text-[var(--foreground)]">{approval.expiresAt}</p>
+                  </div>
+                </div>
 
-      <section>
-        <h2>Approval Requirements</h2>
-        <ul>
-          <li>Step-up authentication required for approval decisions</li>
-          <li>Approval tasks expire if not acted upon</li>
-          <li>Each approval generates a signed CTP evidence envelope</li>
-          <li>Decisions are irrevocable once submitted</li>
-        </ul>
-      </section>
-    </main>
+                {approval.risk === "high" && (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-500/5 border border-red-500/20 px-3 py-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <span className="text-xs text-red-500">High-value transaction requires additional verification</span>
+                  </div>
+                )}
+
+                <Separator />
+
+                <div className="flex items-center justify-end gap-3">
+                  <Button variant="outline" size="sm" onClick={() => handleReject(approval.id)}>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Reject
+                  </Button>
+                  <Button size="sm" onClick={() => handleApprove(approval.id)}>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Approve
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </PageWrapper>
   );
 }
