@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+/*
+ * Counter Brand Design System
+ * Bold orange accent on dark backgrounds, Linear-inspired clean layout
+ * Warm orange gradients with glass-morphism effects
+ */
+
+:root {
+  /* Brand Colors */
+  --brand-orange: #F97316;
+  --brand-orange-light: #FB923C;
+  --brand-orange-dark: #EA580C;
+  --brand-orange-50: #FFF7ED;
+  --brand-orange-100: #FFEDD5;
+  --brand-orange-200: #FED7AA;
+  --brand-orange-900: #7C2D12;
+
+  /* Light Mode */
+  --background: #FFFFFF;
+  --background-secondary: #F9FAFB;
+  --surface: #FFFFFF;
+  --surface-secondary: #F3F4F6;
+  --foreground: #111827;
+  --foreground-secondary: #6B7280;
+  --foreground-muted: #9CA3AF;
+  --border: #E5E7EB;
+  --border-secondary: #D1D5DB;
+  --ring: #F97316;
+
+  /* Semantic */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --info: #3B82F6;
+}
+
+.dark {
+  /* Dark Mode - Linear-inspired */
+  --background: #0A0A0F;
+  --background-secondary: #0F0F15;
+  --surface: #141419;
+  --surface-secondary: #1C1C24;
+  --foreground: #F9FAFB;
+  --foreground-secondary: #9CA3AF;
+  --foreground-muted: #6B7280;
+  --border: #23232D;
+  --border-secondary: #2D2D3A;
+  --ring: #F97316;
+
+  /* Semantic */
+  --success: #34D399;
+  --warning: #FBBF24;
+  --error: #F87171;
+  --info: #60A5FA;
+}
+
+/* Base styles */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Scrollbar styling for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--border-secondary);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-muted);
+}
+
+/* Orange gradient utility */
+.gradient-orange {
+  background: linear-gradient(135deg, #F97316, #EA580C);
+}
+
+.gradient-orange-light {
+  background: linear-gradient(135deg, #FB923C, #F97316);
+}
+
+/* Glass morphism */
+.glass {
+  background: rgba(20, 20, 25, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+/* Animation utilities */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(4px); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes pulse-orange {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+.animate-pulse-orange {
+  animation: pulse-orange 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
