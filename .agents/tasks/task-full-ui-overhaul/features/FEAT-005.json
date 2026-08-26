@@ -1,0 +1,11 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Complete redesign of the Operations Console (apps/operations-console) with @counter/ui components, Auth0 integration, dark/light mode, collapsible sidebar, command palette, toast notifications.",
+  "status": "completed",
+  "steps": [],
+  "acceptance_criteria": [],
+  "verification": [],
+  "blocked_reason": null,
+  "findings": "Build successful. All 110 existing tests pass. Auth0 route handler, collapsible sidebar with health indicator, command palette, all pages redesigned with @counter/ui. The middleware was updated to exclude /api/auth routes from session checks. tsconfig paths alias added for @/ imports."
+}
