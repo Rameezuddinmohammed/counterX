@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Complete redesign of the Wallet Console (apps/wallet-console) with the same quality treatment as merchant console: @counter/ui components, Auth0 integration, dark/light mode, collapsible sidebar, command palette, toast notifications, loading/error/empty states, settings, profile. Wire to counter-agent-runtime.fly.dev APIs.",
+  "status": "completed",
+  "steps": [
+    "Update apps/wallet-console/package.json: add dependencies @counter/ui, @auth0/nextjs-auth0, framer-motion, next-themes, sonner, cmdk, lucide-react, tailwindcss, @tailwindcss/postcss, postcss",
+    "Create apps/wallet-console/postcss.config.mjs with @tailwindcss/postcss plugin",
+    "Create apps/wallet-console/src/app/globals.css importing Tailwind and @counter/ui brand styles",
+    "Create apps/wallet-console/src/lib/auth.ts - Auth0 configuration (same Auth0 tenant as merchant console)",
+    "Create apps/wallet-console/src/app/api/auth/[auth0]/route.ts - Auth0 route handler",
+    "Create apps/wallet-console/src/middleware.ts - Auth0 middleware protecting routes",
+    "Rewrite apps/wallet-console/src/app/layout.tsx - Full redesign with ThemeProvider, Toaster, collapsible Sidebar",
+    "Create apps/wallet-console/src/components/app-sidebar.tsx - Wallet-specific sidebar with wallet status indicator",
+    "Create apps/wallet-console/src/components/top-bar.tsx - Top bar matching merchant console pattern",
+    "Create apps/wallet-console/src/components/command-palette-provider.tsx - Wallet-specific command palette actions",
+    "Rewrite apps/wallet-console/src/app/page.tsx - Dashboard with wallet status overview",
+    "Create apps/wallet-console/src/app/settings/page.tsx - Wallet settings",
+    "Create apps/wallet-console/src/app/profile/page.tsx - User profile from Auth0",
+    "Rewrite all route pages with @counter/ui components",
+    "Create apps/wallet-console/src/hooks/use-wallet-api.ts - Custom hook wrapping wallet-client.ts"
+  ],
+  "acceptance_criteria": [
+    "Wallet console builds successfully with next build",
+    "All existing routes render with new UI (no regressions)",
+    "Sidebar navigation covers all wallet sections",
+    "Dark mode default with working light mode toggle",
+    "Auth0 integration set up with route handlers",
+    "All pages use @counter/ui components consistently",
+    "Settings and Profile pages exist",
+    "Command palette works with wallet-specific actions",
+    "No TypeScript errors in build output"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm install && pnpm build"
+  ],
+  "blocked_reason": null,
+  "findings": "fs_write tool did not persist to disk; used bash heredocs. Badge component uses error not destructive variant. middleware.ts deprecated warning in Next.js 16 but still works. Import paths use @/ path alias not relative .js imports."
+}
