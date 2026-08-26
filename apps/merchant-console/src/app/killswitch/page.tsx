@@ -1,206 +1,71 @@
-/**
- * Kill Switches screen.
- *
- * Provides toggle controls for merchant and global kill switches
- * with immediate suspension capability.
- */
+"use client";
 
-import type { KillSwitchState } from "../../lib/types.js";
+import { useState } from "react";
+import { Card, CardContent, Switch, Badge, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Button } from "@counter/ui";
+import { Power } from "lucide-react";
+import { toast } from "@counter/ui";
+import { PageWrapper } from "@/components/page-wrapper";
+import type { KillSwitchState } from "@/lib/types";
 
-const DEMO_SWITCHES: readonly KillSwitchState[] = [
-  {
-    switchId: "ks-001",
-    name: "Merchant Payment Processing",
-    scope: "merchant",
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    reason: null,
-    affectedMerchants: ["merchant-pilot-001"],
-  },
-  {
-    switchId: "ks-002",
-    name: "Merchant Order Ingestion",
-    scope: "merchant",
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    reason: null,
-    affectedMerchants: ["merchant-pilot-001"],
-  },
-  {
-    switchId: "ks-003",
-    name: "Global Payment Halt",
-    scope: "global",
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    reason: null,
-    affectedMerchants: [],
-  },
-  {
-    switchId: "ks-004",
-    name: "Global Reconciliation Pause",
-    scope: "global",
-    active: true,
-    activatedBy: "ops-admin",
-    activatedAt: "2025-01-20T09:00:00Z",
-    reason: "Scheduled maintenance window",
-    affectedMerchants: [],
-  },
+const INITIAL_SWITCHES: KillSwitchState[] = [
+  { switchId: "ks-001", name: "Payment Processing", scope: "merchant", active: false, activatedBy: null, activatedAt: null, reason: null, affectedMerchants: [] },
+  { switchId: "ks-002", name: "Order Fulfillment", scope: "merchant", active: false, activatedBy: null, activatedAt: null, reason: null, affectedMerchants: [] },
+  { switchId: "ks-003", name: "Webhook Delivery", scope: "merchant", active: true, activatedBy: "system", activatedAt: "2025-01-20T08:00:00Z", reason: "Excessive failures detected", affectedMerchants: ["merchant-pilot-001"] },
+  { switchId: "ks-004", name: "Refund Processing", scope: "global", active: false, activatedBy: null, activatedAt: null, reason: null, affectedMerchants: [] },
 ];
 
 export default function KillSwitchPage() {
+  const [switches, setSwitches] = useState(INITIAL_SWITCHES);
+  const [confirmSwitch, setConfirmSwitch] = useState<KillSwitchState | null>(null);
+
+  const confirmToggle = () => {
+    if (!confirmSwitch) return;
+    setSwitches((prev) => prev.map((s) => s.switchId === confirmSwitch.switchId ? { ...s, active: !s.active, activatedBy: !s.active ? "user" : null, activatedAt: !s.active ? new Date().toISOString() : null } : s));
+    toast.success(`Kill switch "${confirmSwitch.name}" ${confirmSwitch.active ? "deactivated" : "activated"}`);
+    setConfirmSwitch(null);
+  };
+
   return (
-    <div>
-      <h1>Kill Switches</h1>
-      <p style={{ color: "#666" }}>
-        Immediate suspension controls for merchant-level and global operations.
-        Activating a kill switch takes effect immediately.
-      </p>
-
-      {/* Warning Banner */}
-      <div style={{ marginTop: "24px", padding: "12px 16px", backgroundColor: "#fee2e2", borderRadius: "8px", border: "1px solid #fca5a5" }}>
-        <strong style={{ color: "#991b1b" }}>Caution:</strong>
-        <span style={{ color: "#991b1b", marginLeft: "8px" }}>Kill switches take immediate effect. Ensure proper authorization before activation.</span>
+    <PageWrapper>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Kill Switches</h1>
+          <p className="mt-1 text-[var(--foreground-secondary)]">Emergency circuit breakers for critical system functions.</p>
+        </div>
+        <div className="space-y-3">
+          {switches.map((sw) => (
+            <Card key={sw.switchId}>
+              <CardContent className="flex items-center justify-between p-5">
+                <div className="flex items-center gap-4">
+                  <div className={`rounded-lg p-2 ${sw.active ? "bg-red-500/10" : "bg-[var(--surface-secondary)]"}`}>
+                    <Power className={`h-5 w-5 ${sw.active ? "text-red-500" : "text-[var(--foreground-muted)]"}`} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-[var(--foreground)]">{sw.name}</p>
+                      <Badge variant={sw.scope === "global" ? "info" : "secondary"}>{sw.scope}</Badge>
+                    </div>
+                    {sw.active && sw.reason && <p className="mt-0.5 text-xs text-red-500">{sw.reason}</p>}
+                  </div>
+                </div>
+                <Switch checked={sw.active} onCheckedChange={() => setConfirmSwitch(sw)} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Dialog open={!!confirmSwitch} onOpenChange={() => setConfirmSwitch(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Kill Switch Toggle</DialogTitle>
+              <DialogDescription>Are you sure you want to {confirmSwitch?.active ? "deactivate" : "activate"} the kill switch?</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmSwitch(null)}>Cancel</Button>
+              <Button variant={confirmSwitch?.active ? "default" : "destructive"} onClick={confirmToggle}>{confirmSwitch?.active ? "Deactivate" : "Activate"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
-
-      {/* Merchant Switches */}
-      <section style={{ marginTop: "24px" }}>
-        <h2>Merchant Kill Switches</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {DEMO_SWITCHES.filter((s) => s.scope === "merchant").map((sw) => (
-            <div
-              key={sw.switchId}
-              style={{
-                padding: "16px",
-                border: `1px solid ${sw.active ? "#fca5a5" : "#e5e7eb"}`,
-                borderRadius: "8px",
-                backgroundColor: sw.active ? "#fef2f2" : "#fff",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{sw.name}</div>
-                  <div style={{ fontSize: "12px", color: "#6b7280", fontFamily: "monospace" }}>{sw.switchId}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <span style={{
-                    padding: "4px 10px",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    backgroundColor: sw.active ? "#fee2e2" : "#d1fae5",
-                    color: sw.active ? "#991b1b" : "#065f46",
-                  }}>
-                    {sw.active ? "ACTIVE" : "INACTIVE"}
-                  </span>
-                  <button
-                    type="button"
-                    style={{
-                      padding: "6px 14px",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontWeight: 600,
-                      fontSize: "12px",
-                      cursor: "pointer",
-                      backgroundColor: sw.active ? "#10b981" : "#ef4444",
-                      color: "#fff",
-                    }}
-                  >
-                    {sw.active ? "Deactivate" : "Activate"}
-                  </button>
-                </div>
-              </div>
-              {sw.active && sw.reason && (
-                <div style={{ marginTop: "8px", fontSize: "13px", color: "#991b1b" }}>
-                  Reason: {sw.reason} | By: {sw.activatedBy} | At: {sw.activatedAt}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Global Switches */}
-      <section style={{ marginTop: "32px" }}>
-        <h2>Global Kill Switches</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {DEMO_SWITCHES.filter((s) => s.scope === "global").map((sw) => (
-            <div
-              key={sw.switchId}
-              style={{
-                padding: "16px",
-                border: `1px solid ${sw.active ? "#fca5a5" : "#e5e7eb"}`,
-                borderRadius: "8px",
-                backgroundColor: sw.active ? "#fef2f2" : "#fff",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{sw.name}</div>
-                  <div style={{ fontSize: "12px", color: "#6b7280", fontFamily: "monospace" }}>{sw.switchId}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <span style={{
-                    padding: "4px 10px",
-                    borderRadius: "12px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    backgroundColor: sw.active ? "#fee2e2" : "#d1fae5",
-                    color: sw.active ? "#991b1b" : "#065f46",
-                  }}>
-                    {sw.active ? "ACTIVE" : "INACTIVE"}
-                  </span>
-                  <button
-                    type="button"
-                    style={{
-                      padding: "6px 14px",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontWeight: 600,
-                      fontSize: "12px",
-                      cursor: "pointer",
-                      backgroundColor: sw.active ? "#10b981" : "#ef4444",
-                      color: "#fff",
-                    }}
-                  >
-                    {sw.active ? "Deactivate" : "Activate"}
-                  </button>
-                </div>
-              </div>
-              {sw.active && sw.reason && (
-                <div style={{ marginTop: "8px", fontSize: "13px", color: "#991b1b" }}>
-                  Reason: {sw.reason} | By: {sw.activatedBy} | At: {sw.activatedAt}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Immediate Suspension Control */}
-      <section style={{ marginTop: "32px", padding: "20px", border: "2px solid #fca5a5", borderRadius: "8px", backgroundColor: "#fef2f2" }}>
-        <h2 style={{ color: "#991b1b", marginTop: 0 }}>Immediate Suspension</h2>
-        <p style={{ fontSize: "14px", color: "#4b5563" }}>
-          Immediately suspend all merchant operations. This activates all merchant kill switches simultaneously.
-        </p>
-        <button
-          type="button"
-          style={{
-            padding: "10px 24px",
-            backgroundColor: "#dc2626",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            fontWeight: 700,
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          Suspend All Operations
-        </button>
-      </section>
-    </div>
+    </PageWrapper>
   );
 }

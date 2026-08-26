@@ -1,151 +1,43 @@
-/**
- * Findings & Reconciliation screen.
- *
- * Displays reconciliation findings with severity, affected objects,
- * resolution status, and compensation commands.
- */
+"use client";
 
-import type { Finding, FindingResolution, FindingSeverity } from "../../lib/types.js";
+import { Card, CardContent, Badge, DataTable } from "@counter/ui";
+import type { DataTableColumn } from "@counter/ui";
+import { PageWrapper } from "@/components/page-wrapper";
+import type { Finding, FindingSeverity } from "@/lib/types";
 
-const DEMO_FINDINGS: readonly Finding[] = [
-  {
-    findingId: "find-001",
-    merchantId: "merchant-pilot-001",
-    severity: "critical",
-    title: "Payment Amount Mismatch",
-    description: "Captured amount differs from authorized amount by INR 50. Possible partial capture not reflected in order.",
-    affectedObject: "txn-002",
-    resolution: "compensated",
-    compensationCommand: "compensate --txn txn-002 --amount 50 --reason partial_capture_mismatch",
-    detectedAt: "2025-01-20T11:00:00Z",
-    resolvedAt: "2025-01-20T12:00:00Z",
-  },
-  {
-    findingId: "find-002",
-    merchantId: "merchant-pilot-001",
-    severity: "high",
-    title: "Webhook Delivery Failure",
-    description: "Order status webhook failed delivery 3 consecutive times. Events may be out of sync.",
-    affectedObject: "webhook-order-status-001",
-    resolution: "acknowledged",
-    compensationCommand: null,
-    detectedAt: "2025-01-20T10:30:00Z",
-    resolvedAt: null,
-  },
-  {
-    findingId: "find-003",
-    merchantId: "merchant-pilot-001",
-    severity: "medium",
-    title: "Mapping Version Drift",
-    description: "Product catalog mapping version is behind latest Shopify catalog sync by 2 versions.",
-    affectedObject: "mapping-v3",
-    resolution: "open",
-    compensationCommand: null,
-    detectedAt: "2025-01-20T09:00:00Z",
-    resolvedAt: null,
-  },
-  {
-    findingId: "find-004",
-    merchantId: "merchant-pilot-001",
-    severity: "low",
-    title: "Slow Razorpay Response",
-    description: "Average Razorpay API response time exceeded 2s threshold (avg 2.4s over last hour).",
-    affectedObject: "razorpay-api",
-    resolution: "dismissed",
-    compensationCommand: null,
-    detectedAt: "2025-01-20T08:00:00Z",
-    resolvedAt: "2025-01-20T08:30:00Z",
-  },
-  {
-    findingId: "find-005",
-    merchantId: "merchant-pilot-001",
-    severity: "info",
-    title: "New Policy Version Available",
-    description: "Bilateral policy v3 has been published. Current merchant is on v2.",
-    affectedObject: "policy-bilateral-v3",
-    resolution: "open",
-    compensationCommand: null,
-    detectedAt: "2025-01-19T16:00:00Z",
-    resolvedAt: null,
-  },
+const DEMO_FINDINGS: Finding[] = [
+  { findingId: "fnd-001", merchantId: "merchant-pilot-001", severity: "high", title: "Webhook Delivery Failures", description: "Order fulfillment webhook has failed 3 consecutive times", affectedObject: "webhook:order-fulfillment", resolution: "open", compensationCommand: null, detectedAt: "2025-01-20T09:00:00Z", resolvedAt: null },
+  { findingId: "fnd-002", merchantId: "merchant-pilot-001", severity: "medium", title: "Unmapped Product Categories", description: "3 products have no Counter category assignment", affectedObject: "mapping:products", resolution: "acknowledged", compensationCommand: "remap-products", detectedAt: "2025-01-19T14:00:00Z", resolvedAt: null },
+  { findingId: "fnd-003", merchantId: "merchant-pilot-001", severity: "low", title: "SSL Certificate Expiring", description: "Certificate expires in 30 days", affectedObject: "security:ssl", resolution: "open", compensationCommand: null, detectedAt: "2025-01-18T08:00:00Z", resolvedAt: null },
+  { findingId: "fnd-004", merchantId: "merchant-pilot-001", severity: "critical", title: "Payment Gateway Error Rate", description: "Error rate exceeded 5% threshold", affectedObject: "payments:razorpay", resolution: "resolved", compensationCommand: null, detectedAt: "2025-01-17T22:00:00Z", resolvedAt: "2025-01-17T22:30:00Z" },
 ];
 
-function severityStyle(severity: FindingSeverity): { bg: string; color: string } {
-  switch (severity) {
-    case "critical": return { bg: "#fee2e2", color: "#991b1b" };
-    case "high": return { bg: "#ffedd5", color: "#9a3412" };
-    case "medium": return { bg: "#fef3c7", color: "#92400e" };
-    case "low": return { bg: "#f3f4f6", color: "#374151" };
-    case "info": return { bg: "#dbeafe", color: "#1e40af" };
-  }
+function getSeverityVariant(severity: FindingSeverity) {
+  switch (severity) { case "critical": case "high": return "error" as const; case "medium": return "warning" as const; case "low": return "info" as const; case "info": return "secondary" as const; }
 }
 
-function resolutionLabel(resolution: FindingResolution): string {
-  switch (resolution) {
-    case "open": return "Open";
-    case "acknowledged": return "Acknowledged";
-    case "compensated": return "Compensated";
-    case "resolved": return "Resolved";
-    case "dismissed": return "Dismissed";
-  }
-}
+const columns: DataTableColumn<Record<string, unknown>>[] = [
+  { key: "severity", header: "Severity", cell: (item: any) => <Badge variant={getSeverityVariant(item.severity)}>{item.severity}</Badge> },
+  { key: "title", header: "Finding", cell: (item: any) => <div><p className="font-medium text-[var(--foreground)]">{item.title}</p><p className="text-xs text-[var(--foreground-muted)]">{item.description}</p></div> },
+  { key: "resolution", header: "Status", cell: (item: any) => <Badge variant={item.resolution === "resolved" ? "success" : item.resolution === "acknowledged" ? "warning" : "secondary"}>{item.resolution}</Badge> },
+  { key: "detectedAt", header: "Detected", cell: (item: any) => <span className="text-sm text-[var(--foreground-secondary)]">{new Date(item.detectedAt).toLocaleDateString()}</span> },
+];
 
 export default function FindingsPage() {
   return (
-    <div>
-      <h1>Findings &amp; Reconciliation</h1>
-      <p style={{ color: "#666" }}>
-        Review reconciliation findings, track severity and resolution, and execute compensation commands.
-      </p>
-
-      {/* Summary */}
-      <section style={{ marginTop: "24px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-        {(["critical", "high", "medium", "low", "info"] as FindingSeverity[]).map((sev) => {
-          const count = DEMO_FINDINGS.filter((f) => f.severity === sev).length;
-          const style = severityStyle(sev);
-          return (
-            <div key={sev} style={{ padding: "12px 20px", borderRadius: "8px", backgroundColor: style.bg, textAlign: "center" }}>
-              <div style={{ fontSize: "20px", fontWeight: 700, color: style.color }}>{count}</div>
-              <div style={{ fontSize: "11px", color: style.color, textTransform: "uppercase" }}>{sev}</div>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* Findings List */}
-      <section style={{ marginTop: "24px" }}>
-        {DEMO_FINDINGS.map((finding) => {
-          const style = severityStyle(finding.severity);
-          return (
-            <div
-              key={finding.findingId}
-              style={{ marginBottom: "16px", padding: "16px", border: "1px solid #e5e7eb", borderRadius: "8px", borderLeft: `4px solid ${style.color}` }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ padding: "3px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 700, backgroundColor: style.bg, color: style.color }}>
-                    {finding.severity.toUpperCase()}
-                  </span>
-                  <strong>{finding.title}</strong>
-                </div>
-                <span style={{ fontSize: "12px", padding: "3px 8px", borderRadius: "10px", backgroundColor: "#f3f4f6", color: "#374151" }}>
-                  {resolutionLabel(finding.resolution)}
-                </span>
-              </div>
-              <p style={{ margin: "8px 0", fontSize: "13px", color: "#4b5563" }}>{finding.description}</p>
-              <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                Affected: <code>{finding.affectedObject}</code> | Detected: {finding.detectedAt}
-                {finding.resolvedAt && <span> | Resolved: {finding.resolvedAt}</span>}
-              </div>
-              {finding.compensationCommand && (
-                <div style={{ marginTop: "8px", padding: "8px 12px", backgroundColor: "#f8fafc", borderRadius: "4px", fontFamily: "monospace", fontSize: "12px", border: "1px solid #e2e8f0" }}>
-                  $ {finding.compensationCommand}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </section>
-    </div>
+    <PageWrapper>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Findings</h1>
+          <p className="mt-1 text-[var(--foreground-secondary)]">Security findings and reconciliation issues.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          {[{ label: "Critical", count: 0, v: "error" as const }, { label: "High", count: 1, v: "error" as const }, { label: "Medium", count: 1, v: "warning" as const }, { label: "Low", count: 1, v: "info" as const }].map((item) => (
+            <Card key={item.label}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-[var(--foreground)]">{item.count}</p><Badge variant={item.v} className="mt-1">{item.label}</Badge></CardContent></Card>
+          ))}
+        </div>
+        <DataTable columns={columns} data={DEMO_FINDINGS as any} emptyMessage="No findings detected" />
+      </div>
+    </PageWrapper>
   );
 }
