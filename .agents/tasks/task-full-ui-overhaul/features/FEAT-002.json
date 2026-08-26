@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Build the Counter landing page (apps/landing) - a stunning, Linear/Stripe-quality marketing site. Hero section with animated orange gradient cubes fading into dark background (Framer Motion), bold tagline 'The commerce layer for AI agents', feature grid, early access/waitlist CTA, pricing section, and footer. Fully responsive, dark mode primary with light mode support.",
+  "status": "completed",
+  "steps": [
+    "Create apps/landing directory with Next.js 16.3.3 app: package.json (name: @counter/landing, dependencies: next, react, react-dom, @counter/ui, framer-motion, next-themes), next.config.ts, tsconfig.json",
+    "Create apps/landing/src/app/globals.css importing @counter/ui styles and adding landing-page-specific animations (gradient animation keyframes, cube float animations, glow effects)",
+    "Create apps/landing/src/app/layout.tsx with ThemeProvider (dark default), metadata (title: 'Counter - The commerce layer for AI agents', description, OG tags for getcounter.in), and Inter/Geist font setup",
+    "Create apps/landing/src/components/header.tsx - sticky header with Counter logo, nav links (Features, Pricing, Docs), and 'Contact Us' CTA button with orange accent",
+    "Create apps/landing/src/components/hero.tsx - Full viewport hero: Large bold heading 'The commerce layer for AI agents' with subtle gradient text, subheading explaining Counter's value prop for AI-native commerce, two CTAs ('Get Early Access' primary orange button, 'Read Docs' ghost button). Background: animated 3D-perspective grid of orange cubes/blocks using Framer Motion that float, rotate subtly, and fade from bright orange center to dark edges. Particle/glow effects.",
+    "Create apps/landing/src/components/features.tsx - Feature grid section: 6 feature cards with icons (lucide-react) highlighting: AI Agent Wallets, Merchant Control Plane, Trust Protocol, Real-time Transactions, Policy Engine, Commerce Graph. Each card has glass-morphism dark background, orange icon accent, title, description. Animate on scroll with Framer Motion.",
+    "Create apps/landing/src/components/how-it-works.tsx - 3-step flow visualization: 1. Agent discovers products, 2. Policy engine approves, 3. Secure transaction executes. Connected by animated gradient line.",
+    "Create apps/landing/src/components/stats.tsx - Impressive metrics section: '24 tables', '61 tasks completed', '2654+ tests passing', 'Sub-100ms latency'. Animated counter numbers on scroll.",
+    "Create apps/landing/src/components/cta-section.tsx - Full-width CTA section with 'Ready to build the future of AI commerce?' heading, email input for waitlist, submit button, and subtle orange gradient background glow",
+    "Create apps/landing/src/components/footer.tsx - Dark footer with Counter logo, nav columns (Product: Features, Pricing, Docs, API; Company: About, Blog, Careers; Legal: Privacy, Terms), social links, copyright",
+    "Create apps/landing/src/app/page.tsx composing all sections: Header, Hero, Features, HowItWorks, Stats, CTASection, Footer",
+    "Create apps/landing/src/app/docs/page.tsx - placeholder docs landing page with links to API documentation sections",
+    "Ensure responsive design: mobile hamburger menu in header, stacked layouts on small screens, properly sized text",
+    "Add proper meta tags, favicon reference, and structured data for SEO"
+  ],
+  "acceptance_criteria": [
+    "Landing page builds successfully with `next build`",
+    "Hero section has animated orange gradient cube background using Framer Motion",
+    "All 6 feature cards render with icons and descriptions",
+    "CTA sections have email input and submit button",
+    "Page is fully responsive from mobile (320px) to desktop (1920px+)",
+    "Dark mode is default, light mode toggle works",
+    "Counter logo SVG renders in header and footer",
+    "No TypeScript errors in build output"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm install && pnpm build"
+  ],
+  "blocked_reason": null,
+  "findings": "Build and all tests pass. The landing app is fully static (output: export). Uses @counter/ui workspace dependency for shared components. Added @tailwindcss/postcss and tailwindcss as devDependencies for Tailwind v4 CSS processing."
+}
