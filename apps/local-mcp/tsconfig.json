@@ -4,5 +4,33 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/wallet-domain"
+    },
+    {
+      "path": "../../packages/wallet-contracts"
+    },
+    {
+      "path": "../../packages/wallet-application"
+    },
+    {
+      "path": "../../packages/payment-sdk"
+    },
+    {
+      "path": "../../packages/evidence"
+    },
+    {
+      "path": "../../packages/trust-protocol"
+    },
+    {
+      "path": "../../packages/merchant-contracts"
+    },
+    {
+      "path": "../../packages/domain"
+    }
+  ]
 }

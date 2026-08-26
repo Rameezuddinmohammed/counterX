@@ -80,7 +80,7 @@ export class ProductIndex {
    * Text search across title, description, and SKU.
    * Returns safe agent projections (no internal IDs leaked).
    */
-  public search(query: string, limit?: number | undefined): readonly ProductProjection[] {
+  public search(query: string, limit?: number): readonly ProductProjection[] {
     const normalizedQuery = query.toLowerCase();
     const results: ProductProjection[] = [];
     const maxResults = limit ?? 50;

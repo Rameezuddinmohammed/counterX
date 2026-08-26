@@ -18,5 +18,17 @@
   "devDependencies": {
     "typescript": "5.7.3",
     "vitest": "3.0.7"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@counter/wallet-domain": "workspace:*",
+    "@counter/wallet-application": "workspace:*",
+    "@counter/wallet-contracts": "workspace:*",
+    "@counter/payment-sdk": "workspace:*",
+    "@counter/evidence": "workspace:*",
+    "@counter/trust-protocol": "workspace:*",
+    "@counter/merchant-contracts": "workspace:*",
+    "@counter/domain": "workspace:*",
+    "zod": "3.25.76"
   }
 }

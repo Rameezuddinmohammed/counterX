@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Wallet Tasks 7-8: Buyer policy persistence with deterministic validation (merchant/domain allowlists, India geography, category/SKU, INR limits, rolling limits, approval thresholds) and mandate issuance/sync/revocation (signed bounded mandates from stepped-up consent)",
+  "status": "completed",
+  "steps": [
+    "Task 7 - Buyer policy types in packages/wallet-domain/src/buyer-policy.ts: Define immutable versioned policy types: MerchantAllowlist (Counter merchant IDs, verified domains), GeographyConstraint (India legal/settlement country, delivery country - NOT IP/domain suffix), CategoryConstraint (product categories, optional SKUs), CurrencyConstraint (INR only for pilot), AmountLimits (per-transaction ceiling, rolling period limits, aggregate limits in paise bigint), CountLimits (transaction count, quantity limits), OperationConstraint (permitted operations), TimeConstraint (valid days/times, expiry), ApprovalThreshold (amount above which manual approval required), PaymentReferenceConstraint (permitted authorization references).",
+    "Task 7 - Buyer policy version store in packages/wallet-domain/src/buyer-policy-store.ts: Define BuyerPolicyVersion (versionId, walletId, constraints, createdAt, createdBy, supersedes). Policies are immutable by version - create new version on change, never overwrite. Define BuyerPolicyRepository interface and InMemoryBuyerPolicyRepository.",
+    "Task 7 - Deterministic policy evaluation in packages/wallet-domain/src/policy-evaluator.ts: Implement evaluatePolicy(currentPolicy, proposedAction) returning a deterministic PolicyDecision (allowed, denied with reason, review_required). Evaluation checks all constraint types in defined order. Errors fail closed (deny). Include plain-language rendering of why a decision was made.",
+    "Task 7 - Policy simulation in packages/wallet-domain/src/policy-simulator.ts: Allow principal to simulate policy against synthetic/past transactions before activation. Returns what would have been allowed/denied under the proposed policy.",
+    "Task 7 - Policy widening detection: Implement isWidening(oldPolicy, newPolicy) to detect when constraints are being relaxed (triggers step-up). Narrowing/emergency suspension takes immediate effect without step-up.",
+    "Task 7 - Policy tests: Test India metadata semantics (verified merchant country, not IP), overlapping constraints (multiple rules), boundary values (exactly at limit), rolling limit accumulation, agent/MCP mutation denial (policy changes only through principal with step-up), concurrent limit checks.",
+    "Task 8 - Mandate types in packages/wallet-domain/src/mandate.ts: Define Mandate interface binding: principalId, walletId, agentId (registered key), merchant IDs/domains, geography, category/SKU, currency, transaction/rolling limits, operations, approval threshold, payment reference, validity window, nonce/replay scope, revocation locator. Mandates are CTP signed envelopes (counter.mandate.v1).",
+    "Task 8 - Mandate issuance in packages/wallet-application/src/mandate-service.ts: Issue mandates ONLY from current stepped-up consent attestation (reference consent attestation by digest). Validate that agent is registered with active key, policy allows the scope, and consent is fresh. Build and sign CTP mandate envelope.",
+    "Task 8 - Mandate sync in packages/wallet-application/src/mandate-sync.ts: Implement local fetch/verify/cache of mandates. Conservative stale behavior: if mandate freshness cannot be verified, deny rather than allow.",
+    "Task 8 - Revocation in packages/wallet-application/src/revocation-service.ts: Implement monotonic revocation for wallet, agent, key, mandate, trigger, and payment-reference. Revocation is authenticated, durable, replay-protected, auditable. Once accepted, blocks ALL future consequential effects immediately. Revocation cannot be undone (monotonic).",
+    "Task 8 - Mandate/revocation tests: Test policy widening requires new mandate, expiry enforced, wrong key/merchant/payment reference rejected, replay of revoked mandate rejected, revocation races (concurrent revoke + use), historical evidence preserved after revocation, narrowing takes immediate effect."
+  ],
+  "acceptance_criteria": [
+    "Buyer policy types cover all constraint categories from requirements section 6",
+    "Policy evaluation is deterministic - same input always produces same decision",
+    "Policy versions are immutable - historical versions preserved",
+    "Policy widening detected and requires step-up; narrowing is immediate",
+    "India geography evaluates verified merchant metadata (not IP/domain)",
+    "Mandates are CTP signed envelopes binding all required fields",
+    "Mandates issued only from fresh stepped-up consent attestation",
+    "Revocation is monotonic, immediate, and blocks all future effects",
+    "Rolling/aggregate limits checked atomically (concurrent actions cannot exceed)",
+    "All builds, tests, lint, and depcruise pass"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": "All verification passes: build, test (151 wallet-domain tests, 91 wallet-application tests), lint, depcruise (no violations). Used exactOptionalPropertyTypes spread pattern for CTP payload construction. Catch clause unused variable needed bare catch instead of _error pattern due to eslint config."
+}

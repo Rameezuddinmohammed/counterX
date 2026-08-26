@@ -70,7 +70,7 @@ export interface VerifiedAuthority {
   readonly allowedOperations: readonly string[];
   readonly allowedMerchants: readonly string[];
   readonly currencies: readonly string[];
-  readonly perTransactionLimit: { readonly amount: number; readonly currency: string };
+  readonly perTransactionLimit: { readonly amount: number | string; readonly currency: string };
   readonly validUntil: Instant;
 }
 

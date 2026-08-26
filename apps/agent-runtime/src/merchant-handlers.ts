@@ -333,7 +333,7 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
   const behavior = options.behavior ?? "success";
   const idempotencyCache = options.idempotencyCache ?? new Map<string, unknown>();
 
-  function checkIdempotency(ctx: HandlerContext): unknown | undefined {
+  function checkIdempotency(ctx: HandlerContext): unknown {
     if (ctx.idempotencyKey !== undefined) {
       const cached = idempotencyCache.get(ctx.idempotencyKey);
       if (cached !== undefined) return cached;

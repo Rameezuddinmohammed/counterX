@@ -219,7 +219,7 @@ export class TransactionReconciler {
         return createRefundCommand(
           finding,
           moneyResult.value,
-          String(firstPayment.canonicalClaim.details["paymentId"] ?? firstPayment.sourceId),
+          String((firstPayment.canonicalClaim.details["paymentId"] as string | undefined) ?? firstPayment.sourceId),
           "Price mismatch detected during reconciliation",
           context,
         );
@@ -235,7 +235,7 @@ export class TransactionReconciler {
 
         return createVoidCommand(
           finding,
-          String(authRecord.canonicalClaim.details["authorizationId"] ?? authRecord.sourceId),
+          String((authRecord.canonicalClaim.details["authorizationId"] as string | undefined) ?? authRecord.sourceId),
           "Orphaned authorization detected, no corresponding capture or void",
           context,
         );
@@ -251,7 +251,7 @@ export class TransactionReconciler {
         if (authRecord !== undefined) {
           return createVoidCommand(
             finding,
-            String(authRecord.canonicalClaim.details["authorizationId"] ?? authRecord.sourceId),
+            String((authRecord.canonicalClaim.details["authorizationId"] as string | undefined) ?? authRecord.sourceId),
             "Payment/order mismatch: payment exists without order commitment",
             context,
           );
@@ -265,7 +265,7 @@ export class TransactionReconciler {
         if (orderRecord !== undefined) {
           return createCancelCommand(
             finding,
-            String(orderRecord.canonicalClaim.details["orderId"] ?? orderRecord.sourceId),
+            String((orderRecord.canonicalClaim.details["orderId"] as string | undefined) ?? orderRecord.sourceId),
             "Payment/order mismatch: order exists without payment confirmation",
             context,
           );
@@ -284,7 +284,7 @@ export class TransactionReconciler {
         if (orderRecord !== undefined) {
           return createCancelCommand(
             finding,
-            String(orderRecord.canonicalClaim.details["orderId"] ?? orderRecord.sourceId),
+            String((orderRecord.canonicalClaim.details["orderId"] as string | undefined) ?? orderRecord.sourceId),
             "Stale evidence detected, cancelling associated order",
             context,
           );

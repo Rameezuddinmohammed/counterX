@@ -7,7 +7,7 @@
  */
 
 import type { Instant } from "@counter/domain";
-import type { Result } from "@counter/domain";
+import type { Result, Sha256Digest } from "@counter/domain";
 import { ok, err, createCanonicalError } from "@counter/domain";
 import type { IdGenerator } from "@counter/domain";
 import type { PriceSnapshot, InventorySnapshot, FreshnessAssessment } from "@counter/commerce-graph";
@@ -15,7 +15,7 @@ import { evaluateFreshness } from "@counter/commerce-graph";
 import type { PilotQuoteConfig } from "./quote-config.js";
 import type { ImmutableQuote, QuoteLineItem } from "./quote-types.js";
 import type { ProductProjection } from "./product-index.js";
-import { ProductIndex } from "./product-index.js";
+import type { ProductIndex } from "./product-index.js";
 import { computeCtpDigest } from "./quote-verification.js";
 
 // ─── Create Quote Request ─────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ export class QuoteService {
       createdAt,
       validUntil,
       freshnessAssessment: worstFreshness!,
-      ctpDigest: "" as unknown as import("@counter/domain").Sha256Digest,
+      ctpDigest: "" as unknown as Sha256Digest,
       metadata: Object.freeze({
         taxSource: "merchant_pilot_config" as const,
         shippingSource: "merchant_pilot_config" as const,

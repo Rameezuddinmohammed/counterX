@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement consequential MCP tools, hard denylist enforcement, and autonomous Counter test-provider purchase end-to-end flow (Tasks 14-15).",
+  "status": "completed",
+  "steps": [
+    "Create apps/local-mcp/src/tools/write-tools.ts: Implement consequential MCP tools - purchase.propose (effect-free proposal via PolicyPrecheckService+PurchaseProposalBuilder), purchase.execute (exact purchase via PurchaseIntentBuilder+MerchantRuntimeClient, requires valid approved intent), purchase.cancel (cancel pending transaction), purchase.refund-request (request refund on completed transaction). Each tool validates inputs strictly, uses typed runtime client, and returns structured results.",
+    "Extend apps/local-mcp/src/index.ts: Register write tools from write-tools.ts. Extend DENIED_TOOL_PATTERNS to include: 'key.export', 'key.rotate', 'key.derive', 'policy.mutate', 'policy.override', 'approval.grant', 'approval.override', 'recovery.initiate', 'recovery.complete', 'settlement.assert', 'settlement.override', 'payment-secret.read', 'payment-secret.write'. Add isDeniedTool check before any tool registration.",
+    "Create apps/local-mcp/src/tools/write-tools.test.ts: Tests for proposal tool (policy check + proposal generation), execute tool (requires approved intent, validates mandate/quote binding), cancel tool, refund-request tool. Include error cases.",
+    "Create apps/local-mcp/src/denylist-reflection.test.ts: Reflection tests that enumerate all registered tools and verify NONE match denied patterns. Test that attempting to register a denied tool name throws. Test the complete denied pattern list includes all required patterns from Task 14.",
+    "Create apps/local-mcp/src/e2e-purchase.test.ts: End-to-end autonomous purchase test using InMemoryMerchantRuntimeClient and CounterTestPaymentProvider. Flow: create wallet -> set policy -> get quote -> precheck -> propose -> approve (below threshold) -> build intent -> execute purchase -> verify transaction -> get receipt -> verify receipt signature. Include scenarios: above-threshold triggers review_required, revoked mandate rejects, exceeded limits reject, duplicate idempotency key returns same result, timeout produces indeterminate, false claim (modified quote) rejects.",
+    "Update apps/local-mcp/package.json: Add @counter/payment-sdk, @counter/evidence, @counter/trust-protocol, @counter/merchant-contracts dependencies.",
+    "Update apps/local-mcp/src/index.test.ts: Extend denylist tests to cover all new denied patterns."
+  ],
+  "acceptance_criteria": [
+    "purchase.propose tool returns effect-free proposal with policy decision",
+    "purchase.execute tool validates approved intent and calls merchant runtime",
+    "purchase.cancel and purchase.refund-request tools work correctly",
+    "All denied tool patterns are enforced - reflection test proves no forbidden tool is registered",
+    "Denied patterns include: key.export, key.rotate, key.derive, policy.mutate, policy.override, approval.grant, approval.override, recovery.initiate, recovery.complete, settlement.assert, settlement.override, payment-secret.read, payment-secret.write",
+    "E2E test demonstrates full autonomous purchase flow with Counter test provider",
+    "E2E test covers above-threshold denial, revocation, limits, duplicates, timeout, and false claims",
+    "All tests pass via pnpm test"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint"
+  ],
+  "blocked_reason": null,
+  "findings": "Used keyId (not kid) from GeneratedKeyResult. Network error kind is network (not network_error). All 81 local-mcp tests pass. Full monorepo passes."
+}

@@ -82,11 +82,15 @@ export interface TransactionLedger {
  */
 export class InMemoryTransactionLedger implements TransactionLedger {
   readonly #entries: Map<string, LedgerEntry[]>;
-  readonly #idempotencyKeys: Set<string>;
+  readonly #idempotencyKeys: Map<string, number>;
+  readonly #idempotencyTtlMs: number;
+  readonly #maxIdempotencyKeys: number;
 
-  public constructor() {
+  public constructor(idempotencyTtlMs = 3_600_000, maxIdempotencyKeys = 10_000) {
     this.#entries = new Map();
-    this.#idempotencyKeys = new Set();
+    this.#idempotencyKeys = new Map();
+    this.#idempotencyTtlMs = idempotencyTtlMs;
+    this.#maxIdempotencyKeys = maxIdempotencyKeys;
   }
 
   public getWindowEntries(walletId: WalletId, windowStart: Instant): readonly LedgerEntry[] {
@@ -117,11 +121,36 @@ export class InMemoryTransactionLedger implements TransactionLedger {
     } else {
       this.#entries.set(entry.walletId, [entry]);
     }
-    this.#idempotencyKeys.add(entry.idempotencyKey);
+    this.#idempotencyKeys.set(entry.idempotencyKey, Date.now());
+    this.#evictExpiredIdempotencyKeys();
   }
 
   public hasIdempotencyKey(idempotencyKey: string): boolean {
-    return this.#idempotencyKeys.has(idempotencyKey);
+    const recordedAt = this.#idempotencyKeys.get(idempotencyKey);
+    if (recordedAt === undefined) return false;
+    if (Date.now() - recordedAt > this.#idempotencyTtlMs) {
+      this.#idempotencyKeys.delete(idempotencyKey);
+      return false;
+    }
+    return true;
+  }
+
+  #evictExpiredIdempotencyKeys(): void {
+    if (this.#idempotencyKeys.size <= this.#maxIdempotencyKeys) return;
+    const now = Date.now();
+    for (const [key, recordedAt] of this.#idempotencyKeys) {
+      if (now - recordedAt > this.#idempotencyTtlMs) {
+        this.#idempotencyKeys.delete(key);
+      }
+    }
+    // If still over max after TTL eviction, remove oldest entries
+    if (this.#idempotencyKeys.size > this.#maxIdempotencyKeys) {
+      const entries = [...this.#idempotencyKeys.entries()].sort((a, b) => a[1] - b[1]);
+      const toRemove = entries.slice(0, entries.length - this.#maxIdempotencyKeys);
+      for (const [key] of toRemove) {
+        this.#idempotencyKeys.delete(key);
+      }
+    }
   }
 }
 

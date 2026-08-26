@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Implement Razorpay human-action wallet flow, local time-trigger scheduler, and claim ledger with receipt verification (Tasks 16-17-18).",
+  "status": "completed",
+  "steps": [
+    "Create packages/wallet-application/src/payment-action.ts: PaymentActionService that renders a hosted payment action (Razorpay flow) with merchant info, line items, INR total, expiry from PaymentActionGrant. Supports poll/subscribe pattern for server state updates. Distinguishes provider-confirmed (Razorpay callback verified) from order-confirmed (Shopify order complete). Handles continuation denial (re-check policy/kill-switch before finalization), refund-pending state, and human-remediation outcomes (expired grant, user abort).",
+    "Create packages/wallet-application/src/payment-action.test.ts: Tests for payment action rendering, poll state transitions, continuation denial, refund-pending, human-remediation, grant expiry.",
+    "Create packages/wallet-application/src/time-trigger.ts: TimeTriggerScheduler service. Triggers are created only through explicit Wallet Console actions (not MCP tools). Each trigger is bound to: policyVersionId, mandateRef, template (purchase spec), schedule (cron-like or interval). Execution uses occurrence-level idempotency (hash of triggerRef + scheduledTime). Before each execution: fresh policy precheck, mandate validity check, kill-switch check. Restricted to Counter test provider only (rejects non-test merchants).",
+    "Create packages/wallet-application/src/time-trigger.test.ts: Tests for trigger creation, occurrence idempotency, fresh precheck on execution, mandate expiry rejection, kill-switch block, non-test-provider rejection.",
+    "Create packages/wallet-application/src/claim-ledger.ts: ClaimLedger service with source-labelled claims. Claim sources: model_request, model_proposal, model_decision, intent, merchant_response, provider_evidence. Each claim has: sourceType, sourceId, timestamp, data, verified (boolean). Supports consuming audience-scoped receipts and verifying locally using evidence package verifyReceipt (schema validation, Ed25519 signature, audience match, canonical digest, supersession chain).",
+    "Create packages/wallet-application/src/claim-ledger.test.ts: Tests for claim recording by source, receipt consumption and verification (valid receipt passes, wrong audience fails, invalid signature fails, broken chain fails, expired receipt fails).",
+    "Update packages/wallet-application/src/index.ts barrel to export PaymentActionService, TimeTriggerScheduler, ClaimLedger and their types.",
+    "Update packages/wallet-application/package.json to add @counter/evidence and @counter/trust-protocol dependencies if not already present."
+  ],
+  "acceptance_criteria": [
+    "PaymentActionService renders hosted payment with merchant/items/INR total/expiry",
+    "Poll/subscribe pattern distinguishes provider-confirmed from order-confirmed",
+    "Continuation denial re-checks policy before finalization",
+    "Refund-pending and human-remediation outcomes are handled",
+    "TimeTriggerScheduler creates triggers bound to policy/mandate/template/schedule",
+    "Occurrence-level idempotency prevents duplicate executions for same scheduled time",
+    "Fresh precheck runs before each trigger execution",
+    "Scheduler rejects non-Counter-test-provider merchants",
+    "ClaimLedger records source-labelled claims from all source types",
+    "Receipt verification checks schema, signature, audience, digest, and chain",
+    "All tests pass via pnpm test"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd /root/counterX && pnpm lint"
+  ],
+  "blocked_reason": null,
+  "findings": "Added @counter/evidence dependency. exactOptionalPropertyTypes required spread-based conditional property assignment for optional fields in ReceiptVerifyOptions. IsoCurrencyCode is a branded type requiring explicit cast in tests."
+}
