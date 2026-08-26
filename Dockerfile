@@ -25,4 +25,4 @@ ENV BUILD_TARGET=${BUILD_TARGET}
 ENV PORT=8080
 EXPOSE 8080
 
-CMD node ${BUILD_TARGET}/dist/index.js
+CMD node ${BUILD_TARGET}/dist/main.js
