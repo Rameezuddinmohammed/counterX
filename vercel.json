@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter @counter/$VERCEL_PROJECT_NAME build",
+  "outputDirectory": "apps/$VERCEL_PROJECT_NAME/.next"
+}
