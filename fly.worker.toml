@@ -1,0 +1,15 @@
+app = "counter-worker"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+  [build.args]
+    BUILD_TARGET = "apps/worker"
+
+[processes]
+  worker = "node apps/worker/dist/index.js"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = 256

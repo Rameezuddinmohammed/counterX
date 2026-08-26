@@ -1,0 +1,19 @@
+app = "counter-control-plane-api"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+  [build.args]
+    BUILD_TARGET = "apps/control-plane-api"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = 256
