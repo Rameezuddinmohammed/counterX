@@ -78,6 +78,29 @@ const ALLOW_ALL_POLICY: LifecyclePolicyPort = {
   allow: (): Promise<boolean> => Promise.resolve(true),
 };
 
+// ─── Kill-switch gate ────────────────────────────────────────────────────────
+
+/**
+ * Pre-effect kill-switch gate. An operator-controlled circuit breaker consulted
+ * in the SAME position as the policy allow gate — BEFORE any consequential
+ * external effect. `blocked` returns the key of the FIRST active switch that
+ * denies the checkout (e.g. `platform`, `merchant:<id>`, `connector`,
+ * `payment_adapter`) or `undefined` when nothing blocks. When a switch is
+ * active the lifecycle returns a declined outcome with providerReference
+ * `kill-switch-blocked:<key>` and creates ZERO external effect.
+ *
+ * The default allows everything so existing unit tests and local runs are
+ * unaffected; boot.ts injects a Postgres-backed adapter for the real
+ * deployment so an operator can halt live checkouts durably across restarts.
+ */
+export interface KillSwitchGatePort {
+  blocked(request: PaymentAuthorizationRequest): Promise<string | undefined>;
+}
+
+const ALLOW_ALL_KILL_SWITCH: KillSwitchGatePort = {
+  blocked: (): Promise<string | undefined> => Promise.resolve(undefined),
+};
+
 // ─── Durable step ledger ─────────────────────────────────────────────────────
 
 /**
@@ -153,6 +176,13 @@ export interface RealLifecycleConfig {
   /** Merchant identity used on payment commands. */
   readonly merchantId: MerchantId;
   readonly policy?: LifecyclePolicyPort | undefined;
+  /**
+   * Pre-effect kill-switch gate consulted BEFORE any external effect. Defaults
+   * to an allow-all gate; boot.ts injects a Postgres-backed adapter so an
+   * operator can durably halt live checkouts for a platform/merchant/connector
+   * /payment_adapter scope.
+   */
+  readonly killSwitch?: KillSwitchGatePort | undefined;
   readonly variantResolver?: VariantResolverPort | undefined;
   /** Bounded per-action timeout in milliseconds (defaults to 15s). */
   readonly actionTimeoutMs?: number | undefined;
@@ -222,6 +252,7 @@ export function createRealPaymentAuthorizationPort(
   config: RealLifecycleConfig,
 ): PaymentAuthorizationPort {
   const policy = config.policy ?? ALLOW_ALL_POLICY;
+  const killSwitch = config.killSwitch ?? ALLOW_ALL_KILL_SWITCH;
   const timeoutMs = config.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
   const stepLedger = config.stepLedger ?? createInMemoryStepLedger();
 
@@ -262,7 +293,22 @@ export function createRealPaymentAuthorizationPort(
         return cached;
       }
 
-      // 2. Policy allow gate (explicit).
+      // 2a. Kill-switch gate (operator circuit breaker). Consulted BEFORE the
+      //     policy gate and BEFORE any external effect: an active platform,
+      //     merchant, connector, or payment_adapter switch DENIES the checkout
+      //     with a blocked outcome and creates ZERO external effect.
+      const blockedBy = await killSwitch.blocked(request);
+      if (blockedBy !== undefined) {
+        const killed = Object.freeze({
+          status: "declined" as const,
+          capturedMinor: 0,
+          providerReference: `kill-switch-blocked:${blockedBy}`,
+        });
+        outcomeCache.set(key, killed);
+        return killed;
+      }
+
+      // 2b. Policy allow gate (explicit).
       const allowed = await policy.allow(request);
       if (!allowed) {
         const denied = Object.freeze({

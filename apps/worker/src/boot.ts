@@ -23,8 +23,8 @@ import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
-import { PostgresStepLedger } from "@counter/data";
-import type { AsyncStepLedger } from "@counter/data";
+import { PostgresStepLedger, PostgresKillSwitchStore } from "@counter/data";
+import type { AsyncStepLedger, AsyncKillSwitchStore, KillSwitchScope } from "@counter/data";
 import type { Instant } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
 
@@ -38,6 +38,7 @@ import type {
   RealLifecycleConfig,
   StepLedgerEntry,
   StepLedgerPort,
+  KillSwitchGatePort,
 } from "./real-lifecycle.js";
 import type {
   PaymentAuthorizationPort,
@@ -76,6 +77,23 @@ export type ConnectorMode = "real" | "deterministic";
 export interface SelectedPaymentPort {
   readonly mode: ConnectorMode;
   readonly port: PaymentAuthorizationPort;
+  /**
+   * The real connector bundle, present only when `mode` is "real". Exposed so
+   * the deployment entrypoint can wire the periodic reconciliation job against
+   * the SAME real Shopify connector without rebuilding credentials.
+   */
+  readonly bundle?: RealConnectorBundle | undefined;
+}
+
+/**
+ * Durable Postgres-backed stores resolved at the deployment entrypoint and
+ * threaded into the real lifecycle: the step ledger (cross-restart dedup of the
+ * Shopify legs) and the kill-switch store (operator circuit breaker consulted
+ * before any external effect). Both are optional so unit tests can omit them.
+ */
+export interface DurableStores {
+  readonly stepLedger?: AsyncStepLedger | undefined;
+  readonly killSwitchStore?: AsyncKillSwitchStore | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -90,8 +108,9 @@ export interface SelectedPaymentPort {
 export function selectPaymentAuthorizationPort(
   env: EnvironmentBag,
   overrides?: Partial<
-    Pick<RealLifecycleConfig, "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger">
+    Pick<RealLifecycleConfig, "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger" | "killSwitch">
   >,
+  stores?: DurableStores,
 ): SelectedPaymentPort {
   // Fail loud in prod-like environments when credentials are missing; return
   // null (mock-eligible) in local/test.
@@ -104,6 +123,19 @@ export function selectPaymentAuthorizationPort(
 
   const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
 
+  // Durable stores (Postgres-backed) resolved at the deployment entrypoint are
+  // preferred over any explicit override. An explicit override still wins over
+  // the store so tests can inject a double.
+  const durableStepLedger =
+    stores?.stepLedger !== undefined ? createPostgresStepLedgerPort(stores.stepLedger) : undefined;
+  const durableKillSwitch =
+    stores?.killSwitchStore !== undefined
+      ? createPostgresKillSwitchGatePort(stores.killSwitchStore, bundle.merchantId)
+      : undefined;
+
+  const stepLedger = overrides?.stepLedger ?? durableStepLedger;
+  const killSwitch = overrides?.killSwitch ?? durableKillSwitch;
+
   const config: RealLifecycleConfig = {
     shopify: bundle.shopify,
     razorpay: bundle.razorpay,
@@ -112,10 +144,11 @@ export function selectPaymentAuthorizationPort(
     ...(overrides?.policy !== undefined ? { policy: overrides.policy } : {}),
     ...(overrides?.variantResolver !== undefined ? { variantResolver: overrides.variantResolver } : {}),
     ...(overrides?.actionTimeoutMs !== undefined ? { actionTimeoutMs: overrides.actionTimeoutMs } : {}),
-    ...(overrides?.stepLedger !== undefined ? { stepLedger: overrides.stepLedger } : {}),
+    ...(stepLedger !== undefined ? { stepLedger } : {}),
+    ...(killSwitch !== undefined ? { killSwitch } : {}),
   };
 
-  return { mode: "real", port: createRealPaymentAuthorizationPort(config) };
+  return { mode: "real", port: createRealPaymentAuthorizationPort(config), bundle };
 }
 
 // ─── Real connector bundle ───────────────────────────────────────────────────
@@ -235,5 +268,66 @@ export function createPostgresStepLedgerPort(ledger: AsyncStepLedger): StepLedge
   };
 }
 
+// ─── Durable kill-switch gate adapter ────────────────────────────────────────
+
+/**
+ * Adapts the data-layer {@link AsyncKillSwitchStore} (Postgres-backed) to the
+ * worker's {@link KillSwitchGatePort} so the real lifecycle consults durable,
+ * operator-controlled kill switches BEFORE any external effect — durable across
+ * restarts.
+ *
+ * For each checkout it evaluates, in order, the scopes that can halt this
+ * worker's live checkouts:
+ *   - `platform`        (platform-wide switch, no entity)
+ *   - `merchant`        (the pilot merchant id this worker operates)
+ *   - `connector`       (the Shopify connector)
+ *   - `payment_adapter` (the Razorpay payment adapter)
+ * and returns the key of the FIRST active switch, or `undefined` when nothing
+ * blocks. The returned key becomes the `kill-switch-blocked:<key>` reference.
+ *
+ * `merchantId` is the same pilot merchant the real lifecycle uses; the
+ * connector/payment_adapter entity ids are stable identifiers an operator uses
+ * when activating those scoped switches. Only the scope/entity target flows
+ * through — never any secret.
+ */
+export const KILL_SWITCH_CONNECTOR_ID = "shopify";
+export const KILL_SWITCH_PAYMENT_ADAPTER_ID = "razorpay";
+
+export function createPostgresKillSwitchGatePort(
+  store: AsyncKillSwitchStore,
+  merchantId: MerchantId,
+): KillSwitchGatePort {
+  const checks: ReadonlyArray<{
+    readonly scope: KillSwitchScope;
+    readonly entityId: string | undefined;
+    readonly key: string;
+  }> = [
+    { scope: "platform", entityId: undefined, key: "platform" },
+    { scope: "merchant", entityId: merchantId, key: `merchant:${merchantId}` },
+    { scope: "connector", entityId: KILL_SWITCH_CONNECTOR_ID, key: `connector:${KILL_SWITCH_CONNECTOR_ID}` },
+    {
+      scope: "payment_adapter",
+      entityId: KILL_SWITCH_PAYMENT_ADAPTER_ID,
+      key: `payment_adapter:${KILL_SWITCH_PAYMENT_ADAPTER_ID}`,
+    },
+  ];
+
+  return {
+    async blocked(): Promise<string | undefined> {
+      const now = nowInstant();
+      for (const check of checks) {
+        const result = await store.isActive(check.scope, check.entityId, now);
+        if (!result.ok) {
+          throw new Error(`Kill switch check failed: ${result.error.message}`);
+        }
+        if (result.value) {
+          return check.key;
+        }
+      }
+      return undefined;
+    },
+  };
+}
+
 // Re-export for construction convenience at the deployment entrypoint.
-export { PostgresStepLedger };
+export { PostgresStepLedger, PostgresKillSwitchStore };

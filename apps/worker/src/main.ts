@@ -21,10 +21,22 @@
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { createCounterId, type CounterId, type Instant } from "@counter/domain";
-import { PostgresDatabase, PostgresJobRepository, PostgresOutboxRepository } from "@counter/data";
+import {
+  PostgresDatabase,
+  PostgresJobRepository,
+  PostgresOutboxRepository,
+  PostgresStepLedger,
+  PostgresKillSwitchStore,
+} from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
 import { selectPaymentAuthorizationPort } from "./boot.js";
+import {
+  reconciliationEnabled,
+  startReconciliationJob,
+  type ReconciliationJobHandle,
+} from "./reconciliation-job.js";
+import { buildReconciliationScannerConfig } from "./reconciliation-boot.js";
 import {
   createTransactionLifecycleHandler,
   TRANSACTION_LIFECYCLE_JOB_TYPE,
@@ -38,6 +50,7 @@ const LEASE_DURATION_MS = 30_000;
 const POLL_INTERVAL_MS = 1_000;
 const BATCH_SIZE = 10;
 const BASE_RETRY_DELAY_MS = 1_000;
+const RECONCILIATION_INTERVAL_MS = 60_000;
 
 const logger: TickLogger = {
   info(message, context): void {
@@ -111,16 +124,21 @@ function main(): void {
     return;
   }
 
-  // Select the payment connector from the environment. In a prod-like
-  // environment with missing credentials this throws (fail loud) before the
-  // loop starts.
-  const selection = selectPaymentAuthorizationPort(process.env);
-  logger.info("payment connector selected", { mode: selection.mode });
-
   const database = new PostgresDatabase(databaseUrl);
   const jobRepository = new PostgresJobRepository(database);
   const outboxRepository = new PostgresOutboxRepository(database);
   const sink = createOutboxReceiptSink(outboxRepository);
+
+  // Select the payment connector from the environment. In a prod-like
+  // environment with missing credentials this throws (fail loud) before the
+  // loop starts. The durable Postgres-backed step ledger and kill-switch store
+  // are threaded in so the Shopify legs dedup across restarts and an active
+  // kill switch blocks a checkout BEFORE any external effect.
+  const selection = selectPaymentAuthorizationPort(process.env, undefined, {
+    stepLedger: new PostgresStepLedger(database),
+    killSwitchStore: new PostgresKillSwitchStore(database),
+  });
+  logger.info("payment connector selected", { mode: selection.mode });
 
   const config: LoopConfig = {
     jobTypes: [TRANSACTION_LIFECYCLE_JOB_TYPE],
@@ -134,6 +152,20 @@ function main(): void {
 
   const loop = createWorkerLoop(jobRepository, config, logger);
 
+  // Periodic reconciliation: env-guarded and only when the REAL connector is
+  // active (a real Shopify connector is required to query authoritative order
+  // state). Inert in unit/local runs and when RECONCILIATION_ENABLED is unset.
+  let reconciliation: ReconciliationJobHandle | undefined;
+  if (reconciliationEnabled(process.env) && selection.mode === "real" && selection.bundle !== undefined) {
+    const scannerConfig = buildReconciliationScannerConfig({
+      database,
+      outbox: outboxRepository,
+      shopify: selection.bundle.shopify,
+    });
+    reconciliation = startReconciliationJob(scannerConfig, RECONCILIATION_INTERVAL_MS, logger);
+    logger.info("reconciliation job started", { intervalMs: RECONCILIATION_INTERVAL_MS });
+  }
+
   let shuttingDown = false;
   const shutdown = (signal: string): void => {
     if (shuttingDown) {
@@ -143,6 +175,7 @@ function main(): void {
     logger.info("shutting down", { signal });
     loop.stop();
     void loop.done
+      .then(() => (reconciliation !== undefined ? reconciliation.stop() : undefined))
       .then(() => database.close())
       .then(() => {
         process.exit(0);

@@ -365,6 +365,114 @@ describe("real connector lifecycle (mocked network)", () => {
     expect(http.requests).toHaveLength(0);
   });
 
+  it("blocks the checkout with ZERO external effect when a kill switch is active", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      // An active kill switch denies the checkout BEFORE any external effect.
+      killSwitch: {
+        blocked: (): Promise<string | undefined> => Promise.resolve("merchant:pilot"),
+      },
+    });
+
+    const result = await port.authorizeAndCapture({
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(6));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-killed",
+    });
+
+    expect(result.status).toBe("declined");
+    expect(result.providerReference).toBe("kill-switch-blocked:merchant:pilot");
+    // ZERO external effect: no Shopify call and no Razorpay order.
+    expect(shopifyClient.callHistory).toHaveLength(0);
+    expect(http.requests).toHaveLength(0);
+  });
+
+  it("is consulted BEFORE the policy gate and short-circuits it", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+
+    let policyConsulted = false;
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      policy: {
+        allow: (): Promise<boolean> => {
+          policyConsulted = true;
+          return Promise.resolve(true);
+        },
+      },
+      killSwitch: {
+        blocked: (): Promise<string | undefined> => Promise.resolve("platform"),
+      },
+    });
+
+    const result = await port.authorizeAndCapture({
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(4));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-killed-first",
+    });
+
+    expect(result.status).toBe("declined");
+    expect(result.providerReference).toBe("kill-switch-blocked:platform");
+    // The kill switch short-circuits before the policy gate runs.
+    expect(policyConsulted).toBe(false);
+    expect(shopifyClient.callHistory).toHaveLength(0);
+    expect(http.requests).toHaveLength(0);
+  });
+
+  it("allows the checkout when no kill switch is active (allow-all default preserved)", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      killSwitch: {
+        blocked: (): Promise<string | undefined> => Promise.resolve(undefined),
+      },
+    });
+
+    const result = await port.authorizeAndCapture({
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(3));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-allowed",
+      variantId: "gid://shopify/ProductVariant/100",
+    });
+
+    expect(result.status).toBe("captured");
+  });
+
   it("surfaces a Razorpay order timeout AFTER the draft as INDETERMINATE (not failed) and does not double-create", async () => {
     const shopifyClient = createMockGraphQLClient();
     configureShopifySuccess(shopifyClient);
