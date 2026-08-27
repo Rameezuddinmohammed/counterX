@@ -99,6 +99,15 @@ export interface PaymentAuthorizationResult {
    * durable state machine as INDETERMINATE rather than a hard failure).
    */
   readonly lastKnownState?: string | undefined;
+  /**
+   * The CTP-signed payment evidence envelope backing a `captured`/`authorized`
+   * outcome. This is the cryptographic "signed receipt" the payment provider
+   * produced (see invariant #3): it MUST be carried into the durable receipt so
+   * the recorded evidence is the signed envelope itself, not merely a reference
+   * string. It carries provider references and amounts only — never raw payment
+   * credentials, PAN, CVV, or UPI PIN. Absent for declined/indeterminate.
+   */
+  readonly signedEvidence?: unknown;
 }
 
 /**
@@ -122,9 +131,7 @@ export interface PaymentAuthorizationResult {
  * guarantee is wired, do NOT attach a connector that debits real funds.
  */
 export interface PaymentAuthorizationPort {
-  authorizeAndCapture(
-    request: PaymentAuthorizationRequest,
-  ): Promise<PaymentAuthorizationResult>;
+  authorizeAndCapture(request: PaymentAuthorizationRequest): Promise<PaymentAuthorizationResult>;
 }
 
 // ─── Payload ─────────────────────────────────────────────────────────────────
@@ -153,6 +160,13 @@ export interface TransactionReceipt {
   readonly finalState: TransactionState;
   readonly providerReference: string;
   readonly reconciliation: ReconciliationOutcome;
+  /**
+   * The CTP-signed payment evidence envelope, when the provider returned one.
+   * This is the actual signed receipt (invariant #3 / FEAT-004 AC) — provider
+   * references and amounts only, never secrets. Present on a captured outcome;
+   * carried through on indeterminate when partial evidence exists.
+   */
+  readonly signedEvidence?: unknown;
 }
 
 /**
@@ -195,9 +209,17 @@ function parsePayload(payload: unknown): TransactionLifecyclePayload {
   }
   const variantIdRaw = record["variantId"];
   const quantityRaw = record["quantity"];
-  const variantId = typeof variantIdRaw === "string" && variantIdRaw.length > 0 ? variantIdRaw : undefined;
-  if (quantityRaw !== undefined && (typeof quantityRaw !== "number" || !Number.isInteger(quantityRaw) || quantityRaw <= 0)) {
-    throw new HandlerError("payload.invalid", "quantity must be a positive integer when provided", false);
+  const variantId =
+    typeof variantIdRaw === "string" && variantIdRaw.length > 0 ? variantIdRaw : undefined;
+  if (
+    quantityRaw !== undefined &&
+    (typeof quantityRaw !== "number" || !Number.isInteger(quantityRaw) || quantityRaw <= 0)
+  ) {
+    throw new HandlerError(
+      "payload.invalid",
+      "quantity must be a positive integer when provided",
+      false,
+    );
   }
   const quantity = typeof quantityRaw === "number" ? quantityRaw : undefined;
   return { transactionId, amountMinor, currency, variantId, quantity };
@@ -315,6 +337,7 @@ export function createTransactionLifecycleHandler(
             intendedAmountMinor: payload.amountMinor,
             providerAmountMinor: providerResult.capturedMinor,
           },
+          signedEvidence: providerResult.signedEvidence,
         });
         throw new HandlerError(
           "payment.indeterminate",
@@ -371,6 +394,7 @@ export function createTransactionLifecycleHandler(
           finalState: state,
           providerReference: providerResult.providerReference,
           reconciliation,
+          signedEvidence: providerResult.signedEvidence,
         });
         throw new HandlerError(
           "reconciliation.mismatch",
@@ -394,6 +418,7 @@ export function createTransactionLifecycleHandler(
         finalState: state,
         providerReference: providerResult.providerReference,
         reconciliation,
+        signedEvidence: providerResult.signedEvidence,
       });
     },
   };

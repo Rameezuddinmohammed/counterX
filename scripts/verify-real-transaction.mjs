@@ -291,6 +291,12 @@ async function main() {
 
   // Step 8: the FINAL signed receipt.
   step(8, "FINAL signed receipt");
+  // `signedEvidence` is the CTP-signed envelope the unattended payment provider
+  // produced, carried through the money seam into the durable receipt. It holds
+  // provider references, status, and signature material only -- no secrets.
+  if (receipt.signedEvidence === undefined) {
+    console.log("  WARNING: no signed evidence reached the receipt (expected the CTP envelope).");
+  }
   console.log(
     JSON.stringify(
       {
@@ -300,6 +306,7 @@ async function main() {
         orderStatus: receipt.finalState.order?.status,
         providerReference: receipt.providerReference,
         reconciliation: receipt.reconciliation,
+        signedEvidence: receipt.signedEvidence,
       },
       null,
       2,

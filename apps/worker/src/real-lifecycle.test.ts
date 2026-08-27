@@ -243,7 +243,9 @@ describe("real connector lifecycle (mocked network)", () => {
     expect(evidence.providerData?.["envelope"]).toBeDefined();
 
     // Shopify received exactly one of each mutation.
-    const drafts = shopifyClient.callHistory.filter((c) => c.operation === DRAFT_ORDER_CREATE_MUTATION);
+    const drafts = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
     expect(drafts).toHaveLength(1);
   });
 
@@ -283,9 +285,13 @@ describe("real connector lifecycle (mocked network)", () => {
     expect(second.providerReference).toBe(first.providerReference);
 
     // At most ONE draft create and ONE razorpay order across both attempts.
-    const drafts = shopifyClient.callHistory.filter((c) => c.operation === DRAFT_ORDER_CREATE_MUTATION);
+    const drafts = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
     expect(drafts).toHaveLength(1);
-    const finalizes = shopifyClient.callHistory.filter((c) => c.operation === DRAFT_ORDER_COMPLETE_MUTATION);
+    const finalizes = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_COMPLETE_MUTATION,
+    );
     expect(finalizes).toHaveLength(1);
     const orderCreates = http.requests.filter((r) => r.path === "/v1/orders");
     expect(orderCreates).toHaveLength(1);
@@ -354,5 +360,194 @@ describe("real connector lifecycle (mocked network)", () => {
     // No external effects when policy denies.
     expect(shopifyClient.callHistory).toHaveLength(0);
     expect(http.requests).toHaveLength(0);
+  });
+
+  it("surfaces a Razorpay order timeout AFTER the draft as INDETERMINATE (not failed) and does not double-create", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    // Simulate the REAL HTTP client's synthetic transport-timeout response: a
+    // 503 whose body carries error.reason === "timeout". The request MAY have
+    // reached Razorpay, so the outcome is INDETERMINATE, not a hard failure.
+    let orderAttempts = 0;
+    http.onPath("/v1/orders", () => {
+      orderAttempts += 1;
+      return {
+        status: 503,
+        body: {
+          error: {
+            code: "PROVIDER_UNAVAILABLE",
+            reason: "timeout",
+            description: "Razorpay request timed out; outcome is indeterminate",
+          },
+        },
+      };
+    });
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+    });
+
+    const request = {
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(6));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-rzp-timeout",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+    };
+
+    const result = await port.authorizeAndCapture(request);
+
+    // The Razorpay leg produced an explicit INDETERMINATE outcome (invariant #2),
+    // NOT a generic thrown/failed result.
+    expect(result.status).toBe("indeterminate");
+    expect(result.lastKnownState).toBe("razorpay.order.indeterminate");
+
+    // The draft happened once; the payment/finalize/mark-paid legs did NOT run
+    // after the indeterminate Razorpay outcome (no double external effect).
+    const drafts = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
+    expect(drafts).toHaveLength(1);
+    const finalizes = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_COMPLETE_MUTATION,
+    );
+    expect(finalizes).toHaveLength(0);
+
+    // The indeterminate outcome is NOT cached, so a later replay can re-drive to
+    // resolve the unknown state; the transport is hit exactly once here.
+    expect(orderAttempts).toBe(1);
+  });
+
+  it("routes a Razorpay order timeout through the handler to INDETERMINATE with a recorded receipt", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    http.onPath("/v1/orders", () => ({
+      status: 503,
+      body: {
+        error: {
+          code: "PROVIDER_UNAVAILABLE",
+          reason: "timeout",
+          description: "Razorpay request timed out; outcome is indeterminate",
+        },
+      },
+    }));
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+    });
+
+    const sink = new RecordingSink();
+    const handler = createTransactionLifecycleHandler(port, sink);
+
+    // The handler surfaces INDETERMINATE as a RETRYABLE HandlerError, but only
+    // AFTER recording a receipt in the INDETERMINATE phase (matching the Shopify
+    // legs). It must NOT collapse to a hard/terminal failure.
+    await expect(handler.execute(job, instant(1_000))).rejects.toMatchObject({
+      errorClass: "payment.indeterminate",
+      retryable: true,
+    });
+    expect(sink.receipts).toHaveLength(1);
+    expect(sink.receipts[0]!.finalState.phase).toBe("INDETERMINATE");
+  });
+
+  it("carries the CTP-signed envelope into the recorded receipt (signedEvidence), not just a reference string", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+    });
+
+    const sink = new RecordingSink();
+    const handler = createTransactionLifecycleHandler(port, sink);
+    await handler.execute(job, instant(1_000));
+
+    expect(sink.receipts).toHaveLength(1);
+    const receipt = sink.receipts[0]!;
+    expect(receipt.finalState.phase).toBe("CLOSED");
+
+    // The signed CTP envelope actually reached the receipt (issue #2 / invariant
+    // #3): it is a real envelope object with a signature, not just the reference.
+    const envelope = receipt.signedEvidence as
+      | { readonly type?: string; readonly signature?: unknown; readonly payload?: unknown }
+      | undefined;
+    expect(envelope).toBeDefined();
+    expect(envelope!.type).toBe("counter.evidence.v1");
+    expect(envelope!.signature).toBeDefined();
+    expect(envelope!.payload).toBeDefined();
+    // And no secrets leaked into the receipt.
+    expect(JSON.stringify(receipt)).not.toContain("secret");
+    expect(JSON.stringify(receipt)).not.toContain("shpat_");
+  });
+
+  it("reconciles a genuine success even when the Shopify order total differs from the intended amount", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    // Override the order query so the Shopify order TOTAL (catalog-derived) is a
+    // DIFFERENT value from the intended amount. This is the real-world case: the
+    // variant price × qty is an independent input from payload.amountMinor.
+    // Reconciliation must still succeed because it compares the amount actually
+    // captured through the PAYMENT rail against intent, not the order total.
+    shopifyClient.setResponse(ORDER_QUERY, {
+      data: {
+        order: {
+          id: "gid://shopify/Order/9",
+          name: "#1001",
+          displayFinancialStatus: "PAID",
+          cancelledAt: null,
+          totalPriceSet: { shopMoney: { amount: "123.45", currencyCode: "INR" } },
+          createdAt: "2025-01-01T00:00:01Z",
+          noteAttributes: [],
+        },
+      },
+      errors: undefined,
+      extensions: undefined,
+    });
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+    });
+
+    const sink = new RecordingSink();
+    const handler = createTransactionLifecycleHandler(port, sink);
+    await handler.execute(job, instant(1_000));
+
+    expect(sink.receipts).toHaveLength(1);
+    const receipt = sink.receipts[0]!;
+    // Genuine success closes and reconciles (payment captured 4999 == intended
+    // 4999) even though the Shopify order total is 12345 minor units.
+    expect(receipt.finalState.phase).toBe("CLOSED");
+    expect(receipt.reconciliation.reconciled).toBe(true);
+    expect(receipt.reconciliation.providerAmountMinor).toBe(4999);
+    expect(receipt.reconciliation.intendedAmountMinor).toBe(4999);
+    // The order total is preserved as audit evidence on the reference.
+    expect(receipt.providerReference).toContain("shopify_total_minor:12345");
   });
 });

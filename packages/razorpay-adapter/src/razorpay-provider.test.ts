@@ -21,9 +21,18 @@ import { instantFromEpochMilliseconds } from "@counter/domain";
 
 import { MockRazorpayHttp } from "./http-client.js";
 import { RazorpayTestProvider } from "./razorpay-provider.js";
-import { WebhookDeduplicator, processWebhookEvent, normalizeRefundEvidence } from "./webhook-processor.js";
+import {
+  WebhookDeduplicator,
+  processWebhookEvent,
+  normalizeRefundEvidence,
+} from "./webhook-processor.js";
 import type { RazorpayTestAdapterConfig } from "./index.js";
-import type { RazorpayOrder, RazorpayPayment, RazorpayRefund, RazorpayWebhookEvent } from "./types.js";
+import type {
+  RazorpayOrder,
+  RazorpayPayment,
+  RazorpayRefund,
+  RazorpayWebhookEvent,
+} from "./types.js";
 import type { ProviderReference, ProviderRefundReference } from "@counter/payment-sdk";
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
@@ -100,9 +109,7 @@ function makeRefund(overrides: Partial<RazorpayRefund> = {}): RazorpayRefund {
 }
 
 function computeSignature(orderId: string, paymentId: string, secret: string): string {
-  return createHmac("sha256", secret)
-    .update(`${orderId}|${paymentId}`)
-    .digest("hex");
+  return createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex");
 }
 
 function computeWebhookSignature(body: string, secret: string): string {
@@ -115,10 +122,13 @@ describe("RazorpayTestProvider", () => {
   describe("construction", () => {
     it("rejects live environment", () => {
       const http = new MockRazorpayHttp();
-      expect(() => new RazorpayTestProvider({
-        config: { ...TEST_CONFIG, environment: "live" },
-        httpClient: http,
-      })).toThrow();
+      expect(
+        () =>
+          new RazorpayTestProvider({
+            config: { ...TEST_CONFIG, environment: "live" },
+            httpClient: http,
+          }),
+      ).toThrow();
     });
 
     it("accepts test environment", () => {
@@ -191,26 +201,30 @@ describe("RazorpayTestProvider", () => {
       const http = new MockRazorpayHttp();
       const provider = createProvider(http);
 
-      await expect(provider.createInstruction({
-        authorizationRef: "auth_ref",
-        amount: Object.freeze({ amountMinor: 0n, currency: "INR" as IsoCurrencyCode }),
-        currency: "INR" as IsoCurrencyCode,
-        merchantId: "m1" as any,
-        idempotencyKey: "idem_003",
-      })).rejects.toMatchObject({ code: "OUT_OF_RANGE" });
+      await expect(
+        provider.createInstruction({
+          authorizationRef: "auth_ref",
+          amount: Object.freeze({ amountMinor: 0n, currency: "INR" as IsoCurrencyCode }),
+          currency: "INR" as IsoCurrencyCode,
+          merchantId: "m1" as any,
+          idempotencyKey: "idem_003",
+        }),
+      ).rejects.toMatchObject({ code: "OUT_OF_RANGE" });
     });
 
     it("rejects negative amount", async () => {
       const http = new MockRazorpayHttp();
       const provider = createProvider(http);
 
-      await expect(provider.createInstruction({
-        authorizationRef: "auth_ref",
-        amount: Object.freeze({ amountMinor: -100n, currency: "INR" as IsoCurrencyCode }),
-        currency: "INR" as IsoCurrencyCode,
-        merchantId: "m1" as any,
-        idempotencyKey: "idem_004",
-      })).rejects.toMatchObject({ code: "OUT_OF_RANGE" });
+      await expect(
+        provider.createInstruction({
+          authorizationRef: "auth_ref",
+          amount: Object.freeze({ amountMinor: -100n, currency: "INR" as IsoCurrencyCode }),
+          currency: "INR" as IsoCurrencyCode,
+          merchantId: "m1" as any,
+          idempotencyKey: "idem_004",
+        }),
+      ).rejects.toMatchObject({ code: "OUT_OF_RANGE" });
     });
 
     it("handles API failure gracefully", async () => {
@@ -218,13 +232,75 @@ describe("RazorpayTestProvider", () => {
       http.onPath("/v1/orders", () => ({ status: 500, body: { error: "Internal error" } }));
       const provider = createProvider(http);
 
-      await expect(provider.createInstruction({
+      await expect(
+        provider.createInstruction({
+          authorizationRef: "auth_ref",
+          amount: Object.freeze({ amountMinor: 50000n, currency: "INR" as IsoCurrencyCode }),
+          currency: "INR" as IsoCurrencyCode,
+          merchantId: "m1" as any,
+          idempotencyKey: "idem_005",
+        }),
+      ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    });
+
+    it("maps a transport TIMEOUT (synthetic 503 reason:'timeout') to an INDETERMINATE outcome, not a throw", async () => {
+      // The real HTTP client surfaces a fetch/abort timeout as a synthetic 503
+      // whose body carries error.reason === "timeout". The request MAY have
+      // reached Razorpay, so the outcome must be INDETERMINATE (invariant #2),
+      // never a generic thrown UNAVAILABLE.
+      const http = new MockRazorpayHttp();
+      http.onPath("/v1/orders", () => ({
+        status: 503,
+        body: {
+          error: {
+            code: "PROVIDER_UNAVAILABLE",
+            reason: "timeout",
+            description: "Razorpay request timed out; outcome is indeterminate",
+          },
+        },
+      }));
+      const provider = createProvider(http);
+
+      const result = await provider.createInstruction({
         authorizationRef: "auth_ref",
         amount: Object.freeze({ amountMinor: 50000n, currency: "INR" as IsoCurrencyCode }),
         currency: "INR" as IsoCurrencyCode,
         merchantId: "m1" as any,
-        idempotencyKey: "idem_005",
-      })).rejects.toMatchObject({ code: "UNAVAILABLE" });
+        idempotencyKey: "idem_timeout",
+      });
+
+      expect(result.kind).toBe("indeterminate");
+      if (result.kind === "indeterminate") {
+        expect(result.reference).toBe("idem_timeout");
+        expect(result.queryAfter).toBeDefined();
+      }
+    });
+
+    it("maps a transport NETWORK failure (synthetic 503 reason:'network') to a thrown UNAVAILABLE (no possible effect)", async () => {
+      // A network reason means the request never left the transport, so there is
+      // no possible external effect: it stays a hard provider-unavailable error.
+      const http = new MockRazorpayHttp();
+      http.onPath("/v1/orders", () => ({
+        status: 503,
+        body: {
+          error: {
+            code: "PROVIDER_UNAVAILABLE",
+            reason: "network",
+            description: "Razorpay request failed at the transport layer",
+          },
+        },
+      }));
+      const provider = createProvider(http);
+
+      await expect(
+        provider.createInstruction({
+          authorizationRef: "auth_ref",
+          amount: Object.freeze({ amountMinor: 50000n, currency: "INR" as IsoCurrencyCode }),
+          currency: "INR" as IsoCurrencyCode,
+          merchantId: "m1" as any,
+          idempotencyKey: "idem_network",
+        }),
+      ).rejects.toMatchObject({ code: "UNAVAILABLE" });
     });
   });
 
@@ -325,11 +401,13 @@ describe("RazorpayTestProvider", () => {
       const bodyString = JSON.stringify({ event: "payment.captured" });
       const body = new TextEncoder().encode(bodyString);
 
-      await expect(provider.verifyWebhook({
-        headers: { "x-razorpay-signature": "invalid_signature" },
-        body,
-        receivedAt: makeInstant(BASE_TIME),
-      })).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+      await expect(
+        provider.verifyWebhook({
+          headers: { "x-razorpay-signature": "invalid_signature" },
+          body,
+          receivedAt: makeInstant(BASE_TIME),
+        }),
+      ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
     });
 
     it("rejects missing webhook signature header", async () => {
@@ -338,11 +416,13 @@ describe("RazorpayTestProvider", () => {
 
       const body = new TextEncoder().encode("{}");
 
-      await expect(provider.verifyWebhook({
-        headers: {},
-        body,
-        receivedAt: makeInstant(BASE_TIME),
-      })).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
+      await expect(
+        provider.verifyWebhook({
+          headers: {},
+          body,
+          receivedAt: makeInstant(BASE_TIME),
+        }),
+      ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
     });
   });
 
@@ -363,7 +443,10 @@ describe("RazorpayTestProvider", () => {
 
     it("returns pending for failed API call", async () => {
       const http = new MockRazorpayHttp();
-      http.onPath("/v1/payments/pay_unknown", () => ({ status: 404, body: { error: "not found" } }));
+      http.onPath("/v1/payments/pay_unknown", () => ({
+        status: 404,
+        body: { error: "not found" },
+      }));
 
       const provider = createProvider(http);
       const evidence = await provider.query("pay_unknown" as ProviderReference);
@@ -423,11 +506,13 @@ describe("RazorpayTestProvider", () => {
       }));
 
       const provider = createProvider(http);
-      await expect(provider.refund({
-        reference: "pay_test456" as ProviderReference,
-        amount: Object.freeze({ amountMinor: 50000n, currency: "INR" as IsoCurrencyCode }),
-        idempotencyKey: "refund_003",
-      })).rejects.toMatchObject({ code: "UNAVAILABLE" });
+      await expect(
+        provider.refund({
+          reference: "pay_test456" as ProviderReference,
+          amount: Object.freeze({ amountMinor: 50000n, currency: "INR" as IsoCurrencyCode }),
+          idempotencyKey: "refund_003",
+        }),
+      ).rejects.toMatchObject({ code: "UNAVAILABLE" });
     });
   });
 
@@ -463,32 +548,38 @@ describe("RazorpayTestProvider", () => {
     it("throws on authorize", async () => {
       const http = new MockRazorpayHttp();
       const provider = createProvider(http);
-      await expect(provider.authorize({
-        authorizationRef: "ref",
-        amount: Object.freeze({ amountMinor: 1000n, currency: "INR" as IsoCurrencyCode }),
-        currency: "INR" as IsoCurrencyCode,
-        merchantId: "m1" as any,
-        idempotencyKey: "key",
-      })).rejects.toMatchObject({ code: "UNSUPPORTED_VALUE" });
+      await expect(
+        provider.authorize({
+          authorizationRef: "ref",
+          amount: Object.freeze({ amountMinor: 1000n, currency: "INR" as IsoCurrencyCode }),
+          currency: "INR" as IsoCurrencyCode,
+          merchantId: "m1" as any,
+          idempotencyKey: "key",
+        }),
+      ).rejects.toMatchObject({ code: "UNSUPPORTED_VALUE" });
     });
 
     it("throws on capture", async () => {
       const http = new MockRazorpayHttp();
       const provider = createProvider(http);
-      await expect(provider.capture({
-        reference: "ref" as ProviderReference,
-        amount: Object.freeze({ amountMinor: 1000n, currency: "INR" as IsoCurrencyCode }),
-        idempotencyKey: "key",
-      })).rejects.toMatchObject({ code: "UNSUPPORTED_VALUE" });
+      await expect(
+        provider.capture({
+          reference: "ref" as ProviderReference,
+          amount: Object.freeze({ amountMinor: 1000n, currency: "INR" as IsoCurrencyCode }),
+          idempotencyKey: "key",
+        }),
+      ).rejects.toMatchObject({ code: "UNSUPPORTED_VALUE" });
     });
 
     it("throws on void", async () => {
       const http = new MockRazorpayHttp();
       const provider = createProvider(http);
-      await expect(provider.void({
-        reference: "ref" as ProviderReference,
-        idempotencyKey: "key",
-      })).rejects.toMatchObject({ code: "UNSUPPORTED_VALUE" });
+      await expect(
+        provider.void({
+          reference: "ref" as ProviderReference,
+          idempotencyKey: "key",
+        }),
+      ).rejects.toMatchObject({ code: "UNSUPPORTED_VALUE" });
     });
   });
 });

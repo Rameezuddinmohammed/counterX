@@ -50,6 +50,7 @@ import type { RazorpayTestAdapterConfig } from "./adapter-config.js";
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const GRANT_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const RETRY_AFTER_MS = 30 * 1000; // re-query window for an indeterminate order
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,24 @@ function futureInstant(clock: () => number, offsetMs: number): Instant {
  */
 function hmacSha256(data: string, secret: string): string {
   return createHmac("sha256", secret).update(data).digest("hex");
+}
+
+/**
+ * Extracts the transport-failure `reason` marker the real HTTP client attaches
+ * to a synthetic non-200 response body ({ error: { reason: "timeout"|"network" } }).
+ * Returns `undefined` for a genuine Razorpay API error body (no such marker), so
+ * only transport failures are reclassified and real API errors still throw.
+ */
+function extractTransportReason(body: unknown): "timeout" | "network" | undefined {
+  if (typeof body !== "object" || body === null) {
+    return undefined;
+  }
+  const error = (body as { error?: unknown }).error;
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  const reason = (error as { reason?: unknown }).reason;
+  return reason === "timeout" || reason === "network" ? reason : undefined;
 }
 
 /**
@@ -153,7 +172,9 @@ export class RazorpayTestProvider implements PaymentProvider {
    * Creates a Razorpay Order and returns action_required with Standard Checkout
    * configuration containing ONLY the public Key ID (never key_secret).
    */
-  public async createInstruction(command: CreatePaymentInstruction): Promise<PaymentOperationResult> {
+  public async createInstruction(
+    command: CreatePaymentInstruction,
+  ): Promise<PaymentOperationResult> {
     const amountPaise = amountToPaise(command.amount);
     if (amountPaise <= 0) {
       throw createCanonicalError({
@@ -177,6 +198,23 @@ export class RazorpayTestProvider implements PaymentProvider {
     });
 
     if (response.status !== 200) {
+      // Preserve the transport layer's indeterminate-vs-hard-failure distinction.
+      // The real HTTP client surfaces a fetch/abort failure as a synthetic 503
+      // whose body carries `error.reason`. A `timeout` means the request MAY have
+      // reached Razorpay (a possible external effect) so the outcome is
+      // INDETERMINATE, never a hard failure. A `network` reason means the request
+      // did not leave the transport, so it is provider-unavailable. Any other
+      // non-200 (a real 4xx/5xx from Razorpay) remains a thrown UNAVAILABLE so
+      // existing error-mapping behavior is unchanged.
+      const transportReason = extractTransportReason(response.body);
+      if (transportReason === "timeout") {
+        const queryAfter = futureInstant(this.#clock, RETRY_AFTER_MS);
+        return Object.freeze({
+          kind: "indeterminate" as const,
+          reference: command.idempotencyKey as ProviderReference,
+          queryAfter,
+        });
+      }
       throw createCanonicalError({
         code: "UNAVAILABLE",
         category: "unavailable",
@@ -222,10 +260,7 @@ export class RazorpayTestProvider implements PaymentProvider {
       });
     }
 
-    const expectedSignature = hmacSha256(
-      `${orderId}|${paymentId}`,
-      this.#config.keySecret,
-    );
+    const expectedSignature = hmacSha256(`${orderId}|${paymentId}`, this.#config.keySecret);
 
     if (!timingSafeEquals(signature, expectedSignature)) {
       return Object.freeze({
@@ -426,7 +461,8 @@ export class RazorpayTestProvider implements PaymentProvider {
     throw createCanonicalError({
       code: "UNSUPPORTED_VALUE",
       category: "validation",
-      message: "Razorpay Standard Checkout uses direct_capture lifecycle; authorize is not supported",
+      message:
+        "Razorpay Standard Checkout uses direct_capture lifecycle; authorize is not supported",
     });
   }
 

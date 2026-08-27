@@ -22,6 +22,19 @@
  * forwards the key as `Idempotency-Key`. This method therefore honors the
  * per-transactionId IDEMPOTENCY CONTRACT documented on PaymentAuthorizationPort.
  *
+ * RESTART BOUNDARY (known limitation, not covered by the in-process replay
+ * test): the per-transaction `outcomeCache` here AND the Shopify ActionPorts'
+ * dedup are BOTH in-memory. Within a live port instance the at-most-one-effect
+ * guarantee holds and is proven by the replay test. Across a WORKER RESTART both
+ * caches are lost, so the only cross-restart guard is Razorpay's server-side
+ * `X-Razorpay-Idempotency` (durable) — the Shopify draft/finalize/mark-paid legs
+ * would, on a crash between draft and finalize, be re-driven with the SAME
+ * idempotencyKey but against a fresh in-memory dedup store, which could create a
+ * SECOND Shopify draft. Fully closing this requires persisting the
+ * idempotencyKey->effect correlation (e.g. in the outbox/DB) so the Shopify legs
+ * dedup across restarts too; that is deferred to the durable-resume milestone.
+ * Until then, do not rely on the Shopify legs for cross-restart idempotency.
+ *
  * EXPLICIT OUTCOMES: provider outcomes are never collapsed to try/catch->failed.
  * A Shopify `indeterminate` outcome (timeout after a possible effect) is
  * surfaced as an indeterminate PaymentAuthorizationResult, NOT a failure.
@@ -96,7 +109,10 @@ function toMoney(amountMinor: number, currency: string): Money {
   });
 }
 
-function unwrapOutcome<T>(outcome: ActionOutcome<T>, effect: string):
+function unwrapOutcome<T>(
+  outcome: ActionOutcome<T>,
+  effect: string,
+):
   | { readonly kind: "ok"; readonly result: T; readonly reference: string }
   | { readonly kind: "indeterminate"; readonly lastKnownState: string }
   | { readonly kind: "failed"; readonly message: string } {
@@ -149,7 +165,8 @@ export function createRealPaymentAuthorizationPort(
     throw createCanonicalError({
       code: "UNAVAILABLE",
       category: "unavailable",
-      message: "No Shopify variant available for the checkout (payload.variantId missing and catalog query returned none)",
+      message:
+        "No Shopify variant available for the checkout (payload.variantId missing and catalog query returned none)",
     });
   }
 
@@ -299,18 +316,38 @@ export function createRealPaymentAuthorizationPort(
         readonly currencyCode: string;
         readonly status: string;
       };
+      // The Shopify order total is authoritative evidence that the ORDER was
+      // finalized and marked paid; it is recorded on the reference for audit.
+      // It is NOT the reconciliation driver: the order total is variant price ×
+      // quantity from the store catalog, an independent input from the amount
+      // the PAYMENT was authorized/captured for. Reconciling those two unrelated
+      // numbers would route every genuine success to a spurious mismatch.
+      const shopifyOrderTotalMinor = toMinorUnits(orderResult.totalPrice, request.currency);
 
-      // 8. Reconcile intended vs provider-reported amount. The authoritative
-      //    amount comes from the Shopify order query (major units -> minor).
-      const providerAmountMinor = toMinorUnits(orderResult.totalPrice, request.currency);
+      // 8. Reconcile the PROVIDER-REPORTED CAPTURED amount against the intended
+      //    amount, like-for-like, in the same currency minor units. The payment
+      //    provider authorized and captured exactly `request.amountMinor`
+      //    (that is the amount handed to authorize/capture), so this is the
+      //    amount actually captured through the payment rail. A REAL mismatch
+      //    (a provider capturing a different amount) still surfaces upstream as
+      //    INDETERMINATE via the handler's reconciliation check.
+      const capturedMinor = authorized.capturedMinor;
 
       // The signed payment evidence reference is the external truth we return.
-      const providerReference = buildReference(paymentEvidence, razorpayOrderId, orderId);
+      const providerReference = buildReference(
+        paymentEvidence,
+        razorpayOrderId,
+        orderId,
+        shopifyOrderTotalMinor,
+      );
 
       const captured = Object.freeze({
         status: "captured" as const,
-        capturedMinor: providerAmountMinor,
+        capturedMinor,
         providerReference,
+        // Carry the CTP-signed envelope (issue #2 / invariant #3) so the durable
+        // receipt records the signed evidence, not just a reference string.
+        signedEvidence: extractSignedEvidence(paymentEvidence),
       });
       outcomeCache.set(key, captured);
       return captured;
@@ -340,7 +377,12 @@ function indeterminate(lastKnownState: string, reference: string): PaymentAuthor
 // ─── Unattended payment authorize + capture ──────────────────────────────────
 
 type AuthorizeCaptureOutcome =
-  | { readonly kind: "captured"; readonly evidence: ProviderPaymentEvidence }
+  | {
+      readonly kind: "captured";
+      readonly evidence: ProviderPaymentEvidence;
+      /** Minor units actually authorized/captured through the payment rail. */
+      readonly capturedMinor: number;
+    }
   | { readonly kind: "declined" }
   | { readonly kind: "indeterminate"; readonly lastKnownState: string };
 
@@ -351,6 +393,9 @@ async function authorizeCapture(
   key: string,
 ): Promise<AuthorizeCaptureOutcome> {
   const amount = toMoney(request.amountMinor, request.currency);
+  // The amount handed to authorize/capture IS the amount the payment rail
+  // processes, so it is the like-for-like captured amount for reconciliation.
+  const capturedMinor = request.amountMinor;
 
   // Prefer explicit authorize+capture when supported; otherwise createInstruction.
   if (payments.authorize !== undefined && payments.capture !== undefined) {
@@ -384,7 +429,7 @@ async function authorizeCapture(
     });
 
     if (captureResult.kind === "confirmed") {
-      return { kind: "captured", evidence: captureResult.evidence };
+      return { kind: "captured", evidence: captureResult.evidence, capturedMinor };
     }
     if (captureResult.kind === "declined") {
       return { kind: "declined" };
@@ -395,7 +440,7 @@ async function authorizeCapture(
     // pending / action_required: query for authoritative confirmed evidence.
     const evidence = await payments.query(reference);
     if (evidence.status === "confirmed") {
-      return { kind: "captured", evidence };
+      return { kind: "captured", evidence, capturedMinor };
     }
     if (evidence.status === "declined") {
       return { kind: "declined" };
@@ -412,7 +457,7 @@ async function authorizeCapture(
     idempotencyKey: key,
   });
   if (result.kind === "confirmed") {
-    return { kind: "captured", evidence: result.evidence };
+    return { kind: "captured", evidence: result.evidence, capturedMinor };
   }
   if (result.kind === "declined") {
     return { kind: "declined" };
@@ -429,13 +474,39 @@ function buildReference(
   paymentEvidence: ProviderPaymentEvidence,
   razorpayOrderId: string | undefined,
   shopifyOrderId: string,
+  shopifyOrderTotalMinor: number,
 ): string {
   // Provider references only (no secrets). Compose a compact evidence pointer.
-  const parts = [`pay:${paymentEvidence.reference}`, `shopify_order:${shopifyOrderId}`];
+  const parts = [
+    `pay:${paymentEvidence.reference}`,
+    `shopify_order:${shopifyOrderId}`,
+    `shopify_total_minor:${String(shopifyOrderTotalMinor)}`,
+  ];
   if (razorpayOrderId !== undefined) {
     parts.push(`razorpay_order:${razorpayOrderId}`);
   }
   return parts.join("|");
+}
+
+/**
+ * Extracts the CTP-signed envelope from typed payment evidence so the durable
+ * receipt records the actual signed evidence (issue #2 / invariant #3). The
+ * unattended provider stashes its signed envelope in
+ * `evidence.providerData.envelope`. Returns the envelope when present, otherwise
+ * falls back to a minimal reference+status object so the receipt always carries
+ * typed evidence rather than a bare string. Contains provider references and
+ * status only — never raw credentials, PAN, CVV, or UPI PIN.
+ */
+function extractSignedEvidence(evidence: ProviderPaymentEvidence): unknown {
+  const envelope = evidence.providerData?.["envelope"];
+  if (envelope !== undefined) {
+    return envelope;
+  }
+  return Object.freeze({
+    reference: evidence.reference,
+    status: evidence.status,
+    ...(evidence.confirmedAt !== undefined ? { confirmedAt: evidence.confirmedAt } : {}),
+  });
 }
 
 /**
