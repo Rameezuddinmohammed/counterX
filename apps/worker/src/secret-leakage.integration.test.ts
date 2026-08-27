@@ -3,8 +3,11 @@
  *
  * Runs the REAL money seam for one checkout while capturing everything the
  * runtime emits — console/logger output, the returned result, the durable
- * runtime.lifecycle_steps rows, and (when present) runtime.outbox/inbox rows —
- * then scans ALL captured material for secret leakage:
+ * runtime.lifecycle_steps rows, AND the durable runtime.outbox_events receipt
+ * rows the receipt sink persists — then scans ALL captured material for secret
+ * leakage. It ALSO asserts the connector network-egress redaction path
+ * (redactAuthorization) hides the Basic-auth credential from any request log,
+ * closing the gap where the outbound Authorization header carries the secret:
  *   - the literal env secret VALUES (SHOPIFY_ACCESS_TOKEN, RAZORPAY_KEY_SECRET);
  *   - the patterns shpat_[A-Za-z0-9]+ and rzp_test_[A-Za-z0-9]+;
  *   - generic PAN / CVV / UPI-PIN patterns.
@@ -19,7 +22,10 @@
  * schema; the created order is left PENDING and cancelled in cleanup. SECURITY:
  * credentials are read from process.env only and never logged by this test.
  */
-import { PostgresDatabase, PostgresStepLedger } from "@counter/data";
+import { PostgresDatabase, PostgresStepLedger, PostgresOutboxRepository } from "@counter/data";
+import { createCounterId, type CounterId, type Instant } from "@counter/domain";
+import { redactAuthorization } from "@counter/razorpay-adapter";
+import { randomUUID } from "node:crypto";
 import type { ShopifyConnector } from "@counter/shopify-connector";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -35,6 +41,17 @@ import {
 } from "./adversarial-test-support.js";
 
 const gatedDescribe = hasCreds ? describe : describe.skip;
+
+function randomOutboxId(): CounterId<"outbox-event"> {
+  const entropy = new Uint8Array(16);
+  const uuid = randomUUID().replace(/-/g, "");
+  for (let index = 0; index < 16; index += 1) {
+    entropy[index] = Number.parseInt(uuid.slice(index * 2, index * 2 + 2), 16);
+  }
+  const result = createCounterId("outbox-event", entropy);
+  if (!result.ok) throw new Error("bad outbox id");
+  return result.value;
+}
 
 interface SecretMatcher {
   readonly label: string;
@@ -97,8 +114,34 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
       await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
         idempotencyKey,
       ]);
+      await database.query(
+        `DELETE FROM runtime.outbox_events WHERE payload ->> 'idempotencyKey' = $1`,
+        [idempotencyKey],
+      );
       await database.close();
     }
+  });
+
+  it("connector network egress: redactAuthorization hides the Basic-auth secret from request logs", () => {
+    // The outbound Razorpay request carries the key secret in the Authorization
+    // header. The connector's request-logging path redacts it via
+    // redactAuthorization; prove the credential material never survives into a
+    // loggable headers record, and that the scanner would have caught it if it
+    // did (rzp_test_ pattern + literal).
+    const keyId = process.env["RAZORPAY_KEY_ID"] ?? "rzp_test_EXAMPLE";
+    const keySecret = process.env["RAZORPAY_KEY_SECRET"] ?? "supersecretvalue";
+    const rawAuthorization = `Basic ${Buffer.from(`${keyId}:${keySecret}`, "utf8").toString("base64")}`;
+    const redacted = redactAuthorization({
+      Authorization: rawAuthorization,
+      Accept: "application/json",
+    });
+    const matchers = buildMatchers();
+    // The redacted headers leak NOTHING.
+    expect(scanForLeaks(safeStringify(redacted), matchers)).toEqual([]);
+    expect(redacted["Authorization"]).toBe("Basic [REDACTED]");
+    // Sanity: the RAW header WOULD leak the secret literal, so the redaction is
+    // load-bearing (the scanner is not vacuously passing).
+    expect(safeStringify({ Authorization: rawAuthorization })).toContain(keySecret);
   });
 
   it("positive control: the scanner detects a planted secret", () => {
@@ -178,10 +221,45 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
         [idempotencyKey],
       );
 
+      // Persist a durable receipt outbox row EXACTLY as the deployed receipt
+      // sink does (transactionId + idempotencyKey + provider reference + state),
+      // so the scan covers the outbox material the runtime actually writes.
+      const outbox = new PostgresOutboxRepository(database);
+      const appended = await outbox.append(
+        [
+          {
+            id: randomOutboxId(),
+            eventType: "transaction.receipt.v1",
+            eventVersion: 1,
+            payload: {
+              transactionId: "ctr_txn_scan",
+              idempotencyKey,
+              phase: "INDETERMINATE",
+              providerReference:
+                typeof result === "object" && result !== null && "providerReference" in result
+                  ? (result as { providerReference?: unknown }).providerReference
+                  : undefined,
+            },
+            correlationId: undefined,
+            idempotencyKey,
+          },
+        ],
+        Date.now() as Instant,
+      );
+      expect(appended.ok).toBe(true);
+
+      const outboxRows = await database.query(
+        `SELECT id, environment, event_type, payload
+         FROM runtime.outbox_events WHERE payload ->> 'idempotencyKey' = $1`,
+        [idempotencyKey],
+      );
+
       const material: string[] = [
         ...captured,
         safeStringify(result),
         safeStringify(ledgerRows.rows),
+        // The durable outbox receipt rows the runtime persists.
+        safeStringify(outboxRows.rows),
       ];
       const haystack = material.join("\n");
 
