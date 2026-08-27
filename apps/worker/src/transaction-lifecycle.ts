@@ -81,6 +81,39 @@ export interface PaymentAuthorizationRequest {
   readonly variantId?: string | undefined;
   /** Line quantity for the real draft order (defaults to 1). */
   readonly quantity?: number | undefined;
+  /**
+   * Authority envelope carried from the upstream authorization. These OPTIONAL
+   * fields let the production {@link LifecyclePolicyPort} enforce the real money
+   * predicates at the worker money seam — amount-vs-quote, authorization /
+   * mandate expiry, revocation, wallet-scoped rolling limits, and merchant
+   * scope — BEFORE any external effect. When a field is absent the corresponding
+   * predicate is skipped (the per-transaction amount ceiling from
+   * enforceTransactionLimits still always applies). Never carries secrets.
+   */
+  readonly authority?: AuthorityEnvelope | undefined;
+}
+
+/**
+ * The upstream authorization envelope threaded into the worker so the deployed
+ * money seam can re-enforce the real predicates before spending. Times are epoch
+ * milliseconds; amounts are minor units. Contains references and scope only —
+ * never payment credentials, PAN, CVV, or UPI PIN.
+ */
+export interface AuthorityEnvelope {
+  /** The quoted amount (minor units) the checkout was authorized for. The
+   *  requested amount MUST equal this (quote-tamper guard). */
+  readonly quotedAmountMinor?: number | undefined;
+  /** Epoch ms after which the payment authorization is no longer valid. */
+  readonly authorizationExpiresAtMs?: number | undefined;
+  /** Epoch ms after which the mandate is no longer valid. */
+  readonly mandateExpiresAtMs?: number | undefined;
+  /** Epoch ms at which the mandate was revoked; a value <= now blocks. */
+  readonly revokedAtMs?: number | undefined;
+  /** The merchant the authorization is scoped to; MUST match the operating
+   *  merchant (wrong-scope guard). */
+  readonly authorizedMerchantId?: string | undefined;
+  /** The wallet the spend is charged to; used for the rolling 24h ledger. */
+  readonly walletId?: string | undefined;
 }
 
 export interface PaymentAuthorizationResult {
@@ -144,6 +177,13 @@ export interface TransactionLifecyclePayload {
   readonly variantId?: string | undefined;
   /** Optional line quantity for the real draft order (defaults to 1). */
   readonly quantity?: number | undefined;
+  /**
+   * Optional authority envelope from the upstream authorization, threaded into
+   * the provider request so the production policy can re-enforce amount-vs-quote,
+   * expiry, revocation, scope, and wallet-scoped rolling limits at the money
+   * seam. Absent fields skip their predicate. Never a secret.
+   */
+  readonly authority?: AuthorityEnvelope | undefined;
 }
 
 // ─── Reconciliation + receipt output ─────────────────────────────────────────
@@ -232,7 +272,34 @@ function parsePayload(payload: unknown): TransactionLifecyclePayload {
     );
   }
   const quantity = typeof quantityRaw === "number" ? quantityRaw : undefined;
-  return { transactionId, amountMinor, currency, variantId, quantity };
+  const authority = parseAuthority(record["authority"]);
+  return { transactionId, amountMinor, currency, variantId, quantity, authority };
+}
+
+/**
+ * Parses the OPTIONAL authority envelope. Every field is optional; malformed or
+ * absent fields are dropped (the policy simply skips the corresponding
+ * predicate) so payloads that omit authority remain valid. Numbers must be
+ * finite; strings must be non-empty.
+ */
+function parseAuthority(raw: unknown): AuthorityEnvelope | undefined {
+  if (typeof raw !== "object" || raw === null) {
+    return undefined;
+  }
+  const r = raw as Record<string, unknown>;
+  const num = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const str = (v: unknown): string | undefined =>
+    typeof v === "string" && v.length > 0 ? v : undefined;
+  const envelope: AuthorityEnvelope = {
+    quotedAmountMinor: num(r["quotedAmountMinor"]),
+    authorizationExpiresAtMs: num(r["authorizationExpiresAtMs"]),
+    mandateExpiresAtMs: num(r["mandateExpiresAtMs"]),
+    revokedAtMs: num(r["revokedAtMs"]),
+    authorizedMerchantId: str(r["authorizedMerchantId"]),
+    walletId: str(r["walletId"]),
+  };
+  return envelope;
 }
 
 function deriveTransactionId(raw: string): CounterId<"transaction"> {
@@ -310,6 +377,7 @@ export function createTransactionLifecycleHandler(
         idempotencyKey: payload.transactionId,
         variantId: payload.variantId,
         quantity: payload.quantity,
+        authority: payload.authority,
       });
 
       if (providerResult.status === "declined") {

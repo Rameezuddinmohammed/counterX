@@ -28,10 +28,8 @@ import { PostgresDatabase, PostgresStepLedger } from "@counter/data";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { createPostgresStepLedgerPort } from "./boot.js";
-import {
-  createRealPaymentAuthorizationPort,
-  type LifecyclePolicyPort,
-} from "./real-lifecycle.js";
+import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
+import { createProductionPolicy } from "./lifecycle-policy.js";
 import type { PaymentAuthorizationRequest } from "./transaction-lifecycle.js";
 import {
   databaseUrl,
@@ -121,13 +119,13 @@ gatedDescribe("data integrity — amount tamper between quote and commit is reje
         idempotencyKey,
       ]);
 
-      // The quote fixed the authoritative amount at 100 minor units; the commit
-      // arrives with a tampered amount. The policy recomputes the quote and
-      // DENIES when the committed amount does not match.
+      // The quote fixed the authoritative amount at 100 minor units (carried in
+      // the authority envelope); the commit arrives with a tampered amount. The
+      // PRODUCTION policy — the exact createProductionPolicy the deployed worker
+      // wires — enforces amount == authority.quotedAmountMinor and DENIES the
+      // mismatch. This binds the proof to enforced production behavior.
       const quotedAmountMinor = 100;
-      const policy: LifecyclePolicyPort = {
-        allow: (req) => Promise.resolve(req.amountMinor === quotedAmountMinor),
-      };
+      const policy = createProductionPolicy({ operatingMerchantId: String(bundle!.merchantId) });
 
       const spy = spyOnShopify(bundle!.shopify);
       const port = createRealPaymentAuthorizationPort({
@@ -149,6 +147,7 @@ gatedDescribe("data integrity — amount tamper between quote and commit is reje
         idempotencyKey,
         ...(variantId !== undefined ? { variantId } : {}),
         quantity: 1,
+        authority: { quotedAmountMinor },
       };
 
       const result = await port.authorizeAndCapture(tamperedRequest);

@@ -34,6 +34,7 @@ import {
   type EnvironmentBag,
 } from "./connector-env.js";
 import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
+import { createProductionPolicy } from "./lifecycle-policy.js";
 import type {
   RealLifecycleConfig,
   StepLedgerEntry,
@@ -136,12 +137,20 @@ export function selectPaymentAuthorizationPort(
   const stepLedger = overrides?.stepLedger ?? durableStepLedger;
   const killSwitch = overrides?.killSwitch ?? durableKillSwitch;
 
+  // Default the money-seam policy to the REAL production policy (limits +
+  // amount-vs-quote + authorization/mandate expiry + revocation + merchant
+  // scope), scoped to this worker's operating merchant. An explicit override
+  // still wins so tests can inject a bespoke policy. This closes the gap where
+  // the deployed seam fell back to ALLOW_ALL (review issues 2 and 5).
+  const policy =
+    overrides?.policy ?? createProductionPolicy({ operatingMerchantId: bundle.merchantId });
+
   const config: RealLifecycleConfig = {
     shopify: bundle.shopify,
     razorpay: bundle.razorpay,
     payments: bundle.payments,
     merchantId: bundle.merchantId,
-    ...(overrides?.policy !== undefined ? { policy: overrides.policy } : {}),
+    policy,
     ...(overrides?.variantResolver !== undefined ? { variantResolver: overrides.variantResolver } : {}),
     ...(overrides?.actionTimeoutMs !== undefined ? { actionTimeoutMs: overrides.actionTimeoutMs } : {}),
     ...(stepLedger !== undefined ? { stepLedger } : {}),
@@ -264,6 +273,13 @@ export function createPostgresStepLedgerPort(ledger: AsyncStepLedger): StepLedge
         status: result.value.status,
         reference: result.value.reference,
       });
+    },
+    async claim(key: string, step: string): Promise<{ readonly won: boolean }> {
+      const result = await ledger.claim(key, step, nowInstant());
+      if (!result.ok) {
+        throw new Error(`Step ledger claim failed: ${result.error.message}`);
+      }
+      return result.value;
     },
   };
 }
