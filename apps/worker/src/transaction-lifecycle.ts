@@ -69,15 +69,36 @@ export interface PaymentAuthorizationRequest {
   readonly transactionId: CounterId<"transaction">;
   readonly amountMinor: number;
   readonly currency: string;
+  /**
+   * Stable, opaque transaction reference from the job payload. Used verbatim as
+   * the idempotency key for every external effect (Shopify draft/order,
+   * Razorpay order, payment authorize/capture) so a retry of the same job
+   * causes AT MOST ONE external effect per provider. This is NOT regenerated
+   * per attempt.
+   */
+  readonly idempotencyKey: string;
+  /** Optional Shopify variant GID for the real catalog-backed draft order. */
+  readonly variantId?: string | undefined;
+  /** Line quantity for the real draft order (defaults to 1). */
+  readonly quantity?: number | undefined;
 }
 
 export interface PaymentAuthorizationResult {
-  /** Provider-reported outcome. */
-  readonly status: "authorized" | "captured" | "declined";
+  /**
+   * Provider-reported outcome. `indeterminate` means an external effect MAY
+   * have occurred but the terminal outcome could not be confirmed (e.g. a
+   * timeout AFTER a possible effect); it MUST NOT be collapsed to a failure.
+   */
+  readonly status: "authorized" | "captured" | "declined" | "indeterminate";
   /** Provider-reported amount captured, used for reconciliation. */
   readonly capturedMinor: number;
   /** Opaque provider reference used as external evidence. */
   readonly providerReference: string;
+  /**
+   * Last-known state string for an indeterminate outcome (surfaced to the
+   * durable state machine as INDETERMINATE rather than a hard failure).
+   */
+  readonly lastKnownState?: string | undefined;
 }
 
 /**
@@ -112,6 +133,10 @@ export interface TransactionLifecyclePayload {
   readonly transactionId: string;
   readonly amountMinor: number;
   readonly currency: string;
+  /** Optional Shopify variant GID for the real catalog-backed lifecycle. */
+  readonly variantId?: string | undefined;
+  /** Optional line quantity for the real draft order (defaults to 1). */
+  readonly quantity?: number | undefined;
 }
 
 // ─── Reconciliation + receipt output ─────────────────────────────────────────
@@ -168,7 +193,14 @@ function parsePayload(payload: unknown): TransactionLifecyclePayload {
   if (typeof currency !== "string" || currency.length === 0) {
     throw new HandlerError("payload.invalid", "currency is required", false);
   }
-  return { transactionId, amountMinor, currency };
+  const variantIdRaw = record["variantId"];
+  const quantityRaw = record["quantity"];
+  const variantId = typeof variantIdRaw === "string" && variantIdRaw.length > 0 ? variantIdRaw : undefined;
+  if (quantityRaw !== undefined && (typeof quantityRaw !== "number" || !Number.isInteger(quantityRaw) || quantityRaw <= 0)) {
+    throw new HandlerError("payload.invalid", "quantity must be a positive integer when provided", false);
+  }
+  const quantity = typeof quantityRaw === "number" ? quantityRaw : undefined;
+  return { transactionId, amountMinor, currency, variantId, quantity };
 }
 
 function deriveTransactionId(raw: string): CounterId<"transaction"> {
@@ -241,6 +273,11 @@ export function createTransactionLifecycleHandler(
         transactionId,
         amountMinor: payload.amountMinor,
         currency: payload.currency,
+        // The opaque payload transaction reference is the STABLE idempotency
+        // key across retries (not regenerated per attempt).
+        idempotencyKey: payload.transactionId,
+        variantId: payload.variantId,
+        quantity: payload.quantity,
       });
 
       if (providerResult.status === "declined") {
@@ -257,6 +294,35 @@ export function createTransactionLifecycleHandler(
           "payment.declined",
           `Payment declined by provider for ${payload.transactionId}`,
           false,
+        );
+      }
+
+      if (providerResult.status === "indeterminate") {
+        // A possible external effect exists but the terminal outcome is
+        // unconfirmed. Surface INDETERMINATE (retryable) rather than failing;
+        // the per-transactionId idempotency contract lets a later attempt
+        // resolve it without a second capture.
+        state = unwrap(
+          transitionPhase({ state, to: "INDETERMINATE", expectedVersion: state.version, now }),
+          "lifecycle.phase",
+        );
+        await sink.record({
+          transactionId,
+          finalState: state,
+          providerReference: providerResult.providerReference,
+          reconciliation: {
+            reconciled: false,
+            intendedAmountMinor: payload.amountMinor,
+            providerAmountMinor: providerResult.capturedMinor,
+          },
+        });
+        throw new HandlerError(
+          "payment.indeterminate",
+          `Payment outcome indeterminate for ${payload.transactionId}` +
+            (providerResult.lastKnownState !== undefined
+              ? ` (lastKnownState=${providerResult.lastKnownState})`
+              : ""),
+          true,
         );
       }
 

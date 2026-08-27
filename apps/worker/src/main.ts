@@ -2,12 +2,20 @@
  * Deployment entry point for the worker.
  *
  * Constructs a PostgresDatabase from DATABASE_URL, builds a
- * PostgresJobRepository, wires the real transaction-lifecycle handler, and runs
- * the durable poll/lease/execute loop with graceful SIGTERM/SIGINT shutdown.
+ * PostgresJobRepository, wires the transaction-lifecycle handler, and runs the
+ * durable poll/lease/execute loop with graceful SIGTERM/SIGINT shutdown.
  *
- * Provider selection: by default the handler uses a deterministic in-process
- * payment authorization (representing the connector mock client). A real HTTP
- * provider can be wired here behind env config; see findings.
+ * Provider selection: at boot the worker resolves Shopify + Razorpay
+ * credentials via the shared credential-gating helper and selects the
+ * PaymentAuthorizationPort. When BOTH credential sets are present it wires the
+ * REAL connector-backed port (real Shopify connector + real Razorpay provider +
+ * a CTP-signed CounterTestPaymentProvider for the unattended authorize/capture);
+ * otherwise it falls back to the deterministic in-process stand-in in
+ * local/test, and fails loud in prod-like environments when credentials are
+ * missing. See boot.ts and real-lifecycle.ts.
+ *
+ * SECURITY: credentials are read from process.env only and are never logged.
+ * Only the selected connector MODE (real vs deterministic) is logged.
  */
 
 import { hostname } from "node:os";
@@ -16,12 +24,12 @@ import { createCounterId, type CounterId, type Instant } from "@counter/domain";
 import { PostgresDatabase, PostgresJobRepository, PostgresOutboxRepository } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
+import { selectPaymentAuthorizationPort } from "./boot.js";
 import {
   createTransactionLifecycleHandler,
   TRANSACTION_LIFECYCLE_JOB_TYPE,
   type JobHandler,
   type PaymentAuthorizationPort,
-  type PaymentAuthorizationResult,
   type ReceiptSink,
   type TransactionReceipt,
 } from "./transaction-lifecycle.js";
@@ -39,24 +47,6 @@ const logger: TickLogger = {
     console.error(`[${APP_NAME}] ${message}`, context ?? {});
   },
 };
-
-/**
- * Default payment provider: a deterministic, in-process implementation standing
- * in for the connector mock client. Captures exactly the intended amount so the
- * lifecycle reconciles and closes. Replace with the real HTTP client
- * (@counter/razorpay-adapter RazorpayTestProvider / @counter/shopify-connector
- * order actions) behind env config for live provider calls.
- */
-function createDefaultPaymentProvider(): PaymentAuthorizationPort {
-  return {
-    authorizeAndCapture: (request): Promise<PaymentAuthorizationResult> =>
-      Promise.resolve({
-        status: "captured",
-        capturedMinor: request.amountMinor,
-        providerReference: `mock_${randomUUID()}`,
-      }),
-  };
-}
 
 /** Generates a random 16-byte-entropy CounterId for a given kind. */
 function randomCounterId<Kind extends Parameters<typeof createCounterId>[0]>(
@@ -107,8 +97,7 @@ function createOutboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink 
   };
 }
 
-function buildHandlers(sink: ReceiptSink): ReadonlyMap<string, JobHandler> {
-  const provider = createDefaultPaymentProvider();
+function buildHandlers(provider: PaymentAuthorizationPort, sink: ReceiptSink): ReadonlyMap<string, JobHandler> {
   return new Map<string, JobHandler>([
     [TRANSACTION_LIFECYCLE_JOB_TYPE, createTransactionLifecycleHandler(provider, sink)],
   ]);
@@ -122,6 +111,12 @@ function main(): void {
     return;
   }
 
+  // Select the payment connector from the environment. In a prod-like
+  // environment with missing credentials this throws (fail loud) before the
+  // loop starts.
+  const selection = selectPaymentAuthorizationPort(process.env);
+  logger.info("payment connector selected", { mode: selection.mode });
+
   const database = new PostgresDatabase(databaseUrl);
   const jobRepository = new PostgresJobRepository(database);
   const outboxRepository = new PostgresOutboxRepository(database);
@@ -134,7 +129,7 @@ function main(): void {
     batchSize: BATCH_SIZE,
     baseRetryDelayMs: BASE_RETRY_DELAY_MS,
     pollIntervalMs: POLL_INTERVAL_MS,
-    handlers: buildHandlers(sink),
+    handlers: buildHandlers(selection.port, sink),
   };
 
   const loop = createWorkerLoop(jobRepository, config, logger);

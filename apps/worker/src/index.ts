@@ -37,3 +37,28 @@ export {
   type TransactionReceipt,
   type ReceiptSink,
 } from "./transaction-lifecycle.js";
+
+export {
+  createRealPaymentAuthorizationPort,
+  type RealLifecycleConfig,
+  type LifecyclePolicyPort,
+  type VariantResolverPort,
+} from "./real-lifecycle.js";
+
+export {
+  selectPaymentAuthorizationPort,
+  createDeterministicPaymentAuthorizationPort,
+  type ConnectorMode,
+  type SelectedPaymentPort,
+} from "./boot.js";
+
+export {
+  resolveShopifyCredentials,
+  resolveRazorpayCredentials,
+  requireShopifyCredentials,
+  requireRazorpayCredentials,
+  isProdLike,
+  type ShopifyCredentials,
+  type RazorpayCredentials,
+  type EnvironmentBag,
+} from "./connector-env.js";
