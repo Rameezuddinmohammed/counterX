@@ -1,6 +1,6 @@
 import * as React from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { cn } from "../lib/utils.js";
+import { cn } from "../lib/utils";
 
 export interface ErrorStateProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;

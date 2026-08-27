@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
-import { cn } from "../lib/utils.js";
+import { cn } from "../lib/utils";
 
 interface SidebarContextType {
   collapsed: boolean;

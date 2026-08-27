@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import * as UI from "../index.js";
+import * as UI from "../index";
 
 describe("@counter/ui exports", () => {
   describe("utility functions", () => {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { SidebarProvider } from "./sidebar.js";
-import { Toaster } from "./toast.js";
+import { SidebarProvider } from "./sidebar";
+import { Toaster } from "./toast";
 
 /**
  * Props for the ConsoleShell layout wrapper.
