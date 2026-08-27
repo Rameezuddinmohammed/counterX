@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a green baseline before changing anything. Confirm the Node toolchain, install state, and that the existing build/test/depcruise all pass so later regressions are attributable to this slice. This is an existing project, so baseline verification comes first.",
+  "status": "completed",
+  "steps": [
+    "Start EVERY bash command with: source ~/.nvm/nvm.sh && nvm use 22 (repo pins Node 22.14.0).",
+    "From ~/counterX confirm deps are installed; if not, run pnpm install.",
+    "Run `pnpm build` from ~/counterX and confirm it completes with no errors.",
+    "Run `pnpm test` from ~/counterX and record the passing count (expected baseline ~2794 passing). Note it in findings.",
+    "Run `pnpm depcruise` and confirm zero violations.",
+    "Verify the live DB is reachable and the runtime tables are EMPTY (this is expected): from packages/data run a short pg script (import pg from \"pg\"; const {Client}=pg) with DATABASE_URL exported (# stays %23) doing SELECT count(*) on runtime.workflow_intents, runtime.lifecycle_steps, runtime.spend_ledger. Delete the temp script afterward. Record counts in findings.",
+    "Do NOT git add/commit/push."
+  ],
+  "acceptance_criteria": [
+    "pnpm build completes successfully with no TypeScript errors",
+    "pnpm test runs and the baseline passing count is recorded in findings",
+    "pnpm depcruise reports zero violations",
+    "Live DB connectivity confirmed and current runtime.* row counts recorded in findings"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX && pnpm build",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX && pnpm test",
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": "Baseline verified green on Node v22.23.2 (nvm use 22; repo pins 22.14.0). pnpm install: deps already up to date (36 workspace projects), no changes. pnpm build: SUCCESS, all packages/apps compiled via tsc with no TypeScript errors. pnpm test: PASS. Baseline passing count = 2791 passed, 23 skipped (integration *.integration.test.ts self-gate to skip when DATABASE_URL is not exported). Note: context.json estimated ~2794 passing; actual observed baseline is 2791 passed / 23 skipped, consistent across two runs. This is the authoritative baseline for regression attribution. pnpm depcruise: PASS, 'no dependency violations found' (2125 modules, 4693 dependencies cruised), zero violations. Live DB connectivity: CONFIRMED reachable against Supabase pooler (aws-0-ap-southeast-1) via a throwaway pg script run from inside packages/data (import pg from 'pg'; const {Client}=pg), DATABASE_URL with # percent-encoded as %23. runtime.* row counts (all EMPTY, as expected/known): runtime.workflow_intents=0, runtime.lifecycle_steps=0, runtime.spend_ledger=0. Throwaway pg script deleted afterward. No application source modified. No git add/commit/push performed."
+}

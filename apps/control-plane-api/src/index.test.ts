@@ -181,14 +181,36 @@ describe("policy store environment gating", () => {
     );
   });
 
-  it("starts in a production-like env when a policyStore is explicitly injected", async () => {
+  it("throws in a production-like env when no transactionStore is injected", async () => {
     const { jwks } = await getTestKeys();
-    const injected = {
+    const injectedPolicy = {
       get: () => Promise.resolve(undefined),
       set: () => Promise.resolve({ success: true, currentVersion: 1 }),
     };
+    // A durable policyStore alone is not enough: the transaction read-model
+    // store must also be injected in production-like environments.
+    expect(() =>
+      createServer({ jwks, environment: "production", policyStore: injectedPolicy }),
+    ).toThrow(/Refusing to start in production-like environment/);
+  });
+
+  it("starts in a production-like env when both durable stores are explicitly injected", async () => {
+    const { jwks } = await getTestKeys();
+    const injectedPolicy = {
+      get: () => Promise.resolve(undefined),
+      set: () => Promise.resolve({ success: true, currentVersion: 1 }),
+    };
+    const injectedTransactions = {
+      list: () => Promise.resolve([]),
+      get: () => Promise.resolve(undefined),
+    };
     expect(() => {
-      server = createServer({ jwks, environment: "production", policyStore: injected });
+      server = createServer({
+        jwks,
+        environment: "production",
+        policyStore: injectedPolicy,
+        transactionStore: injectedTransactions,
+      });
     }).not.toThrow();
     await server?.ready();
   });

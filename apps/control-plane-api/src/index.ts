@@ -22,6 +22,11 @@ import {
   type PolicyStore,
   type PolicyCompiler,
 } from "./policy-routes.js";
+import {
+  transactionRoutesPlugin,
+  createInMemoryTransactionStore,
+  type TransactionReadStore,
+} from "./transaction-routes.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -64,6 +69,26 @@ function resolvePolicyStore(
   );
 }
 
+function resolveTransactionStore(
+  environment: string,
+  options: CreateServerOptions | undefined,
+): TransactionReadStore {
+  if (options?.transactionStore !== undefined) {
+    return options.transactionStore;
+  }
+
+  if (IN_MEMORY_ELIGIBLE_ENVIRONMENTS.has(environment)) {
+    return createInMemoryTransactionStore();
+  }
+
+  throw new Error(
+    `[${APP_NAME}] Refusing to start in production-like environment ` +
+      `'${environment}' without a durable transactionStore. The in-memory ` +
+      `transaction store is only permitted in local/test/development. Wire a ` +
+      `Postgres-backed store (from DATABASE_URL) before deploying.`,
+  );
+}
+
 export interface CreateServerOptions {
   readonly version?: string | undefined;
   readonly environment?: string | undefined;
@@ -71,6 +96,7 @@ export interface CreateServerOptions {
   readonly logger?: boolean | undefined;
   readonly policyStore?: PolicyStore | undefined;
   readonly policyCompiler?: PolicyCompiler | undefined;
+  readonly transactionStore?: TransactionReadStore | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -124,6 +150,12 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   const store = resolvePolicyStore(environment, options);
   const compiler = options?.policyCompiler ?? createDefaultPolicyCompiler();
   void server.register(policyRoutesPlugin, { store, compiler });
+
+  // Register merchant transaction read-model routes. In production-like
+  // environments a durable store MUST be injected; local/test fall back to
+  // in-memory.
+  const transactionStore = resolveTransactionStore(environment, options);
+  void server.register(transactionRoutesPlugin, { store: transactionStore, environment });
 
   return server;
 }

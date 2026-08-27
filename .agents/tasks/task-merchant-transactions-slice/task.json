@@ -1,0 +1,10 @@
+{
+  "task_id": "task-merchant-transactions-slice",
+  "task_description": "Wire the Merchant Console Transactions page end-to-end against real data (SLICE 1). Implement two new control-plane-api GET endpoints backed by a merchant-scoped read-model projection over runtime.workflow_intents + lifecycle_steps + spend_ledger, enforce tenant isolation, and replace the hardcoded DEMO_TRANSACTIONS array in apps/merchant-console/src/app/transactions/page.tsx with a real useApi(listTransactions) fetch (loading/empty/error states). Prove against live Supabase with a creds/DB-gated integration test that seeds and cleans up its own rows. Scope guardrail: ONLY the Transactions slice; do not touch other pages or consoles.",
+  "status": "in_progress",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002"
+  ],
+  "blocked_reason": null
+}
