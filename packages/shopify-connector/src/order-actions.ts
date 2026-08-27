@@ -714,6 +714,9 @@ export class OrderCancelAction implements ActionPort<OrderCancelInput, CancelRes
       reason: input.payload.reason ?? "OTHER",
       notifyCustomer: false,
       refund: false,
+      // Shopify Admin API 2025-07 requires `restock` on orderCancel. Do not
+      // restock: the autonomous flow does not manage inventory reservations.
+      restock: false,
       staffNote: `Counter correlation: ${input.correlationId}`,
     };
 

@@ -75,8 +75,8 @@ mutation orderMarkAsPaid($input: OrderMarkAsPaidInput!) {
 // ─── Order Cancel ─────────────────────────────────────────────────────────────
 
 export const ORDER_CANCEL_MUTATION = `
-mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $refund: Boolean!, $staffNote: String) {
-  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, refund: $refund, staffNote: $staffNote) {
+mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $refund: Boolean!, $restock: Boolean!, $staffNote: String) {
+  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, refund: $refund, restock: $restock, staffNote: $staffNote) {
     orderCancelUserErrors {
       field
       message
