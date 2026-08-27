@@ -61,7 +61,7 @@ describe("merchant routes", () => {
   describe("authentication - no existence leakage", () => {
     it("unauthenticated GET /capabilities returns 401 with standard shape", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const response = await server.inject({
@@ -76,7 +76,7 @@ describe("merchant routes", () => {
 
     it("unauthenticated POST /search returns 401 without leaking resource existence", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const response = await server.inject({
@@ -91,7 +91,7 @@ describe("merchant routes", () => {
 
     it("unauthenticated GET /transactions/:id returns 401 same as non-existent", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const response = await server.inject({
@@ -107,7 +107,7 @@ describe("merchant routes", () => {
   describe("validation errors - 400", () => {
     it("POST /search without query returns 400", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -124,7 +124,7 @@ describe("merchant routes", () => {
 
     it("POST /quotes without required fields returns 400", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -141,7 +141,7 @@ describe("merchant routes", () => {
 
     it("POST /quotes with invalid quantity returns 400", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -159,7 +159,7 @@ describe("merchant routes", () => {
 
     it("POST /transactions without body returns 400", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -176,7 +176,7 @@ describe("merchant routes", () => {
   describe("successful operations", () => {
     it("GET /capabilities returns signed capability response", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -194,7 +194,7 @@ describe("merchant routes", () => {
 
     it("POST /search returns results with pagination", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -213,7 +213,7 @@ describe("merchant routes", () => {
 
     it("GET /products/:variantId returns product details", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -230,7 +230,7 @@ describe("merchant routes", () => {
 
     it("POST /quotes returns immutable quote", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -252,7 +252,7 @@ describe("merchant routes", () => {
 
     it("POST /transactions creates transaction", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -274,7 +274,7 @@ describe("merchant routes", () => {
 
     it("GET /transactions/:id returns status", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -291,7 +291,7 @@ describe("merchant routes", () => {
 
     it("GET /transactions/:id/receipt returns signed receipt", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -524,7 +524,7 @@ describe("merchant routes", () => {
   describe("correlation ID propagation", () => {
     it("response includes x-correlation-id header", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -539,7 +539,7 @@ describe("merchant routes", () => {
 
     it("uses provided correlation ID from request", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const token = await createTestToken();
@@ -560,7 +560,7 @@ describe("merchant routes", () => {
   describe("tenant isolation - negative path", () => {
     it("token scoped to merchant B requesting merchant A resources returns 403", async () => {
       const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
 
       const OTHER_MERCHANT_ID = "ctr_merchant_BBBBBBBBBBBBBBBBBBBBBB";

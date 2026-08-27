@@ -37,7 +37,9 @@ async function createTestToken(claims: Record<string, unknown> = {}): Promise<st
     [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: TEST_MERCHANT_ID },
     [`${CLAIMS_NAMESPACE}roles`]: ["merchant.owner"],
     [`${CLAIMS_NAMESPACE}assurance`]: "session",
-    permissions: ["identity.scope.read"],
+    // merchant.owner carries both read and manage in the permission catalog.
+    // The manage permission is required to POST (create/update) policy.
+    permissions: ["identity.scope.read", "identity.scope.manage"],
     ...claims,
   })
     .setProtectedHeader({ alg: "RS256" })
@@ -101,6 +103,103 @@ describe("policy routes", () => {
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body) as { error: { code: string } };
       expect(body.error.code).toBe("UNAUTHENTICATED");
+    });
+  });
+
+  describe("write-permission enforcement (bug 1c)", () => {
+    it("POST /policy with a read-only token (no identity.scope.manage) returns 403", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      // A token whose role only grants read (merchant.read_only) must NOT be
+      // able to write. Effective permissions are derived from roles, so the
+      // role - not a decorative permissions claim - determines authorization.
+      const token = await createTestToken({
+        [`${CLAIMS_NAMESPACE}roles`]: ["merchant.read_only"],
+      });
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body) as { error: { code: string } };
+      expect(body.error.code).toBe("UNAUTHORIZED");
+      // The read-only write must not have persisted anything.
+      expect(store.get(TEST_MERCHANT_ID)).toBeUndefined();
+    });
+
+    it("POST /policy with a token that has identity.scope.manage returns 201", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const token = await createTestToken({
+        permissions: ["identity.scope.read", "identity.scope.manage"],
+      });
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+      expect(response.statusCode).toBe(201);
+      expect(store.get(TEST_MERCHANT_ID)?.config.policyVersion).toBe("1.0.0");
+    });
+
+    it("GET /policy still succeeds with only identity.scope.read", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      // Seed a policy with a manage token.
+      const manageToken = await createTestToken();
+      await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${manageToken}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+
+      const readToken = await createTestToken({
+        [`${CLAIMS_NAMESPACE}roles`]: ["merchant.read_only"],
+      });
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${readToken}` },
+      });
+      expect(response.statusCode).toBe(200);
+    });
+
+    it("cross-tenant POST is denied 403 (merchant A token writing merchant B policy)", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const OTHER_MERCHANT_ID = "ctr_merchant_BBBBBBBBBBBBBBBBBBBBBB";
+      // Token scoped to merchant A (TEST_MERCHANT_ID) with full manage rights.
+      const token = await createTestToken({
+        [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: TEST_MERCHANT_ID },
+        permissions: ["identity.scope.read", "identity.scope.manage"],
+      });
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${OTHER_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: VALID_POLICY_BODY,
+      });
+      expect(response.statusCode).toBe(403);
+      const body = JSON.parse(response.body) as { error: { code: string } };
+      expect(body.error.code).toBe("FORBIDDEN");
+      // Nothing should have been written for the other merchant.
+      expect(store.get(OTHER_MERCHANT_ID)).toBeUndefined();
     });
   });
 

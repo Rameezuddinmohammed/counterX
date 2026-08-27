@@ -1,6 +1,7 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { SignJWT, generateKeyPair, exportJWK, createLocalJWKSet } from "jose";
 import { APP_NAME, createServer } from "./index.js";
+import { createMockHandlers } from "./merchant-handlers.js";
 import type { FastifyInstance } from "fastify";
 import type { WebhookHandler } from "@counter/http-api-kit";
 
@@ -63,7 +64,7 @@ describe("@counter/agent-runtime", () => {
 
   it("GET /health returns 200 with status, version, and environment", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", version: "2.0.0" });
+    server = createServer({ jwks, environment: "test", version: "2.0.0", allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({ method: "GET", url: "/health" });
@@ -76,7 +77,7 @@ describe("@counter/agent-runtime", () => {
 
   it("GET /ready returns 200 with readiness structure", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({ method: "GET", url: "/ready" });
@@ -87,7 +88,7 @@ describe("@counter/agent-runtime", () => {
 
   it("unauthenticated GET /runtime/v1/status returns 401", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({ method: "GET", url: "/runtime/v1/status" });
@@ -98,7 +99,7 @@ describe("@counter/agent-runtime", () => {
 
   it("authenticated GET /runtime/v1/status with valid JWT returns 200", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const token = await createTestToken();
@@ -120,7 +121,7 @@ describe("@counter/agent-runtime", () => {
     const adapters = new Map<string, WebhookHandler>();
     adapters.set("test-adapter", testHandler);
 
-    server = createServer({ jwks, environment: "test", webhooks: { adapters } });
+    server = createServer({ jwks, environment: "test", webhooks: { adapters }, allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({
@@ -136,7 +137,7 @@ describe("@counter/agent-runtime", () => {
 
   it("POST /webhooks/v1/unknown-adapter returns 404", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({
@@ -150,7 +151,7 @@ describe("@counter/agent-runtime", () => {
 
   it("serves OpenAPI spec in non-production environment", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({ method: "GET", url: "/docs/openapi.json" });
@@ -162,7 +163,7 @@ describe("@counter/agent-runtime", () => {
 
   it("unauthenticated GET /runtime/v1/merchants/:merchantId/capabilities returns 401", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const response = await server.inject({
@@ -176,7 +177,7 @@ describe("@counter/agent-runtime", () => {
 
   it("authenticated GET /runtime/v1/merchants/:merchantId/capabilities returns capability response", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test" });
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
     await server.ready();
 
     const token = await createTestToken();
@@ -189,5 +190,51 @@ describe("@counter/agent-runtime", () => {
     const body = JSON.parse(response.body) as { merchantId: string; capabilities: string[] };
     expect(body.merchantId).toBe("ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA");
     expect(body.capabilities).toBeInstanceOf(Array);
+  });
+
+  describe("mock handler startup safety (bug 1a)", () => {
+    const productionLikeEnvironments = ["production", "sandbox", "pilot"];
+
+    for (const environment of productionLikeEnvironments) {
+      it(`throws when created in production-like '${environment}' environment without real handlers`, async () => {
+        const { jwks } = await getTestKeys();
+        expect(() => createServer({ jwks, environment })).toThrow(
+          /Refusing to start in production-like environment/,
+        );
+      });
+
+      it(`throws in '${environment}' even when allowMockHandlers is set (opt-in ignored outside local/test)`, async () => {
+        const { jwks } = await getTestKeys();
+        expect(() =>
+          createServer({ jwks, environment, allowMockHandlers: true }),
+        ).toThrow(/Refusing to start in production-like environment/);
+      });
+    }
+
+    it("throws in a local/test environment when allowMockHandlers is not set", async () => {
+      const { jwks } = await getTestKeys();
+      expect(() => createServer({ jwks, environment: "test" })).toThrow(
+        /only when allowMockHandlers is explicitly set/,
+      );
+    });
+
+    it("starts in a local/test environment when allowMockHandlers is explicitly set", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+      const response = await server.inject({ method: "GET", url: "/health" });
+      expect(response.statusCode).toBe(200);
+    });
+
+    it("starts in a production-like environment when real merchantHandlers are supplied", async () => {
+      const { jwks } = await getTestKeys();
+      const handlers = createMockHandlers();
+      // Real handlers (here represented by an injected implementation) allow
+      // startup in production-like environments without the mock fallback.
+      server = createServer({ jwks, environment: "production", merchantHandlers: handlers });
+      await server.ready();
+      const response = await server.inject({ method: "GET", url: "/health" });
+      expect(response.statusCode).toBe(200);
+    });
   });
 });

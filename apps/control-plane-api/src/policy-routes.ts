@@ -180,8 +180,10 @@ export async function policyRoutesPlugin(
 
   const ROUTE_PREFIX = "/control/v1/merchants/:merchantId/policy";
 
+  // POST creates/updates policy configuration: this is a mutation and MUST
+  // require the WRITE permission (identity.scope.manage), not a read permission.
   registerRoutePermission(`POST:${ROUTE_PREFIX}`, {
-    permission: "identity.scope.read",
+    permission: "identity.scope.manage",
   });
   registerRoutePermission(`GET:${ROUTE_PREFIX}`, {
     permission: "identity.scope.read",

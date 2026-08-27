@@ -35,6 +35,59 @@ export interface CreateServerOptions {
   readonly logger?: boolean | undefined;
   readonly webhooks?: WebhookIngressOptions | undefined;
   readonly merchantHandlers?: MerchantHandlers | undefined;
+  /**
+   * Explicit opt-in to fall back to mock merchant handlers when no real
+   * handlers are supplied. Mock handlers are ONLY permitted in local/test
+   * environments. In production-like environments this flag is ignored and
+   * the server refuses to start without real handlers.
+   */
+  readonly allowMockHandlers?: boolean | undefined;
+}
+
+/**
+ * Environments that are permitted to fall back to mock merchant handlers.
+ *
+ * NOTE: main.ts passes environment as NODE_ENV (development/test/production),
+ * NOT the COUNTER_ENV taxonomy. We therefore treat both the Counter local
+ * tiers (local/test) and the Node development tier as the non-production tier
+ * that MAY use mocks (only with an explicit opt-in). Everything else
+ * (production/sandbox/pilot and any unknown value) is production-like and MUST
+ * be given real handlers.
+ */
+const MOCK_ELIGIBLE_ENVIRONMENTS: ReadonlySet<string> = new Set([
+  "local",
+  "test",
+  "development",
+]);
+
+function resolveMerchantHandlers(
+  environment: string,
+  options: CreateServerOptions | undefined,
+): MerchantHandlers {
+  if (options?.merchantHandlers !== undefined) {
+    return options.merchantHandlers;
+  }
+
+  const mockEligible = MOCK_ELIGIBLE_ENVIRONMENTS.has(environment);
+  if (mockEligible && options?.allowMockHandlers === true) {
+    return createMockHandlers();
+  }
+
+  if (mockEligible) {
+    throw new Error(
+      `[${APP_NAME}] No merchantHandlers were provided. Mock handlers are ` +
+        `available in the '${environment}' environment but only when ` +
+        `allowMockHandlers is explicitly set to true. Provide real ` +
+        `merchantHandlers or set allowMockHandlers: true for local/test use.`,
+    );
+  }
+
+  throw new Error(
+    `[${APP_NAME}] Refusing to start in production-like environment ` +
+      `'${environment}' without real merchantHandlers. Mock handlers are not ` +
+      `permitted outside local/test/development. Wire real merchant handlers ` +
+      `before deploying.`,
+  );
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -78,8 +131,10 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     void reply.send({ status: "operational", version, environment });
   });
 
-  // Register merchant runtime routes with handler ports
-  const handlers = options?.merchantHandlers ?? createMockHandlers();
+  // Register merchant runtime routes with handler ports.
+  // Mock handlers are only permitted in local/test/development with an
+  // explicit opt-in; production-like environments must supply real handlers.
+  const handlers = resolveMerchantHandlers(environment, options);
   void server.register(merchantRoutesPlugin, { handlers });
 
   return server;
