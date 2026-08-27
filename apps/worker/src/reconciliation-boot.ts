@@ -11,7 +11,18 @@
  *     carries the authoritative Shopify order reference;
  *   - order query: the REAL Shopify OrderQueryAction;
  *   - recorder: appends a durable 'transaction.reconciliation.v1' outbox event
- *     and treats a prior 'resolved_closed' event as already-resolved.
+ *     and treats a prior TERMINAL disposition ('resolved_closed' or
+ *     'no_provider_effect') as already-resolved so an unresolvable candidate is
+ *     not re-recorded on every pass.
+ *
+ * KEY SPACE: the durable step ledger is keyed on the RAW opaque transaction
+ * reference (the idempotency key used for every external effect), NOT on the
+ * derived typed transaction CounterId the lifecycle stamps as `transactionId`.
+ * The receipt sink carries the raw reference in the receipt payload's
+ * `idempotencyKey` field; the candidate source reads THAT and uses it to look
+ * up the ledger, so the candidate -> ledger join matches in the deployed
+ * wiring (proven end-to-end by the reconciliation integration test that drives
+ * the real lifecycle handler so deriveTransactionId is actually applied).
  *
  * SECURITY: only provider references, financial status strings, and amounts are
  * read or written — never credentials or secrets.
@@ -42,25 +53,38 @@ function createPostgresCandidateSource(
 ): ReconciliationCandidateSource {
   return {
     async listIndeterminate(): Promise<readonly ReconciliationCandidate[]> {
-      const result = await database.query<{ transaction_id: string }>(
-        `SELECT DISTINCT (payload ->> 'transactionId') AS transaction_id
+      // The step ledger is keyed on the RAW opaque transaction reference (the
+      // idempotency key used for every external effect), NOT on the derived
+      // typed transaction CounterId the lifecycle stamps as `transactionId`.
+      // The receipt sink therefore carries the raw reference in the payload's
+      // `idempotencyKey` field; join and look up on THAT. Legacy receipts that
+      // predate the `idempotencyKey` field fall back to `transactionId` via
+      // COALESCE so they are still scanned (their key space is the raw value).
+      const KEY = "COALESCE(payload ->> 'idempotencyKey', payload ->> 'transactionId')";
+      const result = await database.query<{
+        transaction_id: string;
+        idempotency_key: string;
+      }>(
+        `SELECT DISTINCT
+                (payload ->> 'transactionId') AS transaction_id,
+                ${KEY} AS idempotency_key
            FROM runtime.outbox_events
           WHERE event_type = $1
             AND payload ->> 'phase' = 'INDETERMINATE'
-            AND (payload ->> 'transactionId') IS NOT NULL
+            AND ${KEY} IS NOT NULL
             AND NOT EXISTS (
               SELECT 1 FROM runtime.outbox_events resolved
                WHERE resolved.event_type = $2
-                 AND resolved.payload ->> 'transactionId' = runtime.outbox_events.payload ->> 'transactionId'
-                 AND resolved.payload ->> 'disposition' = 'resolved_closed'
+                 AND resolved.payload ->> 'idempotencyKey' = ${KEY}
+                 AND resolved.payload ->> 'disposition'
+                     IN ('resolved_closed', 'no_provider_effect')
             )`,
         [RECEIPT_EVENT_TYPE, RECONCILIATION_EVENT_TYPE],
       );
       return result.rows.map((row) => ({
         transactionId: row.transaction_id,
-        // The lifecycle uses the payload transactionId verbatim as the
-        // idempotency key / step-ledger key for every external effect.
-        idempotencyKey: row.transaction_id,
+        // The durable step-ledger key: the RAW opaque transaction reference.
+        idempotencyKey: row.idempotency_key,
       }));
     },
   };
@@ -116,6 +140,10 @@ function createPostgresRecorder(
             eventVersion: 1,
             payload: {
               transactionId: resolution.transactionId,
+              // The RAW opaque transaction reference — the join key the
+              // candidate SELECT and isResolved() use so a resolution is matched
+              // back to its INDETERMINATE receipt (which also carries it).
+              idempotencyKey: resolution.idempotencyKey,
               disposition: resolution.disposition,
               orderReference: resolution.orderReference ?? null,
               evidence: resolution.evidence,
@@ -131,12 +159,20 @@ function createPostgresRecorder(
       }
     },
     async isResolved(idempotencyKey: string): Promise<boolean> {
+      // A candidate is resolved once a TERMINAL disposition has been recorded.
+      // `resolved_closed` is the settled/paid terminal; `no_provider_effect` is
+      // ALSO terminal — a receipt with no durable order reference will never
+      // gain one, so re-scanning it forever would append an unbounded stream of
+      // reconciliation rows. Only `still_indeterminate` (an order that exists
+      // but is not yet settled) stays re-scannable so a later settlement can
+      // close it. Treating `no_provider_effect` as resolved makes the scan
+      // idempotent for permanently-orphaned candidates.
       const result = await database.query<{ present: boolean }>(
         `SELECT EXISTS (
            SELECT 1 FROM runtime.outbox_events
             WHERE event_type = $1
-              AND payload ->> 'transactionId' = $2
-              AND payload ->> 'disposition' = 'resolved_closed'
+              AND payload ->> 'idempotencyKey' = $2
+              AND payload ->> 'disposition' IN ('resolved_closed', 'no_provider_effect')
          ) AS present`,
         [RECONCILIATION_EVENT_TYPE, idempotencyKey],
       );

@@ -181,6 +181,76 @@ describe("reconcileCandidate", () => {
   });
 });
 
+describe("bounded re-recording for terminal non-closed dispositions", () => {
+  // Models the deployed recorder's isResolved semantics (reconciliation-boot):
+  // a TERMINAL disposition (resolved_closed or no_provider_effect) marks the
+  // candidate resolved, while still_indeterminate stays re-scannable. This
+  // proves the scan is idempotent for a permanently-orphaned candidate rather
+  // than appending a new resolution on every pass forever.
+  function makeTerminalAwareRecorder(): ReconciliationRecorder & {
+    readonly recorded: ReconciliationResolution[];
+  } {
+    const recorded: ReconciliationResolution[] = [];
+    const terminal = new Set(["resolved_closed", "no_provider_effect"]);
+    return {
+      recorded,
+      record(resolution): Promise<void> {
+        recorded.push(resolution);
+        return Promise.resolve();
+      },
+      isResolved(idempotencyKey): Promise<boolean> {
+        return Promise.resolve(
+          recorded.some(
+            (r) => r.idempotencyKey === idempotencyKey && terminal.has(r.disposition),
+          ),
+        );
+      },
+    };
+  }
+
+  it("does NOT re-record a no_provider_effect candidate on a later pass", async () => {
+    const recorder = makeTerminalAwareRecorder();
+    const config: ReconciliationScannerConfig = {
+      source: { listIndeterminate: () => Promise.resolve([candidate]) },
+      // No finalize reference -> no_provider_effect (permanently orphaned).
+      ledger: makeLedger({}),
+      orderQuery: makeOrderQuery(succeededOrder(makeOrder("PAID"))),
+      recorder,
+    };
+
+    const first = await reconcileCandidate(config, candidate);
+    expect(first.disposition).toBe("no_provider_effect");
+
+    // Second pass: the terminal disposition already recorded makes it a no-op.
+    const second = await reconcileCandidate(config, candidate);
+    expect(second.disposition).toBe("already_resolved");
+
+    // Exactly ONE durable resolution row, not one per pass.
+    expect(recorder.recorded.filter((r) => r.disposition === "no_provider_effect")).toHaveLength(1);
+  });
+
+  it("DOES re-scan a still_indeterminate candidate so a later settlement can close it", async () => {
+    const recorder = makeTerminalAwareRecorder();
+    const pending: ReconciliationScannerConfig = {
+      source: { listIndeterminate: () => Promise.resolve([candidate]) },
+      ledger: makeLedger({ "order-abc\u0000shopify.finalize": "gid://shopify/Order/123" }),
+      orderQuery: makeOrderQuery(succeededOrder(makeOrder("PENDING"))),
+      recorder,
+    };
+
+    const first = await reconcileCandidate(pending, candidate);
+    expect(first.disposition).toBe("still_indeterminate");
+
+    // The order later settles; the candidate is still re-scannable and closes.
+    const settled: ReconciliationScannerConfig = {
+      ...pending,
+      orderQuery: makeOrderQuery(succeededOrder(makeOrder("PAID"))),
+    };
+    const second = await reconcileCandidate(settled, candidate);
+    expect(second.disposition).toBe("resolved_closed");
+  });
+});
+
 describe("runReconciliationPass", () => {
   it("resolves every candidate in a single pass", async () => {
     const recorder = makeRecorder();

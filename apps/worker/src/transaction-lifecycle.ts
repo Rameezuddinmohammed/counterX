@@ -157,6 +157,16 @@ export interface ReconciliationOutcome {
 
 export interface TransactionReceipt {
   readonly transactionId: CounterId<"transaction">;
+  /**
+   * The RAW opaque per-transaction reference from the job payload
+   * (`payload.transactionId`). This is the STABLE idempotency key used verbatim
+   * as the durable step-ledger key for every external effect. It is carried on
+   * the receipt (distinct from the derived typed `transactionId` CounterId) so
+   * the out-of-band reconciliation scanner can join a durable INDETERMINATE
+   * receipt back to the step ledger, which is keyed on this raw reference — NOT
+   * on the derived CounterId. Never a secret.
+   */
+  readonly idempotencyKey: string;
   readonly finalState: TransactionState;
   readonly providerReference: string;
   readonly reconciliation: ReconciliationOutcome;
@@ -330,6 +340,7 @@ export function createTransactionLifecycleHandler(
         );
         await sink.record({
           transactionId,
+          idempotencyKey: payload.transactionId,
           finalState: state,
           providerReference: providerResult.providerReference,
           reconciliation: {
@@ -391,6 +402,7 @@ export function createTransactionLifecycleHandler(
         );
         await sink.record({
           transactionId,
+          idempotencyKey: payload.transactionId,
           finalState: state,
           providerReference: providerResult.providerReference,
           reconciliation,
@@ -415,6 +427,7 @@ export function createTransactionLifecycleHandler(
 
       await sink.record({
         transactionId,
+        idempotencyKey: payload.transactionId,
         finalState: state,
         providerReference: providerResult.providerReference,
         reconciliation,

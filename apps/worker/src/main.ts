@@ -91,6 +91,11 @@ function createOutboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink 
             eventVersion: 1,
             payload: {
               transactionId: receipt.transactionId,
+              // The RAW opaque transaction reference (payload.transactionId).
+              // The out-of-band reconciliation scanner joins on THIS key because
+              // the durable step ledger is keyed on it (not on the derived
+              // `transactionId` CounterId). Never a secret.
+              idempotencyKey: receipt.idempotencyKey,
               phase: receipt.finalState.phase,
               payment: receipt.finalState.payment,
               order: receipt.finalState.order,
@@ -98,7 +103,7 @@ function createOutboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink 
               reconciliation: receipt.reconciliation,
             },
             correlationId: undefined,
-            idempotencyKey: receipt.transactionId,
+            idempotencyKey: receipt.idempotencyKey,
           },
         ],
         now,
