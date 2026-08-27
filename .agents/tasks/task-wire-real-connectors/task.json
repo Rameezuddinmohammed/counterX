@@ -2,15 +2,27 @@
   "task_id": "task-wire-real-connectors",
   "task_description": "Wire the real Razorpay and Shopify connectors so an actual test payment flows through real providers, completing one complete real transaction lifecycle. Build the missing real Razorpay HTTP client, add env-gated connector factories, wire both into the worker transaction lifecycle (quote -> draft -> real Razorpay order -> unattended payment evidence -> finalize -> mark paid -> query -> reconcile -> signed receipt) with preserved explicit outcomes and per-transaction idempotency, fall back to mocks without creds so the 2711 tests still pass, and provide a creds-gated end-to-end verification script.",
   "status": "completed",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003",
+    "FEAT-004"
+  ],
   "blocked_reason": null,
   "verification": {
     "build": "pass",
     "tests": "pass",
     "test_quality": "pass",
     "docker_build": "skipped",
-    "summary": "pnpm build passes. pnpm test = 2758 passing (baseline 2711 + 47 new), no failures; creds-gated real-API integration tests skip cleanly with no credentials. pnpm depcruise = no violations (2071 modules). node scripts/verify-real-transaction.mjs prints SKIPPED and exits 0 without creds. Test quality reviewed: real-lifecycle.test.ts drives the full lifecycle and asserts CLOSED/captured/committed, idempotency via external-effect call-count assertions, timeout->INDETERMINATE, policy-decline with zero external effects; razorpay real-http-client.test.ts asserts independently-computed Basic auth, idempotency header, JSON serialization, non-200 pass-through, transport-failure->503. Would fail on revert. Docker build skipped: repo Dockerfile is a thin deploy image; host build/test/depcruise are authoritative.",
+    "summary": "pnpm build passes. pnpm test = 2764 passing (baseline 2711 + 53 new), no failures; creds-gated real-API integration tests skip cleanly with no credentials. pnpm depcruise = no violations (2071 modules). node scripts/verify-real-transaction.mjs prints SKIPPED and exits 0 without creds. Test quality reviewed: real-lifecycle.test.ts drives the full lifecycle and asserts CLOSED/captured/committed, idempotency via external-effect call-count assertions, timeout->INDETERMINATE, policy-decline with zero external effects; razorpay real-http-client.test.ts asserts independently-computed Basic auth, idempotency header, JSON serialization, non-200 pass-through, transport-failure->503. Would fail on revert. Docker build skipped: repo Dockerfile is a thin deploy image; host build/test/depcruise are authoritative.",
     "test_count_baseline": 2711,
-    "test_count_final": 2758
+    "test_count_final": 2764
+  },
+  "review": {
+    "iterations": 2,
+    "final_verdict": "APPROVED",
+    "v1": ".agents/tasks/task-wire-real-connectors/2026-08-27-124948-review.md",
+    "v2": ".agents/tasks/task-wire-real-connectors/2026-08-27-130546-review.md",
+    "note": "v1 NEEDS_CHANGES (3 blocking: Razorpay INDETERMINATE dead code, CTP envelope discarded, reconciliation compared unrelated amounts) fixed in FEAT-005 (commit 98418e3). v2 APPROVED. Two non-blocking follow-ups deferred to a live capture-connector milestone: real port derives capturedMinor from requested amount (self-consistent reconciliation); Shopify cross-restart idempotency needs durable resume."
   }
 }
