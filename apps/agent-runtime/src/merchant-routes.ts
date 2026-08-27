@@ -12,7 +12,9 @@ import {
   getActorContext,
   registerRoutePermission,
 } from "@counter/http-api-kit";
+import { sha256Digest, type Instant } from "@counter/domain";
 import type { MerchantHandlers, HandlerContext, HandlerError } from "./merchant-handlers.js";
+import type { RuntimeIdempotencyStore } from "./idempotency-store.js";
 
 // ---------------------------------------------------------------------------
 // Route Permission Registration
@@ -160,13 +162,88 @@ function sendForbiddenError(reply: FastifyReply): void {
 
 export interface MerchantRoutesOptions {
   readonly handlers: MerchantHandlers;
+  /**
+   * Optional durable idempotency store. When present, mutating routes carrying
+   * an Idempotency-Key are deduplicated through acquire/complete/replay before
+   * the handler runs. When absent (local/test with no injection) routes keep
+   * their prior handler-level behavior unchanged.
+   */
+  readonly idempotencyStore?: RuntimeIdempotencyStore | undefined;
 }
 
 export async function merchantRoutesPlugin(
   fastify: FastifyInstance,
   options: MerchantRoutesOptions,
 ): Promise<void> {
-  const { handlers } = options;
+  const { handlers, idempotencyStore } = options;
+
+  // Durable idempotency wrapper for mutating routes. When a store is present
+  // AND the request carries an Idempotency-Key, we acquire the key (persisting
+  // a pending record), run the handler, then complete with the response so a
+  // replay returns the identical snapshot. Without a store or a key, `execute`
+  // runs directly and behavior is unchanged.
+  async function runWithIdempotency(
+    ctx: HandlerContext,
+    reply: FastifyReply,
+    execute: () => Promise<{ readonly handled: boolean; readonly snapshot?: unknown }>,
+  ): Promise<void> {
+    const key = ctx.idempotencyKey;
+    if (idempotencyStore === undefined || key === undefined || key === "") {
+      await execute();
+      return;
+    }
+
+    const now = Date.now() as Instant;
+    const digest = sha256Digest(
+      new TextEncoder().encode(`${ctx.merchantId}:${key}`),
+    );
+
+    const acquireResult = await idempotencyStore.acquire(key, digest, now);
+    if (!acquireResult.ok) {
+      void reply.status(500).send({
+        error: { code: "INTERNAL", message: "Idempotency store failure" },
+      });
+      return;
+    }
+
+    const outcome = acquireResult.value;
+    if (outcome.outcome === "replay") {
+      void reply.send(outcome.responseSnapshot);
+      return;
+    }
+    if (outcome.outcome === "in_flight") {
+      void reply.status(409).send({
+        error: { code: "CONFLICT", message: "A request with this Idempotency-Key is in flight" },
+      });
+      return;
+    }
+    if (outcome.outcome === "digest_conflict") {
+      void reply.status(409).send({
+        error: {
+          code: "CONFLICT",
+          message: "Idempotency-Key was already used with a different request",
+        },
+      });
+      return;
+    }
+
+    // outcome === "acquired": run the handler and persist the outcome.
+    let result: { readonly handled: boolean; readonly snapshot?: unknown };
+    try {
+      result = await execute();
+    } catch (error) {
+      await idempotencyStore.fail(key);
+      throw error;
+    }
+
+    if (result.handled && result.snapshot !== undefined) {
+      await idempotencyStore.complete(key, result.snapshot, now);
+    } else {
+      // The handler returned an error / non-persistable outcome; release the
+      // key so a corrected retry can proceed.
+      await idempotencyStore.fail(key);
+    }
+  }
 
   // Register permissions for all routes
   for (const routeKey of ROUTES_TO_REGISTER) {
@@ -257,16 +334,19 @@ export async function merchantRoutesPlugin(
       sendValidationError(reply, "quantity must be a positive number", "quantity");
       return;
     }
-    const result = await handlers.quote.handle(ctx, {
+    await runWithIdempotency(ctx, reply, async () => {
+      const result = await handlers.quote.handle(ctx, {
       variantId: typedBody.variantId,
       quantity: typedBody.quantity,
       currency: typedBody.currency,
     });
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return { handled: false };
+      }
+      void reply.send(result.value);
+      return { handled: true, snapshot: result.value };
+    });
   });
 
   // --- Transaction Create Route ---
@@ -287,16 +367,19 @@ export async function merchantRoutesPlugin(
       return;
     }
     const typedBody = body as { quoteId: string; paymentMethod: string; billingAddress?: { line1: string; city: string; region?: string; postalCode: string; country: string } };
-    const result = await handlers.transactionCreate.handle(ctx, {
+    await runWithIdempotency(ctx, reply, async () => {
+      const result = await handlers.transactionCreate.handle(ctx, {
       quoteId: typedBody.quoteId,
       paymentMethod: typedBody.paymentMethod,
       billingAddress: typedBody.billingAddress,
     });
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return { handled: false };
+      }
+      void reply.send(result.value);
+      return { handled: true, snapshot: result.value };
+    });
   });
 
   // --- Transaction Status Route ---
@@ -345,16 +428,19 @@ export async function merchantRoutesPlugin(
       sendValidationError(reply, "outcome must be 'success', 'failure', or 'pending'", "outcome");
       return;
     }
-    const result = await handlers.paymentActionResult.handle(ctx, transactionId, {
+    await runWithIdempotency(ctx, reply, async () => {
+      const result = await handlers.paymentActionResult.handle(ctx, transactionId, {
       providerReference: typedBody.providerReference,
       outcome: typedBody.outcome,
       providerMetadata: typedBody.providerMetadata,
     });
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return { handled: false };
+      }
+      void reply.send(result.value);
+      return { handled: true, snapshot: result.value };
+    });
   });
 
   // --- Cancel Route ---
@@ -373,14 +459,17 @@ export async function merchantRoutesPlugin(
       return;
     }
     const typedBody = body as { reason: string };
-    const result = await handlers.cancel.handle(ctx, transactionId, {
+    await runWithIdempotency(ctx, reply, async () => {
+      const result = await handlers.cancel.handle(ctx, transactionId, {
       reason: typedBody.reason,
     });
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return { handled: false };
+      }
+      void reply.send(result.value);
+      return { handled: true, snapshot: result.value };
+    });
   });
 
   // --- Refund Route ---
@@ -399,14 +488,17 @@ export async function merchantRoutesPlugin(
       return;
     }
     const typedBody = body as { reason: string };
-    const result = await handlers.refund.handle(ctx, transactionId, {
+    await runWithIdempotency(ctx, reply, async () => {
+      const result = await handlers.refund.handle(ctx, transactionId, {
       reason: typedBody.reason,
     });
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return { handled: false };
+      }
+      void reply.send(result.value);
+      return { handled: true, snapshot: result.value };
+    });
   });
 
   // --- Receipt Route ---

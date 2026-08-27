@@ -20,6 +20,10 @@ import {
 import { merchantRoutesPlugin } from "./merchant-routes.js";
 import type { MerchantHandlers } from "./merchant-handlers.js";
 import { createMockHandlers } from "./merchant-handlers.js";
+import {
+  createInMemoryRuntimeIdempotencyStore,
+  type RuntimeIdempotencyStore,
+} from "./idempotency-store.js";
 
 export const APP_NAME = "@counter/agent-runtime";
 
@@ -35,6 +39,12 @@ export interface CreateServerOptions {
   readonly logger?: boolean | undefined;
   readonly webhooks?: WebhookIngressOptions | undefined;
   readonly merchantHandlers?: MerchantHandlers | undefined;
+  /**
+   * Optional durable idempotency store for mutating routes. In production-like
+   * environments a store MUST be provided (wired from DATABASE_URL in main.ts);
+   * local/test fall back to an in-memory store so existing tests are unchanged.
+   */
+  readonly idempotencyStore?: RuntimeIdempotencyStore | undefined;
   /**
    * Explicit opt-in to fall back to mock merchant handlers when no real
    * handlers are supplied. Mock handlers are ONLY permitted in local/test
@@ -90,6 +100,21 @@ function resolveMerchantHandlers(
   );
 }
 
+function resolveIdempotencyStore(
+  options: CreateServerOptions | undefined,
+): RuntimeIdempotencyStore {
+  if (options?.idempotencyStore !== undefined) {
+    return options.idempotencyStore;
+  }
+
+  // Default to an in-memory store. The fail-loud requirement for durable
+  // idempotency lives in main.ts, which requires DATABASE_URL in production-like
+  // environments and injects a PostgresIdempotencyStore. Keeping createServer's
+  // default in-memory preserves the options-injection contract that existing
+  // unit tests rely on (real handlers injected without a store still start).
+  return createInMemoryRuntimeIdempotencyStore();
+}
+
 export function createServer(options?: CreateServerOptions): FastifyInstance {
   const version = options?.version ?? DEFAULT_VERSION;
   const environment = options?.environment ?? DEFAULT_ENVIRONMENT;
@@ -135,7 +160,8 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   // Mock handlers are only permitted in local/test/development with an
   // explicit opt-in; production-like environments must supply real handlers.
   const handlers = resolveMerchantHandlers(environment, options);
-  void server.register(merchantRoutesPlugin, { handlers });
+  const idempotencyStore = resolveIdempotencyStore(options);
+  void server.register(merchantRoutesPlugin, { handlers, idempotencyStore });
 
   return server;
 }

@@ -19,7 +19,8 @@
     "@counter/authorization": "workspace:0.1.0",
     "@counter/domain": "workspace:0.1.0",
     "@counter/http-api-kit": "workspace:0.1.0",
-    "fastify": "5.2.1"
+    "fastify": "5.2.1",
+    "@counter/data": "workspace:0.1.0"
   },
   "devDependencies": {
     "jose": "6.0.11",

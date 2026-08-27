@@ -52,13 +52,13 @@ export interface PolicyStoreEntry {
 }
 
 export interface PolicyStore {
-  get(merchantId: string): PolicyStoreEntry | undefined;
+  get(merchantId: string): Promise<PolicyStoreEntry | undefined>;
   /**
    * Conditionally stores a policy config. If expectedVersion is provided,
    * the write succeeds only if the current version matches. Returns the
    * outcome with the current version number.
    */
-  set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): { readonly success: boolean; readonly currentVersion: number };
+  set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): Promise<{ readonly success: boolean; readonly currentVersion: number }>;
 }
 
 export interface PolicyCompiler {
@@ -78,10 +78,10 @@ export interface PolicyRoutesOptions {
 export function createInMemoryPolicyStore(): PolicyStore {
   const policies = new Map<string, PolicyStoreEntry>();
   return {
-    get(merchantId: string) {
+    async get(merchantId: string) {
       return policies.get(merchantId);
     },
-    set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): { readonly success: boolean; readonly currentVersion: number } {
+    async set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): Promise<{ readonly success: boolean; readonly currentVersion: number }> {
       const existing = policies.get(merchantId);
       const currentVersion = existing?.version ?? 0;
 
@@ -267,7 +267,7 @@ export async function policyRoutesPlugin(
     const compiled = compiler.compile(config);
 
     // Store with optimistic concurrency
-    const storeResult = store.set(merchantId, config, expectedVersion);
+    const storeResult = await store.set(merchantId, config, expectedVersion);
     if (!storeResult.success) {
       void reply.status(409).send({
         error: {
@@ -307,7 +307,7 @@ export async function policyRoutesPlugin(
 
     const correlationId = getCorrelationId(request);
 
-    const entry = store.get(merchantId);
+    const entry = await store.get(merchantId);
     if (entry === undefined) {
       void reply.status(404).send({
         error: {

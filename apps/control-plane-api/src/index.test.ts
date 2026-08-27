@@ -151,3 +151,45 @@ describe("@counter/control-plane-api", () => {
     expect(body.message).toBe("Merchant routes - to be implemented in Merchant Task 3");
   });
 });
+
+describe("policy store environment gating", () => {
+  let server: FastifyInstance | undefined;
+
+  afterEach(async () => {
+    await server?.close();
+    server = undefined;
+  });
+
+  it("uses in-memory store in test env with no injected store (does not throw)", async () => {
+    const { jwks } = await getTestKeys();
+    expect(() => {
+      server = createServer({ jwks, environment: "test" });
+    }).not.toThrow();
+    await server?.ready();
+  });
+
+  it("throws in a production-like env when no policyStore is injected", async () => {
+    const { jwks } = await getTestKeys();
+    expect(() => createServer({ jwks, environment: "production" })).toThrow(
+      /Refusing to start in production-like environment/,
+    );
+    expect(() => createServer({ jwks, environment: "sandbox" })).toThrow(
+      /Refusing to start in production-like environment/,
+    );
+    expect(() => createServer({ jwks, environment: "pilot" })).toThrow(
+      /Refusing to start in production-like environment/,
+    );
+  });
+
+  it("starts in a production-like env when a policyStore is explicitly injected", async () => {
+    const { jwks } = await getTestKeys();
+    const injected = {
+      get: () => Promise.resolve(undefined),
+      set: () => Promise.resolve({ success: true, currentVersion: 1 }),
+    };
+    expect(() => {
+      server = createServer({ jwks, environment: "production", policyStore: injected });
+    }).not.toThrow();
+    await server?.ready();
+  });
+});

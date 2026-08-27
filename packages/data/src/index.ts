@@ -62,3 +62,6 @@ export {
   jobAttempts,
   runtimeSchema,
 } from "./runtime-schema.js";
+export { PostgresPolicyStore } from "./policy-store.js";
+export type { PolicyConfigEntry, PolicySetResult } from "./policy-store.js";
+export { policyConfigs } from "./policy-schema.js";

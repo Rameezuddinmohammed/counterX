@@ -44,6 +44,9 @@ importers:
       '@counter/authorization':
         specifier: workspace:0.1.0
         version: link:../../packages/authorization
+      '@counter/data':
+        specifier: workspace:0.1.0
+        version: link:../../packages/data
       '@counter/domain':
         specifier: workspace:0.1.0
         version: link:../../packages/domain
@@ -53,6 +56,9 @@ importers:
       '@counter/merchant-contracts':
         specifier: workspace:0.1.0
         version: link:../../packages/merchant-contracts
+      '@counter/workflow':
+        specifier: workspace:0.1.0
+        version: link:../../packages/workflow
       fastify:
         specifier: 5.2.1
         version: 5.2.1
@@ -72,6 +78,9 @@ importers:
       '@counter/authorization':
         specifier: workspace:0.1.0
         version: link:../../packages/authorization
+      '@counter/data':
+        specifier: workspace:0.1.0
+        version: link:../../packages/data
       '@counter/domain':
         specifier: workspace:0.1.0
         version: link:../../packages/domain

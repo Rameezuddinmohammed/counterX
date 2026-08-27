@@ -129,7 +129,7 @@ describe("policy routes", () => {
       const body = JSON.parse(response.body) as { error: { code: string } };
       expect(body.error.code).toBe("UNAUTHORIZED");
       // The read-only write must not have persisted anything.
-      expect(store.get(TEST_MERCHANT_ID)).toBeUndefined();
+      expect(await store.get(TEST_MERCHANT_ID)).toBeUndefined();
     });
 
     it("POST /policy with a token that has identity.scope.manage returns 201", async () => {
@@ -148,7 +148,7 @@ describe("policy routes", () => {
         payload: VALID_POLICY_BODY,
       });
       expect(response.statusCode).toBe(201);
-      expect(store.get(TEST_MERCHANT_ID)?.config.policyVersion).toBe("1.0.0");
+      expect((await store.get(TEST_MERCHANT_ID))?.config.policyVersion).toBe("1.0.0");
     });
 
     it("GET /policy still succeeds with only identity.scope.read", async () => {
@@ -199,7 +199,7 @@ describe("policy routes", () => {
       const body = JSON.parse(response.body) as { error: { code: string } };
       expect(body.error.code).toBe("FORBIDDEN");
       // Nothing should have been written for the other merchant.
-      expect(store.get(OTHER_MERCHANT_ID)).toBeUndefined();
+      expect(await store.get(OTHER_MERCHANT_ID)).toBeUndefined();
     });
   });
 

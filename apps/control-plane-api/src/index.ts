@@ -30,6 +30,40 @@ const DEFAULT_ENVIRONMENT = "local";
 const AUTH_ISSUER = "https://dev-jzw3etjxnn3svs56.us.auth0.com/";
 const AUTH_AUDIENCE = "https://api.counter.dev";
 
+/**
+ * Environments that MAY fall back to an in-memory policy store when no store is
+ * injected. NOTE: main.ts passes environment as NODE_ENV (development/test/
+ * production), NOT the COUNTER_ENV taxonomy, so we treat the Counter local
+ * tiers (local/test) and the Node development tier as non-production. Everything
+ * else (production/sandbox/pilot and any unknown value) is production-like and
+ * MUST be given a durable store explicitly (wired from DATABASE_URL in main.ts).
+ */
+const IN_MEMORY_ELIGIBLE_ENVIRONMENTS: ReadonlySet<string> = new Set([
+  "local",
+  "test",
+  "development",
+]);
+
+function resolvePolicyStore(
+  environment: string,
+  options: CreateServerOptions | undefined,
+): PolicyStore {
+  if (options?.policyStore !== undefined) {
+    return options.policyStore;
+  }
+
+  if (IN_MEMORY_ELIGIBLE_ENVIRONMENTS.has(environment)) {
+    return createInMemoryPolicyStore();
+  }
+
+  throw new Error(
+    `[${APP_NAME}] Refusing to start in production-like environment ` +
+      `'${environment}' without a durable policyStore. The in-memory policy ` +
+      `store is only permitted in local/test/development. Wire a Postgres-backed ` +
+      `store (from DATABASE_URL) before deploying.`,
+  );
+}
+
 export interface CreateServerOptions {
   readonly version?: string | undefined;
   readonly environment?: string | undefined;
@@ -85,8 +119,9 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     });
   });
 
-  // Register policy management routes
-  const store = options?.policyStore ?? createInMemoryPolicyStore();
+  // Register policy management routes. In production-like environments a
+  // durable store MUST be injected; local/test fall back to in-memory.
+  const store = resolvePolicyStore(environment, options);
   const compiler = options?.policyCompiler ?? createDefaultPolicyCompiler();
   void server.register(policyRoutesPlugin, { store, compiler });
 
