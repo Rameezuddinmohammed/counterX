@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Build the REAL Razorpay HTTP client. Today packages/razorpay-adapter only ships MockRazorpayHttp; the RazorpayTestProvider already talks through the RazorpayHttpPort interface, so the only missing piece for real Razorpay calls is a fetch-based RazorpayHttpPort implementation plus an env-gated factory. This feature adds that real client (Basic auth, base URL, Idempotency header, typed error handling that preserves explicit outcomes) and a factory that constructs a RazorpayTestProvider bound to the real HTTP client from resolved credentials. Depends on FEAT-001 (credential resolver apps/worker/src/connector-env.ts).",
+  "status": "pending",
+  "steps": [
+    "In packages/razorpay-adapter/src add a real HTTP client (real-http-client.ts) exporting createRazorpayHttpClient(config: { keyId, keySecret, baseUrl }) : RazorpayHttpPort. Implement request<T>() with global fetch: method + `${baseUrl}${req.path}`; Authorization = 'Basic ' + base64(keyId:keySecret); Content-Type application/json for POST; when req.idempotencyKey present send it as the 'X-Razorpay-Idempotency' header so retries do not double-create. Return { status, body } from parsed JSON. Do NOT throw on non-200 - return the status so RazorpayTestProvider maps it to the correct explicit outcome. NEVER log keyId/keySecret; redact Authorization in any logging.",
+    "Handle transport failures explicitly: a fetch rejection (DNS/connection/timeout) must surface as a provider_unavailable style outcome (e.g. synthetic status 503 or a typed error the provider maps to UNAVAILABLE), NOT a silent success or generic failure. Add a bounded request timeout via AbortController; a timeout AFTER the request was sent must be distinguishable (indeterminate/unknown) rather than pretending success or hard failure. Document this.",
+    "Export from packages/razorpay-adapter/src/index.ts: createRazorpayHttpClient and a convenience createRealRazorpayProvider(config)/createRazorpayProviderFromEnv building RazorpayTestProvider (environment='test'). Keep MockRazorpayHttp exported.",
+    "Add unit tests (real-http-client.test.ts) stubbing global fetch (vi.stubGlobal) - NO real network. Assert: POST /v1/orders sends Basic auth derived from keyId:keySecret; sends the idempotency header when idempotencyKey provided; JSON body serialization; returns { status, body }; 400/500 returned as-is (not thrown); fetch rejection yields documented unavailable outcome; same idempotencyKey on two calls sends identical idempotency header.",
+    "Add creds-gated real integration test (real-http-client.integration.test.ts): `const liveDescribe = process.env['RAZORPAY_KEY_ID'] && process.env['RAZORPAY_KEY_SECRET'] ? describe : describe.skip`. When present it creates a REAL test order via POST /v1/orders (amount in paise, INR, unique receipt), asserts 200 with id prefixed 'order_', queries it back. MUST skip cleanly with no creds. Use a small amount (100 paise). Never print secrets."
+  ],
+  "acceptance_criteria": [
+    "A real fetch-based RazorpayHttpPort exists and is exported from @counter/razorpay-adapter, usable to construct a RazorpayTestProvider that performs real POST /v1/orders, GET /v1/payments/:id, POST /v1/payments/:id/refunds.",
+    "Basic auth and the Razorpay idempotency header set correctly (verified by stubbed-fetch unit tests).",
+    "Non-200 responses surfaced as explicit outcomes; transport errors map to unavailable/indeterminate.",
+    "Creds-gated integration test creates a real test order when creds set, SKIPS cleanly otherwise.",
+    "pnpm test still >= 2731 with no regressions; pnpm depcruise clean."
+  ],
+  "verification": [
+    "pnpm --filter @counter/razorpay-adapter build",
+    "pnpm --filter @counter/razorpay-adapter test",
+    "pnpm build && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

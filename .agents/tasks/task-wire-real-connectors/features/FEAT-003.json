@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Add an env-gated real Shopify connector factory and wire BOTH real connectors into the worker transaction lifecycle. The Shopify HTTP GraphQL client already exists; add a factory that builds it plus the 7 order ActionPorts from resolved credentials. Then extend the worker so a checkout job runs the real lifecycle: quote from real Shopify catalog -> policy decision -> Shopify draft order (REAL) -> payment via CounterTestPaymentProvider for the unattended path AND a real Razorpay order created to prove that integration -> Shopify order finalize + mark paid (REAL) -> typed provider evidence -> reconciliation -> signed receipt. Preserve explicit provider outcomes and per-transaction idempotency. In local/test without creds, fall back to the existing mock/deterministic path so all tests still pass. Depends on FEAT-001 and FEAT-002.",
+  "status": "pending",
+  "steps": [
+    "In packages/shopify-connector/src add connector-factory.ts exporting createShopifyConnectorFromConfig({ shopDomain, accessToken, apiVersion }) returning an object bundling the real GraphQL client (createHttpGraphQLClient) and constructed order actions (DraftOrderCreateAction, OrderFinalizeAction, PaymentRecordAction, OrderQueryAction, DraftOrderQueryAction, OrderCancelAction, OrderRefundAction), plus optionally createShopifyHealthPort. Export from index.ts. Reuse existing SSRF validation; do not duplicate mutation logic.",
+    "Add stubbed-fetch unit test (connector-factory.test.ts) proving the factory builds a client that issues an authenticated request with X-Shopify-Access-Token to the 2025-07 graphql endpoint and that order actions are wired to that client. No real network.",
+    "Extend apps/worker main.ts (+ helper modules as needed) so at boot it resolves Shopify + Razorpay creds via apps/worker/src/connector-env.ts; if BOTH present, constructs the real Shopify connector, a real Razorpay provider (FEAT-002 factory), and a CounterTestPaymentProvider (deterministic, CTP-signed) for the unattended authorize/capture; if creds absent in local/test, falls back to the existing deterministic in-process stand-in; if prod-like and creds missing, fail loud via the helper.",
+    "Implement the real lifecycle path, using the transactionId as the idempotency/correlation key throughout: (1) build/verify a quote against the real Shopify catalog (accept variantId+quantity in the job payload; if payload carries a Shopify variant GID use it, else pick a released variant via a catalog query); (2) apply the existing policy decision if reachable without violating depcruise (else keep an explicit allow step and document); (3) DraftOrderCreateAction.execute (REAL) idempotencyKey=transactionId; (4) create a REAL Razorpay order via provider.createInstruction to PROVE Razorpay server-side integration, capturing razorpay_order_id as evidence; (5) run the unattended payment through CounterTestPaymentProvider to obtain typed CTP-signed provider evidence (authorized/captured); (6) OrderFinalizeAction.execute (REAL) then PaymentRecordAction.execute (REAL mark-as-paid); (7) OrderQueryAction.execute (REAL) to fetch authoritative order/financial status as provider evidence - payment 'confirmed' MUST be backed by this typed evidence, never a local boolean; (8) reconcile intended vs provider-reported amount; a timeout AFTER a possible external effect becomes INDETERMINATE not failed; (9) emit the signed receipt via ReceiptSink/outbox.",
+    "Enforce idempotency end to end: Shopify draft/order and Razorpay order creation must use transactionId (or a deterministic derivative) as idempotency key so a retry causes AT MOST ONE external effect. Ensure the worker passes a STABLE key per transaction across retries (not a fresh randomUUID each attempt). Add a retry test proving a second execute for the same transaction returns the cached/existing external reference and does NOT create a second draft/order (mock GraphQL client + MockRazorpayHttp/stub, assert call counts).",
+    "Do NOT store raw payment credentials, PAN, CVV, or UPI PIN in outbox/receipt/logs. Receipt carries provider references (order/payment ids), amounts, reconciliation - not secrets.",
+    "Update apps/worker/package.json to add @counter/shopify-connector, @counter/razorpay-adapter, @counter/payment-sdk (and @counter/trust-protocol if needed for signing) as workspace deps. Keep depcruise green.",
+    "Add/extend worker unit tests driving the FULL real-path lifecycle deterministically with the mock GraphQL client + stubbed/mock Razorpay HTTP: assert draft created, Razorpay order created, payment evidence typed and signed, order finalized + marked paid, reconciliation matches, signed receipt emitted; plus the idempotency/retry assertion. NO real network, NO real creds.",
+    "Add a creds+DB-gated worker integration test path guarded by presence of SHOPIFY_ACCESS_TOKEN && RAZORPAY_KEY_ID (and TEST_DATABASE_URL if enqueuing via Postgres) using describe.skip when absent."
+  ],
+  "acceptance_criteria": [
+    "createShopifyConnectorFromConfig exists and is exported from @counter/shopify-connector, bundling the real GraphQL client + 7 order ActionPorts.",
+    "When both creds present the worker drives the full real lifecycle (quote -> draft -> real Razorpay order -> unattended payment evidence -> finalize -> mark paid -> query -> reconcile -> signed receipt); when creds absent in local/test it falls back to the deterministic path and all existing tests pass.",
+    "Payment 'confirmed' is backed by typed provider evidence (real Shopify OrderQuery and/or Razorpay query/verified webhook), not a local boolean or redirect.",
+    "A retry of the same transaction causes at most one external effect (proven by a unit test asserting Shopify draft/order and Razorpay order creation call counts do not double on replay with the same transactionId).",
+    "Explicit outcomes preserved (no try/catch->failed collapse); a post-effect timeout maps to INDETERMINATE.",
+    "No raw payment credentials/PAN/CVV/UPI PIN written to DB, receipts, logs, or traces.",
+    "pnpm build, pnpm test (creds-gated tests skip), pnpm depcruise all pass."
+  ],
+  "verification": [
+    "pnpm --filter @counter/shopify-connector test",
+    "pnpm --filter @counter/worker test",
+    "pnpm build && pnpm test && pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

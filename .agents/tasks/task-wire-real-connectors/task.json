@@ -1,0 +1,7 @@
+{
+  "task_id": "task-wire-real-connectors",
+  "task_description": "Wire the real Razorpay and Shopify connectors so an actual test payment flows through real providers, completing one complete real transaction lifecycle. Build the missing real Razorpay HTTP client, add env-gated connector factories, wire both into the worker transaction lifecycle (quote -> draft -> real Razorpay order -> unattended payment evidence -> finalize -> mark paid -> query -> reconcile -> signed receipt) with preserved explicit outcomes and per-transaction idempotency, fall back to mocks without creds so the 2711 tests still pass, and provide a creds-gated end-to-end verification script.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add a runnable end-to-end verification script under scripts/ that, GIVEN real credentials in env, executes ONE complete real transaction against the real Shopify test store + real Razorpay test API and prints each step plus the final signed receipt. Gated so it only runs when real creds are present and exits 0 gracefully (skip) otherwise. Depends on FEAT-002 and FEAT-003.",
+  "status": "pending",
+  "steps": [
+    "Add scripts/verify-real-transaction.mjs (ESM, matches scripts/run-db-lifecycle.mjs style). At top, if required real creds missing (SHOPIFY_STORE_DOMAIN/SHOPIFY_SHOP_DOMAIN, SHOPIFY_ACCESS_TOKEN, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) print 'SKIPPED: real credentials not present' and process.exit(0). Never print secret values.",
+    "The script imports BUILT connector/worker code (package entrypoints @counter/shopify-connector, @counter/razorpay-adapter, @counter/payment-sdk, @counter/worker) so it exercises the SAME wiring the worker uses. Header documents that `pnpm build` must run first. Reuse FEAT-003 lifecycle wiring / connector factories rather than re-implementing.",
+    "Execute one real transaction end to end, printing each labeled step with the real identifiers: (1) Shopify connectivity (shop name / a released product+variant); (2) create REAL Shopify draft order, print draftOrderId + name; (3) create REAL Razorpay test order via POST /v1/orders, print order id (order_...); (4) run the unattended payment via CounterTestPaymentProvider, print typed signed provider evidence (status, reference); (5) finalize Shopify order + mark as paid (REAL), print orderId + financial status; (6) query the order back (REAL) as authoritative evidence; (7) reconcile and print intended vs provider amount; (8) print the FINAL signed receipt (CTP-signed envelope). Redact secrets; print only references, amounts, statuses, signed receipt.",
+    "Use a small INR amount and a real released variant (query catalog to pick one, or SHOPIFY_TEST_VARIANT_GID env override). Use a unique transaction/idempotency key per run but STABLE within the run. After the run, optionally cancel/refund to leave the store clean (best-effort, clearly labeled).",
+    "Add root package.json script \"verify:real\": \"node scripts/verify-real-transaction.mjs\" runnable via pnpm verify:real. Running WITHOUT creds prints SKIPPED and exits 0.",
+    "Do NOT add this to default pnpm test/build/CI-critical path in a way requiring creds. Confirm pnpm test count still >= 2731 and depcruise clean after adding."
+  ],
+  "acceptance_criteria": [
+    "scripts/verify-real-transaction.mjs exists and is invokable via pnpm verify:real.",
+    "Without real creds it prints SKIPPED and exits 0 (verified in this credential-less sandbox).",
+    "With real creds it runs one complete real transaction (real Shopify draft+order+mark-paid+query, real Razorpay order) and prints each labeled step plus the final signed receipt, printing NO secrets.",
+    "Adding the script does not change the test baseline and depcruise stays clean."
+  ],
+  "verification": [
+    "pnpm build",
+    "node scripts/verify-real-transaction.mjs (expect SKIPPED, exit 0 when no creds)",
+    "pnpm test (>= 2731)",
+    "pnpm depcruise"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
