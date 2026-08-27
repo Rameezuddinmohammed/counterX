@@ -4,5 +4,33 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/connector-sdk"
+    },
+    {
+      "path": "../../packages/data"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/payment-sdk"
+    },
+    {
+      "path": "../../packages/razorpay-adapter"
+    },
+    {
+      "path": "../../packages/shopify-connector"
+    },
+    {
+      "path": "../../packages/trust-protocol"
+    },
+    {
+      "path": "../../packages/workflow"
+    }
+  ]
 }

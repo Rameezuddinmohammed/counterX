@@ -9,28 +9,28 @@
   ],
   "references": [
     {
-      "path": "../../packages/wallet-domain"
-    },
-    {
-      "path": "../../packages/wallet-contracts"
-    },
-    {
-      "path": "../../packages/wallet-application"
-    },
-    {
-      "path": "../../packages/payment-sdk"
+      "path": "../../packages/domain"
     },
     {
       "path": "../../packages/evidence"
     },
     {
-      "path": "../../packages/trust-protocol"
-    },
-    {
       "path": "../../packages/merchant-contracts"
     },
     {
-      "path": "../../packages/domain"
+      "path": "../../packages/payment-sdk"
+    },
+    {
+      "path": "../../packages/trust-protocol"
+    },
+    {
+      "path": "../../packages/wallet-application"
+    },
+    {
+      "path": "../../packages/wallet-contracts"
+    },
+    {
+      "path": "../../packages/wallet-domain"
     }
   ]
 }

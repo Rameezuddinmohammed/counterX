@@ -4,5 +4,21 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../commerce-graph"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../connector-sdk"
+    },
+    {
+      "path": "../domain"
+    }
+  ]
 }

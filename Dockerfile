@@ -20,11 +20,15 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 
 # Build only the target backend app and its workspace dependency closure.
-# The "..." suffix builds all workspace packages the target depends on first,
-# while skipping the Next.js consoles (merchant/wallet/operations/landing),
-# which are deployed to Vercel and would otherwise be built in parallel and
-# exhaust memory on the Fly remote builder.
-RUN pnpm --filter "./${BUILD_TARGET}..." run build
+# Resolve the target's package NAME from its package.json and use the name
+# filter with the "..." suffix so pnpm selects the app plus every workspace
+# package it depends on. Each of those packages now builds via `tsc -b`
+# (project references), so the dependency closure compiles in correct
+# topological order regardless of pnpm's parallel scheduling. This skips the
+# Next.js consoles (landing/merchant/operations/wallet), which deploy to Vercel
+# and would otherwise be built in parallel and exhaust memory on the Fly
+# remote builder.
+RUN pnpm --filter "$(node -p "require('./${BUILD_TARGET}/package.json').name")..." run build
 
 # Fly.io default port
 ENV PORT=8080

@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish environment and reproduce the failure from a CLEAN state to confirm the baseline before changing anything. Independent setup step; no source changes.",
+  "status": "completed",
+  "steps": [
+    "Start every bash command with `source ~/.nvm/nvm.sh && nvm use 22` (repo pins Node 22.14.0).",
+    "Confirm deps are installed: `pnpm install --frozen-lockfile` (already installed in sandbox; should be a no-op).",
+    "Clean ALL build outputs: `find . -name '*.tsbuildinfo' -not -path './node_modules/*' -delete && rm -rf apps/*/dist packages/*/dist`.",
+    "Reproduce root cause #1: run `pnpm --filter \"@counter/worker...\" run build` from clean and observe TS2307 'Cannot find module @counter/domain' from a dependent (e.g. packages/trust-protocol) that started before domain's dist was emitted. Capture the tail of output as findings.",
+    "Confirm `podman --version` works (5.2.3) for later Docker verification.",
+    "Record in findings: baseline confirmed (clean pnpm -r build races and fails), and note that wallet-* packages and apps/local-mcp already have `references` arrays but build with `tsc -p` (inert)."
+  ],
+  "acceptance_criteria": [
+    "A clean `pnpm --filter \"@counter/worker...\" run build` reproduces the TS2307 ordering failure (documented in findings).",
+    "podman is confirmed available."
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && pnpm --filter \"@counter/worker...\" run build (expected to FAIL with TS2307 from clean, confirming the race)"
+  ],
+  "blocked_reason": null,
+  "findings": "BASELINE CONFIRMED. Env: Node v22.23.2 (nvm use 22), pnpm 9.15.4, podman 5.2.3 all working. `pnpm install --frozen-lockfile` was a no-op ('Already up to date', 36 projects). Cleaned with `find . -name '*.tsbuildinfo' -not -path './node_modules/*' -delete && rm -rf apps/*/dist packages/*/dist` (verified zero dist dirs / zero tsbuildinfo remain).\n\nKEY NUANCE re: which filter reproduces the race: the NAMED-package filter `pnpm --filter \"@counter/worker...\" run build` did NOT fail on this host (ran 5x from clean, all exit 0) - pnpm topologically orders named-package closures here. The PATH filter used by the Dockerfile, `pnpm --filter \"./apps/worker...\" run build`, FAILS DETERMINISTICALLY from clean. This matters because the Dockerfile line is `RUN pnpm --filter \"./${BUILD_TARGET}...\" run build`, i.e. the exact failing path filter. All three backend targets fail from clean:\n  - ./apps/worker...            -> exit 2, many TS2307 (Cannot find module @counter/domain,@counter/data,@counter/workflow,@counter/shopify-connector,@counter/razorpay-adapter,...); ends with ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL @counter/worker build: `tsc -p tsconfig.json` Exit status 2.\n  - ./apps/agent-runtime...     -> exit 2, TS2307 for @counter/domain,@counter/workflow,@counter/http-api-kit,@counter/data.\n  - ./apps/control-plane-api... -> exit 2, TS2307 for @counter/http-api-kit,@counter/data.\n\nROOT CAUSE: Every backend package.json build script is `tsc -p tsconfig.json` (confirmed for apps/worker). Under a recursive filtered run pnpm launches dependents' `tsc -p` before the dependency's dist/*.d.ts is emitted, so @counter/* module resolution fails. Workspace deps ARE declared (not missing). A clean Docker layer always loses this race.\n\nSECONDARY ISSUE CONFIRMED: tsconfigs use `include: [\"src\"]` with NO test exclusion (verified apps/worker/tsconfig.json), so tsc also compiles *.test.ts / *.integration.test.ts. Many of the TS2307 lines above come from test files (e.g. boot.test.ts, worker.integration.test.ts, resilience.integration.test.ts), and once module resolution is fixed these would still surface TS7006 implicit-any errors from test files in prod builds.\n\nINERT REFERENCES PRECEDENT: `references` arrays already exist in packages/wallet-domain, packages/wallet-contracts, packages/wallet-application, and apps/local-mcp tsconfig.json, BUT all four still build with `tsc -p tsconfig.json` (verified), which IGNORES project references - so they are currently inert. This is the precedent to mirror for the fix (switch to `tsc -b` + build-variant tsconfigs). No source changes were made in this feature; source tree is unmodified and left CLEAN (all dist/tsbuildinfo removed after reproduction)."
+}
