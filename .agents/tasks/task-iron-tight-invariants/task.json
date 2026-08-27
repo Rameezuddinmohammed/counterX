@@ -1,0 +1,11 @@
+{
+  "task_id": "task-iron-tight-invariants",
+  "task_description": "Prove CounterX's security and reliability invariants against the REAL path before real money/users. Close the durable-idempotency gap (persist Shopify-leg step outcomes so retries resume, not re-drive), wire runtime kill switches into the live execution path, add a periodic reconciliation job, and prove every invariant with creds/DB-gated adversarial + tenant-isolation + secret-leakage integration tests against real Postgres + real/boundary-mocked providers. All real-infra tests skip without creds and clean up (cancel real Shopify orders, delete test DB rows). Preserve explicit outcomes (post-effect timeout -> INDETERMINATE). Do not break the existing 2764 tests.",
+  "status": "in_progress",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003"
+  ],
+  "blocked_reason": null
+}
