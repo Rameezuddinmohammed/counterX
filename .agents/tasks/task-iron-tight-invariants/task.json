@@ -1,11 +1,18 @@
 {
   "task_id": "task-iron-tight-invariants",
   "task_description": "Prove CounterX's security and reliability invariants against the REAL path before real money/users. Close the durable-idempotency gap (persist Shopify-leg step outcomes so retries resume, not re-drive), wire runtime kill switches into the live execution path, add a periodic reconciliation job, and prove every invariant with creds/DB-gated adversarial + tenant-isolation + secret-leakage integration tests against real Postgres + real/boundary-mocked providers. All real-infra tests skip without creds and clean up (cancel real Shopify orders, delete test DB rows). Preserve explicit outcomes (post-effect timeout -> INDETERMINATE). Do not break the existing 2764 tests.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": [
     "FEAT-001",
     "FEAT-002",
     "FEAT-003"
   ],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "REVIEW FOLLOWUP addressed (2026-08-27 NEEDS_CHANGES). pnpm build green; pnpm depcruise 0 violations (2119 modules); pnpm test green across all 34 packages (0 failures). Fixes: (1 blocking) reconciliation now keys on the RAW idempotencyKey carried on the receipt (was the derived CounterId), proven live end-to-end through the real handler; (2/5) the deployed worker money seam now wires a REAL production policy (limits+quote+expiry+revocation+scope) instead of ALLOW_ALL, and the adversarial/data-integrity proofs drive that policy; (3) a durable pre-claim closes the cross-instance Shopify draft race, proven by counting real draftOrderCreate calls == 1 across racing instances; (4) reconciliation treats no_provider_effect as terminal so the scan is idempotent; (6) the secret scan now covers durable outbox rows + connector egress (redactAuthorization) and the PAN detector was hardened against runtime epoch-ms timestamps. ALL gated integration tests were run with real Shopify+Razorpay creds against the live DB and pass, leaving the store and DB clean (0 leftover test rows verified). Did NOT push or open a PR."
+  }
 }
