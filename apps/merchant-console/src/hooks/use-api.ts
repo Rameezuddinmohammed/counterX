@@ -7,8 +7,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "../lib/api-client.js";
-import { createApiClient } from "../lib/api-client.js";
+import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "@/lib/api-client";
+import { createApiClient } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Token provider (uses Auth0 session in production)

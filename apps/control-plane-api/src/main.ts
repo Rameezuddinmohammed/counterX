@@ -11,6 +11,7 @@
 import { PostgresDatabase } from "@counter/data";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
+import { createPostgresTransactionStore } from "./transaction-store-postgres.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -40,7 +41,12 @@ const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
   version: process.env["APP_VERSION"] || "0.1.0",
-  ...(database !== undefined ? { policyStore: createPostgresPolicyStore(database) } : {}),
+  ...(database !== undefined
+    ? {
+        policyStore: createPostgresPolicyStore(database),
+        transactionStore: createPostgresTransactionStore(database, environment),
+      }
+    : {}),
 };
 
 const server = createServer(serverOptions);

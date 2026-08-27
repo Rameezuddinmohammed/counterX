@@ -1,15 +1,17 @@
 "use client";
 
-import { DataTable, Badge } from "@counter/ui";
+import { DataTable, Badge, EmptyState, ErrorState, Skeleton } from "@counter/ui";
 import type { DataTableColumn } from "@counter/ui";
+import { Receipt } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import { useApi } from "@/hooks/use-api";
 import type { Transaction, TransactionState } from "@/lib/types";
 
-const DEMO_TRANSACTIONS: Transaction[] = [
-  { transactionId: "txn-001", merchantId: "merchant-pilot-001", amount: 1500, currency: "INR", currentState: "settled", buyerRef: "buyer-xyz-001", method: "upi", createdAt: "2025-01-20T10:00:00Z", transitions: [] },
-  { transactionId: "txn-002", merchantId: "merchant-pilot-001", amount: 2499, currency: "INR", currentState: "refunded", buyerRef: "buyer-abc-002", method: "card", createdAt: "2025-01-19T16:00:00Z", transitions: [] },
-  { transactionId: "txn-003", merchantId: "merchant-pilot-001", amount: 999, currency: "INR", currentState: "failed", buyerRef: "buyer-def-003", method: "netbanking", createdAt: "2025-01-20T12:00:00Z", transitions: [] },
-];
+// The merchant scope is enforced server-side from the authenticated token; the
+// merchantId here only selects which merchant path to request. It is sourced
+// from NEXT_PUBLIC_MERCHANT_ID, falling back to the pilot merchant used across
+// the console.
+const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "merchant-pilot-001";
 
 function getStatusVariant(state: TransactionState) {
   switch (state) {
@@ -32,6 +34,11 @@ const columns: DataTableColumn<Record<string, unknown>>[] = [
 ];
 
 export default function TransactionsPage() {
+  const { data, loading, error, refetch } = useApi<readonly Transaction[]>(
+    (client) => client.listTransactions(MERCHANT_ID),
+    [MERCHANT_ID],
+  );
+
   return (
     <PageWrapper>
       <div className="space-y-6">
@@ -39,7 +46,27 @@ export default function TransactionsPage() {
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Transactions</h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">View and monitor all transaction activity.</p>
         </div>
-        <DataTable columns={columns} data={DEMO_TRANSACTIONS as any} emptyMessage="No transactions found" />
+        {loading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={refetch} />
+        ) : data && data.length === 0 ? (
+          <EmptyState
+            icon={<Receipt />}
+            title="No transactions yet"
+            description="Transactions will appear here once buyers start checking out."
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            data={(data ?? []) as unknown as Record<string, unknown>[]}
+            emptyMessage="No transactions found"
+          />
+        )}
       </div>
     </PageWrapper>
   );
