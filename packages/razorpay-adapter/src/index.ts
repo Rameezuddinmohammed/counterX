@@ -35,6 +35,23 @@ export type {
 } from "./http-client.js";
 export { MockRazorpayHttp } from "./http-client.js";
 
+// Real fetch-based HTTP client
+export {
+  createRazorpayHttpClient,
+  redactAuthorization,
+  RAZORPAY_IDEMPOTENCY_HEADER,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  TRANSPORT_UNAVAILABLE_STATUS,
+} from "./real-http-client.js";
+export type {
+  RealRazorpayHttpConfig,
+  TransportFailureBody,
+} from "./real-http-client.js";
+
+// Real provider factory
+export { createRealRazorpayProvider } from "./real-provider-factory.js";
+export type { RealRazorpayProviderConfig } from "./real-provider-factory.js";
+
 // Provider
 export { RazorpayTestProvider } from "./razorpay-provider.js";
 export type { RazorpayProviderConfig } from "./razorpay-provider.js";
