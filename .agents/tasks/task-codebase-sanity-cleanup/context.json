@@ -1,0 +1,28 @@
+{
+  "project_type": "India-first agent-commerce monorepo. Backend: 3 Fly.io Node services (control-plane-api, agent-runtime, worker) + local-mcp + reference services. Frontend: 4 Next.js apps on Vercel (merchant/wallet/operations consoles + landing). DB: Supabase Postgres.",
+  "language": "TypeScript (ESM, strict), Node 22.14.0 pinned",
+  "build_system": "pnpm 9.15.4 workspaces (36 projects). Per-package build is `tsc -b tsconfig.build.json` using TypeScript project references. Root `pnpm build` = `pnpm -r --if-present run build` (topological via workspace graph, runs concurrently).",
+  "test_framework": "vitest 3.0.7, per-package `vitest run`. Many integration tests skipped unless DB/env present.",
+  "build_command": "source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX && pnpm build",
+  "test_command": "source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX && pnpm test",
+  "verification_instructions": "From CLEAN state: `find apps packages -name '*.tsbuildinfo' -delete` then `rm -rf apps/*/dist packages/*/dist` (NOTE: the prune form `find . -path ./node_modules -prune -o -name '*.tsbuildinfo' -delete` does NOT delete; use explicit form). Then pnpm build (green), pnpm test (baseline 2811 passed), pnpm depcruise (0 violations, 1848 modules), pnpm lint (before/after counts). tsc -b trusts tsbuildinfo for up-to-date checks, so a stale tsbuildinfo makes it SKIP emit; always clear tsbuildinfo for clean verification.",
+  "snapshot_or_generated_files": "apps/*/dist, packages/*/dist, *.tsbuildinfo, apps/*/.next, apps/landing/out. All git-ignored. Regenerate via pnpm build.",
+  "setup_instructions": "source ~/.nvm/nvm.sh && nvm use 22 (gives 22.23.2, satisfies >=22.14.0). Deps installed. Live Supabase DATABASE_URL available (keep %23 for #).",
+  "environment_constraints": "OPEN_INTERNET. CRITICAL SANDBOX BUG: fs_write/str_replace/read_file/grep_search operate on a per-turn overlay that DIVERGES from real disk seen by git/pnpm/tsc/node; files in /tmp do NOT reliably persist across turns. ALWAYS inspect/edit via bash (sed, cat, python3 heredoc) and verify with git diff/cat. Write temp files inside the repo (git-ignored) not /tmp.",
+  "contribution_requirements": "Do NOT git add/commit/push (orchestrator publishes). Fixes must be SAFE and behavior-preserving. Lint reduction must be HONEST (correct config + real fixes), NOT blanket rule-disabling or mass eslint-disable. Any rule turned off must be justified for a TS-strict project.",
+  "key_patterns": "CJS/ESM: named VALUE imports from CommonJS deps crash under native Node ESM; correct pattern `import pkg from 'cjs'; const { X } = pkg;` (see packages/data/src/database.ts). `import type { X } from 'cjs'` is fine. tsconfig.base.json very strict (noUnusedLocals, exactOptionalPropertyTypes, verbatimModuleSyntax, noUncheckedIndexedAccess). Next apps intentionally set transpilePackages/ignoreBuildErrors/ignoreDuringBuilds in next.config.ts (DO NOT revert).",
+  "relevant_files": [
+    "eslint.config.js (ignores list MISSING **/out/** -> 541 no-undef + all base-rule noise from apps/landing/out minified JS)",
+    "packages/ui/src/components/data-table.tsx (line ~82 String(item[column.key]) [object Object] bug)",
+    "packages/ui/src/components/input.tsx / loading.tsx / sidebar.tsx (no-empty-object-type x3)",
+    "packages/razorpay-adapter/src/real-http-client.ts (line 133 unused _cause)",
+    "apps/control-plane-api/src/transaction-routes.ts (line 91 no-redundant-type-constituents)",
+    "apps/merchant-console/src/app/{audit,findings,mapping,transactions}/page.tsx (DataTableColumn cells typed (item: any))",
+    "apps/merchant-console/src/hooks/use-api.ts (stale eslint-disable react-hooks/exhaustive-deps; plugin not installed; no-misused-promises)",
+    "apps/worker/src/secret-leakage.integration.test.ts (unused eslint-disable + no-unsafe-return)",
+    "apps/worker/src/adversarial-test-support.ts (test-only, ships into prod dist)",
+    "packages/trust-protocol/src/fixtures.ts + packages/connector-sdk/src/fixtures.ts + packages/shopify-connector/src/mock-graphql-client.ts (test fixtures RE-EXPORTED from public index.ts - load-bearing)",
+    "apps/control-plane-api/src/transaction-store-postgres.ts (loadAmount ORDER BY id ASC LIMIT 1 arbitrary row; N+1 fan-out; potential duplicate rows)"
+  ],
+  "directory_structure": "apps/* = deployable services + Next apps + reference/test harnesses. packages/* = domain/application/infra libraries. Each has tsconfig.json (dev) + tsconfig.build.json (prod, excludes tests, has references). .agents/tasks/* = task/review state (leave alone)."
+}

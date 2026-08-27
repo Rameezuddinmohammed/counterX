@@ -1,0 +1,20 @@
+{
+  "task_id": "task-codebase-sanity-cleanup",
+  "task_description": "Full sanity check / cleanup pass: prune dead code and useless info, resolve bugs, fix errors, improve structure. AUDIT-FIRST: findings report categorizes everything; drive only SAFE, behavior-preserving fixes in small reviewable slices; flag risky/contract-touching items for human decision. Baseline: 2811 tests passing, build green, depcruise clean, lint 963 errors/1 warning (nearly all from untracked apps/landing/out minified JS - a config problem, not source bugs).",
+  "status": "completed",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003"
+  ],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "lint_before": "963 errors / 1 warning",
+    "lint_after": "1 error / 0 warnings (single pre-existing backlog item)",
+    "summary": "From clean state: pnpm build exit 0; pnpm test 2811 passed / 0 failed (baseline, no regression); pnpm depcruise 0 violations (1848 modules); pnpm lint 963->1 errors driven by honest config fix (ignore untracked apps/landing/out) + real behavior-preserving source fixes; all 3 backend services load under native Node ESM (fail only on missing DATABASE_URL, not on import). pnpm install --frozen-lockfile passes (lockfile consistent after react-hooks plugin add)."
+  }
+}

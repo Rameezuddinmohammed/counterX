@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Fix the ESLint configuration so it stops linting the untracked Next.js static export output (apps/landing/out), which is the sole source of 541 no-undef plus ~350 other base-rule errors (no-prototype-builtins, no-cond-assign, no-empty, no-fallthrough, no-useless-escape, no-control-regex, no-self-assign, no-case-declarations, no-redeclare, no-func-assign) that all originate from minified JS chunks. Then apply a small set of trivially-safe, behavior-preserving real-source fixes. This is INDEPENDENT of FEAT-003 and can be reviewed as its own slice. Do NOT touch merchant-console type-safety here (that is FEAT-003).",
+  "status": "completed",
+  "steps": [
+    "In eslint.config.js, add \"**/out/**\" to the top-level `ignores` array (alongside the existing **/dist/**, **/build/**, **/.next/**, **/coverage/**, **/node_modules/**, **/*.d.ts). This is the honest fix: apps/landing/out is git-ignored Next static export output, not source. Verify the edit landed with `git diff eslint.config.js` (remember the fs overlay bug: edit via sed/python and confirm on disk).",
+    "Re-run `pnpm lint` and confirm all no-undef and other base-rule (non-@typescript-eslint) errors are gone; the residue should be ~65 errors + 1 warning, all @typescript-eslint or react-hooks rules in real source.",
+    "Fix packages/ui/src/components/data-table.tsx (~line 82): `String(item[column.key] ?? \"\")` stringifies objects to '[object Object]'. Make it null/undefined -> \"\", primitives -> String(v), and objects/arrays -> a safe representation (e.g. JSON.stringify) OR keep String() only for primitive-guarded values. Preserve existing rendering for the current call sites (all current cells pass primitives). Add/adjust a unit test in packages/ui if a test file exists for data-table; if none exists, do not add a new test harness - note it.",
+    "Fix packages/ui/src/components/{input,loading,sidebar}.tsx no-empty-object-type: replace the empty `interface X extends Y {}` with a type alias `type X = Y` (or add a meaningful member if one was intended). Preserve the exported name and its usage.",
+    "Investigate packages/razorpay-adapter/src/real-http-client.ts:133 `_cause`: the eslint config already sets argsIgnorePattern/varsIgnorePattern '^_', so a catch binding named _cause should be ignored. Determine why it still errors (catch clause bindings use caughtErrorsIgnorePattern, which is NOT configured). Fix by adding `caughtErrorsIgnorePattern: \"^_\"` to the @typescript-eslint/no-unused-vars options in eslint.config.js (correct, general fix), rather than editing the source. Confirm this also does not mask real issues.",
+    "For apps/worker/src/secret-leakage.integration.test.ts: remove the stale `eslint-disable ... no-console` directive at line ~174 that reports 'Unused eslint-disable directive'. Leave the no-unsafe-return at 328 for now unless a trivially-safe type annotation resolves it; if not trivial, note it for backlog.",
+    "For apps/control-plane-api/src/transaction-routes.ts:91 no-redundant-type-constituents: the union `\"completed\" | \"declined\" | string` collapses to `string`. This is a behavioral no-op (type only). Change to just `string` with a doc comment noting the known values, OR keep literals and drop `string` IF the field is truly constrained. Choose the option that does NOT change runtime behavior or the read-model external contract; if uncertain which values actually occur, prefer `string` + comment. Verify no type errors introduced.",
+    "After each edit, verify on real disk with git diff, then run `pnpm build` and `pnpm test` (must stay 2811) and `pnpm lint` (record AFTER count)."
+  ],
+  "acceptance_criteria": [
+    "eslint.config.js ignores **/out/**; pnpm lint no longer reports any no-undef errors",
+    "Total lint errors drop from 963 to at most ~10 (the merchant-console any-cluster addressed in FEAT-003 may remain; base-rule + ui + razorpay + redundant-type items resolved here)",
+    "data-table.tsx no longer emits no-base-to-string and renders primitives identically to before",
+    "no-empty-object-type gone from input/loading/sidebar",
+    "razorpay _cause no-unused-vars gone via config caughtErrorsIgnorePattern",
+    "pnpm build exit 0, pnpm test still 2811 passing, pnpm depcruise still 0 violations"
+  ],
+  "verification": [
+    "pnpm build (exit 0)",
+    "pnpm test (2811 passed, no regression)",
+    "pnpm depcruise (0 violations)",
+    "pnpm lint (AFTER count recorded; base-rule/no-undef eliminated)"
+  ],
+  "blocked_reason": null,
+  "findings": "Lint BEFORE: 963 errors / 1 warning. AFTER: 58 errors / 0 warnings. Root cause of ~890 errors was eslint linting apps/landing/out (git-ignored Next static export, minified JS): added '**/out/**' to eslint.config.js top-level ignores. Added caughtErrorsIgnorePattern:'^_' to @typescript-eslint/no-unused-vars options, which resolved razorpay-adapter real-http-client.ts:133 _cause (config fix, source untouched). Files changed: eslint.config.js (ignores + caughtErrorsIgnorePattern); packages/ui/src/components/data-table.tsx (added renderCellValue helper: null/undefined->'' , string->value, number/boolean/bigint->String, objects/arrays->JSON.stringify, avoids '[object Object]' and satisfies no-base-to-string; primitives render identically to before); packages/ui/src/components/input.tsx, loading.tsx, sidebar.tsx (empty `interface X extends Y {}` -> `type X = Y`, exported names preserved); apps/worker/src/secret-leakage.integration.test.ts (removed stale unused eslint-disable/enable no-console pair at ~174/181); apps/control-plane-api/src/transaction-routes.ts:91 (OrderedStep.status '\"completed\"|\"declined\"|string' -> 'string' with doc comment; type-only, behavior-preserving, all === comparisons still valid). No data-table unit test file exists in packages/ui, so none added/updated (noted per step 3). Residual 58 errors are ALL the merchant-console any-cluster (audit/findings/mapping/transactions page.tsx + use-api.ts react-hooks) reserved for FEAT-003, plus one no-unsafe-return at secret-leakage.integration.test.ts:328 left for backlog per step 6 (not trivially typeable). Verification from clean state: pnpm build exit 0; pnpm test 2811 passed (no regression); pnpm depcruise 0 violations / 1848 modules. NOT committed (orchestrator publishes)."
+}

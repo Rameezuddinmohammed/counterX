@@ -1,6 +1,33 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
 
+/**
+ * Render a cell value that has no custom `cell` renderer. Null/undefined become
+ * an empty string, primitives are stringified directly, and objects/arrays are
+ * JSON-serialized so they never render as the useless "[object Object]".
+ */
+function renderCellValue(value: unknown): React.ReactNode {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "number":
+    case "boolean":
+    case "bigint":
+      return String(value);
+    default:
+      // Objects/arrays/symbols/functions: serialize instead of falling back to
+      // the useless "[object Object]" default stringification.
+      try {
+        return JSON.stringify(value) ?? "";
+      } catch {
+        return "";
+      }
+  }
+}
+
 export interface DataTableColumn<T> {
   key: string;
   header: string;
@@ -79,7 +106,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     >
                       {column.cell
                         ? column.cell(item)
-                        : String(item[column.key] ?? "")}
+                        : renderCellValue(item[column.key])}
                     </td>
                   ))}
                 </tr>

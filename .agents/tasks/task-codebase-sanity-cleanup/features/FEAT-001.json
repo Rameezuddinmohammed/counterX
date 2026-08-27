@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish and confirm a clean-state baseline before any changes. This proves the sanity-check operates from a known-green starting point and captures the honest BEFORE lint numbers.",
+  "status": "completed",
+  "steps": [
+    "source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX",
+    "Clean incremental state on REAL disk: `find apps packages -name '*.tsbuildinfo' -delete` then `rm -rf apps/*/dist packages/*/dist`. Do NOT use the `find . -path ./node_modules -prune -o ... -delete` form; it does not delete.",
+    "Run `pnpm build` and confirm exit 0 (all packages Done).",
+    "Run `pnpm test` and confirm exit 0; confirm total passed == 2811 (compute with: python3 -c \"import re; t=open('X').read(); print(sum(int(m) for m in re.findall(r'Tests\\\\s+(\\\\d+) passed', t)))\").",
+    "Run `pnpm depcruise` and confirm 0 violations (1848 modules).",
+    "Run `pnpm lint` and record BEFORE counts: expect 963 errors, 1 warning."
+  ],
+  "acceptance_criteria": [
+    "pnpm build exits 0 from clean state",
+    "pnpm test exits 0 with 2811 tests passing",
+    "pnpm depcruise reports 0 violations",
+    "BEFORE lint count recorded (963 errors / 1 warning)"
+  ],
+  "verification": [
+    "pnpm build (exit 0)",
+    "pnpm test (2811 passed)",
+    "pnpm depcruise (0 violations)"
+  ],
+  "blocked_reason": null,
+  "findings": "Baseline verified during audit: pnpm build exit 0 from clean state; pnpm test 2811 passed (0 failed); pnpm depcruise 0 violations (1848 modules); pnpm lint 963 errors + 1 warning. Root cause of lint: 541 no-undef + ~350 base-rule errors all from untracked apps/landing/out minified JS (missing from eslint ignores). Real source residue = 65 errors + 1 warning."
+}

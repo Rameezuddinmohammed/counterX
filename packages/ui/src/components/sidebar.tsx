@@ -39,7 +39,7 @@ export function SidebarProvider({
   );
 }
 
-export interface SidebarProps extends React.HTMLAttributes<HTMLElement> {}
+export type SidebarProps = React.HTMLAttributes<HTMLElement>;
 
 export function Sidebar({ className, children, ...props }: SidebarProps) {
   const { collapsed } = useSidebar();

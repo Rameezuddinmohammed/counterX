@@ -88,7 +88,12 @@ export const METHOD_UNKNOWN = "unknown";
 /** Lifecycle-step shape consumed by the derivation functions. */
 export interface OrderedStep {
   readonly step: string;
-  readonly status: "completed" | "declined" | string;
+  /**
+   * Lifecycle status of the step. Known values include "completed" and
+   * "declined", but the read-model surfaces the raw stored value, so this is
+   * typed as `string` to avoid a misleading union that collapses to `string`.
+   */
+  readonly status: string;
   readonly reference: string | null;
   /** ISO-8601 timestamp for when the step was recorded. */
   readonly timestamp: string;
