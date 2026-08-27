@@ -8,18 +8,23 @@ RUN npm install -g pnpm@9.15.4
 
 WORKDIR /app
 
+# Accept build arg to determine which app to build and run.
+# BUILD_TARGET is a workspace path, e.g. apps/control-plane-api.
+ARG BUILD_TARGET
+ENV BUILD_TARGET=${BUILD_TARGET}
+
 # Copy the entire monorepo
 COPY . .
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Build all packages and apps
-RUN pnpm build
-
-# Accept build arg to determine which app to run
-ARG BUILD_TARGET
-ENV BUILD_TARGET=${BUILD_TARGET}
+# Build only the target backend app and its workspace dependency closure.
+# The "..." suffix builds all workspace packages the target depends on first,
+# while skipping the Next.js consoles (merchant/wallet/operations/landing),
+# which are deployed to Vercel and would otherwise be built in parallel and
+# exhaust memory on the Fly remote builder.
+RUN pnpm --filter "./${BUILD_TARGET}..." run build
 
 # Fly.io default port
 ENV PORT=8080
