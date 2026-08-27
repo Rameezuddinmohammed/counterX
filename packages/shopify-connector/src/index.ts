@@ -243,6 +243,14 @@ export type {
   OrderQueryInput,
 } from "./order-actions.js";
 
+// ─── Connector Factory ────────────────────────────────────────────────────────
+
+export { createShopifyConnectorFromConfig } from "./connector-factory.js";
+export type {
+  ShopifyConnector,
+  ShopifyConnectorConfig,
+} from "./connector-factory.js";
+
 // ─── Legacy Types (backward compat) ──────────────────────────────────────────
 
 /**
