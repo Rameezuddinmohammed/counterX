@@ -129,6 +129,16 @@ export interface StepLedgerEntry {
 export interface StepLedgerPort {
   lookup(key: string, step: string): Promise<StepLedgerEntry | undefined>;
   record(key: string, entry: StepLedgerEntry): Promise<StepLedgerEntry>;
+  /**
+   * OPTIONAL durable pre-claim of an external-effect step. Returns whether THIS
+   * caller won the atomic claim insert; only the winner is authorised to drive
+   * the effect (the draft), closing the cross-instance race on effects with no
+   * provider-side idempotency. When a ledger does not implement `claim`, the
+   * lifecycle falls back to the previous behaviour (single-instance safe via the
+   * per-transaction cache; cross-instance dedup then relies on the terminal
+   * ledger row after the effect).
+   */
+  claim?(key: string, step: string): Promise<{ readonly won: boolean }>;
 }
 
 /**
@@ -138,6 +148,7 @@ export interface StepLedgerPort {
  */
 export function createInMemoryStepLedger(): StepLedgerPort {
   const store = new Map<string, StepLedgerEntry>();
+  const claims = new Set<string>();
   const composite = (key: string, step: string): string => `${key}\u0000${step}`;
   return {
     lookup(key: string, step: string): Promise<StepLedgerEntry | undefined> {
@@ -151,6 +162,14 @@ export function createInMemoryStepLedger(): StepLedgerPort {
       }
       store.set(id, entry);
       return Promise.resolve(entry);
+    },
+    claim(key: string, step: string): Promise<{ readonly won: boolean }> {
+      const id = composite(key, `${step}.claim`);
+      if (claims.has(id)) {
+        return Promise.resolve({ won: false });
+      }
+      claims.add(id);
+      return Promise.resolve({ won: true });
     },
   };
 }
@@ -336,38 +355,68 @@ export function createRealPaymentAuthorizationPort(
         }
         draftOrderId = draftLedger.reference ?? "";
       } else {
-        const draftOutcome = await config.shopify.draftOrderCreate.execute({
-          payload: {
-            lineItems: [{ variantId, quantity }],
-            customerId: undefined,
-            note: `Counter autonomous checkout ${key}`,
-            tags: ["counter-autonomous"],
-            metadata: { correlationId, idempotencyKey: key },
-          },
-          idempotencyKey: key,
-          correlationId,
-          preconditions: [],
-          timeoutMs,
-        });
-        const draft = unwrapOutcome(draftOutcome, "shopify.draft");
-        if (draft.kind === "indeterminate") {
-          return indeterminate(draft.lastKnownState, `draft:${key}`);
-        }
-        if (draft.kind === "failed") {
-          await stepLedger.record(key, {
-            step: STEP_DRAFT,
-            status: "declined",
-            reference: undefined,
+        // DURABLE PRE-CLAIM (closes the cross-instance draft race): the Shopify
+        // draftOrderCreate mutation has NO native idempotency key and the
+        // connector's idempotency store is per-instance in-memory, so two racing
+        // workers that both find no draft row could each create a REAL draft.
+        // Atomically claim the draft step under the UNIQUE constraint; only the
+        // winner calls draftOrderCreate. A loser resolves the draft from the
+        // durable ledger the winner records, so at most ONE draft is ever
+        // created for the key regardless of how many instances race.
+        const claim =
+          stepLedger.claim !== undefined
+            ? await stepLedger.claim(key, STEP_DRAFT)
+            : { won: true };
+
+        if (!claim.won) {
+          // Another instance won the claim and is creating (or created) the
+          // draft. Resolve the durable reference it records; bounded poll to
+          // absorb the brief window between claim and the recorded outcome.
+          const resolved = await awaitDraftOutcome(stepLedger, key);
+          if (resolved === undefined) {
+            // The winner has not yet recorded a terminal outcome; surface
+            // INDETERMINATE so a later attempt resumes from the durable ledger
+            // rather than creating a second draft.
+            return indeterminate("draft.claim.pending", `draft:${key}`);
+          }
+          if (resolved.status === "declined") {
+            return declined(`draft-failed:${key}`);
+          }
+          draftOrderId = resolved.reference ?? "";
+        } else {
+          const draftOutcome = await config.shopify.draftOrderCreate.execute({
+            payload: {
+              lineItems: [{ variantId, quantity }],
+              customerId: undefined,
+              note: `Counter autonomous checkout ${key}`,
+              tags: ["counter-autonomous"],
+              metadata: { correlationId, idempotencyKey: key },
+            },
+            idempotencyKey: key,
+            correlationId,
+            preconditions: [],
+            timeoutMs,
           });
-          return declined(`draft-failed:${key}`);
+          const draft = unwrapOutcome(draftOutcome, "shopify.draft");
+          if (draft.kind === "indeterminate") {
+            return indeterminate(draft.lastKnownState, `draft:${key}`);
+          }
+          if (draft.kind === "failed") {
+            await stepLedger.record(key, {
+              step: STEP_DRAFT,
+              status: "declined",
+              reference: undefined,
+            });
+            return declined(`draft-failed:${key}`);
+          }
+          const recorded = await stepLedger.record(key, {
+            step: STEP_DRAFT,
+            status: "completed",
+            reference: draft.reference,
+          });
+          // A racing writer may have won the INSERT; use the durable reference.
+          draftOrderId = recorded.reference ?? draft.reference;
         }
-        const recorded = await stepLedger.record(key, {
-          step: STEP_DRAFT,
-          status: "completed",
-          reference: draft.reference,
-        });
-        // A racing writer may have won the INSERT; use the durable reference.
-        draftOrderId = recorded.reference ?? draft.reference;
       }
 
       // 4. REAL Razorpay order to PROVE the server-side integration. The
@@ -541,6 +590,33 @@ export function createRealPaymentAuthorizationPort(
       return captured;
     },
   };
+}
+
+// ─── Draft pre-claim resolution ──────────────────────────────────────────────
+
+const DRAFT_CLAIM_POLL_ATTEMPTS = 10;
+const DRAFT_CLAIM_POLL_DELAY_MS = 300;
+
+/**
+ * When a racing instance LOST the durable draft claim, the winner is creating
+ * the draft. Poll the durable ledger a bounded number of times for the winner's
+ * recorded terminal `shopify.draft` outcome so the loser reuses the SAME draft
+ * instead of creating a second one. Returns the recorded entry, or `undefined`
+ * if the winner has not recorded a terminal outcome within the bounded window
+ * (the caller then surfaces INDETERMINATE and a later attempt resumes).
+ */
+async function awaitDraftOutcome(
+  stepLedger: StepLedgerPort,
+  key: string,
+): Promise<StepLedgerEntry | undefined> {
+  for (let attempt = 0; attempt < DRAFT_CLAIM_POLL_ATTEMPTS; attempt += 1) {
+    const entry = await stepLedger.lookup(key, STEP_DRAFT);
+    if (entry !== undefined) {
+      return entry;
+    }
+    await delay(DRAFT_CLAIM_POLL_DELAY_MS);
+  }
+  return stepLedger.lookup(key, STEP_DRAFT);
 }
 
 // ─── Outcome constructors ────────────────────────────────────────────────────

@@ -811,4 +811,115 @@ describe("real connector lifecycle (mocked network)", () => {
       client.callHistory.filter((c) => c.operation === ORDER_QUERY),
     ).toHaveLength(1);
   });
+
+  it("pre-claim: a claim LOSER does not create a second draft and resumes from the winner's recorded outcome", async () => {
+    // A shared durable ledger where the draft has ALREADY been claimed and
+    // recorded by a prior winner. A fresh port instance (fresh connector, as a
+    // second worker would have) must NOT call draftOrderCreate; it resolves the
+    // draft reference from the durable ledger.
+    const ledger = createInMemoryStepLedger();
+    // Simulate the winner having claimed and recorded the draft.
+    await ledger.claim!("order-preclaim", "shopify.draft");
+    await ledger.record("order-preclaim", {
+      step: "shopify.draft",
+      status: "completed",
+      reference: "gid://shopify/DraftOrder/1",
+    });
+
+    const client = createMockGraphQLClient();
+    configureShopifySuccess(client);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(client),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      stepLedger: ledger,
+    });
+
+    const request = {
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(5));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-preclaim",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+    };
+
+    const result = await port.authorizeAndCapture(request);
+    expect(result.status).toBe("captured");
+    // The LOSER never created a draft — it reused the winner's durable reference.
+    expect(
+      client.callHistory.filter((c) => c.operation === DRAFT_ORDER_CREATE_MUTATION),
+    ).toHaveLength(0);
+    expect(result.providerReference).toContain("shopify_order:");
+  });
+
+  it("pre-claim: two ports racing the SAME key against one shared ledger call draftOrderCreate at most once", async () => {
+    // Two separate port instances (distinct connectors, as two workers) share
+    // ONE durable ledger. Only the claim winner may create the draft.
+    const ledger = createInMemoryStepLedger();
+    const request = {
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(6));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-preclaim-race",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+    };
+
+    const clientA = createMockGraphQLClient();
+    configureShopifySuccess(clientA);
+    const httpA = new MockRazorpayHttp();
+    httpA.onCreateOrder(razorpayOrder("order_rzp_1"));
+    const portA = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(clientA),
+      razorpay: buildRazorpay(httpA),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      stepLedger: ledger,
+    });
+
+    const clientB = createMockGraphQLClient();
+    configureShopifySuccess(clientB);
+    const httpB = new MockRazorpayHttp();
+    httpB.onCreateOrder(razorpayOrder("order_rzp_1"));
+    const portB = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(clientB),
+      razorpay: buildRazorpay(httpB),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      stepLedger: ledger,
+    });
+
+    const [a, b] = await Promise.all([
+      portA.authorizeAndCapture(request),
+      portB.authorizeAndCapture(request),
+    ]);
+    for (const outcome of [a, b]) {
+      expect(["indeterminate", "captured"]).toContain(outcome.status);
+    }
+
+    const draftsA = clientA.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    ).length;
+    const draftsB = clientB.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    ).length;
+    // At most ONE real draftOrderCreate across the two racing instances.
+    expect(draftsA + draftsB).toBe(1);
+
+  });
 });

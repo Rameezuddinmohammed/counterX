@@ -971,6 +971,24 @@ export interface AsyncStepLedger {
     entry: StepLedgerEntry,
     now: Instant,
   ): Promise<Result<StepLedgerEntry, CanonicalError>>;
+  /**
+   * Durable pre-claim of an external-effect step. Atomically inserts a claim row
+   * for (key, `${step}.claim`) under the SAME UNIQUE(environment, idempotency_key,
+   * step) index and reports whether THIS caller won the insert. Only the winner
+   * is authorised to drive the external effect (e.g. draftOrderCreate); a racing
+   * loser observes `won=false` and must resolve the effect from the durable
+   * ledger instead of creating a second one. This closes the cross-instance race
+   * on effects (like the Shopify draft) that have no provider-side idempotency,
+   * because the connector's in-memory idempotency store is not shared between
+   * worker instances. The claim row carries NO reference and status 'completed'
+   * (a claim is itself a terminal fact); the real outcome is still recorded on
+   * the base `step`.
+   */
+  claim(
+    key: string,
+    step: string,
+    now: Instant,
+  ): Promise<Result<{ readonly won: boolean }, CanonicalError>>;
 }
 
 interface LifecycleStepRow {
@@ -1056,6 +1074,28 @@ export class PostgresStepLedger implements AsyncStepLedger {
       );
     }
     return ok(stepEntryFromRow(row));
+  }
+
+  async claim(
+    key: string,
+    step: string,
+    now: Instant,
+  ): Promise<Result<{ readonly won: boolean }, CanonicalError>> {
+    // Atomic pre-claim: insert a claim row for `${step}.claim`. A RETURNING row
+    // means THIS caller won the insert (and may drive the external effect); an
+    // empty result means a concurrent caller already claimed it (loser). The
+    // claim row is itself a terminal fact, so status 'completed' satisfies the
+    // CHECK constraint; it carries no reference.
+    const insert = await this.database.query<{ id: string }>(
+      `INSERT INTO runtime.lifecycle_steps (
+         environment, idempotency_key, step, status, reference, snapshot,
+         created_at, completed_at
+       ) VALUES ('local', $1, $2, 'completed', NULL, NULL, $3, $3)
+       ON CONFLICT (environment, idempotency_key, step) DO NOTHING
+       RETURNING id`,
+      [key, `${step}.claim`, asDate(now)],
+    );
+    return ok({ won: insert.rows[0] !== undefined });
   }
 }
 

@@ -2,15 +2,18 @@
  * PRIORITY 2 — Concurrency proofs against the REAL path.
  *
  * Fires TWO concurrent identical checkouts with the SAME idempotencyKey through
- * the REAL money seam sharing ONE durable Postgres step ledger, and asserts the
- * two attempts converge to AT MOST ONE Shopify order + ONE payment. Then fires a
- * racing retry (a third attempt on the same key against the SAME durable ledger)
- * and asserts it converges to the SAME single order — never a second effect.
+ * the REAL money seam sharing ONE durable Postgres step ledger, plus a racing
+ * retry, and asserts the attempts converge to AT MOST ONE Shopify draft ORDER —
+ * not merely one ledger row.
  *
- * Convergence is proven by the durable step ledger (FEAT-001): the
- * UNIQUE(environment, idempotency_key, step) constraint with ON CONFLICT DO
- * NOTHING guarantees exactly ONE recorded draft/finalize outcome no matter how
- * many attempts race, so exactly one Shopify order exists for the key.
+ * The Shopify draftOrderCreate mutation has NO native idempotency key and the
+ * connector's idempotency store is per-instance in-memory, so without a durable
+ * pre-claim two racing workers could each create a REAL draft while only one
+ * ledger row survives the ON CONFLICT. This test therefore counts the number of
+ * times the REAL draftOrderCreate.execute is invoked across BOTH instances (via
+ * a shared spy) and asserts it is called EXACTLY ONCE — proving the durable
+ * pre-claim (FEAT-001 + issue-3 fix) lets only the claim winner create the
+ * draft. It also asserts exactly one durable draft + finalize ledger row.
  *
  * The created order is left PENDING (mark-paid is forced indeterminate) so it is
  * cancellable, and afterAll cancels it via connector.orderCancel and deletes the
@@ -36,10 +39,26 @@ import {
 
 const gatedDescribe = hasCreds ? describe : describe.skip;
 
-/** A Shopify connector whose mark-paid always stays indeterminate (order stays PENDING). */
-function nonPaying(connector: ShopifyConnector): ShopifyConnector {
+/**
+ * Wraps a connector so mark-paid stays indeterminate (order stays PENDING) AND
+ * every REAL draftOrderCreate.execute increments a SHARED counter, so two port
+ * instances that share this connector share the draft-call count.
+ */
+function instrument(
+  connector: ShopifyConnector,
+  counter: { draftCalls: number },
+): ShopifyConnector {
+  const realDraft = connector.draftOrderCreate;
+  const boundDraft = (realDraft.execute as (...a: never[]) => unknown).bind(realDraft);
   return {
     ...connector,
+    draftOrderCreate: {
+      ...realDraft,
+      execute: (...args: never[]) => {
+        counter.draftCalls += 1;
+        return boundDraft(...args);
+      },
+    } as unknown as typeof connector.draftOrderCreate,
     paymentRecord: {
       execute: (): Promise<{ readonly status: "indeterminate"; readonly lastKnownState: string }> =>
         Promise.resolve({ status: "indeterminate" as const, lastKnownState: "markPaid.held" }),
@@ -47,7 +66,7 @@ function nonPaying(connector: ShopifyConnector): ShopifyConnector {
   };
 }
 
-gatedDescribe("concurrency — same-key checkouts converge to one effect (creds+DB-gated)", () => {
+gatedDescribe("concurrency — same-key checkouts create at most ONE real draft (creds+DB-gated)", () => {
   const database = new PostgresDatabase(databaseUrl as string);
   const bundle = realBundleOrNull();
   const idempotencyKey = `concurrency-${Date.now()}`;
@@ -74,7 +93,7 @@ gatedDescribe("concurrency — same-key checkouts converge to one effect (creds+
   });
 
   it(
-    "creates at most ONE Shopify order + ONE payment for two concurrent identical checkouts and a racing retry",
+    "invokes the real draftOrderCreate EXACTLY ONCE for two concurrent checkouts and a racing retry",
     async () => {
       await database.query(RUNTIME_DDL);
       await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
@@ -91,11 +110,16 @@ gatedDescribe("concurrency — same-key checkouts converge to one effect (creds+
         quantity: 1,
       };
 
-      // Two SEPARATE real port instances (distinct in-memory caches, as two
-      // racing workers would have) sharing ONE durable Postgres ledger.
+      // SHARED draft-call counter across both instances, exactly as two racing
+      // workers hitting the same real Shopify store would share the store.
+      const counter = { draftCalls: 0 };
+
+      // Two SEPARATE real port instances (distinct per-instance in-memory caches
+      // and connector idempotency stores, as two racing workers would have)
+      // sharing ONE durable Postgres ledger and ONE instrumented connector.
       const makePort = (): ReturnType<typeof createRealPaymentAuthorizationPort> =>
         createRealPaymentAuthorizationPort({
-          shopify: nonPaying(bundle!.shopify),
+          shopify: instrument(bundle!.shopify, counter),
           razorpay: bundle!.razorpay,
           payments: bundle!.payments,
           merchantId: bundle!.merchantId,
@@ -108,8 +132,6 @@ gatedDescribe("concurrency — same-key checkouts converge to one effect (creds+
         makePort().authorizeAndCapture(request),
         makePort().authorizeAndCapture(request),
       ]);
-
-      // Neither is a hard failure; both resolve to the same convergent outcome.
       for (const outcome of [a, b]) {
         expect(["indeterminate", "captured"]).toContain(outcome.status);
       }
@@ -118,15 +140,19 @@ gatedDescribe("concurrency — same-key checkouts converge to one effect (creds+
       const c = await makePort().authorizeAndCapture(request);
       expect(["indeterminate", "captured"]).toContain(c.status);
 
-      // KEY INVARIANT: the durable ledger holds EXACTLY ONE draft row and EXACTLY
-      // ONE finalize row for the key — exactly one Shopify order exists despite
-      // three attempts racing.
-      const draftRows = await database.query<{ reference: string | null }>(
-        `SELECT reference FROM runtime.lifecycle_steps
+      // PRIMARY INVARIANT: the REAL draftOrderCreate was invoked exactly ONCE
+      // across all racing attempts — the durable pre-claim let only the winner
+      // create the draft, so at most ONE real Shopify draft order exists.
+      expect(counter.draftCalls).toBe(1);
+
+      // The durable ledger corroborates: exactly ONE draft row and ONE finalize
+      // row for the key.
+      const draftRows = await database.query(
+        `SELECT 1 FROM runtime.lifecycle_steps
          WHERE idempotency_key = $1 AND step = 'shopify.draft'`,
         [idempotencyKey],
       );
-      expect(draftRows.rows).toHaveLength(1);
+      expect(draftRows.rowCount).toBe(1);
 
       const finalizeRows = await database.query<{ reference: string | null }>(
         `SELECT reference FROM runtime.lifecycle_steps
