@@ -27,6 +27,7 @@ import {
   PostgresOutboxRepository,
   PostgresStepLedger,
   PostgresKillSwitchStore,
+  PostgresSpendLedger,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
@@ -142,6 +143,7 @@ function main(): void {
   const selection = selectPaymentAuthorizationPort(process.env, undefined, {
     stepLedger: new PostgresStepLedger(database),
     killSwitchStore: new PostgresKillSwitchStore(database),
+    spendLedger: new PostgresSpendLedger(database),
   });
   logger.info("payment connector selected", { mode: selection.mode });
 
