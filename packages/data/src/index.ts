@@ -46,12 +46,15 @@ export {
   PostgresOutboxRepository,
   PostgresInboxRepository,
   PostgresJobRepository,
+  PostgresStepLedger,
 } from "./runtime-repositories.js";
 export type {
   AsyncIdempotencyStore,
   AsyncOutboxRepository,
   AsyncInboxRepository,
   AsyncJobRepository,
+  AsyncStepLedger,
+  StepLedgerEntry,
 } from "./runtime-repositories.js";
 export {
   idempotencyKeys,

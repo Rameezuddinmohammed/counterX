@@ -937,3 +937,124 @@ function jobFromRow(row: JobRow): Job {
     completedAt: optionalInstantFromDate(row.completed_at),
   });
 }
+
+// ─── PostgresStepLedger ──────────────────────────────────────────────────────
+
+/**
+ * A durable, per-step outcome for one external-effect leg of the transaction
+ * lifecycle. Recorded keyed on (idempotencyKey, step) so a retry after a WORKER
+ * RESTART resumes from the last completed step instead of re-driving it.
+ *
+ * SECURITY: `reference` and `snapshot` carry provider references (order ids)
+ * and terminal status only — never raw payment credentials, PAN, CVV, UPI PIN,
+ * access tokens, or key secrets.
+ */
+export interface StepLedgerEntry {
+  readonly step: string;
+  readonly status: "completed" | "declined";
+  readonly reference: string | undefined;
+  readonly snapshot: unknown;
+}
+
+/**
+ * Async durable step ledger. `lookup` returns a previously recorded outcome for
+ * (key, step) or `undefined`. `record` persists a terminal step outcome exactly
+ * once; a racing concurrent writer loses the INSERT and the recorded outcome is
+ * returned instead. Only terminal outcomes ('completed' / 'declined') are
+ * persisted — an indeterminate step is never recorded so a later attempt can
+ * re-drive it to resolve the unknown state.
+ */
+export interface AsyncStepLedger {
+  lookup(key: string, step: string): Promise<Result<StepLedgerEntry | undefined, CanonicalError>>;
+  record(
+    key: string,
+    entry: StepLedgerEntry,
+    now: Instant,
+  ): Promise<Result<StepLedgerEntry, CanonicalError>>;
+}
+
+interface LifecycleStepRow {
+  id: string;
+  environment: string;
+  idempotency_key: string;
+  step: string;
+  status: string;
+  reference: string | null;
+  snapshot: unknown;
+  created_at: Date;
+  completed_at: Date | null;
+}
+
+function stepEntryFromRow(row: LifecycleStepRow): StepLedgerEntry {
+  return Object.freeze({
+    step: row.step,
+    status: row.status as StepLedgerEntry["status"],
+    reference: row.reference ?? undefined,
+    snapshot: row.snapshot ?? undefined,
+  });
+}
+
+export class PostgresStepLedger implements AsyncStepLedger {
+  constructor(private readonly database: TransactionalDatabase) {}
+
+  async lookup(
+    key: string,
+    step: string,
+  ): Promise<Result<StepLedgerEntry | undefined, CanonicalError>> {
+    const result = await this.database.query<LifecycleStepRow>(
+      `SELECT * FROM runtime.lifecycle_steps
+       WHERE environment = 'local' AND idempotency_key = $1 AND step = $2`,
+      [key, step],
+    );
+    const row = result.rows[0];
+    return ok(row === undefined ? undefined : stepEntryFromRow(row));
+  }
+
+  async record(
+    key: string,
+    entry: StepLedgerEntry,
+    now: Instant,
+  ): Promise<Result<StepLedgerEntry, CanonicalError>> {
+    // Insert the terminal step outcome exactly once. A racing concurrent writer
+    // loses the INSERT (ON CONFLICT DO NOTHING); we then read the winner's row
+    // so both callers observe the SAME durable outcome and neither re-drives.
+    const insert = await this.database.query<LifecycleStepRow>(
+      `INSERT INTO runtime.lifecycle_steps (
+         environment, idempotency_key, step, status, reference, snapshot,
+         created_at, completed_at
+       ) VALUES ('local', $1, $2, $3, $4, $5, $6, $6)
+       ON CONFLICT (environment, idempotency_key, step) DO NOTHING
+       RETURNING *`,
+      [
+        key,
+        entry.step,
+        entry.status,
+        entry.reference ?? null,
+        entry.snapshot === undefined ? null : JSON.stringify(entry.snapshot),
+        asDate(now),
+      ],
+    );
+
+    const inserted = insert.rows[0];
+    if (inserted !== undefined) {
+      return ok(stepEntryFromRow(inserted));
+    }
+
+    const existing = await this.database.query<LifecycleStepRow>(
+      `SELECT * FROM runtime.lifecycle_steps
+       WHERE environment = 'local' AND idempotency_key = $1 AND step = $2`,
+      [key, entry.step],
+    );
+    const row = existing.rows[0];
+    if (row === undefined) {
+      return err(
+        createCanonicalError({
+          category: "conflict",
+          code: "CONFLICT",
+          message: "Lifecycle step ledger row disappeared unexpectedly",
+        }),
+      );
+    }
+    return ok(stepEntryFromRow(row));
+  }
+}

@@ -64,8 +64,8 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const empty = await runner.status();
     expect(empty.currentVersion).toBe(0);
-    expect(empty.latestVersion).toBe(4);
-    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
+    expect(empty.latestVersion).toBe(7);
+    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6, 7]);
 
     const firstVersion = await runner.up(1);
     expect(firstVersion.currentVersion).toBe(1);
@@ -82,7 +82,7 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const upgraded = await runner.up(4);
     expect(upgraded.currentVersion).toBe(4);
-    expect(upgraded.pending).toHaveLength(0);
+    expect(upgraded.pending.map((migration) => migration.version)).toEqual([5, 6, 7]);
     expect(upgraded.applied.map(({ version, name }) => ({ version, name }))).toEqual([
       { version: 1, name: "environment-registry" },
       { version: 2, name: "synthetic-fixtures" },
@@ -137,8 +137,10 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     await expect(tableExists(database, "platform", "environment_registry")).resolves.toBe(false);
 
     const restored = await runner.up();
-    expect(restored.currentVersion).toBe(4);
-    expect(restored.applied.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
+    expect(restored.currentVersion).toBe(7);
+    expect(restored.applied.map((migration) => migration.version)).toEqual([
+      1, 2, 3, 4, 5, 6, 7,
+    ]);
     await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length);
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
   });
