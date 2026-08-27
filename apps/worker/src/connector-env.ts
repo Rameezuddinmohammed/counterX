@@ -41,7 +41,7 @@ export type EnvironmentBag = Readonly<Record<string, string | undefined>>;
 export const DEFAULT_SHOPIFY_API_VERSION = "2025-07";
 
 /** Default Razorpay API base URL when `RAZORPAY_BASE_URL` is unset. */
-export const DEFAULT_RAZORPAY_BASE_URL = "https://api.razorpay.com/v1";
+export const DEFAULT_RAZORPAY_BASE_URL = "https://api.razorpay.com";
 
 /**
  * Environments where mock connectors may be used and where missing

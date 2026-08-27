@@ -202,7 +202,7 @@ export {
   REFUND_CREATE_MUTATION,
   DRAFT_ORDER_QUERY,
   ORDER_QUERY,
-  buildNoteAttributes,
+  buildCustomAttributes,
 } from "./order-mutations.js";
 
 // ─── Order Error Normalizer ───────────────────────────────────────────────────

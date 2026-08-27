@@ -40,7 +40,7 @@ import {
   REFUND_CREATE_MUTATION,
   DRAFT_ORDER_QUERY,
   ORDER_QUERY,
-  buildNoteAttributes,
+  buildCustomAttributes,
 } from "./order-mutations.js";
 import type {
   DraftOrderCreateInput,
@@ -97,7 +97,7 @@ interface DraftOrderQueryResponse {
     readonly totalPrice: string;
     readonly currencyCode: string;
     readonly createdAt: string;
-    readonly noteAttributes: readonly { readonly name: string; readonly value: string }[];
+    readonly customAttributes: readonly { readonly key: string; readonly value: string }[];
   } | null;
 }
 
@@ -164,7 +164,7 @@ interface OrderQueryResponse {
       };
     };
     readonly createdAt: string;
-    readonly noteAttributes: readonly { readonly name: string; readonly value: string }[];
+    readonly customAttributes: readonly { readonly key: string; readonly value: string }[];
   } | null;
 }
 
@@ -222,7 +222,7 @@ export class DraftOrderCreateAction implements ActionPort<DraftOrderCreateInput,
       return lookup.cachedOutcome;
     }
 
-    const noteAttributes = buildNoteAttributes(input.correlationId, input.idempotencyKey);
+    const customAttributes = buildCustomAttributes(input.correlationId, input.idempotencyKey);
     const variables = {
       input: {
         lineItems: input.payload.lineItems.map((li) => ({
@@ -232,7 +232,7 @@ export class DraftOrderCreateAction implements ActionPort<DraftOrderCreateInput,
         customerId: input.payload.customerId ?? undefined,
         note: input.payload.note ?? undefined,
         tags: [...input.payload.tags],
-        noteAttributes,
+        customAttributes,
       },
     };
 

@@ -117,8 +117,8 @@ query draftOrder($id: ID!) {
     totalPrice
     currencyCode
     createdAt
-    noteAttributes {
-      name
+    customAttributes {
+      key
       value
     }
   }
@@ -141,8 +141,8 @@ query order($id: ID!) {
       }
     }
     createdAt
-    noteAttributes {
-      name
+    customAttributes {
+      key
       value
     }
   }
@@ -151,12 +151,12 @@ query order($id: ID!) {
 
 // ─── Helper: Build Note Attributes ───────────────────────────────────────────
 
-export function buildNoteAttributes(
+export function buildCustomAttributes(
   correlationId: string,
   idempotencyKey: string,
-): readonly { readonly name: string; readonly value: string }[] {
+): readonly { readonly key: string; readonly value: string }[] {
   return Object.freeze([
-    Object.freeze({ name: "counter_correlation_id", value: correlationId }),
-    Object.freeze({ name: "counter_idempotency_key", value: idempotencyKey }),
+    Object.freeze({ key: "counter_correlation_id", value: correlationId }),
+    Object.freeze({ key: "counter_idempotency_key", value: idempotencyKey }),
   ]);
 }

@@ -135,10 +135,10 @@ describe("DraftOrderCreateAction", () => {
 
     expect(client.callHistory.length).toBe(1);
     const call = client.callHistory[0]!;
-    const noteAttrs = (call.variables as { input: { noteAttributes: unknown[] } }).input.noteAttributes;
+    const noteAttrs = (call.variables as { input: { customAttributes: unknown[] } }).input.customAttributes;
     expect(noteAttrs).toEqual([
-      { name: "counter_correlation_id", value: "corr-id-001" },
-      { name: "counter_idempotency_key", value: "idem-key-001" },
+      { key: "counter_correlation_id", value: "corr-id-001" },
+      { key: "counter_idempotency_key", value: "idem-key-001" },
     ]);
   });
 
@@ -296,8 +296,8 @@ describe("DraftOrderQueryAction", () => {
           totalPrice: "100.00",
           currencyCode: "USD",
           createdAt: "2024-01-01T00:00:00Z",
-          noteAttributes: [
-            { name: "counter_correlation_id", value: "corr-id-001" },
+          customAttributes: [
+            { key: "counter_correlation_id", value: "corr-id-001" },
           ],
         },
       },
@@ -484,8 +484,8 @@ describe("OrderQueryAction", () => {
           cancelledAt: null,
           totalPriceSet: { shopMoney: { amount: "100.00", currencyCode: "USD" } },
           createdAt: "2024-01-01T00:00:00Z",
-          noteAttributes: [
-            { name: "counter_correlation_id", value: "corr-id-004" },
+          customAttributes: [
+            { key: "counter_correlation_id", value: "corr-id-004" },
           ],
         },
       },
@@ -529,8 +529,8 @@ describe("OrderQueryAction", () => {
           cancelledAt: null,
           totalPriceSet: { shopMoney: { amount: "100.00", currencyCode: "USD" } },
           createdAt: "2024-01-01T00:00:00Z",
-          noteAttributes: [
-            { name: "counter_correlation_id", value: "corr-id-004" },
+          customAttributes: [
+            { key: "counter_correlation_id", value: "corr-id-004" },
           ],
         },
       },
@@ -631,8 +631,8 @@ describe("OrderCancelAction", () => {
           totalPrice: "100.00",
           currencyCode: "USD",
           createdAt: "2024-01-01T00:00:00Z",
-          noteAttributes: [
-            { name: "counter_correlation_id", value: "corr-id-recovery" },
+          customAttributes: [
+            { key: "counter_correlation_id", value: "corr-id-recovery" },
           ],
         },
       },

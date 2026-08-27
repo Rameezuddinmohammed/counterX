@@ -109,6 +109,13 @@ function toMoney(amountMinor: number, currency: string): Money {
   });
 }
 
+const MARK_PAID_MAX_RETRIES = 5;
+const MARK_PAID_RETRY_DELAY_MS = 1500;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function unwrapOutcome<T>(
   outcome: ActionOutcome<T>,
   effect: string,
@@ -274,7 +281,12 @@ export function createRealPaymentAuthorizationPort(
       }
       const orderId = finalized.reference;
 
-      const markPaidOutcome = await config.shopify.paymentRecord.execute({
+      // Shopify exhibits brief eventual consistency after draftOrderComplete:
+      // a freshly finalized order can report "Order is temporarily unavailable
+      // to be modified" for a short window. Retry the mark-paid a bounded number
+      // of times before treating it as Indeterminate. paymentRecord is idempotent
+      // (keyed by the transaction reference) so a retry cannot double-record.
+      const markPaidPayload = {
         payload: {
           orderId,
           metadata: { correlationId, idempotencyKey: key },
@@ -283,7 +295,18 @@ export function createRealPaymentAuthorizationPort(
         correlationId,
         preconditions: [],
         timeoutMs,
-      });
+      };
+      let markPaidOutcome = await config.shopify.paymentRecord.execute(markPaidPayload);
+      for (
+        let attempt = 0;
+        attempt < MARK_PAID_MAX_RETRIES &&
+        markPaidOutcome.status === "failed" &&
+        markPaidOutcome.error.message.includes("temporarily unavailable");
+        attempt += 1
+      ) {
+        await delay(MARK_PAID_RETRY_DELAY_MS);
+        markPaidOutcome = await config.shopify.paymentRecord.execute(markPaidPayload);
+      }
       const markedPaid = unwrapOutcome(markPaidOutcome, "shopify.markPaid");
       if (markedPaid.kind === "indeterminate") {
         return indeterminate(markedPaid.lastKnownState, `markPaid:${key}`);
