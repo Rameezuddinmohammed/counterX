@@ -26,7 +26,10 @@ import {
 } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
 
-import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
+import {
+  createInMemoryStepLedger,
+  createRealPaymentAuthorizationPort,
+} from "./real-lifecycle.js";
 import {
   createTransactionLifecycleHandler,
   type HandledJob,
@@ -549,5 +552,155 @@ describe("real connector lifecycle (mocked network)", () => {
     expect(receipt.reconciliation.intendedAmountMinor).toBe(4999);
     // The order total is preserved as audit evidence on the reference.
     expect(receipt.providerReference).toContain("shopify_total_minor:12345");
+  });
+  it("resumes across a simulated crash: a shared durable ledger prevents a SECOND draft after a crash between draft and finalize", async () => {
+    // A shared step ledger stands in for the durable (Postgres) ledger that
+    // survives a worker restart. The first port instance crashes (finalize
+    // fails -> INDETERMINATE) AFTER the draft succeeded and was recorded.
+    const ledger = createInMemoryStepLedger();
+    const request = {
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(9));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-crash-resume",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+    };
+
+    // ── Attempt A: draft succeeds, finalize FAILS -> INDETERMINATE (crash). ──
+    const clientA = createMockGraphQLClient();
+    configureShopifySuccess(clientA);
+    // Force finalize to fail on attempt A (userErrors -> failed -> indeterminate).
+    clientA.setResponse(DRAFT_ORDER_COMPLETE_MUTATION, {
+      data: {
+        draftOrderComplete: {
+          draftOrder: { order: null },
+          userErrors: [{ field: ["id"], message: "transient finalize failure" }],
+        },
+      },
+      errors: undefined,
+      extensions: undefined,
+    });
+    const httpA = new MockRazorpayHttp();
+    httpA.onCreateOrder(razorpayOrder("order_rzp_1"));
+    const portA = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(clientA),
+      razorpay: buildRazorpay(httpA),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      stepLedger: ledger,
+    });
+
+    const first = await portA.authorizeAndCapture(request);
+    expect(first.status).toBe("indeterminate");
+    // The draft happened exactly once on attempt A and was recorded durably.
+    const draftsA = clientA.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
+    expect(draftsA).toHaveLength(1);
+
+    // ── Attempt B: FRESH port + FRESH connector (simulating a restart with a
+    //    cleared in-memory dedup) but the SAME durable ledger + SAME key. ──
+    const clientB = createMockGraphQLClient();
+    configureShopifySuccess(clientB); // finalize now succeeds
+    const httpB = new MockRazorpayHttp();
+    httpB.onCreateOrder(razorpayOrder("order_rzp_1"));
+    const portB = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(clientB),
+      razorpay: buildRazorpay(httpB),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      stepLedger: ledger,
+    });
+
+    const second = await portB.authorizeAndCapture(request);
+    expect(second.status).toBe("captured");
+
+    // The RESUME guarantee: attempt B did NOT re-create the draft (it read the
+    // recorded outcome from the durable ledger). It DID drive finalize (which
+    // had not been recorded because attempt A left it indeterminate).
+    const draftsB = clientB.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
+    expect(draftsB).toHaveLength(0);
+    const finalizesB = clientB.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_COMPLETE_MUTATION,
+    );
+    expect(finalizesB).toHaveLength(1);
+
+    // Across BOTH attempts, exactly ONE draft order was ever created.
+    const totalDrafts = draftsA.length + draftsB.length;
+    expect(totalDrafts).toBe(1);
+    // The finalized order id is the one from attempt B's success.
+    expect(second.providerReference).toContain("shopify_order:gid://shopify/Order/9");
+  });
+
+  it("replays every recorded Shopify leg from the durable ledger without re-driving any external effect", async () => {
+    // A fully-recorded ledger (all three legs completed) must short-circuit
+    // draft, finalize, AND mark-paid on a fresh port instance.
+    const ledger = createInMemoryStepLedger();
+    await ledger.record("order-replayed", {
+      step: "shopify.draft",
+      status: "completed",
+      reference: "gid://shopify/DraftOrder/1",
+    });
+    await ledger.record("order-replayed", {
+      step: "shopify.finalize",
+      status: "completed",
+      reference: "gid://shopify/Order/9",
+    });
+    await ledger.record("order-replayed", {
+      step: "shopify.markPaid",
+      status: "completed",
+      reference: "gid://shopify/Order/9",
+    });
+
+    const client = createMockGraphQLClient();
+    configureShopifySuccess(client);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(client),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      stepLedger: ledger,
+    });
+
+    const result = await port.authorizeAndCapture({
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(10));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "order-replayed",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+    });
+
+    expect(result.status).toBe("captured");
+    // No draft/finalize/mark-paid were re-driven; only the authoritative query
+    // (step 7) runs, which is a read, not a mutating external effect.
+    expect(
+      client.callHistory.filter((c) => c.operation === DRAFT_ORDER_CREATE_MUTATION),
+    ).toHaveLength(0);
+    expect(
+      client.callHistory.filter((c) => c.operation === DRAFT_ORDER_COMPLETE_MUTATION),
+    ).toHaveLength(0);
+    expect(
+      client.callHistory.filter((c) => c.operation === ORDER_MARK_AS_PAID_MUTATION),
+    ).toHaveLength(0);
+    expect(
+      client.callHistory.filter((c) => c.operation === ORDER_QUERY),
+    ).toHaveLength(1);
   });
 });

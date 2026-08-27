@@ -22,26 +22,32 @@
  * forwards the key as `Idempotency-Key`. This method therefore honors the
  * per-transactionId IDEMPOTENCY CONTRACT documented on PaymentAuthorizationPort.
  *
- * RESTART BOUNDARY (known limitation, not covered by the in-process replay
- * test): the per-transaction `outcomeCache` here AND the Shopify ActionPorts'
- * dedup are BOTH in-memory. Within a live port instance the at-most-one-effect
- * guarantee holds and is proven by the replay test. Across a WORKER RESTART both
- * caches are lost, so the only cross-restart guard is Razorpay's server-side
- * `X-Razorpay-Idempotency` (durable) — the Shopify draft/finalize/mark-paid legs
- * would, on a crash between draft and finalize, be re-driven with the SAME
- * idempotencyKey but against a fresh in-memory dedup store, which could create a
- * SECOND Shopify draft. Fully closing this requires persisting the
- * idempotencyKey->effect correlation (e.g. in the outbox/DB) so the Shopify legs
- * dedup across restarts too; that is deferred to the durable-resume milestone.
- * Until then, do not rely on the Shopify legs for cross-restart idempotency.
+ * DURABLE RESUME (restart boundary — CLOSED by the step ledger): the Shopify
+ * legs (draft/finalize/mark-paid) are guarded by a durable {@link StepLedgerPort}
+ * keyed on (idempotencyKey, step). BEFORE each Shopify effect the port is
+ * consulted; if a terminal outcome was already recorded for that step it is
+ * REPLAYED (the effect is NOT re-driven) and the recorded reference is reused.
+ * AFTER a terminal outcome the port records it. Because the ledger is durable
+ * (Postgres in production), a crash BETWEEN draft and finalize no longer
+ * re-drives the draft against a fresh in-memory store on restart: the recorded
+ * draft outcome is read back and the lifecycle RESUMES from finalize, so at most
+ * ONE Shopify order is ever created for a given idempotencyKey — proven by the
+ * creds+DB-gated crash-simulation integration test. The default in-memory ledger
+ * preserves the previous in-process behavior for unit tests; boot.ts injects a
+ * Postgres-backed ledger for the real deployment. The per-transaction
+ * `outcomeCache` remains as a fast in-process short-circuit for a whole
+ * transaction replayed within one live port instance.
  *
  * EXPLICIT OUTCOMES: provider outcomes are never collapsed to try/catch->failed.
  * A Shopify `indeterminate` outcome (timeout after a possible effect) is
- * surfaced as an indeterminate PaymentAuthorizationResult, NOT a failure.
+ * surfaced as an indeterminate PaymentAuthorizationResult, NOT a failure — and
+ * it is NEVER recorded in the ledger (only terminal completed/declined outcomes
+ * are durable) so a later attempt can re-drive it to resolve the unknown state.
  *
  * SECURITY: no raw payment credentials, PAN, CVV, or UPI PIN are read, stored,
  * logged, or placed in the evidence returned here. Only provider references
- * (order ids, payment ids) and amounts flow through.
+ * (order ids, payment ids) and amounts flow through — including into the step
+ * ledger, which stores references and terminal status only.
  */
 
 import { createCanonicalError } from "@counter/domain";
@@ -72,6 +78,60 @@ const ALLOW_ALL_POLICY: LifecyclePolicyPort = {
   allow: (): Promise<boolean> => Promise.resolve(true),
 };
 
+// ─── Durable step ledger ─────────────────────────────────────────────────────
+
+/**
+ * A terminal outcome for a single external-effect step of the lifecycle,
+ * recorded durably so a retry after a WORKER RESTART resumes from it instead of
+ * re-driving the effect. Only terminal outcomes are ever recorded — an
+ * indeterminate step is deliberately NOT persisted.
+ *
+ * SECURITY: `reference` carries a provider reference (e.g. a Shopify order id)
+ * only — never raw payment credentials, tokens, or secrets.
+ */
+export interface StepLedgerEntry {
+  readonly step: string;
+  readonly status: "completed" | "declined";
+  readonly reference: string | undefined;
+}
+
+/**
+ * Durable per-step outcome store. `lookup` returns a previously recorded
+ * outcome for (idempotencyKey, step) or `undefined`; `record` persists a
+ * terminal outcome exactly once (a racing writer observes the same durable
+ * outcome rather than re-driving the effect). The default is an in-memory
+ * implementation; boot.ts injects a Postgres-backed adapter for the real
+ * deployment so the guarantee holds ACROSS restarts.
+ */
+export interface StepLedgerPort {
+  lookup(key: string, step: string): Promise<StepLedgerEntry | undefined>;
+  record(key: string, entry: StepLedgerEntry): Promise<StepLedgerEntry>;
+}
+
+/**
+ * Default in-memory step ledger. Preserves the previous in-process behavior for
+ * unit tests and local runs (the durable cross-restart guarantee requires the
+ * Postgres-backed adapter injected by boot.ts).
+ */
+export function createInMemoryStepLedger(): StepLedgerPort {
+  const store = new Map<string, StepLedgerEntry>();
+  const composite = (key: string, step: string): string => `${key}\u0000${step}`;
+  return {
+    lookup(key: string, step: string): Promise<StepLedgerEntry | undefined> {
+      return Promise.resolve(store.get(composite(key, step)));
+    },
+    record(key: string, entry: StepLedgerEntry): Promise<StepLedgerEntry> {
+      const id = composite(key, entry.step);
+      const existing = store.get(id);
+      if (existing !== undefined) {
+        return Promise.resolve(existing);
+      }
+      store.set(id, entry);
+      return Promise.resolve(entry);
+    },
+  };
+}
+
 // ─── Catalog variant resolution ──────────────────────────────────────────────
 
 /**
@@ -96,9 +156,21 @@ export interface RealLifecycleConfig {
   readonly variantResolver?: VariantResolverPort | undefined;
   /** Bounded per-action timeout in milliseconds (defaults to 15s). */
   readonly actionTimeoutMs?: number | undefined;
+  /**
+   * Durable per-step outcome ledger. Defaults to an in-memory implementation so
+   * existing unit tests and local runs are unaffected; boot.ts injects a
+   * Postgres-backed adapter so the Shopify legs dedup ACROSS worker restarts.
+   */
+  readonly stepLedger?: StepLedgerPort | undefined;
 }
 
 const DEFAULT_ACTION_TIMEOUT_MS = 15_000;
+
+// ─── Step names (durable ledger keys) ─────────────────────────────────────────
+
+const STEP_DRAFT = "shopify.draft";
+const STEP_FINALIZE = "shopify.finalize";
+const STEP_MARK_PAID = "shopify.markPaid";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -151,6 +223,7 @@ export function createRealPaymentAuthorizationPort(
 ): PaymentAuthorizationPort {
   const policy = config.policy ?? ALLOW_ALL_POLICY;
   const timeoutMs = config.actionTimeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
+  const stepLedger = config.stepLedger ?? createInMemoryStepLedger();
 
   // Per-transaction outcome cache. A retry of the SAME transaction returns the
   // existing captured/declined outcome so the worker seam guarantees AT MOST
@@ -206,32 +279,56 @@ export function createRealPaymentAuthorizationPort(
       const quantity = request.quantity ?? 1;
 
       // 3. REAL Shopify draft order (idempotencyKey = transaction reference).
-      const draftOutcome = await config.shopify.draftOrderCreate.execute({
-        payload: {
-          lineItems: [{ variantId, quantity }],
-          customerId: undefined,
-          note: `Counter autonomous checkout ${key}`,
-          tags: ["counter-autonomous"],
-          metadata: { correlationId, idempotencyKey: key },
-        },
-        idempotencyKey: key,
-        correlationId,
-        preconditions: [],
-        timeoutMs,
-      });
-      const draft = unwrapOutcome(draftOutcome, "shopify.draft");
-      if (draft.kind === "indeterminate") {
-        return indeterminate(draft.lastKnownState, `draft:${key}`);
+      //    DURABLE RESUME: consult the step ledger first; a recorded draft
+      //    outcome (e.g. from a pre-crash attempt) is replayed so a restart
+      //    never creates a SECOND draft.
+      const draftLedger = await stepLedger.lookup(key, STEP_DRAFT);
+      let draftOrderId: string;
+      if (draftLedger !== undefined) {
+        if (draftLedger.status === "declined") {
+          return declined(`draft-failed:${key}`);
+        }
+        draftOrderId = draftLedger.reference ?? "";
+      } else {
+        const draftOutcome = await config.shopify.draftOrderCreate.execute({
+          payload: {
+            lineItems: [{ variantId, quantity }],
+            customerId: undefined,
+            note: `Counter autonomous checkout ${key}`,
+            tags: ["counter-autonomous"],
+            metadata: { correlationId, idempotencyKey: key },
+          },
+          idempotencyKey: key,
+          correlationId,
+          preconditions: [],
+          timeoutMs,
+        });
+        const draft = unwrapOutcome(draftOutcome, "shopify.draft");
+        if (draft.kind === "indeterminate") {
+          return indeterminate(draft.lastKnownState, `draft:${key}`);
+        }
+        if (draft.kind === "failed") {
+          await stepLedger.record(key, {
+            step: STEP_DRAFT,
+            status: "declined",
+            reference: undefined,
+          });
+          return declined(`draft-failed:${key}`);
+        }
+        const recorded = await stepLedger.record(key, {
+          step: STEP_DRAFT,
+          status: "completed",
+          reference: draft.reference,
+        });
+        // A racing writer may have won the INSERT; use the durable reference.
+        draftOrderId = recorded.reference ?? draft.reference;
       }
-      if (draft.kind === "failed") {
-        return declined(`draft-failed:${key}`);
-      }
-      const draftOrderId = draft.reference;
 
       // 4. REAL Razorpay order to PROVE the server-side integration. The
       //    razorpay_order_id is captured as evidence in providerData. Explicit
       //    outcome handling: a non-action_required kind is surfaced, never
-      //    swallowed.
+      //    swallowed. Razorpay dedups server-side via X-Razorpay-Idempotency, so
+      //    it is durable across restarts without a local ledger entry.
       const razorpayResult = await config.razorpay.createInstruction({
         authorizationRef: key,
         amount: toMoney(request.amountMinor, request.currency),
@@ -261,58 +358,80 @@ export function createRealPaymentAuthorizationPort(
       const paymentEvidence = authorized.evidence;
 
       // 6. REAL Shopify finalize (payment pending) then mark-as-paid.
-      const finalizeOutcome = await config.shopify.orderFinalize.execute({
-        payload: {
-          draftOrderId,
-          paymentPending: true,
-          metadata: { correlationId, idempotencyKey: key },
-        },
-        idempotencyKey: key,
-        correlationId,
-        preconditions: [],
-        timeoutMs,
-      });
-      const finalized = unwrapOutcome(finalizeOutcome, "shopify.finalize");
-      if (finalized.kind === "indeterminate") {
-        return indeterminate(finalized.lastKnownState, `finalize:${key}`);
+      //    DURABLE RESUME: consult the ledger; a recorded finalize outcome is
+      //    replayed so a restart never finalizes a second time.
+      const finalizeLedger = await stepLedger.lookup(key, STEP_FINALIZE);
+      let orderId: string;
+      if (finalizeLedger !== undefined) {
+        orderId = finalizeLedger.reference ?? "";
+      } else {
+        const finalizeOutcome = await config.shopify.orderFinalize.execute({
+          payload: {
+            draftOrderId,
+            paymentPending: true,
+            metadata: { correlationId, idempotencyKey: key },
+          },
+          idempotencyKey: key,
+          correlationId,
+          preconditions: [],
+          timeoutMs,
+        });
+        const finalized = unwrapOutcome(finalizeOutcome, "shopify.finalize");
+        if (finalized.kind === "indeterminate") {
+          return indeterminate(finalized.lastKnownState, `finalize:${key}`);
+        }
+        if (finalized.kind === "failed") {
+          return indeterminate("finalize.failed", `finalize:${key}`);
+        }
+        const recorded = await stepLedger.record(key, {
+          step: STEP_FINALIZE,
+          status: "completed",
+          reference: finalized.reference,
+        });
+        orderId = recorded.reference ?? finalized.reference;
       }
-      if (finalized.kind === "failed") {
-        return indeterminate("finalize.failed", `finalize:${key}`);
-      }
-      const orderId = finalized.reference;
 
       // Shopify exhibits brief eventual consistency after draftOrderComplete:
       // a freshly finalized order can report "Order is temporarily unavailable
       // to be modified" for a short window. Retry the mark-paid a bounded number
       // of times before treating it as Indeterminate. paymentRecord is idempotent
       // (keyed by the transaction reference) so a retry cannot double-record.
-      const markPaidPayload = {
-        payload: {
-          orderId,
-          metadata: { correlationId, idempotencyKey: key },
-        },
-        idempotencyKey: key,
-        correlationId,
-        preconditions: [],
-        timeoutMs,
-      };
-      let markPaidOutcome = await config.shopify.paymentRecord.execute(markPaidPayload);
-      for (
-        let attempt = 0;
-        attempt < MARK_PAID_MAX_RETRIES &&
-        markPaidOutcome.status === "failed" &&
-        markPaidOutcome.error.message.includes("temporarily unavailable");
-        attempt += 1
-      ) {
-        await delay(MARK_PAID_RETRY_DELAY_MS);
-        markPaidOutcome = await config.shopify.paymentRecord.execute(markPaidPayload);
-      }
-      const markedPaid = unwrapOutcome(markPaidOutcome, "shopify.markPaid");
-      if (markedPaid.kind === "indeterminate") {
-        return indeterminate(markedPaid.lastKnownState, `markPaid:${key}`);
-      }
-      if (markedPaid.kind === "failed") {
-        return indeterminate("markPaid.failed", `markPaid:${key}`);
+      // DURABLE RESUME: a recorded mark-paid outcome short-circuits the effect.
+      const markPaidLedger = await stepLedger.lookup(key, STEP_MARK_PAID);
+      if (markPaidLedger === undefined) {
+        const markPaidPayload = {
+          payload: {
+            orderId,
+            metadata: { correlationId, idempotencyKey: key },
+          },
+          idempotencyKey: key,
+          correlationId,
+          preconditions: [],
+          timeoutMs,
+        };
+        let markPaidOutcome = await config.shopify.paymentRecord.execute(markPaidPayload);
+        for (
+          let attempt = 0;
+          attempt < MARK_PAID_MAX_RETRIES &&
+          markPaidOutcome.status === "failed" &&
+          markPaidOutcome.error.message.includes("temporarily unavailable");
+          attempt += 1
+        ) {
+          await delay(MARK_PAID_RETRY_DELAY_MS);
+          markPaidOutcome = await config.shopify.paymentRecord.execute(markPaidPayload);
+        }
+        const markedPaid = unwrapOutcome(markPaidOutcome, "shopify.markPaid");
+        if (markedPaid.kind === "indeterminate") {
+          return indeterminate(markedPaid.lastKnownState, `markPaid:${key}`);
+        }
+        if (markedPaid.kind === "failed") {
+          return indeterminate("markPaid.failed", `markPaid:${key}`);
+        }
+        await stepLedger.record(key, {
+          step: STEP_MARK_PAID,
+          status: "completed",
+          reference: markedPaid.reference,
+        });
       }
 
       // 7. REAL Shopify OrderQuery: authoritative financial evidence. Payment

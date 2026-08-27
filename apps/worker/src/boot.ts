@@ -23,6 +23,10 @@ import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
+import { PostgresStepLedger } from "@counter/data";
+import type { AsyncStepLedger } from "@counter/data";
+import type { Instant } from "@counter/domain";
+import { instantFromEpochMilliseconds } from "@counter/domain";
 
 import {
   requireShopifyCredentials,
@@ -30,7 +34,11 @@ import {
   type EnvironmentBag,
 } from "./connector-env.js";
 import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
-import type { RealLifecycleConfig } from "./real-lifecycle.js";
+import type {
+  RealLifecycleConfig,
+  StepLedgerEntry,
+  StepLedgerPort,
+} from "./real-lifecycle.js";
 import type {
   PaymentAuthorizationPort,
   PaymentAuthorizationRequest,
@@ -81,7 +89,9 @@ export interface SelectedPaymentPort {
  */
 export function selectPaymentAuthorizationPort(
   env: EnvironmentBag,
-  overrides?: Partial<Pick<RealLifecycleConfig, "variantResolver" | "policy" | "actionTimeoutMs">>,
+  overrides?: Partial<
+    Pick<RealLifecycleConfig, "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger">
+  >,
 ): SelectedPaymentPort {
   // Fail loud in prod-like environments when credentials are missing; return
   // null (mock-eligible) in local/test.
@@ -92,6 +102,46 @@ export function selectPaymentAuthorizationPort(
     return { mode: "deterministic", port: createDeterministicPaymentAuthorizationPort() };
   }
 
+  const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+
+  const config: RealLifecycleConfig = {
+    shopify: bundle.shopify,
+    razorpay: bundle.razorpay,
+    payments: bundle.payments,
+    merchantId: bundle.merchantId,
+    ...(overrides?.policy !== undefined ? { policy: overrides.policy } : {}),
+    ...(overrides?.variantResolver !== undefined ? { variantResolver: overrides.variantResolver } : {}),
+    ...(overrides?.actionTimeoutMs !== undefined ? { actionTimeoutMs: overrides.actionTimeoutMs } : {}),
+    ...(overrides?.stepLedger !== undefined ? { stepLedger: overrides.stepLedger } : {}),
+  };
+
+  return { mode: "real", port: createRealPaymentAuthorizationPort(config) };
+}
+
+// ─── Real connector bundle ───────────────────────────────────────────────────
+
+/**
+ * The real connectors used by the live lifecycle: the Shopify connector, the
+ * real Razorpay provider, and the CTP-signed unattended payment provider,
+ * bound to the pilot merchant identity. Exposed so integration tests can build
+ * the exact same real connectors (e.g. to inject a mid-lifecycle crash) without
+ * duplicating boot's credential wiring.
+ */
+export interface RealConnectorBundle {
+  readonly shopify: ReturnType<typeof createShopifyConnectorFromConfig>;
+  readonly razorpay: ReturnType<typeof createRealRazorpayProvider>;
+  readonly payments: CounterTestPaymentProvider;
+  readonly merchantId: MerchantId;
+}
+
+/**
+ * Builds the {@link RealConnectorBundle} from resolved credentials. Credentials
+ * are passed straight into the connector factories and never logged.
+ */
+export function buildRealConnectorBundle(
+  shopifyCreds: NonNullable<ReturnType<typeof requireShopifyCredentials>>,
+  razorpayCreds: NonNullable<ReturnType<typeof requireRazorpayCredentials>>,
+): RealConnectorBundle {
   const shopify = createShopifyConnectorFromConfig({
     shopDomain: shopifyCreds.shopDomain,
     accessToken: shopifyCreds.accessToken,
@@ -112,17 +162,7 @@ export function selectPaymentAuthorizationPort(
     kid: TEST_KID_A,
   });
 
-  const config: RealLifecycleConfig = {
-    shopify,
-    razorpay,
-    payments,
-    merchantId: pilotMerchantId(),
-    ...(overrides?.policy !== undefined ? { policy: overrides.policy } : {}),
-    ...(overrides?.variantResolver !== undefined ? { variantResolver: overrides.variantResolver } : {}),
-    ...(overrides?.actionTimeoutMs !== undefined ? { actionTimeoutMs: overrides.actionTimeoutMs } : {}),
-  };
-
-  return { mode: "real", port: createRealPaymentAuthorizationPort(config) };
+  return { shopify, razorpay, payments, merchantId: pilotMerchantId() };
 }
 
 // ─── Merchant identity ───────────────────────────────────────────────────────
@@ -140,3 +180,60 @@ function pilotMerchantId(): MerchantId {
   }
   return result.value;
 }
+
+// ─── Durable step ledger adapter ─────────────────────────────────────────────
+
+function nowInstant(): Instant {
+  const result = instantFromEpochMilliseconds(Date.now());
+  if (!result.ok) {
+    throw new Error("Failed to derive current instant for step ledger");
+  }
+  return result.value;
+}
+
+/**
+ * Adapts the data-layer {@link AsyncStepLedger} (Postgres-backed) to the
+ * worker's {@link StepLedgerPort} so the Shopify legs of the real lifecycle
+ * dedup ACROSS worker restarts. Only terminal step outcomes and provider
+ * references flow through — never secrets.
+ *
+ * Construct with `new PostgresStepLedger(database)` from @counter/data and pass
+ * the result as the `stepLedger` override to {@link selectPaymentAuthorizationPort}.
+ */
+export function createPostgresStepLedgerPort(ledger: AsyncStepLedger): StepLedgerPort {
+  return {
+    async lookup(key: string, step: string): Promise<StepLedgerEntry | undefined> {
+      const result = await ledger.lookup(key, step);
+      if (!result.ok) {
+        throw new Error(`Step ledger lookup failed: ${result.error.message}`);
+      }
+      const entry = result.value;
+      if (entry === undefined) {
+        return undefined;
+      }
+      return Object.freeze({
+        step: entry.step,
+        status: entry.status,
+        reference: entry.reference,
+      });
+    },
+    async record(key: string, entry: StepLedgerEntry): Promise<StepLedgerEntry> {
+      const result = await ledger.record(
+        key,
+        { step: entry.step, status: entry.status, reference: entry.reference, snapshot: undefined },
+        nowInstant(),
+      );
+      if (!result.ok) {
+        throw new Error(`Step ledger record failed: ${result.error.message}`);
+      }
+      return Object.freeze({
+        step: result.value.step,
+        status: result.value.status,
+        reference: result.value.reference,
+      });
+    },
+  };
+}
+
+// Re-export for construction convenience at the deployment entrypoint.
+export { PostgresStepLedger };
