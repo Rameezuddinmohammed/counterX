@@ -74,3 +74,14 @@ export {
 export { PostgresPolicyStore } from "./policy-store.js";
 export type { PolicyConfigEntry, PolicySetResult } from "./policy-store.js";
 export { policyConfigs } from "./policy-schema.js";
+
+export {
+  PostgresSpendLedger,
+  DEFAULT_SPEND_LIMIT_CONFIG,
+} from "./spend-ledger.js";
+export type {
+  SpendLimitConfig,
+  ReserveSpendRequest,
+  ReserveSpendOutcome,
+  ReserveDenyCode,
+} from "./spend-ledger.js";

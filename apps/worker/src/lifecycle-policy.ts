@@ -59,6 +59,21 @@ export interface ProductionPolicyConfig {
    * inject a durable, shared ledger). Injectable so tests can seed a window.
    */
   readonly ledger?: TransactionLedger | undefined;
+  /**
+   * Durable, cross-instance atomic spend reservation. When provided, the rolling
+   * 24h total / attempt ceilings are enforced by this (Postgres-backed) reserve
+   * instead of the per-process in-memory ledger, so multiple worker instances
+   * share one running total. Signature mirrors PostgresSpendLedger.reserveSpend.
+   */
+  readonly reserveSpend?:
+    | ((input: {
+        readonly walletId: string;
+        readonly reference: string;
+        readonly amountMinor: bigint;
+        readonly currency: string;
+        readonly nowMs: number;
+      }) => Promise<{ readonly allowed: boolean }>)
+    | undefined;
   /** Clock, injectable for deterministic tests. */
   readonly now?: (() => Instant) | undefined;
 }
@@ -145,8 +160,21 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
       }
 
       // 6. Limits (per-transaction ceiling always; rolling window when a wallet
-      //    is provided) via the REAL enforceTransactionLimits.
+      //    is provided). Prefer the DURABLE atomic reserve when wired (shared
+      //    across all worker instances); otherwise fall back to the per-process
+      //    in-memory enforceTransactionLimits (local/test only).
       const walletRef = authority?.walletId ?? request.idempotencyKey;
+      if (config.reserveSpend !== undefined) {
+        // The durable reserve is atomic check-and-record: a rejection means a
+        // ceiling would be breached; no external effect has happened yet.
+        return config.reserveSpend({
+          walletId: deriveWalletId(walletRef),
+          reference: request.idempotencyKey,
+          amountMinor: BigInt(request.amountMinor),
+          currency: request.currency,
+          nowMs: Number(clock()),
+        }).then((r) => r.allowed);
+      }
       const decision = enforceTransactionLimits(
         money(request.amountMinor, request.currency),
         deriveWalletId(walletRef),

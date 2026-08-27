@@ -23,7 +23,7 @@ import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
-import { PostgresStepLedger, PostgresKillSwitchStore } from "@counter/data";
+import { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger } from "@counter/data";
 import type { AsyncStepLedger, AsyncKillSwitchStore, KillSwitchScope } from "@counter/data";
 import type { Instant } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
@@ -95,6 +95,7 @@ export interface SelectedPaymentPort {
 export interface DurableStores {
   readonly stepLedger?: AsyncStepLedger | undefined;
   readonly killSwitchStore?: AsyncKillSwitchStore | undefined;
+  readonly spendLedger?: PostgresSpendLedger | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -142,8 +143,30 @@ export function selectPaymentAuthorizationPort(
   // scope), scoped to this worker's operating merchant. An explicit override
   // still wins so tests can inject a bespoke policy. This closes the gap where
   // the deployed seam fell back to ALLOW_ALL (review issues 2 and 5).
+  const durableReserveSpend =
+    stores?.spendLedger !== undefined
+      ? async (input: {
+          readonly walletId: string;
+          readonly reference: string;
+          readonly amountMinor: bigint;
+          readonly currency: string;
+          readonly nowMs: number;
+        }): Promise<{ readonly allowed: boolean }> => {
+          const result = await stores.spendLedger!.reserveSpend(input);
+          if (!result.ok) {
+            // Fail closed: a ledger error must not allow an unbounded spend.
+            return { allowed: false };
+          }
+          return { allowed: result.value.allowed };
+        }
+      : undefined;
+
   const policy =
-    overrides?.policy ?? createProductionPolicy({ operatingMerchantId: bundle.merchantId });
+    overrides?.policy ??
+    createProductionPolicy({
+      operatingMerchantId: bundle.merchantId,
+      ...(durableReserveSpend !== undefined ? { reserveSpend: durableReserveSpend } : {}),
+    });
 
   const config: RealLifecycleConfig = {
     shopify: bundle.shopify,
@@ -346,4 +369,4 @@ export function createPostgresKillSwitchGatePort(
 }
 
 // Re-export for construction convenience at the deployment entrypoint.
-export { PostgresStepLedger, PostgresKillSwitchStore };
+export { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger };
