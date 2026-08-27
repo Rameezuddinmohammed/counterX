@@ -14,5 +14,13 @@
     "test_quality": "pass",
     "docker_build": "skipped",
     "summary": "REVIEW FOLLOWUP addressed (2026-08-27 NEEDS_CHANGES). pnpm build green; pnpm depcruise 0 violations (2119 modules); pnpm test green across all 34 packages (0 failures). Fixes: (1 blocking) reconciliation now keys on the RAW idempotencyKey carried on the receipt (was the derived CounterId), proven live end-to-end through the real handler; (2/5) the deployed worker money seam now wires a REAL production policy (limits+quote+expiry+revocation+scope) instead of ALLOW_ALL, and the adversarial/data-integrity proofs drive that policy; (3) a durable pre-claim closes the cross-instance Shopify draft race, proven by counting real draftOrderCreate calls == 1 across racing instances; (4) reconciliation treats no_provider_effect as terminal so the scan is idempotent; (6) the secret scan now covers durable outbox rows + connector egress (redactAuthorization) and the PAN detector was hardened against runtime epoch-ms timestamps. ALL gated integration tests were run with real Shopify+Razorpay creds against the live DB and pass, leaving the store and DB clean (0 leftover test rows verified). Did NOT push or open a PR."
+  },
+  "review": {
+    "v1": "NEEDS_CHANGES (6 issues: reconciliation key mismatch [blocking], allow-all production policy, under-verified concurrency draft, unbounded reconciliation re-record, simulated revocation/quote-tamper, secret scan gaps)",
+    "v2": "APPROVED \u2014 all 6 issues confirmed fixed. Two non-blocking notes: rolling-24h ledger is per-process best-effort in a multi-worker deployment (per-txn ceiling + envelope predicates are hard); one cosmetic stale comment.",
+    "artifacts": [
+      "2026-08-27-145949-review.md",
+      "2026-08-27-153000-review.md"
+    ]
   }
 }
