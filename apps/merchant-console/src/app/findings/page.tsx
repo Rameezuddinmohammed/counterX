@@ -16,11 +16,11 @@ function getSeverityVariant(severity: FindingSeverity) {
   switch (severity) { case "critical": case "high": return "error" as const; case "medium": return "warning" as const; case "low": return "info" as const; case "info": return "secondary" as const; }
 }
 
-const columns: DataTableColumn<Record<string, unknown>>[] = [
-  { key: "severity", header: "Severity", cell: (item: any) => <Badge variant={getSeverityVariant(item.severity)}>{item.severity}</Badge> },
-  { key: "title", header: "Finding", cell: (item: any) => <div><p className="font-medium text-[var(--foreground)]">{item.title}</p><p className="text-xs text-[var(--foreground-muted)]">{item.description}</p></div> },
-  { key: "resolution", header: "Status", cell: (item: any) => <Badge variant={item.resolution === "resolved" ? "success" : item.resolution === "acknowledged" ? "warning" : "secondary"}>{item.resolution}</Badge> },
-  { key: "detectedAt", header: "Detected", cell: (item: any) => <span className="text-sm text-[var(--foreground-secondary)]">{new Date(item.detectedAt).toLocaleDateString()}</span> },
+const columns: DataTableColumn<Finding>[] = [
+  { key: "severity", header: "Severity", cell: (item: Finding) => <Badge variant={getSeverityVariant(item.severity)}>{item.severity}</Badge> },
+  { key: "title", header: "Finding", cell: (item: Finding) => <div><p className="font-medium text-[var(--foreground)]">{item.title}</p><p className="text-xs text-[var(--foreground-muted)]">{item.description}</p></div> },
+  { key: "resolution", header: "Status", cell: (item: Finding) => <Badge variant={item.resolution === "resolved" ? "success" : item.resolution === "acknowledged" ? "warning" : "secondary"}>{item.resolution}</Badge> },
+  { key: "detectedAt", header: "Detected", cell: (item: Finding) => <span className="text-sm text-[var(--foreground-secondary)]">{new Date(item.detectedAt).toLocaleDateString()}</span> },
 ];
 
 export default function FindingsPage() {
@@ -36,7 +36,7 @@ export default function FindingsPage() {
             <Card key={item.label}><CardContent className="p-4 text-center"><p className="text-2xl font-bold text-[var(--foreground)]">{item.count}</p><Badge variant={item.v} className="mt-1">{item.label}</Badge></CardContent></Card>
           ))}
         </div>
-        <DataTable columns={columns} data={DEMO_FINDINGS as any} emptyMessage="No findings detected" />
+        <DataTable columns={columns as unknown as DataTableColumn<Record<string, unknown>>[]} data={DEMO_FINDINGS as unknown as Record<string, unknown>[]} emptyMessage="No findings detected" />
       </div>
     </PageWrapper>
   );

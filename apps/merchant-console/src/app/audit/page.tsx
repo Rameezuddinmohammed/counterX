@@ -18,11 +18,11 @@ function getActionBadge(action: AuditEntry["action"]) {
   switch (action) { case "login": return "info" as const; case "config_change": return "warning" as const; case "activation": return "success" as const; case "suspension": case "kill_switch": case "offboarding": return "error" as const; case "export": return "secondary" as const; }
 }
 
-const columns: DataTableColumn<Record<string, unknown>>[] = [
-  { key: "timestamp", header: "Time", cell: (item: any) => <span className="text-sm text-[var(--foreground-secondary)]">{new Date(item.timestamp).toLocaleString()}</span> },
-  { key: "actor", header: "Actor", cell: (item: any) => <span className="text-sm font-medium text-[var(--foreground)]">{item.actor}</span> },
-  { key: "action", header: "Action", cell: (item: any) => <Badge variant={getActionBadge(item.action)}>{item.action.replace("_", " ")}</Badge> },
-  { key: "detail", header: "Details", cell: (item: any) => <span className="text-sm text-[var(--foreground-secondary)]">{item.detail}</span> },
+const columns: DataTableColumn<AuditEntry>[] = [
+  { key: "timestamp", header: "Time", cell: (item: AuditEntry) => <span className="text-sm text-[var(--foreground-secondary)]">{new Date(item.timestamp).toLocaleString()}</span> },
+  { key: "actor", header: "Actor", cell: (item: AuditEntry) => <span className="text-sm font-medium text-[var(--foreground)]">{item.actor}</span> },
+  { key: "action", header: "Action", cell: (item: AuditEntry) => <Badge variant={getActionBadge(item.action)}>{item.action.replace("_", " ")}</Badge> },
+  { key: "detail", header: "Details", cell: (item: AuditEntry) => <span className="text-sm text-[var(--foreground-secondary)]">{item.detail}</span> },
 ];
 
 export default function AuditPage() {
@@ -36,7 +36,7 @@ export default function AuditPage() {
           </div>
           <Button variant="outline" onClick={() => toast.success("Audit log export started")}><Download className="mr-2 h-4 w-4" />Export</Button>
         </div>
-        <DataTable columns={columns} data={DEMO_AUDIT as any} emptyMessage="No audit entries found" />
+        <DataTable columns={columns as unknown as DataTableColumn<Record<string, unknown>>[]} data={DEMO_AUDIT as unknown as Record<string, unknown>[]} emptyMessage="No audit entries found" />
       </div>
     </PageWrapper>
   );

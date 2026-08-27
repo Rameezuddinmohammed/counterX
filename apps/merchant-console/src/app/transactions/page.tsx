@@ -25,12 +25,12 @@ function getStatusVariant(state: TransactionState) {
   }
 }
 
-const columns: DataTableColumn<Record<string, unknown>>[] = [
-  { key: "transactionId", header: "ID", cell: (item: any) => <span className="font-mono text-xs">{item.transactionId}</span> },
-  { key: "amount", header: "Amount", cell: (item: any) => <span className="font-semibold">{item.currency} {item.amount.toLocaleString()}</span> },
-  { key: "currentState", header: "Status", cell: (item: any) => <Badge variant={getStatusVariant(item.currentState)}>{item.currentState}</Badge> },
-  { key: "createdAt", header: "Date", cell: (item: any) => <span className="text-[var(--foreground-secondary)]">{new Date(item.createdAt).toLocaleDateString()}</span> },
-  { key: "method", header: "Method", cell: (item: any) => <span className="capitalize">{item.method}</span> },
+const columns: DataTableColumn<Transaction>[] = [
+  { key: "transactionId", header: "ID", cell: (item: Transaction) => <span className="font-mono text-xs">{item.transactionId}</span> },
+  { key: "amount", header: "Amount", cell: (item: Transaction) => <span className="font-semibold">{item.currency} {item.amount.toLocaleString()}</span> },
+  { key: "currentState", header: "Status", cell: (item: Transaction) => <Badge variant={getStatusVariant(item.currentState)}>{item.currentState}</Badge> },
+  { key: "createdAt", header: "Date", cell: (item: Transaction) => <span className="text-[var(--foreground-secondary)]">{new Date(item.createdAt).toLocaleDateString()}</span> },
+  { key: "method", header: "Method", cell: (item: Transaction) => <span className="capitalize">{item.method}</span> },
 ];
 
 export default function TransactionsPage() {
@@ -62,7 +62,7 @@ export default function TransactionsPage() {
           />
         ) : (
           <DataTable
-            columns={columns}
+            columns={columns as unknown as DataTableColumn<Record<string, unknown>>[]}
             data={(data ?? []) as unknown as Record<string, unknown>[]}
             emptyMessage="No transactions found"
           />

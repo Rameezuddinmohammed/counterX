@@ -125,12 +125,15 @@ export function useApi<T>(
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  const refetch = useCallback(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refetch };
 }

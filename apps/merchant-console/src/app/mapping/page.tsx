@@ -18,11 +18,11 @@ function getStatusVariant(status: MappingEntry["status"]) {
   switch (status) { case "mapped": return "success" as const; case "unmapped": return "warning" as const; case "conflict": return "error" as const; }
 }
 
-const columns: DataTableColumn<Record<string, unknown>>[] = [
-  { key: "shopifyTitle", header: "Shopify Product", cell: (item: any) => <div><p className="font-medium text-[var(--foreground)]">{item.shopifyTitle}</p><p className="text-xs text-[var(--foreground-muted)]">{item.shopifyProductId}</p></div> },
-  { key: "counterSku", header: "Counter SKU", cell: (item: any) => <span className="font-mono text-sm">{item.counterSku || "---"}</span> },
-  { key: "counterCategory", header: "Category", cell: (item: any) => <span>{item.counterCategory || "---"}</span> },
-  { key: "status", header: "Status", cell: (item: any) => <Badge variant={getStatusVariant(item.status)}>{item.status}</Badge> },
+const columns: DataTableColumn<MappingEntry>[] = [
+  { key: "shopifyTitle", header: "Shopify Product", cell: (item: MappingEntry) => <div><p className="font-medium text-[var(--foreground)]">{item.shopifyTitle}</p><p className="text-xs text-[var(--foreground-muted)]">{item.shopifyProductId}</p></div> },
+  { key: "counterSku", header: "Counter SKU", cell: (item: MappingEntry) => <span className="font-mono text-sm">{item.counterSku || "---"}</span> },
+  { key: "counterCategory", header: "Category", cell: (item: MappingEntry) => <span>{item.counterCategory || "---"}</span> },
+  { key: "status", header: "Status", cell: (item: MappingEntry) => <Badge variant={getStatusVariant(item.status)}>{item.status}</Badge> },
 ];
 
 export default function MappingPage() {
@@ -51,7 +51,7 @@ export default function MappingPage() {
             </div>
           </CardContent>
         </Card>
-        <DataTable columns={columns} data={DEMO_ENTRIES as any} emptyMessage="No mapping entries found" />
+        <DataTable columns={columns as unknown as DataTableColumn<Record<string, unknown>>[]} data={DEMO_ENTRIES as unknown as Record<string, unknown>[]} emptyMessage="No mapping entries found" />
       </div>
     </PageWrapper>
   );
