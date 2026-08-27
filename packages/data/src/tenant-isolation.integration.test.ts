@@ -116,7 +116,14 @@ databaseDescribe("PostgreSQL RLS tenant isolation (non-destructive, live-DB-safe
     seeded = true;
 
     const appUrl = new URL(testDatabaseUrl);
-    appUrl.username = roleName;
+    // Supabase's connection pooler routes by a tenant/project ref embedded in
+    // the username as `<role>.<projectRef>`. The CREATE ROLE above created the
+    // bare role name; preserve the admin username's project-ref suffix (if any)
+    // so the pooler can still route the connection to this project.
+    const adminUser = decodeURIComponent(appUrl.username);
+    const dotIndex = adminUser.indexOf(".");
+    const projectRefSuffix = dotIndex >= 0 ? adminUser.slice(dotIndex) : "";
+    appUrl.username = `${roleName}${projectRefSuffix}`;
     appUrl.password = rolePassword;
     appDatabase = new PostgresDatabase({ connectionString: appUrl.toString(), max: 1 });
   }, hookTimeout);
@@ -159,12 +166,19 @@ databaseDescribe("PostgreSQL RLS tenant isolation (non-destructive, live-DB-safe
     }
     if (roleCreated) {
       const quoted = quoteIdentifier(roleName);
-      await attempt(async () => admin.query(`DROP OWNED BY ${quoted}`));
+      // The role owns no objects (only holds GRANTs). REVOKE every privilege
+      // we granted so DROP ROLE has no remaining dependencies. Using explicit
+      // REVOKEs (not DROP OWNED BY) because the non-superuser admin login on the
+      // pooler cannot DROP OWNED objects but can revoke its own grants.
+      await attempt(async () => revokeReadPrivileges(admin, roleName));
       await attempt(async () => admin.query(`DROP ROLE ${quoted}`));
     }
     await attempt(async () => admin.close());
     if (errors.length > 0) {
-      throw new AggregateError(errors, "tenant-isolation cleanup failed");
+      const detail = errors
+        .map((e) => (e instanceof Error ? e.message : String(e)))
+        .join(" | ");
+      throw new AggregateError(errors, `tenant-isolation cleanup failed: ${detail}`);
     }
   }, hookTimeout);
 
@@ -366,6 +380,31 @@ async function grantReadPrivileges(database: PostgresDatabase, roleName: string)
        identity.access_scope_claim_matches(platform.counter_environment, text, text)
      TO ${quoted}`,
   );
+}
+
+async function revokeReadPrivileges(database: PostgresDatabase, roleName: string): Promise<void> {
+  const dbName = (
+    await database.query<{ database_name: string }>("SELECT current_database() AS database_name")
+  ).rows[0]?.database_name;
+  const quoted = quoteIdentifier(roleName);
+  await database.query(
+    `REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA platform, identity, merchant, wallet FROM ${quoted}`,
+  );
+  await database.query(
+    `REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA identity FROM ${quoted}`,
+  );
+  await database.query(
+    `REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA identity FROM ${quoted}`,
+  );
+  await database.query(`REVOKE USAGE ON TYPE platform.counter_environment FROM ${quoted}`);
+  await database.query(
+    `REVOKE ALL PRIVILEGES ON SCHEMA platform, identity, merchant, wallet FROM ${quoted}`,
+  );
+  if (dbName !== undefined) {
+    await database.query(
+      `REVOKE ALL PRIVILEGES ON DATABASE ${quoteIdentifier(dbName)} FROM ${quoted}`,
+    );
+  }
 }
 
 function requireDb(database: PostgresDatabase | undefined): PostgresDatabase {

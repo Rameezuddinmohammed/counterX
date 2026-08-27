@@ -56,14 +56,18 @@ function buildMatchers(): SecretMatcher[] {
   const patterns: Array<[string, RegExp]> = [
     ["shpat_ token pattern", /shpat_[A-Za-z0-9]+/],
     ["rzp_test_ secret pattern", /rzp_test_[A-Za-z0-9]{10,}/],
-    // Generic sensitive-data patterns: 13-19 digit PAN, 3-4 digit CVV label, UPI PIN label.
-    ["PAN pattern", /\b(?:\d[ -]?){13,19}\b/],
+    // Sensitive-data label patterns (a CVV/UPI PIN is only a secret when it is
+    // labelled as one; a bare 3-6 digit number is not).
     ["CVV label pattern", /\b(?:cvv|cvc|cvv2)\b\s*[:=]\s*\d{3,4}/i],
     ["UPI PIN label pattern", /\bupi[_ -]?pin\b\s*[:=]\s*\d{4,6}/i],
   ];
   for (const [label, re] of patterns) {
     matchers.push({ label, test: (h) => re.test(h) });
   }
+  // PAN detector: a 13-19 digit run (allowing space/hyphen grouping) that is
+  // ALSO Luhn-valid — so it only fires on genuine card-number-shaped data, not
+  // on timestamps, bigint ids, or Shopify GIDs (which are not Luhn-valid).
+  matchers.push({ label: "PAN pattern (Luhn-valid)", test: (h) => containsLuhnValidPan(h) });
   return matchers;
 }
 
@@ -99,10 +103,14 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
 
   it("positive control: the scanner detects a planted secret", () => {
     const matchers = buildMatchers();
-    const planted = "leak shpat_deadbeef0123 and rzp_test_ABCDEFGHIJ0123 here";
+    const planted =
+      "leak shpat_deadbeef0123 and rzp_test_ABCDEFGHIJ0123 pan 4111111111111111 cvv: 123 upi-pin=1234";
     const hits = scanForLeaks(planted, matchers);
     expect(hits).toContain("shpat_ token pattern");
     expect(hits).toContain("rzp_test_ secret pattern");
+    expect(hits).toContain("PAN pattern (Luhn-valid)");
+    expect(hits).toContain("CVV label pattern");
+    expect(hits).toContain("UPI PIN label pattern");
   });
 
   it(
@@ -184,6 +192,34 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
     180_000,
   );
 });
+
+/** True when the haystack contains a 13-19 digit, Luhn-valid card-number-shaped run. */
+function containsLuhnValidPan(haystack: string): boolean {
+  const candidateRe = /\b(?:\d[ -]?){13,19}\b/g;
+  for (const match of haystack.matchAll(candidateRe)) {
+    const digits = match[0].replace(/[ -]/g, "");
+    if (digits.length >= 13 && digits.length <= 19 && isLuhnValid(digits)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isLuhnValid(digits: string): boolean {
+  let sum = 0;
+  let double = false;
+  for (let i = digits.length - 1; i >= 0; i -= 1) {
+    let d = digits.charCodeAt(i) - 48;
+    if (d < 0 || d > 9) return false;
+    if (double) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
 
 function safeStringify(value: unknown): string {
   try {
