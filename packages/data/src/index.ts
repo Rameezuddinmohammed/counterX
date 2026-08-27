@@ -47,6 +47,8 @@ export {
   PostgresInboxRepository,
   PostgresJobRepository,
   PostgresStepLedger,
+  PostgresKillSwitchStore,
+  KILL_SWITCH_SCOPES,
 } from "./runtime-repositories.js";
 export type {
   AsyncIdempotencyStore,
@@ -55,6 +57,10 @@ export type {
   AsyncJobRepository,
   AsyncStepLedger,
   StepLedgerEntry,
+  AsyncKillSwitchStore,
+  KillSwitchScope,
+  KillSwitchRow,
+  KillSwitchActivateInput,
 } from "./runtime-repositories.js";
 export {
   idempotencyKeys,

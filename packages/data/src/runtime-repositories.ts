@@ -1058,3 +1058,220 @@ export class PostgresStepLedger implements AsyncStepLedger {
     return ok(stepEntryFromRow(row));
   }
 }
+
+// ─── PostgresKillSwitchStore ─────────────────────────────────────────────────
+
+/**
+ * Kill-switch scopes. Kept in sync with the vocabulary in
+ * `@counter/observability` (KILL_SWITCH_SCOPES); it is duplicated locally rather
+ * than imported so `@counter/data` does not take a new package dependency edge
+ * that would violate dependency-cruiser. Any change here MUST mirror
+ * packages/observability/src/kill-switch.ts and the migration 0008 CHECK.
+ */
+export const KILL_SWITCH_SCOPES = [
+  "platform",
+  "merchant",
+  "wallet",
+  "agent",
+  "mandate",
+  "connector",
+  "payment_adapter",
+] as const;
+
+export type KillSwitchScope = (typeof KILL_SWITCH_SCOPES)[number];
+
+/**
+ * A durable kill-switch row. `entityId` is `undefined` (NULL) for a
+ * platform-wide switch and the target entity id for a scoped switch.
+ *
+ * SECURITY: carries only operator metadata (reason, activatedBy) and the
+ * scope/entity target — never credentials or secrets.
+ */
+export interface KillSwitchRow {
+  readonly scope: KillSwitchScope;
+  readonly entityId: string | undefined;
+  readonly status: "active" | "inactive";
+  readonly reason: string;
+  readonly activatedBy: string;
+  readonly activatedAt: Instant;
+  readonly expiresAt: Instant | undefined;
+}
+
+/** Input for activating (upserting) a kill switch. */
+export interface KillSwitchActivateInput {
+  readonly scope: KillSwitchScope;
+  readonly entityId?: string | undefined;
+  readonly reason: string;
+  readonly activatedBy: string;
+  readonly expiresAt?: Instant | undefined;
+}
+
+/**
+ * Async durable kill-switch store. A switch is ACTIVE when
+ * status = 'active' AND (expires_at IS NULL OR expires_at > now); an expired
+ * row is inert without any sweep. `isActive` is the pre-effect gate the worker
+ * consults before any consequential external effect.
+ */
+export interface AsyncKillSwitchStore {
+  recordActivate(
+    input: KillSwitchActivateInput,
+    now: Instant,
+  ): Promise<Result<KillSwitchRow, CanonicalError>>;
+  deactivate(
+    scope: KillSwitchScope,
+    entityId: string | undefined,
+  ): Promise<Result<void, CanonicalError>>;
+  listActive(now: Instant): Promise<Result<readonly KillSwitchRow[], CanonicalError>>;
+  isActive(
+    scope: KillSwitchScope,
+    entityId: string | undefined,
+    now: Instant,
+  ): Promise<Result<boolean, CanonicalError>>;
+}
+
+interface KillSwitchDbRow {
+  id: string;
+  environment: string;
+  scope: string;
+  entity_id: string | null;
+  status: string;
+  reason: string;
+  activated_by: string;
+  activated_at: Date;
+  expires_at: Date | null;
+}
+
+function killSwitchRowFromDb(row: KillSwitchDbRow): KillSwitchRow {
+  return Object.freeze({
+    scope: row.scope as KillSwitchScope,
+    entityId: row.entity_id ?? undefined,
+    status: row.status as KillSwitchRow["status"],
+    reason: row.reason,
+    activatedBy: row.activated_by,
+    activatedAt: instantFromDate(row.activated_at),
+    expiresAt: optionalInstantFromDate(row.expires_at),
+  });
+}
+
+/**
+ * Postgres-backed durable kill-switch store over `runtime.kill_switches`.
+ * Mirrors the PostgresStepLedger / PostgresIdempotencyStore style (Result
+ * returns, Instant times, environment scoped to 'local').
+ */
+export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
+  constructor(private readonly database: TransactionalDatabase) {}
+
+  async recordActivate(
+    input: KillSwitchActivateInput,
+    now: Instant,
+  ): Promise<Result<KillSwitchRow, CanonicalError>> {
+    // Platform switches carry no entity; scoped switches must name one. The two
+    // partial unique indexes require a matching ON CONFLICT target, so branch on
+    // whether entity_id is NULL.
+    const entityId = input.scope === "platform" ? null : (input.entityId ?? null);
+    if (input.scope !== "platform" && (entityId === null || entityId.length === 0)) {
+      return err(
+        createCanonicalError({
+          category: "validation",
+          code: "INVALID_FORMAT",
+          message: `Kill switch scope '${input.scope}' requires an entityId`,
+        }),
+      );
+    }
+
+    const conflictTarget =
+      entityId === null
+        ? "(environment, scope) WHERE entity_id IS NULL"
+        : "(environment, scope, entity_id) WHERE entity_id IS NOT NULL";
+
+    const result = await this.database.query<KillSwitchDbRow>(
+      `INSERT INTO runtime.kill_switches (
+         environment, scope, entity_id, status, reason, activated_by, activated_at, expires_at
+       ) VALUES ('local', $1, $2, 'active', $3, $4, $5, $6)
+       ON CONFLICT ${conflictTarget} DO UPDATE SET
+         status = 'active',
+         reason = EXCLUDED.reason,
+         activated_by = EXCLUDED.activated_by,
+         activated_at = EXCLUDED.activated_at,
+         expires_at = EXCLUDED.expires_at
+       RETURNING *`,
+      [
+        input.scope,
+        entityId,
+        input.reason,
+        input.activatedBy,
+        asDate(now),
+        input.expiresAt === undefined ? null : asDate(input.expiresAt),
+      ],
+    );
+    const row = result.rows[0];
+    if (row === undefined) {
+      return err(
+        createCanonicalError({
+          category: "conflict",
+          code: "CONFLICT",
+          message: "Kill switch row disappeared unexpectedly after upsert",
+        }),
+      );
+    }
+    return ok(killSwitchRowFromDb(row));
+  }
+
+  async deactivate(
+    scope: KillSwitchScope,
+    entityId: string | undefined,
+  ): Promise<Result<void, CanonicalError>> {
+    if (entityId === undefined) {
+      await this.database.query(
+        `UPDATE runtime.kill_switches SET status = 'inactive'
+         WHERE environment = 'local' AND scope = $1 AND entity_id IS NULL`,
+        [scope],
+      );
+    } else {
+      await this.database.query(
+        `UPDATE runtime.kill_switches SET status = 'inactive'
+         WHERE environment = 'local' AND scope = $1 AND entity_id = $2`,
+        [scope, entityId],
+      );
+    }
+    return ok(undefined);
+  }
+
+  async listActive(now: Instant): Promise<Result<readonly KillSwitchRow[], CanonicalError>> {
+    const result = await this.database.query<KillSwitchDbRow>(
+      `SELECT * FROM runtime.kill_switches
+       WHERE environment = 'local' AND status = 'active'
+         AND (expires_at IS NULL OR expires_at > $1)
+       ORDER BY id`,
+      [asDate(now)],
+    );
+    return ok(result.rows.map(killSwitchRowFromDb));
+  }
+
+  async isActive(
+    scope: KillSwitchScope,
+    entityId: string | undefined,
+    now: Instant,
+  ): Promise<Result<boolean, CanonicalError>> {
+    const nowDate = asDate(now);
+    const result =
+      entityId === undefined
+        ? await this.database.query<{ present: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM runtime.kill_switches
+               WHERE environment = 'local' AND scope = $1 AND entity_id IS NULL
+                 AND status = 'active' AND (expires_at IS NULL OR expires_at > $2)
+             ) AS present`,
+            [scope, nowDate],
+          )
+        : await this.database.query<{ present: boolean }>(
+            `SELECT EXISTS (
+               SELECT 1 FROM runtime.kill_switches
+               WHERE environment = 'local' AND scope = $1 AND entity_id = $2
+                 AND status = 'active' AND (expires_at IS NULL OR expires_at > $3)
+             ) AS present`,
+            [scope, entityId, nowDate],
+          );
+    return ok(result.rows[0]?.present === true);
+  }
+}
