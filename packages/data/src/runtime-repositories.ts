@@ -629,7 +629,7 @@ export class PostgresJobRepository implements AsyncJobRepository {
          WHERE status = 'leased'
            AND type = ANY($1)
            AND lease_expires_at < $2`,
-        [types as unknown as string[], asDate(now), limit],
+        [types as unknown as string[], asDate(now)],
       );
 
       // Select available jobs with FOR UPDATE SKIP LOCKED
