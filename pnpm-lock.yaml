@@ -376,6 +376,16 @@ importers:
         version: 3.0.7(@types/node@22.13.1)(jiti@2.7.0)(lightningcss@1.32.0)
 
   apps/worker:
+    dependencies:
+      '@counter/data':
+        specifier: workspace:0.1.0
+        version: link:../../packages/data
+      '@counter/domain':
+        specifier: workspace:0.1.0
+        version: link:../../packages/domain
+      '@counter/workflow':
+        specifier: workspace:0.1.0
+        version: link:../../packages/workflow
     devDependencies:
       typescript:
         specifier: 5.7.3

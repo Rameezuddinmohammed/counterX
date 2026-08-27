@@ -15,3 +15,8 @@ export * from "./job-repository.js";
 export * from "./in-memory-job-repository.js";
 export * from "./outbox-repository.js";
 export * from "./in-memory-outbox-repository.js";
+export * from "./phases.js";
+export * from "./transaction-state.js";
+export * from "./transition-error.js";
+export * from "./transition-rules.js";
+export * from "./transitions.js";
