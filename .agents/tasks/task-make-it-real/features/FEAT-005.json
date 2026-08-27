@@ -1,0 +1,57 @@
+{
+  "id": "FEAT-005",
+  "title": "Address review iteration 1: real idempotency fingerprint, per-tenant key namespace, route-level tests, provider idempotency guard",
+  "status": "completed",
+  "review_source": ".agents/tasks/task-make-it-real/2026-08-27-100002-review.md",
+  "review_verdict_addressed": "NEEDS_CHANGES",
+  "summary": "Resolves the review findings on the durable idempotency wrapper and the reconciliation-retry provider seam. The service-layer idempotency digest now fingerprints the full request (merchant + method + route path + Idempotency-Key + stable-serialized body) instead of only merchantId:key, so a changed body correctly yields digest_conflict (409) and a same-body replay returns the persisted snapshot. The persisted natural key is namespaced per tenant + operation so a client-chosen key cannot collide across merchants on the store's single-partition row. Adds HTTP route-level idempotency tests (replay, changed-body 409, in_flight, cross-tenant no-collision) that run without a DB via the in-memory adapter. Documents and guards the worker's provider seam against duplicate capture on reconciliation-mismatch retries.",
+  "issue_dispositions": [
+    {
+      "issue": 1,
+      "title": "Idempotency digest omits request body",
+      "disposition": "fixed",
+      "detail": "apps/agent-runtime/src/merchant-routes.ts runWithIdempotency now computes the digest as sha256(stableStringify({ merchantId, method, path, key, body })) using the @counter/domain sha256Digest helper (canonical sha256:<64 hex> format the store enforces). A stable, key-sorted serialization ensures logically-equal bodies hash identically. Same key + changed body now produces digest_conflict (409) rather than replaying the stale response; same key + same body replays. Behavior is unchanged when no Idempotency-Key header is present (early return before any digest/store call)."
+    },
+    {
+      "issue": 2,
+      "title": "Idempotency key namespace is merchant-agnostic",
+      "disposition": "fixed",
+      "detail": "The persisted natural key passed to the store is now namespaced: storageKey = merchantId::method::path::key. The @counter/data PostgresIdempotencyStore hardcodes environment=local/scope platform/operation default (documented foundation Task 10 single-partition constraint) and treats key as the only variable dimension, so prefixing the key at the wrapper layer scopes each client-chosen value per tenant and per operation WITHOUT touching the store SQL or its tests. Two tenants reusing the same opaque key value no longer collide on one row (no spurious cross-tenant 409). Verified by a route-level cross-tenant test. The store's existing @counter/data tests are untouched and still pass."
+    },
+    {
+      "issue": 3,
+      "title": "No route-level idempotency tests",
+      "disposition": "fixed",
+      "detail": "Added a 'durable idempotency wrapper (route-level)' describe block in apps/agent-runtime/src/merchant-routes.test.ts. It injects an in-memory RuntimeIdempotencyStore via createServer options (no DB) and uses a counting handler with no internal cache so duplicate side effects are observable. Cases: (a) same key + same body => replay with identical response and handler invoked exactly once; (b) same key + changed body => 409 CONFLICT with the handler never re-invoked; (c) same key while first still pending (blocked handler) => 409 in_flight; (d) same key value across two different merchants => both 200 (no shared-row collision). Follows the existing jose-token test style. 4 new tests; suite total 2707 -> 2711 passing."
+    },
+    {
+      "issue": 4,
+      "title": "Agent-runtime real path unwired",
+      "disposition": "justified-not-fixed",
+      "detail": "This is the intended fail-closed outcome of FEAT-001, not a defect. main.ts supplies no merchantHandlers and sets allowMockHandlers=false in production, so createServer throws at boot rather than serving mocks. Wiring mocks to make it boot would reintroduce exactly the shell-around-mocks risk the milestone eliminates. The guard is symmetric and fail-safe (production/sandbox/pilot throw even with allowMockHandlers:true). Wiring real merchant handlers is future scope tracked for the connector milestone; no change made here."
+    },
+    {
+      "issue": 5,
+      "title": "Reconciliation-mismatch retry re-invokes the provider",
+      "disposition": "fixed-lightweight-guard",
+      "detail": "The provider is currently a deterministic in-process stand-in that moves no real money, so this is not a live-money risk today. Rather than build a resume-from-persisted-state mechanism (out of scope for this iteration), apps/worker/src/transaction-lifecycle.ts now documents an explicit IDEMPOTENCY CONTRACT on PaymentAuthorizationPort: implementations MUST be idempotent per request.transactionId and MUST NOT double authorize/capture on a replay, and a live connector MUST pass transactionId as the provider idempotency key (e.g. Razorpay/Stripe Idempotency-Key) before being attached. Guard comments were added at the provider seam and at the reconciliation-mismatch retry path. Comment-only change; no runtime behavior change, all worker tests still pass."
+    }
+  ],
+  "verification": {
+    "commands": [
+      "pnpm --filter @counter/agent-runtime test (47 passed)",
+      "pnpm --filter @counter/data test (25 passed, DB-gated skipped)",
+      "pnpm --filter @counter/worker test (10 passed, 1 DB-gated skipped)",
+      "pnpm build (all packages/apps Done)",
+      "pnpm test (2711 passed total; DB-gated integration tests skip cleanly without TEST_DATABASE_URL)",
+      "pnpm depcruise (no violations, 2032 modules)"
+    ],
+    "lint": "eslint on the 3 touched files reports no errors (baseline lint red is pre-existing and untouched by these changes)",
+    "baseline_delta": "test count 2707 -> 2711 (+4 new route-level idempotency tests); no regressions"
+  },
+  "files_touched": [
+    "apps/agent-runtime/src/merchant-routes.ts",
+    "apps/agent-runtime/src/merchant-routes.test.ts",
+    "apps/worker/src/transaction-lifecycle.ts"
+  ]
+}

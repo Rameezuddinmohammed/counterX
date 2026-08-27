@@ -84,6 +84,21 @@ export interface PaymentAuthorizationResult {
  * Abstraction over the external payment provider. Unit tests pass a
  * deterministic in-memory implementation (the connector mock client);
  * production wires the real HTTP client.
+ *
+ * IDEMPOTENCY CONTRACT (must hold before a LIVE connector is attached):
+ * `execute` rebuilds transaction state from DRAFT on every attempt, so a
+ * retryable failure AFTER capture (notably `reconciliation.mismatch`, but also
+ * any transient error between capture and CLOSED) causes this method to be
+ * invoked AGAIN for the same `transactionId`. Implementations MUST therefore be
+ * idempotent per `request.transactionId`: a repeated call for a transaction
+ * that was already authorized/captured must return the EXISTING provider
+ * outcome (same `capturedMinor` / `providerReference`) and MUST NOT create a
+ * second authorization or capture. The deterministic in-process stand-in used
+ * today trivially satisfies this (it recomputes the same result and moves no
+ * real money); a real gateway client must enforce it by passing the
+ * `transactionId` as the provider's idempotency key (e.g. Razorpay/Stripe
+ * `Idempotency-Key`) or by querying prior state before capturing. Until that
+ * guarantee is wired, do NOT attach a connector that debits real funds.
  */
 export interface PaymentAuthorizationPort {
   authorizeAndCapture(
@@ -218,6 +233,10 @@ export function createTransactionLifecycleHandler(
 
       // 2. External truth: call the provider (mock client in tests, real HTTP
       //    client behind env config in production).
+      //    GUARD: this may re-run for the same transactionId on a retry (see the
+      //    IDEMPOTENCY CONTRACT on PaymentAuthorizationPort). The transactionId
+      //    is passed as the provider's natural idempotency key so a compliant
+      //    connector de-duplicates rather than double-capturing.
       const providerResult = await provider.authorizeAndCapture({
         transactionId,
         amountMinor: payload.amountMinor,
@@ -272,6 +291,11 @@ export function createTransactionLifecycleHandler(
       if (!reconciliation.reconciled) {
         // Provider effect exists but does not match intent -> INDETERMINATE and
         // a retryable failure so a follow-up reconciliation can resolve it.
+        // NOTE: the retry replays authorizeAndCapture from DRAFT; correctness
+        // depends on the provider honoring the per-transactionId idempotency
+        // contract documented on PaymentAuthorizationPort so the replay does not
+        // capture a second time. Resume-from-persisted-state is deferred to the
+        // live-connector milestone.
         state = unwrap(
           transitionPhase({ state, to: "INDETERMINATE", expectedVersion: state.version, now }),
           "lifecycle.phase",

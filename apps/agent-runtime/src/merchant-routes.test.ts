@@ -2,6 +2,8 @@ import { describe, expect, it, afterEach } from "vitest";
 import { SignJWT, generateKeyPair, exportJWK, createLocalJWKSet } from "jose";
 import { createServer } from "./index.js";
 import { createMockHandlers } from "./merchant-handlers.js";
+import { createInMemoryRuntimeIdempotencyStore } from "./idempotency-store.js";
+import type { MerchantHandlers } from "./merchant-handlers.js";
 import type { FastifyInstance } from "fastify";
 
 // --- Test helpers ---
@@ -518,6 +520,248 @@ describe("merchant routes", () => {
       const body2 = JSON.parse(response2.body) as { quoteId: string };
 
       expect(body2.quoteId).toBe(body1.quoteId);
+    });
+  });
+
+  // Route-level coverage for the DURABLE idempotency wrapper (runWithIdempotency).
+  // These inject an in-memory RuntimeIdempotencyStore via createServer options so
+  // the wrapper (not the handler-level cache) is the dedup authority, and use a
+  // counting handler with NO internal cache so duplicate side effects are visible.
+  describe("durable idempotency wrapper (route-level)", () => {
+    function countingHandlers(): {
+      handlers: MerchantHandlers;
+      counts: { transactionCreate: number };
+    } {
+      const base = createMockHandlers({ behavior: "success" });
+      const counts = { transactionCreate: 0 };
+      const handlers: MerchantHandlers = {
+        ...base,
+        transactionCreate: {
+          async handle(ctx, input) {
+            counts.transactionCreate += 1;
+            return {
+              ok: true as const,
+              value: {
+                // Include the invocation count so a duplicate execution would
+                // change the snapshot; a genuine replay returns the first one.
+                transactionId: `txn_${counts.transactionCreate}`,
+                merchantId: ctx.merchantId,
+                status: "pending" as const,
+                quoteId: input.quoteId,
+                amount: { amount: "100.00", currency: "USD" },
+                createdAt: new Date().toISOString(),
+                version: "v1",
+              },
+            };
+          },
+        },
+      };
+      return { handlers, counts };
+    }
+
+    it("same key + same body => replay (identical response, handler runs once)", async () => {
+      const { jwks } = await getTestKeys();
+      const { handlers, counts } = countingHandlers();
+      server = createServer({
+        jwks,
+        environment: "test",
+        merchantHandlers: handlers,
+        idempotencyStore: createInMemoryRuntimeIdempotencyStore(),
+      });
+      await server.ready();
+      const token = await createTestToken();
+      const key = "durable_same_body_001";
+      const payload = { quoteId: "quote_001", paymentMethod: "card" };
+
+      const r1 = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        payload,
+      });
+      expect(r1.statusCode).toBe(200);
+      const body1 = JSON.parse(r1.body) as { transactionId: string };
+
+      const r2 = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        payload,
+      });
+      expect(r2.statusCode).toBe(200);
+      const body2 = JSON.parse(r2.body) as { transactionId: string };
+
+      // Replay returns the persisted snapshot verbatim and the handler ran once.
+      expect(body2).toEqual(body1);
+      expect(body2.transactionId).toBe("txn_1");
+      expect(counts.transactionCreate).toBe(1);
+    });
+
+    it("same key + changed body => 409 digest_conflict (no second side effect)", async () => {
+      const { jwks } = await getTestKeys();
+      const { handlers, counts } = countingHandlers();
+      server = createServer({
+        jwks,
+        environment: "test",
+        merchantHandlers: handlers,
+        idempotencyStore: createInMemoryRuntimeIdempotencyStore(),
+      });
+      await server.ready();
+      const token = await createTestToken();
+      const key = "durable_changed_body_001";
+
+      const r1 = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        payload: { quoteId: "quote_001", paymentMethod: "card" },
+      });
+      expect(r1.statusCode).toBe(200);
+
+      // Same key, DIFFERENT payload: must be rejected, not replayed.
+      const r2 = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        payload: { quoteId: "quote_TAMPERED", paymentMethod: "card" },
+      });
+      expect(r2.statusCode).toBe(409);
+      const body2 = JSON.parse(r2.body) as { error: { code: string } };
+      expect(body2.error.code).toBe("CONFLICT");
+      // The tampered request never reached the handler.
+      expect(counts.transactionCreate).toBe(1);
+    });
+
+    it("same key while first is still pending => 409 in_flight", async () => {
+      const { jwks } = await getTestKeys();
+      // A handler that blocks until released, so the first request holds the
+      // key in `pending` while the second arrives concurrently.
+      const base = createMockHandlers({ behavior: "success" });
+      let release: (() => void) | undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const handlers: MerchantHandlers = {
+        ...base,
+        transactionCreate: {
+          async handle(ctx, input) {
+            await gate;
+            return {
+              ok: true as const,
+              value: {
+                transactionId: "txn_pending",
+                merchantId: ctx.merchantId,
+                status: "pending" as const,
+                quoteId: input.quoteId,
+                amount: { amount: "100.00", currency: "USD" },
+                createdAt: new Date().toISOString(),
+                version: "v1",
+              },
+            };
+          },
+        },
+      };
+      server = createServer({
+        jwks,
+        environment: "test",
+        merchantHandlers: handlers,
+        idempotencyStore: createInMemoryRuntimeIdempotencyStore(),
+      });
+      await server.ready();
+      const token = await createTestToken();
+      const key = "durable_in_flight_001";
+      const payload = { quoteId: "quote_001", paymentMethod: "card" };
+      const inject = () =>
+        server!.inject({
+          method: "POST",
+          url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions`,
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+            "idempotency-key": key,
+          },
+          payload,
+        });
+
+      // Fire the first (blocked) request, then the second while it is pending.
+      const first = inject();
+      // Give the first request a tick to acquire the key before the second.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const second = await inject();
+      expect(second.statusCode).toBe(409);
+      const secondBody = JSON.parse(second.body) as { error: { code: string; message: string } };
+      expect(secondBody.error.code).toBe("CONFLICT");
+      expect(secondBody.error.message).toContain("in flight");
+
+      // Release the first and confirm it completed successfully.
+      release?.();
+      const firstResponse = await first;
+      expect(firstResponse.statusCode).toBe(200);
+    });
+
+    it("same key value across different merchants does not collide (per-tenant namespace)", async () => {
+      const { jwks } = await getTestKeys();
+      const { handlers } = countingHandlers();
+      server = createServer({
+        jwks,
+        environment: "test",
+        merchantHandlers: handlers,
+        idempotencyStore: createInMemoryRuntimeIdempotencyStore(),
+      });
+      await server.ready();
+      const merchantA = "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA";
+      const merchantB = "ctr_merchant_BBBBBBBBBBBBBBBBBBBBBB";
+      // Each tenant authenticates with a token scoped to its OWN merchant.
+      const tokenA = await createTestToken({
+        [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: merchantA },
+      });
+      const tokenB = await createTestToken({
+        [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: merchantB },
+      });
+      const key = "shared_key_across_tenants";
+      const payload = { quoteId: "quote_001", paymentMethod: "card" };
+
+      const rA = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${merchantA}/transactions`,
+        headers: {
+          authorization: `Bearer ${tokenA}`,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        payload,
+      });
+      expect(rA.statusCode).toBe(200);
+
+      // Same opaque key value, DIFFERENT merchant: must be a fresh acquire, not
+      // a spurious 409 collision on a shared row.
+      const rB = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${merchantB}/transactions`,
+        headers: {
+          authorization: `Bearer ${tokenB}`,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        payload,
+      });
+      expect(rB.statusCode).toBe(200);
     });
   });
 

@@ -157,6 +157,29 @@ function sendForbiddenError(reply: FastifyReply): void {
 }
 
 // ---------------------------------------------------------------------------
+// Deterministic serialization for idempotency fingerprints
+// ---------------------------------------------------------------------------
+
+/**
+ * Serialize a value to a canonical string with object keys sorted recursively,
+ * so that two logically equal request bodies always produce the same digest
+ * regardless of key ordering. Arrays preserve order (order is significant).
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`);
+  return `{${entries.join(",")}}`;
+}
+
+// ---------------------------------------------------------------------------
 // Plugin: Merchant Routes
 // ---------------------------------------------------------------------------
 
@@ -184,6 +207,7 @@ export async function merchantRoutesPlugin(
   // runs directly and behavior is unchanged.
   async function runWithIdempotency(
     ctx: HandlerContext,
+    request: FastifyRequest,
     reply: FastifyReply,
     execute: () => Promise<{ readonly handled: boolean; readonly snapshot?: unknown }>,
   ): Promise<void> {
@@ -194,11 +218,36 @@ export async function merchantRoutesPlugin(
     }
 
     const now = Date.now() as Instant;
-    const digest = sha256Digest(
-      new TextEncoder().encode(`${ctx.merchantId}:${key}`),
-    );
+    const method = request.method;
+    const path = request.routeOptions?.url ?? request.url;
 
-    const acquireResult = await idempotencyStore.acquire(key, digest, now);
+    // The persisted natural key is namespaced with the merchant + method + path
+    // so a client-chosen Idempotency-Key value is scoped PER TENANT and PER
+    // OPERATION. The @counter/data store hardcodes a single logical partition
+    // (environment='local', scope 'platform', operation 'default'; a documented
+    // foundation Task 10 constraint), so `key` is the only variable dimension
+    // it persists. Prefixing it here prevents two tenants (or two routes) that
+    // happen to choose the same opaque key value from colliding on one row and
+    // spuriously denying each other. The raw client key is still carried in the
+    // fingerprint below so tamper detection compares like-for-like.
+    const storageKey = `${ctx.merchantId}::${method}::${path}::${key}`;
+
+    // The digest is a request FINGERPRINT, not just a key hash. It folds the
+    // merchant, the HTTP method + route path, the Idempotency-Key, AND a stable
+    // serialization of the request body. The store treats a differing digest
+    // for the same (storage) key as `digest_conflict`, so reusing a key with a
+    // changed payload is correctly rejected (409) rather than replaying the
+    // stale response.
+    const fingerprint = stableStringify({
+      merchantId: ctx.merchantId,
+      method,
+      path,
+      key,
+      body: request.body ?? null,
+    });
+    const digest = sha256Digest(new TextEncoder().encode(fingerprint));
+
+    const acquireResult = await idempotencyStore.acquire(storageKey, digest, now);
     if (!acquireResult.ok) {
       void reply.status(500).send({
         error: { code: "INTERNAL", message: "Idempotency store failure" },
@@ -232,16 +281,16 @@ export async function merchantRoutesPlugin(
     try {
       result = await execute();
     } catch (error) {
-      await idempotencyStore.fail(key);
+      await idempotencyStore.fail(storageKey);
       throw error;
     }
 
     if (result.handled && result.snapshot !== undefined) {
-      await idempotencyStore.complete(key, result.snapshot, now);
+      await idempotencyStore.complete(storageKey, result.snapshot, now);
     } else {
       // The handler returned an error / non-persistable outcome; release the
       // key so a corrected retry can proceed.
-      await idempotencyStore.fail(key);
+      await idempotencyStore.fail(storageKey);
     }
   }
 
@@ -334,7 +383,7 @@ export async function merchantRoutesPlugin(
       sendValidationError(reply, "quantity must be a positive number", "quantity");
       return;
     }
-    await runWithIdempotency(ctx, reply, async () => {
+    await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.quote.handle(ctx, {
       variantId: typedBody.variantId,
       quantity: typedBody.quantity,
@@ -367,7 +416,7 @@ export async function merchantRoutesPlugin(
       return;
     }
     const typedBody = body as { quoteId: string; paymentMethod: string; billingAddress?: { line1: string; city: string; region?: string; postalCode: string; country: string } };
-    await runWithIdempotency(ctx, reply, async () => {
+    await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.transactionCreate.handle(ctx, {
       quoteId: typedBody.quoteId,
       paymentMethod: typedBody.paymentMethod,
@@ -428,7 +477,7 @@ export async function merchantRoutesPlugin(
       sendValidationError(reply, "outcome must be 'success', 'failure', or 'pending'", "outcome");
       return;
     }
-    await runWithIdempotency(ctx, reply, async () => {
+    await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.paymentActionResult.handle(ctx, transactionId, {
       providerReference: typedBody.providerReference,
       outcome: typedBody.outcome,
@@ -459,7 +508,7 @@ export async function merchantRoutesPlugin(
       return;
     }
     const typedBody = body as { reason: string };
-    await runWithIdempotency(ctx, reply, async () => {
+    await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.cancel.handle(ctx, transactionId, {
       reason: typedBody.reason,
     });
@@ -488,7 +537,7 @@ export async function merchantRoutesPlugin(
       return;
     }
     const typedBody = body as { reason: string };
-    await runWithIdempotency(ctx, reply, async () => {
+    await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.refund.handle(ctx, transactionId, {
       reason: typedBody.reason,
     });
