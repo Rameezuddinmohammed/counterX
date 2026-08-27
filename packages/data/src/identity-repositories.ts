@@ -50,7 +50,9 @@ import {
   type SupportGrantId,
   type WalletId,
 } from "@counter/domain";
-import { DatabaseError } from "pg";
+import pg from "pg";
+const { DatabaseError } = pg;
+type DatabaseError = InstanceType<typeof DatabaseError>;
 import type { ScopedDatabaseSession, ScopedTransactionManager } from "./scoped-transaction.js";
 
 interface ScopeRow {
