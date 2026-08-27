@@ -4,6 +4,15 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"],
-  "references": [{ "path": "../domain" }, { "path": "../trust-protocol" }]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../trust-protocol"
+    }
+  ]
 }

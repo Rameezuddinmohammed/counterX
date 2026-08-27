@@ -4,14 +4,30 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../domain" },
-    { "path": "../wallet-domain" },
-    { "path": "../wallet-contracts" },
-    { "path": "../trust-protocol" },
-    { "path": "../authorization" },
-    { "path": "../merchant-contracts" },
-    { "path": "../evidence" }
+    {
+      "path": "../authorization"
+    },
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../evidence"
+    },
+    {
+      "path": "../merchant-contracts"
+    },
+    {
+      "path": "../trust-protocol"
+    },
+    {
+      "path": "../wallet-contracts"
+    },
+    {
+      "path": "../wallet-domain"
+    }
   ]
 }

@@ -4,5 +4,21 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/authorization"
+    },
+    {
+      "path": "../../packages/data"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/http-api-kit"
+    }
+  ]
 }

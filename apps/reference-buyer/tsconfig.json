@@ -4,5 +4,21 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/evidence"
+    },
+    {
+      "path": "../../packages/payment-sdk"
+    },
+    {
+      "path": "../../packages/trust-protocol"
+    }
+  ]
 }

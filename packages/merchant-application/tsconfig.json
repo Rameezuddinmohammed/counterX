@@ -4,5 +4,21 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../authorization"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../trust-protocol"
+    }
+  ]
 }

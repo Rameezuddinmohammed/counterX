@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "tsconfig.build.tsbuildinfo"
+  },
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.integration.test.ts"
+  ],
+  "references": [
+    {
+      "path": "../domain/tsconfig.build.json"
+    }
+  ]
+}

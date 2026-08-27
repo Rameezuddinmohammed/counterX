@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "tsconfig.build.tsbuildinfo"
+  },
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.integration.test.ts"
+  ],
+  "references": [
+    {
+      "path": "../commerce-graph/tsconfig.build.json"
+    },
+    {
+      "path": "../config/tsconfig.build.json"
+    },
+    {
+      "path": "../connector-sdk/tsconfig.build.json"
+    },
+    {
+      "path": "../domain/tsconfig.build.json"
+    }
+  ]
+}
