@@ -1,10 +1,29 @@
 {
   "task_id": "task-merchant-transactions-slice",
   "task_description": "Wire the Merchant Console Transactions page end-to-end against real data (SLICE 1). Implement two new control-plane-api GET endpoints backed by a merchant-scoped read-model projection over runtime.workflow_intents + lifecycle_steps + spend_ledger, enforce tenant isolation, and replace the hardcoded DEMO_TRANSACTIONS array in apps/merchant-console/src/app/transactions/page.tsx with a real useApi(listTransactions) fetch (loading/empty/error states). Prove against live Supabase with a creds/DB-gated integration test that seeds and cleans up its own rows. Scope guardrail: ONLY the Transactions slice; do not touch other pages or consoles.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": [
     "FEAT-001",
     "FEAT-002"
   ],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "pnpm build clean; pnpm test 2811 passed / 25 skipped (baseline 2791/23, +20 new unit tests); pnpm depcruise clean (2140 modules). The DB-gated integration test RAN (not skipped) against live Supabase and PASSED both cases: real projected settled Transaction (amount 150000 minor -> 1500 major, currentState derived, .claim excluded, evidenceRef present, buyerRef/method from authority_context) and tenant isolation (merchant B empty list, 403 cross-merchant list, 404 cross-merchant get-by-id). Post-run runtime.* counts re-verified back to 0 (no leftover rows). Test quality confirmed by reading the tests: assertions exercise real projected values and tenant boundaries and would fail if the projection/routes were reverted. Docker build skipped (no app Dockerfile change; slice does not affect image build path)."
+  },
+  "review": {
+    "verdict": "APPROVED",
+    "pass": "v2",
+    "artifact": ".agents/tasks/task-merchant-transactions-slice/2026-08-27-170637-review.md",
+    "note": "v1 review pass ran against a divergent checkout (wrong directory) and was invalid; re-run v2 against /root/counterX@main(1bb7895) returned APPROVED.",
+    "non_blocking_findings": [
+      "list can emit duplicate rows if one transaction_id ever yields two workflow_intents (dedup index is on (environment,transaction_id,command_type,command_digest)); dormant today since no writer produces multi-intent transactions.",
+      "loadAmount uses ORDER BY id ASC LIMIT 1, so a transaction referenced by multiple spend_ledger rows would pick an arbitrary amount.",
+      "list does N+1 queries (per-intent step/amount fetch), up to ~401 round-trips at limit=200; acceptable now, candidate for a future set-based query.",
+      "getTransaction route is not yet consumed by the console UI (list-only page); endpoint exists per the fixed api-client contract."
+    ]
+  }
 }
