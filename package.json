@@ -28,6 +28,7 @@
     "db:backup": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js backup",
     "db:restore": "pnpm --filter @counter/data... run build && node --env-file-if-exists=.env packages/data/dist/cli.js restore",
     "db:test:lifecycle": "node --env-file-if-exists=.env scripts/run-db-lifecycle.mjs",
+    "verify:real": "node scripts/verify-real-transaction.mjs",
     "hooks:install": "node scripts/install-git-hooks.mjs",
     "verify": "pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm depcruise && pnpm test"
   },
