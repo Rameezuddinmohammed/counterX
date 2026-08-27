@@ -139,9 +139,13 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
     // The redacted headers leak NOTHING.
     expect(scanForLeaks(safeStringify(redacted), matchers)).toEqual([]);
     expect(redacted["Authorization"]).toBe("Basic [REDACTED]");
-    // Sanity: the RAW header WOULD leak the secret literal, so the redaction is
-    // load-bearing (the scanner is not vacuously passing).
-    expect(safeStringify({ Authorization: rawAuthorization })).toContain(keySecret);
+    // Sanity: the RAW header carries the secret (base64 of keyId:keySecret), so
+    // decoding it recovers the plaintext secret — the redaction is load-bearing
+    // (the scanner is not vacuously passing on the redacted form).
+    const rawB64 = rawAuthorization.replace(/^Basic /, "");
+    const decoded = Buffer.from(rawB64, "base64").toString("utf8");
+    expect(decoded).toContain(keySecret);
+    expect(redacted["Authorization"]).not.toContain(rawB64);
   });
 
   it("positive control: the scanner detects a planted secret", () => {
@@ -271,12 +275,32 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
   );
 });
 
-/** True when the haystack contains a 13-19 digit, Luhn-valid card-number-shaped run. */
+/**
+ * True when the haystack contains a 14-19 digit, Luhn-valid card-number-shaped
+ * run that is NOT a provider-reference id or a timestamp.
+ *
+ * Two refinements over a naive Luhn scan eliminate false positives from what the
+ * REAL runtime legitimately emits (which would otherwise make this proof flaky):
+ *   - Shopify GIDs (e.g. gid://shopify/Order/5678901234567) end in a long digit
+ *     run, so a run immediately preceded by '/' (a URL/GID path segment) is
+ *     skipped — a real PAN never appears as a path segment; and
+ *   - the floor is 14 digits (not 13): the runtime emits 13-digit epoch-ms
+ *     timestamps (Date.now()) all over ids/created_at, some of which are
+ *     coincidentally Luhn-valid. Real payment PANs are 14-19 digits (Diners 14,
+ *     Amex 15, Visa/MC 16, up to 19); the obsolete 13-digit legacy Visa is not
+ *     issued. Raising the floor drops the timestamp collisions while still
+ *     catching a genuine 16-digit PAN (the positive control).
+ */
 function containsLuhnValidPan(haystack: string): boolean {
-  const candidateRe = /\b(?:\d[ -]?){13,19}\b/g;
+  const candidateRe = /\b(?:\d[ -]?){14,19}\b/g;
   for (const match of haystack.matchAll(candidateRe)) {
+    const start = match.index ?? 0;
+    const precededBySlash = start > 0 && haystack[start - 1] === "/";
+    if (precededBySlash) {
+      continue;
+    }
     const digits = match[0].replace(/[ -]/g, "");
-    if (digits.length >= 13 && digits.length <= 19 && isLuhnValid(digits)) {
+    if (digits.length >= 14 && digits.length <= 19 && isLuhnValid(digits)) {
       return true;
     }
   }

@@ -230,7 +230,8 @@ gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-e
       expect(receipt.rows[0]!.idempotency_key).toBe(transactionId);
       // The stamped transactionId is the DERIVED CounterId, NOT the raw key.
       expect(receipt.rows[0]!.transaction_id).not.toBe(transactionId);
-      expect(receipt.rows[0]!.transaction_id.startsWith("ctr_txn_")).toBe(true);
+      // The stamped id is a well-formed derived transaction CounterId.
+      expect(receipt.rows[0]!.transaction_id.startsWith("ctr_transaction_")).toBe(true);
 
       // ── Run the REAL scanner. It must join the receipt back to the ledger via
       //    the RAW idempotencyKey and resolve the candidate to closed. ──
