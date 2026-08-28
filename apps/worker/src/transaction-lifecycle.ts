@@ -19,6 +19,8 @@ import {
   type CounterId,
   type Instant,
 } from "@counter/domain";
+import type { TransactionProjectionStore } from "./transaction-persistence.js";
+
 import {
   createInitialState,
   transitionOrder,
@@ -228,6 +230,14 @@ export interface ReceiptSink {
   record(receipt: TransactionReceipt): Promise<void>;
 }
 
+/**
+ * Durable transaction-read-model persistence. The worker writes its transaction
+ * spine before any external effect, so the Merchant Console can honestly show
+ * an in-flight or indeterminate execution rather than synthesizing a row from a
+ * receipt after the fact.
+ */
+export type { TransactionProjectionStore } from "./transaction-persistence.js";
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function unwrap<T>(
@@ -336,11 +346,22 @@ export const TRANSACTION_LIFECYCLE_JOB_TYPE = "transaction.lifecycle";
 export function createTransactionLifecycleHandler(
   provider: PaymentAuthorizationPort,
   sink: ReceiptSink,
+  projectionStore?: TransactionProjectionStore,
 ): JobHandler {
   return {
     async execute(job: HandledJob, now: Instant): Promise<void> {
       const payload = parsePayload(job.payload);
       const transactionId = deriveTransactionId(payload.transactionId);
+      const projection = {
+        transactionId: payload.transactionId,
+        amountMinor: payload.amountMinor,
+        currency: payload.currency,
+        authority: payload.authority,
+      };
+      // Persist before the provider call. A failure here is intentionally
+      // fail-closed: it is safer to retry before an external effect than to
+      // create an effect the operator cannot see or reconcile.
+      await projectionStore?.start(projection);
 
       // 1. Real state machine: DRAFT -> QUOTED -> CHECKOUT_READY -> COMMITTING.
       let state = createInitialState({ transactionId, now });
@@ -390,6 +411,7 @@ export function createTransactionLifecycleHandler(
           transitionPayment({ state, to: "declined", expectedVersion: state.version, now }),
           "lifecycle.payment",
         );
+        await projectionStore?.fail(projection);
         throw new HandlerError(
           "payment.declined",
           `Payment declined by provider for ${payload.transactionId}`,
@@ -493,6 +515,7 @@ export function createTransactionLifecycleHandler(
         "lifecycle.phase",
       );
 
+      await projectionStore?.complete(projection);
       await sink.record({
         transactionId,
         idempotencyKey: payload.transactionId,
