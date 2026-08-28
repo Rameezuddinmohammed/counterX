@@ -15,6 +15,11 @@ import { createPostgresTransactionStore } from "./transaction-store-postgres.js"
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
+// Runtime tables are currently written in the legacy "local" partition by the
+// durable worker repositories. Keep the read model on that same partition until
+// all runtime repositories accept an explicit environment. Deployments may
+// override this deliberately once that migration is complete.
+const runtimeEnvironment = process.env["COUNTER_RUNTIME_ENV"] || "local";
 
 // Environments that may run without a durable database.
 const IN_MEMORY_ELIGIBLE = ["local", "test", "development"].includes(environment);
@@ -44,7 +49,7 @@ const serverOptions: CreateServerOptions = {
   ...(database !== undefined
     ? {
         policyStore: createPostgresPolicyStore(database),
-        transactionStore: createPostgresTransactionStore(database, environment),
+        transactionStore: createPostgresTransactionStore(database, runtimeEnvironment),
       }
     : {}),
 };
