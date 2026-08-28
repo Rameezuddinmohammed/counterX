@@ -36,6 +36,7 @@ import {
   PostgresSpendLedger,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
+import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
 import { selectPaymentAuthorizationPort } from "./boot.js";
 import { isProdLike } from "./connector-env.js";
@@ -52,6 +53,7 @@ import {
   type PaymentAuthorizationPort,
   type ReceiptSink,
   type TransactionReceipt,
+  type TransactionProjectionStore,
 } from "./transaction-lifecycle.js";
 
 const LEASE_DURATION_MS = 30_000;
@@ -123,9 +125,13 @@ function createOutboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink 
   };
 }
 
-function buildHandlers(provider: PaymentAuthorizationPort, sink: ReceiptSink): ReadonlyMap<string, JobHandler> {
+function buildHandlers(
+  provider: PaymentAuthorizationPort,
+  sink: ReceiptSink,
+  projectionStore: TransactionProjectionStore | undefined,
+): ReadonlyMap<string, JobHandler> {
   return new Map<string, JobHandler>([
-    [TRANSACTION_LIFECYCLE_JOB_TYPE, createTransactionLifecycleHandler(provider, sink)],
+    [TRANSACTION_LIFECYCLE_JOB_TYPE, createTransactionLifecycleHandler(provider, sink, projectionStore)],
   ]);
 }
 
@@ -170,6 +176,14 @@ function main(): void {
   });
   logger.info("payment connector selected", { mode: selection.mode, environment: runtimeEnvironment });
 
+  // Only the real connector bundle has a configured merchant scope. Persist its
+  // transaction spine before effects so the control plane can project it. Local
+  // deterministic runs remain dependency-free unless a test injects a store.
+  const projectionStore =
+    selection.bundle === undefined
+      ? undefined
+      : new PostgresTransactionProjectionStore(database, selection.bundle.merchantId);
+
   const config: LoopConfig = {
     jobTypes: [TRANSACTION_LIFECYCLE_JOB_TYPE],
     leaseOwner: `${hostname()}-${randomUUID()}`,
@@ -177,7 +191,7 @@ function main(): void {
     batchSize: BATCH_SIZE,
     baseRetryDelayMs: BASE_RETRY_DELAY_MS,
     pollIntervalMs: POLL_INTERVAL_MS,
-    handlers: buildHandlers(selection.port, sink),
+    handlers: buildHandlers(selection.port, sink, projectionStore),
   };
 
   const loop = createWorkerLoop(jobRepository, config, logger);
