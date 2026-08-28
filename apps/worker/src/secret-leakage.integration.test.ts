@@ -171,14 +171,12 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
       // Capture ALL console output during the real run.
       const captured: string[] = [];
       const methods = ["log", "info", "warn", "error", "debug"] as const;
-      /* eslint-disable no-console */
       const originals = methods.map((m) => [m, console[m]] as const);
       for (const m of methods) {
         (console as unknown as Record<string, unknown>)[m] = (...args: unknown[]): void => {
           captured.push(args.map((a) => (typeof a === "string" ? a : safeStringify(a))).join(" "));
         };
       }
-      /* eslint-enable no-console */
 
       // Leave the order PENDING (mark-paid held) so it is cancellable in cleanup.
       const heldShopify: ShopifyConnector = {
