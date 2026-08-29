@@ -27,6 +27,8 @@ import {
   createInMemoryTransactionStore,
   type TransactionReadStore,
 } from "./transaction-routes.js";
+import { walletUserRoutesPlugin } from "./wallet-user-routes.js";
+import type { WalletUserProvisioner } from "./wallet-user-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -97,6 +99,12 @@ export interface CreateServerOptions {
   readonly policyStore?: PolicyStore | undefined;
   readonly policyCompiler?: PolicyCompiler | undefined;
   readonly transactionStore?: TransactionReadStore | undefined;
+  /**
+   * Only when present is /control/v1/wallet-users/* registered — this is a
+   * new, optional feature (self-serve onboarding), not one every deployment
+   * of this app needs, unlike policy/transaction routes.
+   */
+  readonly walletUserProvisioner?: WalletUserProvisioner | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -118,6 +126,10 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     ...(environment !== "production"
       ? { openApi: { title: "Counter Control Plane API", version } }
       : {}),
+    // A fresh local setup script has no browser session or JWT at all — the
+    // setup token itself (single-use, 15-minute expiry) is the entire proof
+    // of identity for this one route. See wallet-user-routes.ts's header.
+    skipAuthRoutes: ["/control/v1/wallet-users/agent-keys"],
     logger: options?.logger ?? false,
   };
 
@@ -156,6 +168,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   // in-memory.
   const transactionStore = resolveTransactionStore(environment, options);
   void server.register(transactionRoutesPlugin, { store: transactionStore, environment });
+
+  // Self-serve wallet onboarding routes — only registered when a
+  // provisioner is wired (see CreateServerOptions.walletUserProvisioner).
+  if (options?.walletUserProvisioner !== undefined) {
+    void server.register(walletUserRoutesPlugin, {
+      provisioner: options.walletUserProvisioner,
+    });
+  }
 
   return server;
 }

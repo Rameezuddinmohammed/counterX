@@ -13,6 +13,7 @@ import { PostgresDatabase } from "@counter/data";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
 import { createPostgresTransactionStore } from "./transaction-store-postgres.js";
+import { WalletUserProvisioner } from "./wallet-user-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -63,6 +64,7 @@ const serverOptions: CreateServerOptions = {
     ? {
         policyStore: createPostgresPolicyStore(database, runtimeEnvironment),
         transactionStore: createPostgresTransactionStore(database, runtimeEnvironment),
+        walletUserProvisioner: new WalletUserProvisioner(database, runtimeEnvironment),
       }
     : {}),
 };
