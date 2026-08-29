@@ -7,6 +7,7 @@
  */
 
 import type { Result } from "@counter/domain";
+import type { CtpEnvelope, PurchaseIntentPayload } from "@counter/trust-protocol";
 
 // ---------------------------------------------------------------------------
 // Handler Context (passed to all handlers)
@@ -45,7 +46,17 @@ export interface NotFoundResult {
   readonly kind: "not_found";
 }
 
-export type HandlerError = ReviewRequiredResult | StaleResult | IndeterminateResult | NotFoundResult;
+export interface UnauthorizedResult {
+  readonly kind: "unauthorized";
+  readonly reason: string;
+}
+
+export type HandlerError =
+  | ReviewRequiredResult
+  | StaleResult
+  | IndeterminateResult
+  | NotFoundResult
+  | UnauthorizedResult;
 
 // ---------------------------------------------------------------------------
 // Capability Handler
@@ -152,6 +163,15 @@ export interface TransactionCreateInput {
     readonly postalCode: string;
     readonly country: string;
   } | undefined;
+  /**
+   * Optional CTP-signed purchase-intent envelope from a real buyer agent
+   * (see PurchaseIntentBuilder.sign() in @counter/wallet-application). When
+   * present, the handler verifies it against the buyer's registered key
+   * before proceeding, and the resulting transaction's spend-limit check
+   * runs against the buyer's own wallet rather than the merchant's. Absent
+   * for existing merchant-only/test flows, which are unaffected.
+   */
+  readonly ctpEnvelope: CtpEnvelope<PurchaseIntentPayload> | undefined;
 }
 
 export interface TransactionCreateResult {

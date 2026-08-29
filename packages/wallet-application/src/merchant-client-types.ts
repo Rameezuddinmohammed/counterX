@@ -14,6 +14,7 @@ import type {
   TransactionCreateResponse,
   TransactionStatusResponse,
 } from "@counter/merchant-contracts";
+import type { CtpEnvelope, PurchaseIntentPayload } from "@counter/trust-protocol";
 import type { MerchantClientError } from "./client-errors.js";
 
 // ---------------------------------------------------------------------------
@@ -107,12 +108,17 @@ export interface MerchantRuntimeClient {
   ): Promise<ClientResult<QuoteResponse>>;
 
   /**
-   * Creates a transaction from a confirmed quote.
+   * Creates a transaction from a confirmed quote. `signedEnvelope`, when
+   * present, is a CTP-signed purchase-intent envelope the server verifies
+   * against the buyer's registered agent key before proceeding — see
+   * PurchaseIntentBuilder.sign(). Omit it for merchant-only/test flows that
+   * don't carry a buyer-signed authorization.
    */
   createTransaction(
     merchantId: string,
     quoteId: string,
     paymentMethod: string,
+    signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
   ): Promise<ClientResult<TransactionCreateResponse>>;
 
   /**

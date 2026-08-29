@@ -107,7 +107,7 @@ gatedDescribe("kill switch blocks a real checkout (creds+DB-gated, live network)
 
   const shopifyCreds = hasCreds ? requireShopifyCredentials(process.env)! : null!;
   const razorpayCreds = hasCreds ? requireRazorpayCredentials(process.env)! : null!;
-  const bundle = hasCreds ? buildRealConnectorBundle(shopifyCreds, razorpayCreds) : null!;
+  const bundle = hasCreds ? buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env) : null!;
 
   afterAll(async () => {
     try {

@@ -13,7 +13,9 @@
     "build": "tsc -b tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "register-buyer-agent": "node scripts/register-buyer-agent.mjs",
+    "start:real": "node dist/main-real.js"
   },
   "devDependencies": {
     "typescript": "5.7.3",
@@ -29,6 +31,7 @@
     "@counter/trust-protocol": "workspace:*",
     "@counter/merchant-contracts": "workspace:*",
     "@counter/domain": "workspace:*",
+    "@counter/data": "workspace:*",
     "zod": "3.25.76"
   }
 }

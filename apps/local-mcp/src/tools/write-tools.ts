@@ -12,7 +12,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { MerchantRuntimeClient, InMemoryRevocationStore } from "@counter/wallet-application";
+import type { MerchantRuntimeClient, RevocationStore } from "@counter/wallet-application";
 import {
   PolicyPrecheckService,
   PurchaseProposalBuilder,
@@ -86,7 +86,7 @@ function jsonResponse(data: unknown): { content: Array<{ type: "text"; text: str
 export interface WriteToolDependencies {
   readonly keyStore: SecureKeyStore;
   readonly merchantClient: MerchantRuntimeClient;
-  readonly revocationStore: InMemoryRevocationStore;
+  readonly revocationStore: RevocationStore;
 }
 
 // ---------------------------------------------------------------------------
@@ -480,11 +480,18 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             correlationId: args.correlation_id,
           });
 
+          // Actually sign the intent with the caller's own key (this is the
+          // step that previously never ran anywhere in the codebase) and send
+          // the signed envelope along with the transaction request so the
+          // server can verify it was really authorized by this agent's key.
+          const { signedEnvelope } = await intentBuilder.sign(intent, args.kid);
+
           // Execute transaction via merchant runtime client
           const txResult = await merchantClient.createTransaction(
             args.merchant_id,
             args.quote_id,
             args.payment_method,
+            signedEnvelope,
           );
 
           if (!txResult.ok) {

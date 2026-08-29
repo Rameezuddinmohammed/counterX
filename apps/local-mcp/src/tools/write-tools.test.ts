@@ -11,11 +11,15 @@
 
 import { describe, expect, it, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { InMemorySecureKeyStore } from "@counter/wallet-domain";
 import {
   InMemoryMerchantRuntimeClient,
   InMemoryRevocationStore,
 } from "@counter/wallet-application";
+import { InMemoryKeyRegistry, verifyEnvelope } from "@counter/trust-protocol";
+import type { KeyRecord } from "@counter/trust-protocol";
 import type { WriteToolDependencies } from "./write-tools.js";
 import { registerWriteTools } from "./write-tools.js";
 
@@ -103,6 +107,107 @@ describe("write-tools: purchase.execute", () => {
 
     expect(revocationStore.isRevoked("wallet", "wallet-abc")).toBe(true);
     expect(revocationStore.isRevoked("wallet", "wallet-def")).toBe(false);
+  });
+
+  it("actually signs the purchase intent and sends the signature — proves the previously-missing wiring", async () => {
+    const { keyStore, merchantClient } = deps;
+    const client = merchantClient as InMemoryMerchantRuntimeClient;
+    keyStore.unlockStore("default-credential");
+    const { keyId, publicKey } = await keyStore.generateKey("agent-signing");
+
+    client.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: ["purchase"],
+      healthStatus: "healthy",
+    });
+    client.setTransactionCreateResponse("merchant-1", {
+      transactionId: "tx-signed-1",
+      merchantId: "merchant-1",
+      quoteId: "quote-1",
+      status: "pending",
+      amount: { amount: "25000", currency: "INR" },
+      createdAt: new Date().toISOString(),
+      version: "1",
+    });
+
+    const server = createTestServer(deps);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const mcpClient = new Client({ name: "test-client", version: "0.1.0" });
+    await Promise.all([
+      server.connect(serverTransport),
+      mcpClient.connect(clientTransport),
+    ]);
+
+    const quoteExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const permissivePolicy = {
+      merchant_allowlist: { allowed_merchant_ids: ["merchant-1"], allowed_domains: [] },
+      geography: { allowed_merchant_countries: ["IN"], allowed_delivery_countries: ["IN"] },
+      category: { allowed_categories: [] },
+      currency: { allowed_currencies: ["INR"] },
+      amount_limits: { per_transaction_max_paise: "100000" },
+      count_limits: {},
+      operations: { allowed_operations: ["purchase"] },
+      time_constraints: {},
+      approval_threshold: { threshold_paise: "50000" },
+      payment_references: { allowed_reference_ids: ["ref-001"] },
+    };
+
+    const result = await mcpClient.callTool({
+      name: "purchase.execute",
+      arguments: {
+        wallet_id: "wallet-1",
+        merchant_id: "merchant-1",
+        mandate_id: "mandate-1",
+        quote_id: "quote-1",
+        quote_digest: "digest-abc",
+        amount_paise: "25000",
+        currency: "INR",
+        merchant_country: "IN",
+        delivery_country: "IN",
+        quote_expires_at: quoteExpiresAt,
+        payment_reference_id: "ref-001",
+        kid: keyId,
+        agent_id: "agent-1",
+        correlation_id: "corr-1",
+        payment_method: "counter_test",
+        policy_version_id: "policy-v1",
+        policy: permissivePolicy,
+      },
+    });
+
+    const content = (result.content as Array<{ type: string; text: string }>)[0];
+    const parsed = JSON.parse(content?.text ?? "{}") as { status: string };
+    expect(parsed.status).toBe("success");
+
+    // The whole point of this test: a real signature was produced AND sent.
+    const call = client.lastCreateTransactionCall;
+    expect(call?.signedEnvelope).toBeDefined();
+    const envelope = call!.signedEnvelope!;
+    expect(envelope.signature.kid).toBe(keyId);
+
+    const keyRecord: KeyRecord = {
+      kid: keyId,
+      use: "sign",
+      alg: "EdDSA",
+      publicKey: Buffer.from(publicKey).toString("base64url"),
+      status: "active",
+      validFrom: "2024-01-01T00:00:00.000Z",
+      validUntil: "2030-12-31T23:59:59.999Z",
+      issuer: "counter://test/local-mcp-test",
+    };
+    const registry = new InMemoryKeyRegistry([keyRecord]);
+    const verifyResult = await verifyEnvelope(envelope, {
+      keyRegistry: registry,
+      currentTime: new Date().toISOString(),
+      expectedAudience: "merchant-1",
+    });
+    expect(verifyResult.ok).toBe(true);
+
+    await mcpClient.close();
   });
 });
 

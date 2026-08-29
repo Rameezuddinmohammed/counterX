@@ -19,7 +19,7 @@
 
 import { createCounterId, parseCounterId } from "@counter/domain";
 import type { MerchantId } from "@counter/domain";
-import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
+import { InMemorySigner } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
@@ -38,6 +38,7 @@ import { instantFromEpochMilliseconds } from "@counter/domain";
 import {
   requireShopifyCredentials,
   requireRazorpayCredentials,
+  requireCounterTestPaymentSigner,
   type EnvironmentBag,
 } from "./connector-env.js";
 import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
@@ -130,7 +131,7 @@ export function selectPaymentAuthorizationPort(
     return { mode: "deterministic", port: createDeterministicPaymentAuthorizationPort() };
   }
 
-  const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+  const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds, env);
 
   // Durable stores (Postgres-backed) resolved at the deployment entrypoint are
   // preferred over any explicit override. An explicit override still wins over
@@ -213,6 +214,7 @@ export interface RealConnectorBundle {
 export function buildRealConnectorBundle(
   shopifyCreds: NonNullable<ReturnType<typeof requireShopifyCredentials>>,
   razorpayCreds: NonNullable<ReturnType<typeof requireRazorpayCredentials>>,
+  env: EnvironmentBag,
 ): RealConnectorBundle {
   const shopify = createShopifyConnectorFromConfig({
     shopDomain: shopifyCreds.shopDomain,
@@ -227,11 +229,17 @@ export function buildRealConnectorBundle(
     baseUrl: razorpayCreds.baseUrl,
   });
 
-  // Unattended, CTP-signed provider for the authorize/capture evidence.
+  // Unattended, CTP-signed provider for the authorize/capture evidence. The
+  // signing key is a real, deployment-specific secret when configured
+  // (COUNTER_TEST_PAYMENT_SIGNER_KID/_SEED); only in a mock-eligible
+  // environment without those set does this fall back to the named public
+  // fixture — see requireCounterTestPaymentSigner for why a prod-like
+  // deployment fails loud instead of silently using that fixture.
+  const testPaymentSigner = requireCounterTestPaymentSigner(env);
   const payments = new CounterTestPaymentProvider({
     environment: "test",
-    signer: createTestSignerA(),
-    kid: TEST_KID_A,
+    signer: new InMemorySigner(testPaymentSigner.kid, testPaymentSigner.seed),
+    kid: testPaymentSigner.kid,
   });
 
   return { shopify, razorpay, payments, merchantId: pilotMerchantId() };

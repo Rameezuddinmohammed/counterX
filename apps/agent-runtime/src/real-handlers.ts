@@ -24,8 +24,10 @@ import type { AsyncJobRepository } from "@counter/data";
 import type { ShopifyGraphQLPort } from "@counter/shopify-connector";
 import type { ShopifyConnector } from "@counter/shopify-connector";
 import type { RazorpayTestProvider } from "@counter/razorpay-adapter";
+import { isCtpEnvelope, verifyEnvelope } from "@counter/trust-protocol";
 import { getCatalogVariant, searchCatalog } from "./shopify-catalog.js";
 import { buildQuote } from "./quote-builder.js";
+import { PostgresCtpKeyRegistry } from "./ctp-key-registry.js";
 import {
   TransactionReadModel,
   STEP_CANCEL,
@@ -217,12 +219,16 @@ function createQuoteHandler(
 
 const TRANSACTION_LIFECYCLE_JOB_TYPE = "transaction.lifecycle";
 
+/** CTP protocol environment for verifying buyer-signed envelopes (a separate vocabulary from the platform Environment — see @counter/trust-protocol's CtpEnvironment). */
+const CTP_VERIFICATION_ENVIRONMENT = "sandbox";
+
 function createTransactionCreateHandler(
   database: TransactionalDatabase,
   environment: Environment,
   jobRepository: AsyncJobRepository,
 ): TransactionCreateHandler {
   const quoteStore = new PostgresQuoteStore(database, environment);
+  const ctpKeyRegistry = new PostgresCtpKeyRegistry(database, environment);
 
   return {
     async handle(ctx, input) {
@@ -249,6 +255,38 @@ function createTransactionCreateHandler(
           currentVersion: "expired",
           requestedVersion: input.quoteId,
         });
+      }
+
+      // When the caller attached a CTP-signed purchase-intent envelope (a
+      // real buyer agent, not a merchant-only/test flow), verify it BEFORE
+      // consuming the quote: a failed/tampered signature must not burn the
+      // quote and deny the legitimate buyer a chance to retry.
+      let buyerWalletId: string | undefined;
+      if (input.ctpEnvelope !== undefined) {
+        if (!isCtpEnvelope(input.ctpEnvelope)) {
+          return errResult({ kind: "unauthorized" as const, reason: "Malformed signed envelope" });
+        }
+        const verifyResult = await verifyEnvelope(input.ctpEnvelope, {
+          keyRegistry: ctpKeyRegistry,
+          currentTime: new Date(now).toISOString(),
+          expectedAudience: ctx.merchantId,
+          expectedEnvironment: CTP_VERIFICATION_ENVIRONMENT,
+        });
+        if (!verifyResult.ok) {
+          return errResult({ kind: "unauthorized" as const, reason: verifyResult.error.message });
+        }
+        const payload = input.ctpEnvelope.payload;
+        // Binds the signature to THIS specific quote — closes the door on a
+        // validly-signed envelope for a different purchase being replayed
+        // against this one.
+        if (payload.quote_id !== input.quoteId || payload.quote_digest !== quote.ctpDigest) {
+          return errResult({
+            kind: "stale" as const,
+            currentVersion: quote.ctpDigest,
+            requestedVersion: payload.quote_digest,
+          });
+        }
+        buyerWalletId = payload.wallet_id;
       }
 
       const consumeResult = await quoteStore.markConsumed(input.quoteId);
@@ -288,11 +326,13 @@ function createTransactionCreateHandler(
               quotedAmountMinor: Number(quote.totalPriceMinor),
               authorizationExpiresAtMs: quote.expiresAt.getTime(),
               authorizedMerchantId: ctx.merchantId,
-              // A stable per-merchant wallet id so the worker's rolling 24h
-              // spend ledger accumulates ACROSS this merchant's transactions
-              // instead of each transaction getting its own one-shot bucket
-              // (which would make the rolling-total ceiling a no-op).
-              walletId: ctx.merchantId,
+              // A real buyer's wallet id (from their verified signed intent)
+              // when present, so the worker's rolling 24h spend ledger
+              // enforces THEIR limit — otherwise a stable per-merchant wallet
+              // id so it still accumulates across that merchant's
+              // transactions instead of each one getting its own one-shot
+              // bucket (which would make the rolling-total ceiling a no-op).
+              walletId: buyerWalletId ?? ctx.merchantId,
             },
           },
           correlationId: undefined,
