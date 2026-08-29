@@ -25,6 +25,18 @@
     },
     {
       "path": "../../packages/workflow/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/payment-sdk/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/razorpay-adapter/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/shopify-connector/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/commerce-graph/tsconfig.build.json"
     }
   ]
 }

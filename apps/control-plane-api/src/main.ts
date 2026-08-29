@@ -8,6 +8,7 @@
  * local/test/development the in-memory store is used unless DATABASE_URL is
  * provided.
  */
+import { resolveCounterEnvironment, type Environment } from "@counter/domain";
 import { PostgresDatabase } from "@counter/data";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
@@ -37,14 +38,31 @@ if (hasDatabaseUrl) {
   database = new PostgresDatabase(databaseUrl as string);
 }
 
+// The durable-data partition (bound into every policy/transaction query below)
+// is resolved from COUNTER_ENV alone — NODE_ENV's vocabulary ("development")
+// is a different, framework-level taxonomy, not a valid Counter environment.
+// This is what makes the store here agree with what the worker actually
+// writes; previously this read `environment` (NODE_ENV-derived, typically
+// "production") while every writer hardcoded "local", so the merchant
+// console's transaction/policy views could never show real data.
+const runtimeEnvironmentResult = resolveCounterEnvironment(
+  process.env["COUNTER_ENV"],
+  !IN_MEMORY_ELIGIBLE,
+);
+if (!runtimeEnvironmentResult.ok) {
+  console.error(`[${APP_NAME}] ${runtimeEnvironmentResult.error.message}`);
+  process.exit(1);
+}
+const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
   version: process.env["APP_VERSION"] || "0.1.0",
   ...(database !== undefined
     ? {
-        policyStore: createPostgresPolicyStore(database),
-        transactionStore: createPostgresTransactionStore(database, environment),
+        policyStore: createPostgresPolicyStore(database, runtimeEnvironment),
+        transactionStore: createPostgresTransactionStore(database, runtimeEnvironment),
       }
     : {}),
 };

@@ -29,7 +29,7 @@ const databaseHookTimeout = 30_000;
 
 databaseDescribe("PostgresSpendLedger - atomic concurrency + idempotency (DB-gated)", () => {
   const database = new PostgresDatabase(databaseUrl as string);
-  const ledger = new PostgresSpendLedger(database);
+  const ledger = new PostgresSpendLedger(database, "local");
 
   // Unique per-run wallet id so this test never collides with or reads any other
   // rows, and afterAll can delete exactly its own rows.

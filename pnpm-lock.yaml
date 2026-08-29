@@ -47,6 +47,9 @@ importers:
       '@counter/authorization':
         specifier: workspace:0.1.0
         version: link:../../packages/authorization
+      '@counter/commerce-graph':
+        specifier: workspace:0.1.0
+        version: link:../../packages/commerce-graph
       '@counter/data':
         specifier: workspace:0.1.0
         version: link:../../packages/data
@@ -59,6 +62,15 @@ importers:
       '@counter/merchant-contracts':
         specifier: workspace:0.1.0
         version: link:../../packages/merchant-contracts
+      '@counter/payment-sdk':
+        specifier: workspace:0.1.0
+        version: link:../../packages/payment-sdk
+      '@counter/razorpay-adapter':
+        specifier: workspace:0.1.0
+        version: link:../../packages/razorpay-adapter
+      '@counter/shopify-connector':
+        specifier: workspace:0.1.0
+        version: link:../../packages/shopify-connector
       '@counter/workflow':
         specifier: workspace:0.1.0
         version: link:../../packages/workflow

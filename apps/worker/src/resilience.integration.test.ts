@@ -140,7 +140,7 @@ gatedDescribe("resilience — post-effect timeout is INDETERMINATE, never failed
         razorpay: bundle!.razorpay,
         payments: bundle!.payments,
         merchantId: bundle!.merchantId,
-        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
         actionTimeoutMs: 20_000,
       });
 
@@ -236,7 +236,7 @@ dbGatedDescribe("resilience — duplicate/reordered webhook deduped to one effec
 
       // REAL Postgres inbox dedup: first delivery is new, duplicate + reordered
       // re-deliveries of the SAME source event are deduped to one row.
-      const inbox = new PostgresInboxRepository(database);
+      const inbox = new PostgresInboxRepository(database, "local");
       const receive = () =>
         inbox.receive(
           {

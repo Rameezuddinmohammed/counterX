@@ -94,7 +94,7 @@ gatedDescribe("authorization adversarial — DENY with zero external effect (cre
       razorpay: bundle!.razorpay,
       payments: bundle!.payments,
       merchantId: bundle!.merchantId,
-      stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+      stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
       policy,
       actionTimeoutMs: 20_000,
     });

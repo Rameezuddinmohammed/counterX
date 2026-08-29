@@ -7,12 +7,16 @@
  * durable layer are surfaced by throwing so the HTTP error mapper can turn them
  * into a canonical 5xx rather than silently losing a write.
  */
+import type { Environment } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
 import { PostgresPolicyStore } from "@counter/data";
 import type { MerchantPolicyConfig, PolicyStore, PolicyStoreEntry } from "./policy-routes.js";
 
-export function createPostgresPolicyStore(database: TransactionalDatabase): PolicyStore {
-  const store = new PostgresPolicyStore(database);
+export function createPostgresPolicyStore(
+  database: TransactionalDatabase,
+  environment: Environment,
+): PolicyStore {
+  const store = new PostgresPolicyStore(database, environment);
   return {
     async get(merchantId: string): Promise<PolicyStoreEntry | undefined> {
       const result = await store.get(merchantId);

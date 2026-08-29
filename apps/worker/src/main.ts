@@ -20,7 +20,13 @@
 
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
-import { createCounterId, type CounterId, type Instant } from "@counter/domain";
+import {
+  createCounterId,
+  resolveCounterEnvironment,
+  type CounterId,
+  type Environment,
+  type Instant,
+} from "@counter/domain";
 import {
   PostgresDatabase,
   PostgresJobRepository,
@@ -30,8 +36,10 @@ import {
   PostgresSpendLedger,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
+import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
 import { selectPaymentAuthorizationPort } from "./boot.js";
+import { isProdLike } from "./connector-env.js";
 import {
   reconciliationEnabled,
   startReconciliationJob,
@@ -45,6 +53,7 @@ import {
   type PaymentAuthorizationPort,
   type ReceiptSink,
   type TransactionReceipt,
+  type TransactionProjectionStore,
 } from "./transaction-lifecycle.js";
 
 const LEASE_DURATION_MS = 30_000;
@@ -116,9 +125,13 @@ function createOutboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink 
   };
 }
 
-function buildHandlers(provider: PaymentAuthorizationPort, sink: ReceiptSink): ReadonlyMap<string, JobHandler> {
+function buildHandlers(
+  provider: PaymentAuthorizationPort,
+  sink: ReceiptSink,
+  projectionStore: TransactionProjectionStore | undefined,
+): ReadonlyMap<string, JobHandler> {
   return new Map<string, JobHandler>([
-    [TRANSACTION_LIFECYCLE_JOB_TYPE, createTransactionLifecycleHandler(provider, sink)],
+    [TRANSACTION_LIFECYCLE_JOB_TYPE, createTransactionLifecycleHandler(provider, sink, projectionStore)],
   ]);
 }
 
@@ -130,9 +143,25 @@ function main(): void {
     return;
   }
 
+  // The durable-data partition (bound into every runtime.* query below) is
+  // resolved from COUNTER_ENV alone — NODE_ENV's vocabulary ("development")
+  // is not a valid Counter environment. A production-like deployment with an
+  // absent/invalid COUNTER_ENV fails loud rather than silently writing to the
+  // wrong (or a guessed) partition.
+  const runtimeEnvironmentResult = resolveCounterEnvironment(
+    process.env["COUNTER_ENV"],
+    isProdLike(process.env),
+  );
+  if (!runtimeEnvironmentResult.ok) {
+    console.error(`[${APP_NAME}] ${runtimeEnvironmentResult.error.message}`);
+    process.exit(1);
+    return;
+  }
+  const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
+
   const database = new PostgresDatabase(databaseUrl);
-  const jobRepository = new PostgresJobRepository(database);
-  const outboxRepository = new PostgresOutboxRepository(database);
+  const jobRepository = new PostgresJobRepository(database, runtimeEnvironment);
+  const outboxRepository = new PostgresOutboxRepository(database, runtimeEnvironment);
   const sink = createOutboxReceiptSink(outboxRepository);
 
   // Select the payment connector from the environment. In a prod-like
@@ -141,11 +170,19 @@ function main(): void {
   // are threaded in so the Shopify legs dedup across restarts and an active
   // kill switch blocks a checkout BEFORE any external effect.
   const selection = selectPaymentAuthorizationPort(process.env, undefined, {
-    stepLedger: new PostgresStepLedger(database),
-    killSwitchStore: new PostgresKillSwitchStore(database),
-    spendLedger: new PostgresSpendLedger(database),
+    stepLedger: new PostgresStepLedger(database, runtimeEnvironment),
+    killSwitchStore: new PostgresKillSwitchStore(database, runtimeEnvironment),
+    spendLedger: new PostgresSpendLedger(database, runtimeEnvironment),
   });
-  logger.info("payment connector selected", { mode: selection.mode });
+  logger.info("payment connector selected", { mode: selection.mode, environment: runtimeEnvironment });
+
+  // Only the real connector bundle has a configured merchant scope. Persist its
+  // transaction spine before effects so the control plane can project it. Local
+  // deterministic runs remain dependency-free unless a test injects a store.
+  const projectionStore =
+    selection.bundle === undefined
+      ? undefined
+      : new PostgresTransactionProjectionStore(database, runtimeEnvironment, selection.bundle.merchantId);
 
   const config: LoopConfig = {
     jobTypes: [TRANSACTION_LIFECYCLE_JOB_TYPE],
@@ -154,7 +191,7 @@ function main(): void {
     batchSize: BATCH_SIZE,
     baseRetryDelayMs: BASE_RETRY_DELAY_MS,
     pollIntervalMs: POLL_INTERVAL_MS,
-    handlers: buildHandlers(selection.port, sink),
+    handlers: buildHandlers(selection.port, sink, projectionStore),
   };
 
   const loop = createWorkerLoop(jobRepository, config, logger);

@@ -73,6 +73,9 @@ export {
 } from "./runtime-schema.js";
 export { PostgresPolicyStore } from "./policy-store.js";
 export type { PolicyConfigEntry, PolicySetResult } from "./policy-store.js";
+
+export { PostgresQuoteStore } from "./quote-store.js";
+export type { QuoteRecord, StoredQuote } from "./quote-store.js";
 export { policyConfigs } from "./policy-schema.js";
 
 export {

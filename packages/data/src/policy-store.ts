@@ -4,15 +4,11 @@
  * Persists an opaque JSON policy `config` keyed by (environment, merchant_id)
  * with a monotonically increasing integer `version` and optimistic-concurrency
  * semantics. The config is stored verbatim; the caller owns its shape.
- *
- * NOTE: consistent with the runtime repositories, the SQL hardcodes
- * environment='local'. This keeps every durable artifact in a single logical
- * environment partition for the current single-tenant deployment; broadening
- * to a per-request environment is a follow-up.
  */
 
 import {
   type CanonicalError,
+  type Environment,
   type Result,
   createCanonicalError,
   err,
@@ -36,13 +32,16 @@ interface PolicyConfigRow {
 }
 
 export class PostgresPolicyStore {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async get(merchantId: string): Promise<Result<PolicyConfigEntry | undefined, CanonicalError>> {
     const result = await this.database.query<PolicyConfigRow>(
       `SELECT version, config FROM merchant.policy_configs
-       WHERE environment = 'local' AND merchant_id = $1`,
-      [merchantId],
+       WHERE environment = $1 AND merchant_id = $2`,
+      [this.environment, merchantId],
     );
 
     const row = result.rows[0];
@@ -77,9 +76,9 @@ export class PostgresPolicyStore {
     return this.database.transaction(async (session) => {
       const existingResult = await session.query<PolicyConfigRow>(
         `SELECT version, config FROM merchant.policy_configs
-         WHERE environment = 'local' AND merchant_id = $1
+         WHERE environment = $1 AND merchant_id = $2
          FOR UPDATE`,
-        [merchantId],
+        [this.environment, merchantId],
       );
 
       const existing = existingResult.rows[0];
@@ -95,15 +94,15 @@ export class PostgresPolicyStore {
       if (existing === undefined) {
         await session.query(
           `INSERT INTO merchant.policy_configs (environment, merchant_id, version, config)
-           VALUES ('local', $1, $2, $3)`,
-          [merchantId, newVersion, serialized],
+           VALUES ($1, $2, $3, $4)`,
+          [this.environment, merchantId, newVersion, serialized],
         );
       } else {
         await session.query(
           `UPDATE merchant.policy_configs
-           SET version = $2, config = $3, updated_at = clock_timestamp()
-           WHERE environment = 'local' AND merchant_id = $1`,
-          [merchantId, newVersion, serialized],
+           SET version = $3, config = $4, updated_at = clock_timestamp()
+           WHERE environment = $1 AND merchant_id = $2`,
+          [this.environment, merchantId, newVersion, serialized],
         );
       }
 

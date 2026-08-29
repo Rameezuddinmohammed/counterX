@@ -17,6 +17,7 @@ import {
   parseEnvironment,
   parseSha256Digest,
   platformScope,
+  resolveCounterEnvironment,
   scopeKey,
   scopesEqual,
   sha256Digest,
@@ -45,6 +46,21 @@ describe("environment and scope primitives", () => {
         expect(environmentsEqual(environment, environment)).toBe(true);
       }),
     );
+  });
+
+  it("resolves the durable-data partition environment from COUNTER_ENV, never from NODE_ENV vocabulary", () => {
+    // Valid COUNTER_ENV is used as-is, regardless of prod-like status.
+    for (const env of COUNTER_ENVIRONMENTS) {
+      expect(unwrap(resolveCounterEnvironment(env, true))).toBe(env);
+      expect(unwrap(resolveCounterEnvironment(env, false))).toBe(env);
+    }
+    // Absent/invalid + not prod-like (typical local dev) defaults to "local".
+    expect(unwrap(resolveCounterEnvironment(undefined, false))).toBe("local");
+    expect(unwrap(resolveCounterEnvironment("development", false))).toBe("local");
+    // Absent/invalid + prod-like fails closed rather than guessing a partition.
+    expect(resolveCounterEnvironment(undefined, true).ok).toBe(false);
+    expect(resolveCounterEnvironment("development", true).ok).toBe(false);
+    expect(resolveCounterEnvironment("production", true).ok).toBe(true);
   });
 
   it("keeps merchant, Wallet, platform, and environment scopes distinct", () => {

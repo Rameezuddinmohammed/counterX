@@ -8,7 +8,11 @@ primary_region = "sin"
     BUILD_TARGET = "apps/worker"
 
 [processes]
-  worker = "node apps/worker/dist/index.js"
+  # index.js is the library barrel export (no side effects, exits immediately).
+  # main.js is the actual deployment entrypoint that starts the poll/lease/
+  # execute loop. Confirmed live on 2026-08-29: the deployed machine was
+  # running index.js and had never once processed a job as a result.
+  worker = "node apps/worker/dist/main.js"
 
 [[vm]]
   size = "shared-cpu-1x"

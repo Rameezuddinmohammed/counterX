@@ -194,7 +194,7 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
         razorpay: bundle!.razorpay,
         payments: bundle!.payments,
         merchantId: bundle!.merchantId,
-        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
         actionTimeoutMs: 30_000,
       });
       const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
@@ -223,7 +223,7 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
     // Persist a durable receipt outbox row EXACTLY as the deployed receipt
     // sink does (transactionId + idempotencyKey + provider reference + state),
     // so the scan covers the outbox material the runtime actually writes.
-    const outbox = new PostgresOutboxRepository(database);
+    const outbox = new PostgresOutboxRepository(database, "local");
     const appended = await outbox.append(
       [
         {

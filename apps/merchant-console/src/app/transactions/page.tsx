@@ -9,9 +9,15 @@ import type { Transaction, TransactionState } from "@/lib/types";
 
 // The merchant scope is enforced server-side from the authenticated token; the
 // merchantId here only selects which merchant path to request. It is sourced
-// from NEXT_PUBLIC_MERCHANT_ID, falling back to the pilot merchant used across
-// the console.
-const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "merchant-pilot-001";
+// from NEXT_PUBLIC_MERCHANT_ID, falling back to the SAME pilot merchant id the
+// worker derives by default in apps/worker/src/boot.ts's pilotMerchantId()
+// (createCounterId("merchant", new Uint8Array(16).fill(7))). These two values
+// must agree — a real (`ctr_merchant_...`), not human-readable, id — or
+// transactions the worker records will never match what this page queries.
+// If you change the worker's derivation, update this fallback too, or set
+// PILOT_MERCHANT_ID (worker) and NEXT_PUBLIC_MERCHANT_ID (this console) to the
+// same explicit value on both sides instead.
+const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw";
 
 function getStatusVariant(state: TransactionState) {
   switch (state) {

@@ -27,7 +27,7 @@ databaseDescribe("PostgresIdempotencyStore", () => {
   }
 
   const database = new PostgresDatabase(testDatabaseUrl);
-  const store = new PostgresIdempotencyStore(database);
+  const store = new PostgresIdempotencyStore(database, "local");
 
   beforeAll(async () => {
     const migrations = await loadMigrations(migrationsDirectory);

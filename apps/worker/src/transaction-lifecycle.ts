@@ -116,6 +116,27 @@ export interface AuthorityEnvelope {
   readonly walletId?: string | undefined;
 }
 
+/**
+ * Durable transaction-read-model persistence contract. Defined here (not in
+ * transaction-persistence.ts, which implements it) so that file can depend on
+ * this one without creating a circular module dependency — this file already
+ * needs TransactionProjectionStore for createTransactionLifecycleHandler's
+ * signature, and transaction-persistence.ts already needs AuthorityEnvelope.
+ */
+export interface TransactionProjectionInput {
+  /** Stable opaque worker idempotency key; also the console transaction id. */
+  readonly transactionId: string;
+  readonly amountMinor: number;
+  readonly currency: string;
+  readonly authority: AuthorityEnvelope | undefined;
+}
+
+export interface TransactionProjectionStore {
+  start(input: TransactionProjectionInput): Promise<void>;
+  complete(input: TransactionProjectionInput): Promise<void>;
+  fail(input: TransactionProjectionInput): Promise<void>;
+}
+
 export interface PaymentAuthorizationResult {
   /**
    * Provider-reported outcome. `indeterminate` means an external effect MAY
@@ -336,11 +357,22 @@ export const TRANSACTION_LIFECYCLE_JOB_TYPE = "transaction.lifecycle";
 export function createTransactionLifecycleHandler(
   provider: PaymentAuthorizationPort,
   sink: ReceiptSink,
+  projectionStore?: TransactionProjectionStore,
 ): JobHandler {
   return {
     async execute(job: HandledJob, now: Instant): Promise<void> {
       const payload = parsePayload(job.payload);
       const transactionId = deriveTransactionId(payload.transactionId);
+      const projection = {
+        transactionId: payload.transactionId,
+        amountMinor: payload.amountMinor,
+        currency: payload.currency,
+        authority: payload.authority,
+      };
+      // Persist before the provider call. A failure here is intentionally
+      // fail-closed: it is safer to retry before an external effect than to
+      // create an effect the operator cannot see or reconcile.
+      await projectionStore?.start(projection);
 
       // 1. Real state machine: DRAFT -> QUOTED -> CHECKOUT_READY -> COMMITTING.
       let state = createInitialState({ transactionId, now });
@@ -390,6 +422,7 @@ export function createTransactionLifecycleHandler(
           transitionPayment({ state, to: "declined", expectedVersion: state.version, now }),
           "lifecycle.payment",
         );
+        await projectionStore?.fail(projection);
         throw new HandlerError(
           "payment.declined",
           `Payment declined by provider for ${payload.transactionId}`,
@@ -493,6 +526,7 @@ export function createTransactionLifecycleHandler(
         "lifecycle.phase",
       );
 
+      await projectionStore?.complete(projection);
       await sink.record({
         transactionId,
         idempotencyKey: payload.transactionId,

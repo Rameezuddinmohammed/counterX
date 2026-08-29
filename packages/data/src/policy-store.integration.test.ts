@@ -24,7 +24,7 @@ databaseDescribe("PostgresPolicyStore", () => {
   }
 
   const database = new PostgresDatabase(testDatabaseUrl);
-  const store = new PostgresPolicyStore(database);
+  const store = new PostgresPolicyStore(database, "local");
 
   beforeAll(async () => {
     const migrations = await loadMigrations(migrationsDirectory);

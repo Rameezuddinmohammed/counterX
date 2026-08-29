@@ -41,7 +41,11 @@ export interface IndeterminateResult {
   readonly correlationId: string;
 }
 
-export type HandlerError = ReviewRequiredResult | StaleResult | IndeterminateResult;
+export interface NotFoundResult {
+  readonly kind: "not_found";
+}
+
+export type HandlerError = ReviewRequiredResult | StaleResult | IndeterminateResult | NotFoundResult;
 
 // ---------------------------------------------------------------------------
 // Capability Handler

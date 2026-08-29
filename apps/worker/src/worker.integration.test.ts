@@ -57,7 +57,7 @@ const noopSink: ReceiptSink = { record: (): Promise<void> => Promise.resolve() }
 
 dbDescribe("worker integration (DB-gated)", () => {
   const database = new PostgresDatabase(testDatabaseUrl ?? "");
-  const repo = new PostgresJobRepository(database);
+  const repo = new PostgresJobRepository(database, "local");
   const createdJobIds: CounterId<"job">[] = [];
 
   afterAll(async () => {

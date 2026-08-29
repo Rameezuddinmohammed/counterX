@@ -25,6 +25,18 @@
     },
     {
       "path": "../../packages/workflow"
+    },
+    {
+      "path": "../../packages/payment-sdk"
+    },
+    {
+      "path": "../../packages/razorpay-adapter"
+    },
+    {
+      "path": "../../packages/shopify-connector"
+    },
+    {
+      "path": "../../packages/commerce-graph"
     }
   ]
 }

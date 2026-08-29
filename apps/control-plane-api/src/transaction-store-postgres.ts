@@ -71,6 +71,26 @@ function readAuthorityString(authorityContext: unknown, key: string): string | u
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function readAuthorityAmount(
+  authorityContext: unknown,
+): { amount: number; currency: "INR" } | undefined {
+  if (authorityContext === null || typeof authorityContext !== "object") {
+    return undefined;
+  }
+  const context = authorityContext as Record<string, unknown>;
+  const amountMinor = context["amountMinor"];
+  const currency = context["currency"];
+  if (
+    typeof amountMinor !== "number" ||
+    !Number.isSafeInteger(amountMinor) ||
+    amountMinor <= 0 ||
+    currency !== "INR"
+  ) {
+    return undefined;
+  }
+  return { amount: minorToMajor(BigInt(amountMinor)), currency: "INR" };
+}
+
 export function createPostgresTransactionStore(
   database: TransactionalDatabase,
   storeEnvironment: string,
@@ -94,6 +114,7 @@ export function createPostgresTransactionStore(
   async function loadAmount(
     transactionId: string,
     environment: string,
+    authorityContext: unknown,
   ): Promise<{ amount: number; currency: "INR" }> {
     const result = await database.query<AmountRow>(
       `SELECT amount_minor, currency
@@ -105,7 +126,11 @@ export function createPostgresTransactionStore(
     );
     const row = result.rows[0];
     if (row === undefined) {
-      return { amount: 0, currency: "INR" };
+      // The worker writes the intended amount into the durable transaction
+      // spine before it calls a provider. This preserves an honest amount for
+      // an in-flight/indeterminate transaction when the spend reservation is
+      // absent or has not been committed yet.
+      return readAuthorityAmount(authorityContext) ?? { amount: 0, currency: "INR" };
     }
     // The front-end type pins currency to 'INR'; the runtime limits are also
     // denominated in INR. We surface INR regardless of the stored code.
@@ -114,7 +139,11 @@ export function createPostgresTransactionStore(
 
   async function assemble(intent: IntentRow, environment: string): Promise<Transaction> {
     const orderedSteps = await loadSteps(intent.transaction_id, environment);
-    const { amount, currency } = await loadAmount(intent.transaction_id, environment);
+    const { amount, currency } = await loadAmount(
+      intent.transaction_id,
+      environment,
+      intent.authority_context,
+    );
     const createdAt = toIso(intent.created_at);
 
     const currentState = deriveTransactionState(intent.status, orderedSteps);
