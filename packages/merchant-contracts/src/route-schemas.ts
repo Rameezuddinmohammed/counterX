@@ -197,6 +197,8 @@ export interface QuoteResponse {
     readonly currency: string;
   };
   readonly expiresAt: string;
+  /** Binds a CTP-signed purchase intent to this exact quote. */
+  readonly quoteDigest: string;
   readonly version: string;
 }
 

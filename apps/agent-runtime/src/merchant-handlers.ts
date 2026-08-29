@@ -142,6 +142,8 @@ export interface QuoteResult {
   readonly unitPrice: { readonly amount: string; readonly currency: string };
   readonly totalPrice: { readonly amount: string; readonly currency: string };
   readonly expiresAt: string;
+  /** Binds a CTP-signed purchase intent to this exact quote (see TransactionCreateInput.ctpEnvelope). */
+  readonly quoteDigest: string;
   readonly version: string;
 }
 
@@ -429,6 +431,7 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
           unitPrice: { amount: "10.00", currency: input.currency },
           totalPrice: { amount: String(10 * input.quantity) + ".00", currency: input.currency },
           expiresAt: new Date(Date.now() + 900_000).toISOString(),
+          quoteDigest: "sha256:mock-quote-digest",
           version: "v1",
         });
         cacheResult(ctx, result);

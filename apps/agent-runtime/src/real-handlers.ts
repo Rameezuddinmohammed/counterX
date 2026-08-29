@@ -209,6 +209,10 @@ function createQuoteHandler(
         unitPrice: { amount: minorToDecimalString(variant.priceMinor), currency: variant.currency },
         totalPrice: { amount: minorToDecimalString(quote.totalPaise), currency: quote.currency },
         expiresAt: new Date(quote.validUntil as unknown as number).toISOString(),
+        // A real buyer's signed purchase intent must bind to this exact
+        // value (payload.quote_digest) — without it in the response, a
+        // caller has no way to construct a matching signature at all.
+        quoteDigest: quote.ctpDigest,
         version: "v1",
       });
     },

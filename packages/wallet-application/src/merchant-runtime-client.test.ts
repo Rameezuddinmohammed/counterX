@@ -336,6 +336,7 @@ describe("InMemoryMerchantRuntimeClient", () => {
         unitPrice: { amount: "500", currency: "INR" },
         totalPrice: { amount: "1000", currency: "INR" },
         expiresAt: "2025-12-31T23:59:59Z",
+        quoteDigest: "sha256:test-digest",
         version: "v1",
       });
 
