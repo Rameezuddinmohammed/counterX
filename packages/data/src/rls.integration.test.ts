@@ -116,6 +116,8 @@ const protectedRelations = [
   "identity.support_grant_events",
   "identity.support_grant_permissions",
   "identity.support_grants",
+  "identity.wallet_setup_tokens",
+  "identity.wallet_users",
   "merchant.scopes",
   "wallet.scopes",
 ] as const;
