@@ -1,0 +1,33 @@
+# The Dockerfile COPYs the repo then runs `pnpm install` fresh inside the
+# container, so local install/build artifacts are never needed as build
+# context and only bloat/slow the upload — pnpm's node_modules is full of
+# symlinks that can break Docker's context tar entirely, which is what this
+# file exists to prevent.
+#
+# NOTE: unlike .gitignore, Docker's ignore patterns are NOT recursive by
+# default — a bare `node_modules/` only matches at the context root. Every
+# pattern below is prefixed with **/ so it matches at any depth too.
+
+**/.tools/
+**/node_modules/
+**/dist/
+**/build/
+**/*.tsbuildinfo
+**/.next/
+**/out/
+**/next-env.d.ts
+**/coverage/
+**/.env
+**/.env.*
+!**/.env.example
+**/.local/
+**/*.log
+**/npm-debug.log*
+**/pnpm-debug.log*
+**/.DS_Store
+**/Thumbs.db
+**/.vscode/*
+!**/.vscode/extensions.json
+**/gitleaks-report.json
+.git/
+.claude/

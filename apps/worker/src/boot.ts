@@ -24,7 +24,14 @@ import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
 import { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger } from "@counter/data";
-import type { AsyncStepLedger, AsyncKillSwitchStore, KillSwitchScope } from "@counter/data";
+import { DEFAULT_SPEND_LIMIT_CONFIG } from "@counter/data";
+import type {
+  AsyncStepLedger,
+  AsyncKillSwitchStore,
+  KillSwitchScope,
+  SpendLimitConfig,
+  PolicyConfigEntry,
+} from "@counter/data";
 import type { Instant } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
 
@@ -247,7 +254,7 @@ export function buildRealConnectorBundle(
  * this derivation, update that file's comment/fallback too, or set
  * `PILOT_MERCHANT_ID` explicitly on both sides instead.
  */
-function pilotMerchantId(): MerchantId {
+export function pilotMerchantId(): MerchantId {
   const configured = process.env["PILOT_MERCHANT_ID"];
   if (configured !== undefined && configured.trim().length > 0) {
     const parsed = parseCounterId(configured.trim(), "merchant");
@@ -262,6 +269,73 @@ function pilotMerchantId(): MerchantId {
     throw new Error("Failed to derive pilot merchant id");
   }
   return result.value;
+}
+
+/**
+ * Shape a merchant's policy config may carry to override the durable spend
+ * ledger's default ceilings. Stored as a sibling key alongside the existing
+ * `policyVersion`/`rules`/`effectiveFrom` shape written via the console's
+ * policy route (see apps/control-plane-api/src/policy-routes.ts) — the store
+ * itself treats `config` as opaque JSON, so this does not conflict with the
+ * rule-compiler's own fields. Amounts are strings in JSON (bigint-safe).
+ */
+interface SpendLimitsJson {
+  readonly maxTransactionAmountMinor: string;
+  readonly maxRolling24hTotalMinor: string;
+  readonly maxAttemptsPerWindow: number;
+  readonly windowMs: number;
+  readonly currency: string;
+}
+
+function isSpendLimitsJson(value: unknown): value is SpendLimitsJson {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v["maxTransactionAmountMinor"] === "string" &&
+    typeof v["maxRolling24hTotalMinor"] === "string" &&
+    typeof v["maxAttemptsPerWindow"] === "number" &&
+    typeof v["windowMs"] === "number" &&
+    typeof v["currency"] === "string"
+  );
+}
+
+/**
+ * Resolves the spend-limit ceilings the durable ledger enforces. Reads an
+ * optional `spendLimits` field from the merchant's policy config (set via the
+ * console's policy API) so an operator can change limits without a code
+ * deploy — only a worker restart, since the ledger reads this once at boot.
+ * Falls back to {@link DEFAULT_SPEND_LIMIT_CONFIG} whenever the config is
+ * absent OR malformed: this is a money-safety gate, so a bad/missing config
+ * must fail closed to the known-safe default, never open to unlimited spend.
+ */
+export function resolveSpendLimitConfig(
+  policyEntry: PolicyConfigEntry | undefined,
+): SpendLimitConfig {
+  if (policyEntry === undefined) {
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
+  const config = policyEntry.config;
+  if (config === null || typeof config !== "object") {
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
+  const candidate = (config as Record<string, unknown>)["spendLimits"];
+  if (!isSpendLimitsJson(candidate)) {
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
+  try {
+    return Object.freeze({
+      maxTransactionAmountMinor: BigInt(candidate.maxTransactionAmountMinor),
+      maxRolling24hTotalMinor: BigInt(candidate.maxRolling24hTotalMinor),
+      maxAttemptsPerWindow: candidate.maxAttemptsPerWindow,
+      windowMs: candidate.windowMs,
+      currency: candidate.currency,
+    });
+  } catch {
+    // BigInt() throws on a non-numeric string; fail closed to the default.
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
 }
 
 // ─── Durable step ledger adapter ─────────────────────────────────────────────

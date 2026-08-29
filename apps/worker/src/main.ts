@@ -34,11 +34,12 @@ import {
   PostgresStepLedger,
   PostgresKillSwitchStore,
   PostgresSpendLedger,
+  PostgresPolicyStore,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
-import { selectPaymentAuthorizationPort } from "./boot.js";
+import { selectPaymentAuthorizationPort, pilotMerchantId, resolveSpendLimitConfig } from "./boot.js";
 import { isProdLike } from "./connector-env.js";
 import {
   reconciliationEnabled,
@@ -135,7 +136,7 @@ function buildHandlers(
   ]);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const databaseUrl = process.env["DATABASE_URL"];
   if (databaseUrl === undefined || databaseUrl.trim().length === 0) {
     console.error(`[${APP_NAME}] DATABASE_URL is required`);
@@ -164,6 +165,24 @@ function main(): void {
   const outboxRepository = new PostgresOutboxRepository(database, runtimeEnvironment);
   const sink = createOutboxReceiptSink(outboxRepository);
 
+  // Resolve the operating merchant's spend-limit ceilings before constructing
+  // the durable ledger: an optional per-merchant override read from the
+  // merchant's policy config (settable via the console's policy API without a
+  // code deploy — only a worker restart, since this is read once at boot),
+  // falling back to the platform default when absent or malformed. A policy
+  // lookup failure also falls back to the default rather than blocking boot,
+  // since the default is a known-safe ceiling, not "no limit".
+  const policyStore = new PostgresPolicyStore(database, runtimeEnvironment);
+  const policyEntryResult = await policyStore.get(pilotMerchantId());
+  if (!policyEntryResult.ok) {
+    logger.error("failed to load merchant policy config; using default spend limits", {
+      error: policyEntryResult.error.message,
+    });
+  }
+  const spendLimitConfig = resolveSpendLimitConfig(
+    policyEntryResult.ok ? policyEntryResult.value : undefined,
+  );
+
   // Select the payment connector from the environment. In a prod-like
   // environment with missing credentials this throws (fail loud) before the
   // loop starts. The durable Postgres-backed step ledger and kill-switch store
@@ -172,7 +191,7 @@ function main(): void {
   const selection = selectPaymentAuthorizationPort(process.env, undefined, {
     stepLedger: new PostgresStepLedger(database, runtimeEnvironment),
     killSwitchStore: new PostgresKillSwitchStore(database, runtimeEnvironment),
-    spendLedger: new PostgresSpendLedger(database, runtimeEnvironment),
+    spendLedger: new PostgresSpendLedger(database, runtimeEnvironment, spendLimitConfig),
   });
   logger.info("payment connector selected", { mode: selection.mode, environment: runtimeEnvironment });
 
@@ -242,4 +261,7 @@ function main(): void {
   logger.info("started", { leaseOwner: config.leaseOwner });
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(`[${APP_NAME}] fatal startup error`, error instanceof Error ? error.message : error);
+  process.exit(1);
+});

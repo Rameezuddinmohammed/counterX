@@ -288,6 +288,11 @@ function createTransactionCreateHandler(
               quotedAmountMinor: Number(quote.totalPriceMinor),
               authorizationExpiresAtMs: quote.expiresAt.getTime(),
               authorizedMerchantId: ctx.merchantId,
+              // A stable per-merchant wallet id so the worker's rolling 24h
+              // spend ledger accumulates ACROSS this merchant's transactions
+              // instead of each transaction getting its own one-shot bucket
+              // (which would make the rolling-total ceiling a no-op).
+              walletId: ctx.merchantId,
             },
           },
           correlationId: undefined,
