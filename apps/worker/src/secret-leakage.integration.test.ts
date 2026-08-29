@@ -160,117 +160,112 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
     expect(hits).toContain("UPI PIN label pattern");
   });
 
-  it(
-    "emits ZERO secrets across logs, result, and durable rows during a real checkout",
-    async () => {
-      await database.query(RUNTIME_DDL);
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        idempotencyKey,
-      ]);
+  it("emits ZERO secrets across logs, result, and durable rows during a real checkout", async () => {
+    await database.query(RUNTIME_DDL);
+    await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+      idempotencyKey,
+    ]);
 
-      // Capture ALL console output during the real run.
-      const captured: string[] = [];
-      const methods = ["log", "info", "warn", "error", "debug"] as const;
-      const originals = methods.map((m) => [m, console[m]] as const);
-      for (const m of methods) {
-        (console as unknown as Record<string, unknown>)[m] = (...args: unknown[]): void => {
-          captured.push(args.map((a) => (typeof a === "string" ? a : safeStringify(a))).join(" "));
-        };
-      }
-
-      // Leave the order PENDING (mark-paid held) so it is cancellable in cleanup.
-      const heldShopify: ShopifyConnector = {
-        ...bundle!.shopify,
-        paymentRecord: {
-          execute: (): Promise<{
-            readonly status: "indeterminate";
-            readonly lastKnownState: string;
-          }> =>
-            Promise.resolve({ status: "indeterminate" as const, lastKnownState: "held" }),
-        } as unknown as ShopifyConnector["paymentRecord"],
+    // Capture ALL console output during the real run.
+    const captured: string[] = [];
+    const methods = ["log", "info", "warn", "error", "debug"] as const;
+    const originals = methods.map((m) => [m, console[m]] as const);
+    for (const m of methods) {
+      (console as unknown as Record<string, unknown>)[m] = (...args: unknown[]): void => {
+        captured.push(args.map((a) => (typeof a === "string" ? a : safeStringify(a))).join(" "));
       };
+    }
 
-      let result: unknown;
-      try {
-        const port = createRealPaymentAuthorizationPort({
-          shopify: heldShopify,
-          razorpay: bundle!.razorpay,
-          payments: bundle!.payments,
-          merchantId: bundle!.merchantId,
-          stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
-          actionTimeoutMs: 30_000,
-        });
-        const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
-        const request: PaymentAuthorizationRequest = {
-          transactionId: "ctr_txn_scan" as PaymentAuthorizationRequest["transactionId"],
-          amountMinor: 100,
-          currency: "INR",
-          idempotencyKey,
-          ...(variantId !== undefined ? { variantId } : {}),
-          quantity: 1,
-        };
-        result = await port.authorizeAndCapture(request);
-      } finally {
-        for (const [m, fn] of originals) {
-          (console as unknown as Record<string, unknown>)[m] = fn;
-        }
+    // Leave the order PENDING (mark-paid held) so it is cancellable in cleanup.
+    const heldShopify: ShopifyConnector = {
+      ...bundle!.shopify,
+      paymentRecord: {
+        execute: (): Promise<{
+          readonly status: "indeterminate";
+          readonly lastKnownState: string;
+        }> => Promise.resolve({ status: "indeterminate" as const, lastKnownState: "held" }),
+      } as unknown as ShopifyConnector["paymentRecord"],
+    };
+
+    let result: unknown;
+    try {
+      const port = createRealPaymentAuthorizationPort({
+        shopify: heldShopify,
+        razorpay: bundle!.razorpay,
+        payments: bundle!.payments,
+        merchantId: bundle!.merchantId,
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        actionTimeoutMs: 30_000,
+      });
+      const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
+      const request: PaymentAuthorizationRequest = {
+        transactionId: "ctr_txn_scan" as PaymentAuthorizationRequest["transactionId"],
+        amountMinor: 100,
+        currency: "INR",
+        idempotencyKey,
+        ...(variantId !== undefined ? { variantId } : {}),
+        quantity: 1,
+      };
+      result = await port.authorizeAndCapture(request);
+    } finally {
+      for (const [m, fn] of originals) {
+        (console as unknown as Record<string, unknown>)[m] = fn;
       }
+    }
 
-      // Gather all durable rows the runtime touched for this key.
-      const ledgerRows = await database.query(
-        `SELECT id, environment, idempotency_key, step, status, reference, snapshot
+    // Gather all durable rows the runtime touched for this key.
+    const ledgerRows = await database.query(
+      `SELECT id, environment, idempotency_key, step, status, reference, snapshot
          FROM runtime.lifecycle_steps WHERE idempotency_key = $1`,
-        [idempotencyKey],
-      );
+      [idempotencyKey],
+    );
 
-      // Persist a durable receipt outbox row EXACTLY as the deployed receipt
-      // sink does (transactionId + idempotencyKey + provider reference + state),
-      // so the scan covers the outbox material the runtime actually writes.
-      const outbox = new PostgresOutboxRepository(database);
-      const appended = await outbox.append(
-        [
-          {
-            id: randomOutboxId(),
-            eventType: "transaction.receipt.v1",
-            eventVersion: 1,
-            payload: {
-              transactionId: "ctr_txn_scan",
-              idempotencyKey,
-              phase: "INDETERMINATE",
-              providerReference:
-                typeof result === "object" && result !== null && "providerReference" in result
-                  ? (result as { providerReference?: unknown }).providerReference
-                  : undefined,
-            },
-            correlationId: undefined,
+    // Persist a durable receipt outbox row EXACTLY as the deployed receipt
+    // sink does (transactionId + idempotencyKey + provider reference + state),
+    // so the scan covers the outbox material the runtime actually writes.
+    const outbox = new PostgresOutboxRepository(database);
+    const appended = await outbox.append(
+      [
+        {
+          id: randomOutboxId(),
+          eventType: "transaction.receipt.v1",
+          eventVersion: 1,
+          payload: {
+            transactionId: "ctr_txn_scan",
             idempotencyKey,
+            phase: "INDETERMINATE",
+            providerReference:
+              typeof result === "object" && result !== null && "providerReference" in result
+                ? (result as { providerReference?: unknown }).providerReference
+                : undefined,
           },
-        ],
-        Date.now() as Instant,
-      );
-      expect(appended.ok).toBe(true);
+          correlationId: undefined,
+          idempotencyKey,
+        },
+      ],
+      Date.now() as Instant,
+    );
+    expect(appended.ok).toBe(true);
 
-      const outboxRows = await database.query(
-        `SELECT id, environment, event_type, payload
+    const outboxRows = await database.query(
+      `SELECT id, environment, event_type, payload
          FROM runtime.outbox_events WHERE payload ->> 'idempotencyKey' = $1`,
-        [idempotencyKey],
-      );
+      [idempotencyKey],
+    );
 
-      const material: string[] = [
-        ...captured,
-        safeStringify(result),
-        safeStringify(ledgerRows.rows),
-        // The durable outbox receipt rows the runtime persists.
-        safeStringify(outboxRows.rows),
-      ];
-      const haystack = material.join("\n");
+    const material: string[] = [
+      ...captured,
+      safeStringify(result),
+      safeStringify(ledgerRows.rows),
+      // The durable outbox receipt rows the runtime persists.
+      safeStringify(outboxRows.rows),
+    ];
+    const haystack = material.join("\n");
 
-      const matchers = buildMatchers();
-      const hits = scanForLeaks(haystack, matchers);
-      expect(hits).toEqual([]);
-    },
-    180_000,
-  );
+    const matchers = buildMatchers();
+    const hits = scanForLeaks(haystack, matchers);
+    expect(hits).toEqual([]);
+  }, 180_000);
 });
 
 /**
@@ -323,7 +318,9 @@ function isLuhnValid(digits: string): boolean {
 
 function safeStringify(value: unknown): string {
   try {
-    return JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+    return JSON.stringify(value, (_k: string, v: unknown) =>
+      typeof v === "bigint" ? v.toString() : (v as unknown),
+    );
   } catch {
     return String(value);
   }

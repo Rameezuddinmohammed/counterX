@@ -1,0 +1,17 @@
+# Normalize line endings to LF for all text files so a checkout is byte-for-byte
+# identical on Windows, macOS, and Linux/CI, matching .prettierrc.json's
+# "endOfLine": "lf". Without this, a Windows checkout with the common
+# core.autocrlf=true setting converts every text file to CRLF and every
+# `pnpm format:check` run reports the entire repository as misformatted.
+* text=auto eol=lf
+
+# Binary/generated assets: never text-convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

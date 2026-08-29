@@ -4,10 +4,7 @@ import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import { cn } from "../lib/utils";
-import {
-  Dialog,
-  DialogContent,
-} from "./dialog";
+import { Dialog, DialogContent } from "./dialog";
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -17,17 +14,14 @@ const Command = React.forwardRef<
     ref={ref}
     className={cn(
       "flex h-full w-full flex-col overflow-hidden rounded-xl bg-[var(--surface)] text-[var(--foreground)]",
-      className
+      className,
     )}
     {...props}
   />
 ));
 Command.displayName = "Command";
 
-function CommandDialog({
-  children,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof Dialog>) {
+function CommandDialog({ children, ...props }: React.ComponentPropsWithoutRef<typeof Dialog>) {
   return (
     <Dialog {...props}>
       <DialogContent className="overflow-hidden p-0 shadow-2xl">
@@ -49,7 +43,7 @@ const CommandInput = React.forwardRef<
       ref={ref}
       className={cn(
         "flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-[var(--foreground-muted)] disabled:cursor-not-allowed disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
@@ -89,7 +83,7 @@ const CommandGroup = React.forwardRef<
     ref={ref}
     className={cn(
       "overflow-hidden p-1 text-[var(--foreground)] [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[var(--foreground-muted)]",
-      className
+      className,
     )}
     {...props}
   />
@@ -116,23 +110,17 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none data-[selected=true]:bg-[var(--surface-secondary)] data-[selected=true]:text-[var(--foreground)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
-      className
+      className,
     )}
     {...props}
   />
 ));
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 
-const CommandShortcut = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) => {
+const CommandShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
   return (
     <span
-      className={cn(
-        "ml-auto text-xs tracking-widest text-[var(--foreground-muted)]",
-        className
-      )}
+      className={cn("ml-auto text-xs tracking-widest text-[var(--foreground-muted)]", className)}
       {...props}
     />
   );
@@ -145,13 +133,12 @@ export interface CommandPaletteProps {
   children?: React.ReactNode;
 }
 
-export function CommandPalette({
-  open,
-  onOpenChange,
-  children,
-}: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, children }: CommandPaletteProps) {
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog
+      {...(open !== undefined ? { open } : {})}
+      {...(onOpenChange !== undefined ? { onOpenChange } : {})}
+    >
       {children}
     </CommandDialog>
   );
