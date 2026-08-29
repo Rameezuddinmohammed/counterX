@@ -14,7 +14,7 @@
  * or private keys.
  */
 
-import { sha256Digest } from "@counter/domain";
+import { sha256Digest, type Environment } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
 import type { AuthorityEnvelope } from "./transaction-lifecycle.js";
 
@@ -61,14 +61,15 @@ function authorityContext(input: TransactionProjectionInput): Record<string, unk
 }
 
 /**
- * Postgres-backed transaction spine used by the worker. It deliberately uses
- * the existing "local" runtime partition because the current durable step and
- * spend ledgers do too; the control plane is configured to project that same
- * partition until all runtime repositories become environment-parameterized.
+ * Postgres-backed transaction spine used by the worker. Bound to the same
+ * resolved runtime `Environment` as every other durable repository (step
+ * ledger, kill-switch store, spend ledger, policy store) so the console's
+ * read model and the worker's writes always agree on partition.
  */
 export class PostgresTransactionProjectionStore implements TransactionProjectionStore {
   constructor(
     private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
     private readonly merchantId: string,
   ) {}
 
@@ -78,7 +79,7 @@ export class PostgresTransactionProjectionStore implements TransactionProjection
       `INSERT INTO runtime.workflow_intents (
          id, transaction_id, environment, scope_kind, scope_id, command_type,
          command_digest, authority_context, status, created_at
-       ) VALUES ($1, $2, 'local', 'merchant', $3, $4, $5, $6, 'executing', clock_timestamp())
+       ) VALUES ($1, $2, $3, 'merchant', $4, $5, $6, $7, 'executing', clock_timestamp())
        ON CONFLICT (environment, transaction_id, command_type, command_digest)
        DO UPDATE SET status = CASE
          WHEN runtime.workflow_intents.status = 'completed' THEN 'completed'
@@ -87,6 +88,7 @@ export class PostgresTransactionProjectionStore implements TransactionProjection
       [
         intentId(input),
         input.transactionId,
+        this.environment,
         this.merchantId,
         COMMAND_TYPE,
         digest,
@@ -110,11 +112,11 @@ export class PostgresTransactionProjectionStore implements TransactionProjection
     const result = await this.database.query(
       `UPDATE runtime.workflow_intents
           SET status = $1
-        WHERE environment = 'local'
-          AND transaction_id = $2
-          AND command_type = $3
-          AND command_digest = $4`,
-      [status, input.transactionId, COMMAND_TYPE, commandDigest(input)],
+        WHERE environment = $2
+          AND transaction_id = $3
+          AND command_type = $4
+          AND command_digest = $5`,
+      [status, this.environment, input.transactionId, COMMAND_TYPE, commandDigest(input)],
     );
     if ((result.rowCount ?? 0) !== 1) {
       throw new Error(`Transaction projection was not initialized for ${input.transactionId}`);

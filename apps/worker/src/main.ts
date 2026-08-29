@@ -182,7 +182,7 @@ function main(): void {
   const projectionStore =
     selection.bundle === undefined
       ? undefined
-      : new PostgresTransactionProjectionStore(database, selection.bundle.merchantId);
+      : new PostgresTransactionProjectionStore(database, runtimeEnvironment, selection.bundle.merchantId);
 
   const config: LoopConfig = {
     jobTypes: [TRANSACTION_LIFECYCLE_JOB_TYPE],
