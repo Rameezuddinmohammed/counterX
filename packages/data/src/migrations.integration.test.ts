@@ -35,6 +35,7 @@ const identityFunctionSignatures = [
   "identity.reject_column_changes()",
   "identity.reject_event_mutation()",
   "identity.require_registered_owner_scope()",
+  "identity.require_support_grant_authorization_permission()",
   "identity.require_support_grant_permission()",
   "identity.scope_claim_matches(platform.counter_environment,text,text)",
 ] as const;
@@ -64,8 +65,8 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const empty = await runner.status();
     expect(empty.currentVersion).toBe(0);
-    expect(empty.latestVersion).toBe(8);
-    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(empty.latestVersion).toBe(9);
+    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     const firstVersion = await runner.up(1);
     expect(firstVersion.currentVersion).toBe(1);
@@ -82,7 +83,7 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const upgraded = await runner.up(4);
     expect(upgraded.currentVersion).toBe(4);
-    expect(upgraded.pending.map((migration) => migration.version)).toEqual([5, 6, 7, 8]);
+    expect(upgraded.pending.map((migration) => migration.version)).toEqual([5, 6, 7, 8, 9]);
     expect(upgraded.applied.map(({ version, name }) => ({ version, name }))).toEqual([
       { version: 1, name: "environment-registry" },
       { version: 2, name: "synthetic-fixtures" },
@@ -123,8 +124,15 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const reappliedThird = await runner.up(3);
     expect(reappliedThird.currentVersion).toBe(3);
-    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length);
-    await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
+    // support_grant_authorizations / support_grant_authorization_permissions and
+    // identity.require_support_grant_authorization_permission() are created by migration 4
+    // and must not appear yet at version 3.
+    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length - 2);
+    await expect(identityFunctions(database)).resolves.toEqual(
+      identityFunctionSignatures.filter(
+        (signature) => signature !== "identity.require_support_grant_authorization_permission()",
+      ),
+    );
 
     const rolledBackOne = await runner.down(1);
     expect(rolledBackOne.currentVersion).toBe(1);
@@ -137,9 +145,9 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     await expect(tableExists(database, "platform", "environment_registry")).resolves.toBe(false);
 
     const restored = await runner.up();
-    expect(restored.currentVersion).toBe(8);
+    expect(restored.currentVersion).toBe(9);
     expect(restored.applied.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8,
+      1, 2, 3, 4, 5, 6, 7, 8, 9,
     ]);
     await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length);
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
@@ -160,7 +168,13 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     expect(unchanged.currentVersion).toBe(3);
     await expect(tableExists(database, "identity", "unexpected_later_object")).resolves.toBe(true);
     await expect(tableExists(database, "identity", "actors")).resolves.toBe(true);
-    await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
+    // Only migrations 1-3 are applied here; identity.require_support_grant_authorization_permission()
+    // is created by migration 4 (support-grant-authorizations) and must not appear yet.
+    await expect(identityFunctions(database)).resolves.toEqual(
+      identityFunctionSignatures.filter(
+        (signature) => signature !== "identity.require_support_grant_authorization_permission()",
+      ),
+    );
 
     await database.query("DROP TABLE identity.unexpected_later_object");
     const rolledBack = await runner.down(2);
@@ -175,6 +189,7 @@ async function dropApplicationSchemas(database: PostgresDatabase): Promise<void>
     DROP SCHEMA IF EXISTS wallet CASCADE;
     DROP SCHEMA IF EXISTS merchant CASCADE;
     DROP SCHEMA IF EXISTS identity CASCADE;
+    DROP SCHEMA IF EXISTS runtime CASCADE;
     DROP SCHEMA IF EXISTS platform CASCADE;
   `);
 }

@@ -257,7 +257,7 @@ databaseDescribe("PostgreSQL row-level security", () => {
 
     const migrations = await loadMigrations(migrationsDirectory);
     const migrationStatus = await new MigrationRunner(adminDatabase, migrations).up();
-    expect(migrationStatus.currentVersion).toBe(8);
+    expect(migrationStatus.currentVersion).toBe(9);
 
     await createApplicationRole(adminDatabase, applicationRole, applicationPassword);
     roleCreated = true;
@@ -1942,6 +1942,7 @@ async function dropApplicationSchemas(database: PostgresDatabase): Promise<void>
     DROP SCHEMA IF EXISTS wallet CASCADE;
     DROP SCHEMA IF EXISTS merchant CASCADE;
     DROP SCHEMA IF EXISTS identity CASCADE;
+    DROP SCHEMA IF EXISTS runtime CASCADE;
     DROP SCHEMA IF EXISTS platform CASCADE;
   `);
 }
