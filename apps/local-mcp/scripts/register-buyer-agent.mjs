@@ -23,12 +23,16 @@
  * at rest by FileSecureKeyStore.
  */
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
 import readline from "node:readline/promises";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
+
+function importFromRepo(relativePath) {
+  return import(pathToFileURL(resolve(repoRoot, relativePath)).href);
+}
 
 for (const line of readFileSync(resolve(repoRoot, ".env"), "utf8").split(/\r?\n/)) {
   const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
@@ -40,10 +44,10 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
 const ENVIRONMENT = process.env.COUNTER_ENV ?? "test";
 
-const { PostgresDatabase } = await import(resolve(repoRoot, "packages/data/dist/database.js"));
-const { createCounterId } = await import(resolve(repoRoot, "packages/domain/dist/index.js"));
-const { FileSecureKeyStore, defaultWalletKeyStorePath } = await import(
-  resolve(repoRoot, "packages/wallet-domain/dist/index.js")
+const { PostgresDatabase } = await importFromRepo("packages/data/dist/database.js");
+const { createCounterId } = await importFromRepo("packages/domain/dist/index.js");
+const { FileSecureKeyStore, defaultWalletKeyStorePath } = await importFromRepo(
+  "packages/wallet-domain/dist/index.js",
 );
 
 function requireCounterId(kind, entropy) {
@@ -84,6 +88,12 @@ try {
       `INSERT INTO wallet.scopes (environment, scope_kind, wallet_id, created_at)
        VALUES ($1, 'wallet', $2, $3)`,
       [ENVIRONMENT, walletId, now.toISOString()],
+    );
+    await session.query(
+      `INSERT INTO identity.actors (
+         environment, actor_kind, actor_id, owner_scope_kind, owner_scope_id, status, created_at
+       ) VALUES ($1, 'registered_agent', $2, 'wallet', $3, 'active', $4)`,
+      [ENVIRONMENT, agentId, walletId, now.toISOString()],
     );
     await session.query(
       `INSERT INTO identity.agent_public_keys (
