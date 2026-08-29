@@ -16,21 +16,9 @@
 
 import { sha256Digest, type Environment } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
-import type { AuthorityEnvelope } from "./transaction-lifecycle.js";
+import type { TransactionProjectionInput, TransactionProjectionStore } from "./transaction-lifecycle.js";
 
-export interface TransactionProjectionInput {
-  /** Stable opaque worker idempotency key; also the console transaction id. */
-  readonly transactionId: string;
-  readonly amountMinor: number;
-  readonly currency: string;
-  readonly authority: AuthorityEnvelope | undefined;
-}
-
-export interface TransactionProjectionStore {
-  start(input: TransactionProjectionInput): Promise<void>;
-  complete(input: TransactionProjectionInput): Promise<void>;
-  fail(input: TransactionProjectionInput): Promise<void>;
-}
+export type { TransactionProjectionInput, TransactionProjectionStore };
 
 const COMMAND_TYPE = "transaction.lifecycle";
 

@@ -199,7 +199,7 @@ gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-e
             lastKnownState: "provider.timeout-after-effect",
           }),
       };
-      const outbox = new PostgresOutboxRepository(database);
+      const outbox = new PostgresOutboxRepository(database, "local");
       const handler = createTransactionLifecycleHandler(
         indeterminateProvider,
         outboxReceiptSink(outbox),

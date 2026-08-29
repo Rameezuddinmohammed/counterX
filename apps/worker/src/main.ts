@@ -160,8 +160,8 @@ function main(): void {
   const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
 
   const database = new PostgresDatabase(databaseUrl);
-  const jobRepository = new PostgresJobRepository(database);
-  const outboxRepository = new PostgresOutboxRepository(database);
+  const jobRepository = new PostgresJobRepository(database, runtimeEnvironment);
+  const outboxRepository = new PostgresOutboxRepository(database, runtimeEnvironment);
   const sink = createOutboxReceiptSink(outboxRepository);
 
   // Select the payment connector from the environment. In a prod-like

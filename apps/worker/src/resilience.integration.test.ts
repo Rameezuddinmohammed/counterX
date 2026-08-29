@@ -236,7 +236,7 @@ dbGatedDescribe("resilience — duplicate/reordered webhook deduped to one effec
 
       // REAL Postgres inbox dedup: first delivery is new, duplicate + reordered
       // re-deliveries of the SAME source event are deduped to one row.
-      const inbox = new PostgresInboxRepository(database);
+      const inbox = new PostgresInboxRepository(database, "local");
       const receive = () =>
         inbox.receive(
           {

@@ -366,7 +366,10 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
 // ─── PostgresOutboxRepository ───────────────────────────────────────────────
 
 export class PostgresOutboxRepository implements AsyncOutboxRepository {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async append(
     events: readonly OutboxEventInput[],
@@ -380,10 +383,11 @@ export class PostgresOutboxRepository implements AsyncOutboxRepository {
            id, environment, scope_kind, scope_id, event_type, event_version,
            payload, correlation_id, idempotency_key, status, attempts,
            next_attempt_at, created_at
-         ) VALUES ($1, 'local', 'platform', 'platform', $2, $3, $4, $5, $6, 'pending', 0, $7, $7)
+         ) VALUES ($1, $2, 'platform', 'platform', $3, $4, $5, $6, $7, 'pending', 0, $8, $8)
          RETURNING *`,
         [
           input.id,
+          this.environment,
           input.eventType,
           input.eventVersion,
           JSON.stringify(input.payload),
@@ -400,6 +404,27 @@ export class PostgresOutboxRepository implements AsyncOutboxRepository {
     }
 
     return ok(Object.freeze(created));
+  }
+
+  /**
+   * Finds the most recent outbox event of a given type recorded for an
+   * idempotency key (the raw per-transaction reference). Used to read back
+   * durable evidence the worker already wrote — e.g. agent-runtime resolving
+   * a transaction's receipt/provider reference — without re-deriving it.
+   */
+  async findByIdempotencyKey(
+    idempotencyKey: string,
+    eventType: string,
+  ): Promise<Result<OutboxEvent | undefined, CanonicalError>> {
+    const result = await this.database.query<OutboxEventRow>(
+      `SELECT * FROM runtime.outbox_events
+       WHERE environment = $1 AND idempotency_key = $2 AND event_type = $3
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [this.environment, idempotencyKey, eventType],
+    );
+    const row = result.rows[0];
+    return ok(row === undefined ? undefined : outboxEventFromRow(row));
   }
 
   async claim(
@@ -516,7 +541,10 @@ export class PostgresOutboxRepository implements AsyncOutboxRepository {
 // ─── PostgresInboxRepository ────────────────────────────────────────────────
 
 export class PostgresInboxRepository implements AsyncInboxRepository {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async receive(
     input: InboxEventInput,
@@ -527,12 +555,13 @@ export class PostgresInboxRepository implements AsyncInboxRepository {
       `INSERT INTO runtime.inbox_events (
          id, environment, source, source_event_id, event_type,
          payload, correlation_id, status, received_at
-       ) VALUES ($1, 'local', $2, $3, $4, $5, $6, 'received', $7)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'received', $8)
        ON CONFLICT (environment, source, source_event_id)
        DO NOTHING
        RETURNING *`,
       [
         input.id,
+        this.environment,
         input.source,
         input.sourceEventId,
         input.eventType,
@@ -579,7 +608,10 @@ export class PostgresInboxRepository implements AsyncInboxRepository {
 // ─── PostgresJobRepository ──────────────────────────────────────────────────
 
 export class PostgresJobRepository implements AsyncJobRepository {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async enqueue(input: JobInput, now: Instant): Promise<Result<Job, CanonicalError>> {
     const result = await this.database.query<JobRow>(
@@ -587,10 +619,11 @@ export class PostgresJobRepository implements AsyncJobRepository {
          id, environment, scope_kind, scope_id, type, payload_reference,
          status, available_at, attempt_count, max_attempts,
          correlation_id, created_at
-       ) VALUES ($1, 'local', 'platform', 'platform', $2, $3, 'available', $4, 0, $5, $6, $7)
+       ) VALUES ($1, $2, 'platform', 'platform', $3, $4, 'available', $5, 0, $6, $7, $8)
        RETURNING *`,
       [
         input.id,
+        this.environment,
         input.type,
         input.payload !== undefined ? JSON.stringify(input.payload) : null,
         asDate(input.availableAt),
@@ -624,28 +657,36 @@ export class PostgresJobRepository implements AsyncJobRepository {
     return this.database.transaction(async (session) => {
       const leaseExpiresAt = new Date(now + leaseDurationMs);
 
-      // Pre-claim sweep: transition expired-lease jobs back to available
+      // Pre-claim sweep: transition expired-lease jobs back to available.
+      // Scoped to this repository's environment — without this filter a
+      // worker instance would sweep/reclaim leases belonging to a DIFFERENT
+      // environment's jobs in the same physical database.
       await session.query(
         `UPDATE runtime.jobs
          SET status = 'available',
              lease_owner = NULL,
              lease_expires_at = NULL
-         WHERE status = 'leased'
-           AND type = ANY($1)
-           AND lease_expires_at < $2`,
-        [types as unknown as string[], asDate(now)],
+         WHERE environment = $1
+           AND status = 'leased'
+           AND type = ANY($2)
+           AND lease_expires_at < $3`,
+        [this.environment, types as unknown as string[], asDate(now)],
       );
 
-      // Select available jobs with FOR UPDATE SKIP LOCKED
+      // Select available jobs with FOR UPDATE SKIP LOCKED. Scoped to this
+      // repository's environment so a worker never claims (and executes) a
+      // job enqueued for a different environment sharing the same database —
+      // this repo's environments all partition one physical Postgres instance.
       const selectResult = await session.query<JobRow>(
         `SELECT * FROM runtime.jobs
-         WHERE status = 'available'
-           AND type = ANY($1)
-           AND available_at <= $2
+         WHERE environment = $1
+           AND status = 'available'
+           AND type = ANY($2)
+           AND available_at <= $3
          ORDER BY available_at
-         LIMIT $3
+         LIMIT $4
          FOR UPDATE SKIP LOCKED`,
-        [types as unknown as string[], asDate(now), limit],
+        [this.environment, types as unknown as string[], asDate(now), limit],
       );
 
       const claimed: Job[] = [];

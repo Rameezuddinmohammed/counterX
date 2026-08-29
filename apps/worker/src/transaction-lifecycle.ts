@@ -19,8 +19,6 @@ import {
   type CounterId,
   type Instant,
 } from "@counter/domain";
-import type { TransactionProjectionStore } from "./transaction-persistence.js";
-
 import {
   createInitialState,
   transitionOrder,
@@ -116,6 +114,27 @@ export interface AuthorityEnvelope {
   readonly authorizedMerchantId?: string | undefined;
   /** The wallet the spend is charged to; used for the rolling 24h ledger. */
   readonly walletId?: string | undefined;
+}
+
+/**
+ * Durable transaction-read-model persistence contract. Defined here (not in
+ * transaction-persistence.ts, which implements it) so that file can depend on
+ * this one without creating a circular module dependency — this file already
+ * needs TransactionProjectionStore for createTransactionLifecycleHandler's
+ * signature, and transaction-persistence.ts already needs AuthorityEnvelope.
+ */
+export interface TransactionProjectionInput {
+  /** Stable opaque worker idempotency key; also the console transaction id. */
+  readonly transactionId: string;
+  readonly amountMinor: number;
+  readonly currency: string;
+  readonly authority: AuthorityEnvelope | undefined;
+}
+
+export interface TransactionProjectionStore {
+  start(input: TransactionProjectionInput): Promise<void>;
+  complete(input: TransactionProjectionInput): Promise<void>;
+  fail(input: TransactionProjectionInput): Promise<void>;
 }
 
 export interface PaymentAuthorizationResult {
@@ -229,14 +248,6 @@ export interface TransactionReceipt {
 export interface ReceiptSink {
   record(receipt: TransactionReceipt): Promise<void>;
 }
-
-/**
- * Durable transaction-read-model persistence. The worker writes its transaction
- * spine before any external effect, so the Merchant Console can honestly show
- * an in-flight or indeterminate execution rather than synthesizing a row from a
- * receipt after the fact.
- */
-export type { TransactionProjectionStore } from "./transaction-persistence.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
