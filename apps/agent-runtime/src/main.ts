@@ -6,10 +6,21 @@
  * required: DATABASE_URL must be set and a PostgresDatabase is constructed and
  * injected into createServer. In local/test/development an in-memory store is
  * used unless DATABASE_URL is provided.
+ *
+ * Real merchant handlers (search/quote/transaction/cancel/refund/receipt) are
+ * wired from real Shopify + Razorpay credentials when present, via
+ * real-handlers.ts. Razorpay is optional: without it every handler except
+ * refund still works (refund throws at call time, naming what's missing).
+ * Without EITHER credential set, mock handlers are used and ONLY permitted in
+ * local/test/development — see index.ts's resolveMerchantHandlers.
  */
 import { resolveCounterEnvironment, type Environment } from "@counter/domain";
-import { PostgresDatabase, PostgresIdempotencyStore } from "@counter/data";
+import { PostgresDatabase, PostgresIdempotencyStore, PostgresJobRepository } from "@counter/data";
+import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
+import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
+import { requireShopifyCredentials, requireRazorpayCredentials } from "./connector-env.js";
+import { createRealHandlers } from "./real-handlers.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 
@@ -34,14 +45,6 @@ if (!runtimeEnvironmentResult.ok) {
 }
 const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
 
-// Mock merchant handlers are only acceptable for local development / test.
-// In production-like environments createServer will throw when no real
-// handlers are supplied, so the process fails loudly at startup rather than
-// silently serving mocked execution paths. Real handlers are not yet wired
-// end-to-end here; when they are, pass them via `merchantHandlers` and drop
-// this opt-in.
-const allowMockHandlers = isNonProduction;
-
 const databaseUrl = process.env["DATABASE_URL"];
 
 let database: PostgresDatabase | undefined;
@@ -60,11 +63,56 @@ if (hasDatabaseUrl) {
   database = new PostgresDatabase(databaseUrl as string);
 }
 
+// Real handlers require both a database (to enqueue jobs / read the
+// transaction spine / store quotes) and Shopify credentials (to serve real
+// catalog data). Razorpay is resolved separately and passed through as
+// possibly-undefined — only the refund handler needs it.
+let merchantHandlers: CreateServerOptions["merchantHandlers"];
+if (database !== undefined) {
+  const shopifyCreds = requireShopifyCredentials(process.env, !isNonProduction);
+  if (shopifyCreds !== null) {
+    const razorpayCreds = requireRazorpayCredentials(process.env, !isNonProduction);
+    const shopify = createShopifyConnectorFromConfig({
+      shopDomain: shopifyCreds.shopDomain,
+      accessToken: shopifyCreds.accessToken,
+      apiVersion: shopifyCreds.apiVersion,
+    });
+    const razorpay =
+      razorpayCreds === null
+        ? undefined
+        : createRealRazorpayProvider({
+            keyId: razorpayCreds.keyId,
+            keySecret: razorpayCreds.keySecret,
+            webhookSecret: razorpayCreds.webhookSecret,
+            baseUrl: razorpayCreds.baseUrl,
+          });
+    merchantHandlers = createRealHandlers({
+      database,
+      environment: runtimeEnvironment,
+      shopify,
+      jobRepository: new PostgresJobRepository(database, runtimeEnvironment),
+      razorpay,
+    });
+    console.log(`[${APP_NAME}] real merchant handlers wired`, {
+      shopify: true,
+      razorpay: razorpay !== undefined,
+    });
+  }
+}
+
+// Mock merchant handlers are only acceptable for local development / test,
+// and only when real handlers were not wired above (no DATABASE_URL or no
+// Shopify credentials). In production-like environments createServer will
+// throw when no real handlers are supplied, so the process fails loudly at
+// startup rather than silently serving mocked execution paths.
+const allowMockHandlers = isNonProduction && merchantHandlers === undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
   version: process.env["APP_VERSION"] || "0.1.0",
   allowMockHandlers,
+  ...(merchantHandlers !== undefined ? { merchantHandlers } : {}),
   ...(database !== undefined
     ? { idempotencyStore: new PostgresIdempotencyStore(database, runtimeEnvironment) }
     : {}),

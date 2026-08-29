@@ -94,6 +94,13 @@ function sendHandlerError(reply: FastifyReply, error: HandlerError, correlationI
         },
       });
       break;
+    case "not_found":
+      // Deliberately identical to a genuinely absent resource — never
+      // distinguishes "exists but not yours" from "does not exist".
+      void reply.status(404).send({
+        error: { code: "NOT_FOUND", message: "The requested resource was not found" },
+      });
+      break;
   }
 }
 

@@ -22,7 +22,11 @@
     "fastify": "5.2.1",
     "@counter/merchant-contracts": "workspace:0.1.0",
     "@counter/data": "workspace:0.1.0",
-    "@counter/workflow": "workspace:0.1.0"
+    "@counter/workflow": "workspace:0.1.0",
+    "@counter/shopify-connector": "workspace:0.1.0",
+    "@counter/razorpay-adapter": "workspace:0.1.0",
+    "@counter/payment-sdk": "workspace:0.1.0",
+    "@counter/commerce-graph": "workspace:0.1.0"
   },
   "devDependencies": {
     "jose": "6.0.11",

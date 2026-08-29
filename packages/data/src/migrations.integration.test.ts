@@ -62,11 +62,16 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
   it("upgrades version 2 to 3, rolls version 3 back, and restores the latest schema", async () => {
     const migrations = await loadMigrations(migrationsDirectory);
     const runner = new MigrationRunner(database, migrations);
+    // Derived from the actual migrations directory rather than hardcoded, so
+    // adding a new migration file cannot silently desync this expectation
+    // (this exact staleness bug bit two assertions before this fix).
+    const latest = migrations.length;
+    const allVersions = Array.from({ length: latest }, (_, index) => index + 1);
 
     const empty = await runner.status();
     expect(empty.currentVersion).toBe(0);
-    expect(empty.latestVersion).toBe(9);
-    expect(empty.pending.map((migration) => migration.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(empty.latestVersion).toBe(latest);
+    expect(empty.pending.map((migration) => migration.version)).toEqual(allVersions);
 
     const firstVersion = await runner.up(1);
     expect(firstVersion.currentVersion).toBe(1);
@@ -83,7 +88,7 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
 
     const upgraded = await runner.up(4);
     expect(upgraded.currentVersion).toBe(4);
-    expect(upgraded.pending.map((migration) => migration.version)).toEqual([5, 6, 7, 8, 9]);
+    expect(upgraded.pending.map((migration) => migration.version)).toEqual(allVersions.slice(4));
     expect(upgraded.applied.map(({ version, name }) => ({ version, name }))).toEqual([
       { version: 1, name: "environment-registry" },
       { version: 2, name: "synthetic-fixtures" },
@@ -145,10 +150,8 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     await expect(tableExists(database, "platform", "environment_registry")).resolves.toBe(false);
 
     const restored = await runner.up();
-    expect(restored.currentVersion).toBe(9);
-    expect(restored.applied.map((migration) => migration.version)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9,
-    ]);
+    expect(restored.currentVersion).toBe(latest);
+    expect(restored.applied.map((migration) => migration.version)).toEqual(allVersions);
     await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length);
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
   });

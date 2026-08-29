@@ -257,7 +257,8 @@ databaseDescribe("PostgreSQL row-level security", () => {
 
     const migrations = await loadMigrations(migrationsDirectory);
     const migrationStatus = await new MigrationRunner(adminDatabase, migrations).up();
-    expect(migrationStatus.currentVersion).toBe(9);
+    // Derived, not hardcoded — this exact literal went stale twice already.
+    expect(migrationStatus.currentVersion).toBe(migrations.length);
 
     await createApplicationRole(adminDatabase, applicationRole, applicationPassword);
     roleCreated = true;
