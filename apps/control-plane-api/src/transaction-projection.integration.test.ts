@@ -89,7 +89,7 @@ gatedDescribe("transaction read-model projection (DB-gated, live Supabase)", () 
       environment: TEST_ENV,
       // A durable policy store is required for production-like environments; we
       // inject the real Postgres-backed store (this test never writes policy).
-      policyStore: createPostgresPolicyStore(database),
+      policyStore: createPostgresPolicyStore(database, TEST_ENV),
       transactionStore: createPostgresTransactionStore(database, TEST_ENV),
     });
     await server.ready();

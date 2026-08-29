@@ -23,7 +23,14 @@
  * currency code, and timestamps. No credentials or secrets are ever touched.
  */
 
-import { createCanonicalError, err, ok, type CanonicalError, type Result } from "@counter/domain";
+import {
+  createCanonicalError,
+  err,
+  ok,
+  type CanonicalError,
+  type Environment,
+  type Result,
+} from "@counter/domain";
 import type { QueryResultRow } from "pg";
 import type { TransactionalDatabase } from "./database.js";
 
@@ -88,6 +95,7 @@ export class PostgresSpendLedger {
 
   constructor(
     private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
     config: SpendLimitConfig = DEFAULT_SPEND_LIMIT_CONFIG,
   ) {
     this.#config = config;
@@ -141,8 +149,8 @@ export class PostgresSpendLedger {
       // it as an allowed no-op (do NOT re-count it against the window).
       const existing = await session.query<ExistingRow>(
         `SELECT reference FROM runtime.spend_ledger
-         WHERE environment = 'local' AND wallet_id = $1 AND reference = $2`,
-        [request.walletId, request.reference],
+         WHERE environment = $1 AND wallet_id = $2 AND reference = $3`,
+        [this.environment, request.walletId, request.reference],
       );
       if (existing.rows.length > 0) {
         return ok(Object.freeze({ allowed: true as const, alreadyReserved: true }));
@@ -154,12 +162,12 @@ export class PostgresSpendLedger {
         `SELECT count(*)::text AS attempt_count, sum(amount_minor)::text AS total_minor
            FROM (
              SELECT amount_minor FROM runtime.spend_ledger
-              WHERE environment = 'local'
-                AND wallet_id = $1
-                AND spent_at >= $2::timestamptz
+              WHERE environment = $1
+                AND wallet_id = $2
+                AND spent_at >= $3::timestamptz
               FOR UPDATE
            ) locked`,
-        [request.walletId, windowStartIso],
+        [this.environment, request.walletId, windowStartIso],
       );
       const row = agg.rows[0];
       const attemptCount = row ? Number.parseInt(row.attempt_count, 10) : 0;
@@ -193,9 +201,10 @@ export class PostgresSpendLedger {
       const inserted = await session.query(
         `INSERT INTO runtime.spend_ledger
            (environment, wallet_id, reference, amount_minor, currency, spent_at)
-         VALUES ('local', $1, $2, $3, $4, $5::timestamptz)
+         VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
          ON CONFLICT (environment, wallet_id, reference) DO NOTHING`,
         [
+          this.environment,
           request.walletId,
           request.reference,
           request.amountMinor.toString(),
@@ -214,8 +223,8 @@ export class PostgresSpendLedger {
     const agg = await this.database.query<WindowAggRow>(
       `SELECT count(*)::text AS attempt_count, sum(amount_minor)::text AS total_minor
          FROM runtime.spend_ledger
-        WHERE environment = 'local' AND wallet_id = $1 AND spent_at >= $2::timestamptz`,
-      [walletId, windowStartIso],
+        WHERE environment = $1 AND wallet_id = $2 AND spent_at >= $3::timestamptz`,
+      [this.environment, walletId, windowStartIso],
     );
     const row = agg.rows[0];
     return row && row.total_minor !== null ? BigInt(row.total_minor) : 0n;

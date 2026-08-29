@@ -133,7 +133,7 @@ gatedDescribe("data integrity — amount tamper between quote and commit is reje
         razorpay: bundle!.razorpay,
         payments: bundle!.payments,
         merchantId: bundle!.merchantId,
-        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
         policy,
         actionTimeoutMs: 20_000,
       });

@@ -104,7 +104,7 @@ gatedDescribe("revocation mid-flight — blocks next step, routes to INDETERMINA
         razorpay: bundle!.razorpay,
         payments: bundle!.payments,
         merchantId: bundle!.merchantId,
-        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
         actionTimeoutMs: 30_000,
       });
 

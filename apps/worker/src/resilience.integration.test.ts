@@ -140,7 +140,7 @@ gatedDescribe("resilience — post-effect timeout is INDETERMINATE, never failed
         razorpay: bundle!.razorpay,
         payments: bundle!.payments,
         merchantId: bundle!.merchantId,
-        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
         actionTimeoutMs: 20_000,
       });
 

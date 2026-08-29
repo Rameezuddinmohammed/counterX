@@ -7,6 +7,7 @@
  * injected into createServer. In local/test/development an in-memory store is
  * used unless DATABASE_URL is provided.
  */
+import { resolveCounterEnvironment, type Environment } from "@counter/domain";
 import { PostgresDatabase, PostgresIdempotencyStore } from "@counter/data";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 
@@ -17,6 +18,21 @@ const environment = process.env["NODE_ENV"] || "production";
 // Environments that may run without a durable database / with mock handlers.
 const NON_PRODUCTION_ENVIRONMENTS = ["local", "test", "development"];
 const isNonProduction = NON_PRODUCTION_ENVIRONMENTS.includes(environment);
+
+// The durable-data partition (bound into the idempotency store below) is
+// resolved from COUNTER_ENV alone — NODE_ENV's vocabulary ("development") is
+// a different, framework-level taxonomy, not a valid Counter environment. A
+// production-like deployment with an absent/invalid COUNTER_ENV fails loud
+// rather than silently writing to the wrong (or a guessed) partition.
+const runtimeEnvironmentResult = resolveCounterEnvironment(
+  process.env["COUNTER_ENV"],
+  !isNonProduction,
+);
+if (!runtimeEnvironmentResult.ok) {
+  console.error(`[${APP_NAME}] ${runtimeEnvironmentResult.error.message}`);
+  process.exit(1);
+}
+const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
 
 // Mock merchant handlers are only acceptable for local development / test.
 // In production-like environments createServer will throw when no real
@@ -50,7 +66,7 @@ const serverOptions: CreateServerOptions = {
   version: process.env["APP_VERSION"] || "0.1.0",
   allowMockHandlers,
   ...(database !== undefined
-    ? { idempotencyStore: new PostgresIdempotencyStore(database) }
+    ? { idempotencyStore: new PostgresIdempotencyStore(database, runtimeEnvironment) }
     : {}),
 };
 

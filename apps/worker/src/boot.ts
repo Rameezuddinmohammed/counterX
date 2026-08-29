@@ -17,7 +17,7 @@
  * directly into the connector factories. They are never logged or echoed.
  */
 
-import { createCounterId } from "@counter/domain";
+import { createCounterId, parseCounterId } from "@counter/domain";
 import type { MerchantId } from "@counter/domain";
 import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
@@ -233,11 +233,29 @@ export function buildRealConnectorBundle(
 // ─── Merchant identity ───────────────────────────────────────────────────────
 
 /**
- * Derives a stable pilot MerchantId for payment commands. The worker operates a
- * single autonomous merchant identity; a real deployment can source this from
- * configuration. Deterministic so it is stable across restarts.
+ * Resolves the pilot MerchantId for payment commands. The worker operates a
+ * single autonomous merchant identity.
+ *
+ * `PILOT_MERCHANT_ID` is authoritative when set (validated as a real
+ * `merchant`-kind CounterId) so an operator can point the worker at any
+ * merchant scope without a code change. When unset, falls back to the same
+ * fixed, deterministic derivation used previously (stable across restarts) —
+ * this exact value (`ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw`) is also the
+ * merchant-console's own fallback default (see
+ * apps/merchant-console/src/app/transactions/page.tsx) specifically so the
+ * two agree without either side needing to set the env var. If you change
+ * this derivation, update that file's comment/fallback too, or set
+ * `PILOT_MERCHANT_ID` explicitly on both sides instead.
  */
 function pilotMerchantId(): MerchantId {
+  const configured = process.env["PILOT_MERCHANT_ID"];
+  if (configured !== undefined && configured.trim().length > 0) {
+    const parsed = parseCounterId(configured.trim(), "merchant");
+    if (!parsed.ok) {
+      throw new Error(`PILOT_MERCHANT_ID is not a valid merchant CounterId: ${configured}`);
+    }
+    return parsed.value;
+  }
   const entropy = new Uint8Array(16).fill(7);
   const result = createCounterId("merchant", entropy);
   if (!result.ok) {
@@ -262,8 +280,9 @@ function nowInstant(): Instant {
  * dedup ACROSS worker restarts. Only terminal step outcomes and provider
  * references flow through — never secrets.
  *
- * Construct with `new PostgresStepLedger(database)` from @counter/data and pass
- * the result as the `stepLedger` override to {@link selectPaymentAuthorizationPort}.
+ * Construct with `new PostgresStepLedger(database, environment)` from
+ * @counter/data and pass the result as the `stepLedger` override to
+ * {@link selectPaymentAuthorizationPort}.
  */
 export function createPostgresStepLedgerPort(ledger: AsyncStepLedger): StepLedgerPort {
   return {

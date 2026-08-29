@@ -135,7 +135,7 @@ gatedDescribe("kill switch blocks a real checkout (creds+DB-gated, live network)
         idempotencyKey,
       ]);
 
-      const killSwitchStore = new PostgresKillSwitchStore(database);
+      const killSwitchStore = new PostgresKillSwitchStore(database, "local");
       // Activate a durable merchant kill switch for the pilot merchant.
       const activated = await killSwitchStore.recordActivate(
         {
@@ -148,7 +148,7 @@ gatedDescribe("kill switch blocks a real checkout (creds+DB-gated, live network)
       );
       expect(activated.ok).toBe(true);
 
-      const durableLedger = createPostgresStepLedgerPort(new PostgresStepLedger(database));
+      const durableLedger = createPostgresStepLedgerPort(new PostgresStepLedger(database, "local"));
       const gate = createPostgresKillSwitchGatePort(killSwitchStore, bundle.merchantId);
 
       const port = createRealPaymentAuthorizationPort({

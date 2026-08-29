@@ -9,6 +9,7 @@
 import {
   type CanonicalError,
   type CounterId,
+  type Environment,
   type Instant,
   type Result,
   type Sha256Digest,
@@ -184,7 +185,10 @@ interface JobRow {
 // ─── PostgresIdempotencyStore ───────────────────────────────────────────────
 
 export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async acquire(
     key: string,
@@ -197,11 +201,11 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
         `INSERT INTO runtime.idempotency_keys (
            environment, scope_kind, scope_id, operation, key,
            material_request_digest, status, created_at, expires_at
-         ) VALUES ('local', 'platform', 'platform', 'default', $1, $2, 'pending', $3, $4)
+         ) VALUES ($1, 'platform', 'platform', 'default', $2, $3, 'pending', $4, $5)
          ON CONFLICT (environment, scope_kind, scope_id, operation, key)
          DO NOTHING
          RETURNING *`,
-        [key, digest, asDate(now), asDate((now + 86_400_000) as Instant)],
+        [this.environment, key, digest, asDate(now), asDate((now + 86_400_000) as Instant)],
       );
 
       if ((insertResult.rowCount ?? 0) > 0) {
@@ -214,13 +218,13 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
       // Existing row: SELECT it
       const selectResult = await session.query<IdempotencyKeyRow>(
         `SELECT * FROM runtime.idempotency_keys
-         WHERE environment = 'local'
+         WHERE environment = $1
            AND scope_kind = 'platform'
            AND scope_id = 'platform'
            AND operation = 'default'
-           AND key = $1
+           AND key = $2
          FOR UPDATE`,
-        [key],
+        [this.environment, key],
       );
 
       const existing = selectResult.rows[0];
@@ -265,21 +269,21 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
       // status === "failed" with same digest: delete and re-insert
       await session.query(
         `DELETE FROM runtime.idempotency_keys
-         WHERE environment = 'local'
+         WHERE environment = $1
            AND scope_kind = 'platform'
            AND scope_id = 'platform'
            AND operation = 'default'
-           AND key = $1`,
-        [key],
+           AND key = $2`,
+        [this.environment, key],
       );
 
       const reInsertResult = await session.query<IdempotencyKeyRow>(
         `INSERT INTO runtime.idempotency_keys (
            environment, scope_kind, scope_id, operation, key,
            material_request_digest, status, created_at, expires_at
-         ) VALUES ('local', 'platform', 'platform', 'default', $1, $2, 'pending', $3, $4)
+         ) VALUES ($1, 'platform', 'platform', 'default', $2, $3, 'pending', $4, $5)
          RETURNING *`,
-        [key, digest, asDate(now), asDate((now + 86_400_000) as Instant)],
+        [this.environment, key, digest, asDate(now), asDate((now + 86_400_000) as Instant)],
       );
 
       const reInsertedRow = reInsertResult.rows[0]!;
@@ -307,15 +311,15 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
     const result = await this.database.query(
       `UPDATE runtime.idempotency_keys
        SET status = 'completed',
-           response_snapshot = $2,
-           completed_at = $3
-       WHERE environment = 'local'
+           response_snapshot = $3,
+           completed_at = $4
+       WHERE environment = $1
          AND scope_kind = 'platform'
          AND scope_id = 'platform'
          AND operation = 'default'
-         AND key = $1
+         AND key = $2
          AND status = 'pending'`,
-      [key, JSON.stringify(responseSnapshot), asDate(now)],
+      [this.environment, key, JSON.stringify(responseSnapshot), asDate(now)],
     );
 
     if ((result.rowCount ?? 0) === 0) {
@@ -336,13 +340,13 @@ export class PostgresIdempotencyStore implements AsyncIdempotencyStore {
       `UPDATE runtime.idempotency_keys
        SET status = 'failed',
            completed_at = clock_timestamp()
-       WHERE environment = 'local'
+       WHERE environment = $1
          AND scope_kind = 'platform'
          AND scope_id = 'platform'
          AND operation = 'default'
-         AND key = $1
+         AND key = $2
          AND status = 'pending'`,
-      [key],
+      [this.environment, key],
     );
 
     if ((result.rowCount ?? 0) === 0) {
@@ -1013,7 +1017,10 @@ function stepEntryFromRow(row: LifecycleStepRow): StepLedgerEntry {
 }
 
 export class PostgresStepLedger implements AsyncStepLedger {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async lookup(
     key: string,
@@ -1021,8 +1028,8 @@ export class PostgresStepLedger implements AsyncStepLedger {
   ): Promise<Result<StepLedgerEntry | undefined, CanonicalError>> {
     const result = await this.database.query<LifecycleStepRow>(
       `SELECT * FROM runtime.lifecycle_steps
-       WHERE environment = 'local' AND idempotency_key = $1 AND step = $2`,
-      [key, step],
+       WHERE environment = $1 AND idempotency_key = $2 AND step = $3`,
+      [this.environment, key, step],
     );
     const row = result.rows[0];
     return ok(row === undefined ? undefined : stepEntryFromRow(row));
@@ -1040,10 +1047,11 @@ export class PostgresStepLedger implements AsyncStepLedger {
       `INSERT INTO runtime.lifecycle_steps (
          environment, idempotency_key, step, status, reference, snapshot,
          created_at, completed_at
-       ) VALUES ('local', $1, $2, $3, $4, $5, $6, $6)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
        ON CONFLICT (environment, idempotency_key, step) DO NOTHING
        RETURNING *`,
       [
+        this.environment,
         key,
         entry.step,
         entry.status,
@@ -1060,8 +1068,8 @@ export class PostgresStepLedger implements AsyncStepLedger {
 
     const existing = await this.database.query<LifecycleStepRow>(
       `SELECT * FROM runtime.lifecycle_steps
-       WHERE environment = 'local' AND idempotency_key = $1 AND step = $2`,
-      [key, entry.step],
+       WHERE environment = $1 AND idempotency_key = $2 AND step = $3`,
+      [this.environment, key, entry.step],
     );
     const row = existing.rows[0];
     if (row === undefined) {
@@ -1090,10 +1098,10 @@ export class PostgresStepLedger implements AsyncStepLedger {
       `INSERT INTO runtime.lifecycle_steps (
          environment, idempotency_key, step, status, reference, snapshot,
          created_at, completed_at
-       ) VALUES ('local', $1, $2, 'completed', NULL, NULL, $3, $3)
+       ) VALUES ($1, $2, $3, 'completed', NULL, NULL, $4, $4)
        ON CONFLICT (environment, idempotency_key, step) DO NOTHING
        RETURNING id`,
-      [key, `${step}.claim`, asDate(now)],
+      [this.environment, key, `${step}.claim`, asDate(now)],
     );
     return ok({ won: insert.rows[0] !== undefined });
   }
@@ -1196,10 +1204,13 @@ function killSwitchRowFromDb(row: KillSwitchDbRow): KillSwitchRow {
 /**
  * Postgres-backed durable kill-switch store over `runtime.kill_switches`.
  * Mirrors the PostgresStepLedger / PostgresIdempotencyStore style (Result
- * returns, Instant times, environment scoped to 'local').
+ * returns, Instant times, explicit environment scope).
  */
 export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
-  constructor(private readonly database: TransactionalDatabase) {}
+  constructor(
+    private readonly database: TransactionalDatabase,
+    private readonly environment: Environment,
+  ) {}
 
   async recordActivate(
     input: KillSwitchActivateInput,
@@ -1227,7 +1238,7 @@ export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
     const result = await this.database.query<KillSwitchDbRow>(
       `INSERT INTO runtime.kill_switches (
          environment, scope, entity_id, status, reason, activated_by, activated_at, expires_at
-       ) VALUES ('local', $1, $2, 'active', $3, $4, $5, $6)
+       ) VALUES ($1, $2, $3, 'active', $4, $5, $6, $7)
        ON CONFLICT ${conflictTarget} DO UPDATE SET
          status = 'active',
          reason = EXCLUDED.reason,
@@ -1236,6 +1247,7 @@ export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
          expires_at = EXCLUDED.expires_at
        RETURNING *`,
       [
+        this.environment,
         input.scope,
         entityId,
         input.reason,
@@ -1264,14 +1276,14 @@ export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
     if (entityId === undefined) {
       await this.database.query(
         `UPDATE runtime.kill_switches SET status = 'inactive'
-         WHERE environment = 'local' AND scope = $1 AND entity_id IS NULL`,
-        [scope],
+         WHERE environment = $1 AND scope = $2 AND entity_id IS NULL`,
+        [this.environment, scope],
       );
     } else {
       await this.database.query(
         `UPDATE runtime.kill_switches SET status = 'inactive'
-         WHERE environment = 'local' AND scope = $1 AND entity_id = $2`,
-        [scope, entityId],
+         WHERE environment = $1 AND scope = $2 AND entity_id = $3`,
+        [this.environment, scope, entityId],
       );
     }
     return ok(undefined);
@@ -1280,10 +1292,10 @@ export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
   async listActive(now: Instant): Promise<Result<readonly KillSwitchRow[], CanonicalError>> {
     const result = await this.database.query<KillSwitchDbRow>(
       `SELECT * FROM runtime.kill_switches
-       WHERE environment = 'local' AND status = 'active'
-         AND (expires_at IS NULL OR expires_at > $1)
+       WHERE environment = $1 AND status = 'active'
+         AND (expires_at IS NULL OR expires_at > $2)
        ORDER BY id`,
-      [asDate(now)],
+      [this.environment, asDate(now)],
     );
     return ok(result.rows.map(killSwitchRowFromDb));
   }
@@ -1299,18 +1311,18 @@ export class PostgresKillSwitchStore implements AsyncKillSwitchStore {
         ? await this.database.query<{ present: boolean }>(
             `SELECT EXISTS (
                SELECT 1 FROM runtime.kill_switches
-               WHERE environment = 'local' AND scope = $1 AND entity_id IS NULL
-                 AND status = 'active' AND (expires_at IS NULL OR expires_at > $2)
+               WHERE environment = $1 AND scope = $2 AND entity_id IS NULL
+                 AND status = 'active' AND (expires_at IS NULL OR expires_at > $3)
              ) AS present`,
-            [scope, nowDate],
+            [this.environment, scope, nowDate],
           )
         : await this.database.query<{ present: boolean }>(
             `SELECT EXISTS (
                SELECT 1 FROM runtime.kill_switches
-               WHERE environment = 'local' AND scope = $1 AND entity_id = $2
-                 AND status = 'active' AND (expires_at IS NULL OR expires_at > $3)
+               WHERE environment = $1 AND scope = $2 AND entity_id = $3
+                 AND status = 'active' AND (expires_at IS NULL OR expires_at > $4)
              ) AS present`,
-            [scope, entityId, nowDate],
+            [this.environment, scope, entityId, nowDate],
           );
     return ok(result.rows[0]?.present === true);
   }

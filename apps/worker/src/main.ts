@@ -20,7 +20,13 @@
 
 import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
-import { createCounterId, type CounterId, type Instant } from "@counter/domain";
+import {
+  createCounterId,
+  resolveCounterEnvironment,
+  type CounterId,
+  type Environment,
+  type Instant,
+} from "@counter/domain";
 import {
   PostgresDatabase,
   PostgresJobRepository,
@@ -32,6 +38,7 @@ import {
 import { APP_NAME } from "./index.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
 import { selectPaymentAuthorizationPort } from "./boot.js";
+import { isProdLike } from "./connector-env.js";
 import {
   reconciliationEnabled,
   startReconciliationJob,
@@ -130,6 +137,22 @@ function main(): void {
     return;
   }
 
+  // The durable-data partition (bound into every runtime.* query below) is
+  // resolved from COUNTER_ENV alone — NODE_ENV's vocabulary ("development")
+  // is not a valid Counter environment. A production-like deployment with an
+  // absent/invalid COUNTER_ENV fails loud rather than silently writing to the
+  // wrong (or a guessed) partition.
+  const runtimeEnvironmentResult = resolveCounterEnvironment(
+    process.env["COUNTER_ENV"],
+    isProdLike(process.env),
+  );
+  if (!runtimeEnvironmentResult.ok) {
+    console.error(`[${APP_NAME}] ${runtimeEnvironmentResult.error.message}`);
+    process.exit(1);
+    return;
+  }
+  const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
+
   const database = new PostgresDatabase(databaseUrl);
   const jobRepository = new PostgresJobRepository(database);
   const outboxRepository = new PostgresOutboxRepository(database);
@@ -141,11 +164,11 @@ function main(): void {
   // are threaded in so the Shopify legs dedup across restarts and an active
   // kill switch blocks a checkout BEFORE any external effect.
   const selection = selectPaymentAuthorizationPort(process.env, undefined, {
-    stepLedger: new PostgresStepLedger(database),
-    killSwitchStore: new PostgresKillSwitchStore(database),
-    spendLedger: new PostgresSpendLedger(database),
+    stepLedger: new PostgresStepLedger(database, runtimeEnvironment),
+    killSwitchStore: new PostgresKillSwitchStore(database, runtimeEnvironment),
+    spendLedger: new PostgresSpendLedger(database, runtimeEnvironment),
   });
-  logger.info("payment connector selected", { mode: selection.mode });
+  logger.info("payment connector selected", { mode: selection.mode, environment: runtimeEnvironment });
 
   const config: LoopConfig = {
     jobTypes: [TRANSACTION_LIFECYCLE_JOB_TYPE],

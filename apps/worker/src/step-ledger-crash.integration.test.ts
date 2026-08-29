@@ -123,7 +123,7 @@ gatedDescribe("durable step-ledger crash-resume (creds+DB-gated, live network)",
       );
 
       const durableLedger: StepLedgerPort = createPostgresStepLedgerPort(
-        new PostgresStepLedger(database),
+        new PostgresStepLedger(database, "local"),
       );
 
       const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];

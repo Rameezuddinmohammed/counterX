@@ -194,7 +194,7 @@ gatedDescribe("secret-leakage audit of the real runtime (creds+DB-gated, pure No
         razorpay: bundle!.razorpay,
         payments: bundle!.payments,
         merchantId: bundle!.merchantId,
-        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+        stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
         actionTimeoutMs: 30_000,
       });
       const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];

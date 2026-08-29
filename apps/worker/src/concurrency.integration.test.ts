@@ -123,7 +123,7 @@ gatedDescribe("concurrency — same-key checkouts create at most ONE real draft 
           razorpay: bundle!.razorpay,
           payments: bundle!.payments,
           merchantId: bundle!.merchantId,
-          stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database)),
+          stepLedger: createPostgresStepLedgerPort(new PostgresStepLedger(database, "local")),
           actionTimeoutMs: 30_000,
         });
 
