@@ -323,11 +323,19 @@ export interface RefundRequest {
   };
 }
 
+/**
+ * Refund is a RELAY, not an immediate execution: CounterX records the
+ * request and its reason, and the merchant (manually, or via their own
+ * configured auto-approve threshold) decides whether it actually happens.
+ * See apps/agent-runtime/src/real-handlers.ts's createRefundHandler and
+ * apps/control-plane-api/src/refund-request-routes.ts (the merchant-facing
+ * approve/deny surface) for the full design rationale.
+ */
 export interface RefundResponse {
-  readonly refundId: string;
+  readonly refundRequestId: string;
   readonly transactionId: string;
-  readonly status: "refunded";
-  readonly refundedAt: string;
+  readonly status: "pending";
+  readonly requestedAt: string;
   readonly amount: {
     readonly amount: string;
     readonly currency: string;
@@ -458,7 +466,7 @@ export const MERCHANT_ROUTES: readonly RouteContract[] = Object.freeze([
   Object.freeze({
     method: "POST" as const,
     path: "/runtime/v1/merchants/:merchantId/transactions/:transactionId/refund",
-    description: "Full refund with preconditions",
+    description: "Request a refund — relayed to the merchant for approval",
     requiresAuth: true as const,
     requiresIdempotency: true,
     requiresVersion: true,

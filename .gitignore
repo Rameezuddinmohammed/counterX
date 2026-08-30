@@ -1,6 +1,9 @@
 # Local pinned toolchain (Node/pnpm), not committed
 .tools/
 
+# Isolated agent worktrees (local scratch, not part of the repo)
+.claude/worktrees/
+
 # Dependencies
 node_modules/
 

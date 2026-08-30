@@ -188,7 +188,11 @@ describe("merchant routes", () => {
         headers: { authorization: `Bearer ${token}` },
       });
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body) as { merchantId: string; manifestDigest: string; signature: string };
+      const body = JSON.parse(response.body) as {
+        merchantId: string;
+        manifestDigest: string;
+        signature: string;
+      };
       expect(body.merchantId).toBe(TEST_MERCHANT_ID);
       expect(body.manifestDigest).toBeDefined();
       expect(body.signature).toBeDefined();
@@ -207,7 +211,11 @@ describe("merchant routes", () => {
         payload: { query: "test product" },
       });
       expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body) as { merchantId: string; results: unknown[]; totalCount: number };
+      const body = JSON.parse(response.body) as {
+        merchantId: string;
+        results: unknown[];
+        totalCount: number;
+      };
       expect(body.merchantId).toBe(TEST_MERCHANT_ID);
       expect(body.results).toBeInstanceOf(Array);
       expect(body.totalCount).toBeGreaterThanOrEqual(0);
@@ -307,6 +315,42 @@ describe("merchant routes", () => {
       expect(body.receiptId).toBeDefined();
       expect(body.signature).toBeDefined();
     });
+
+    // Refund is a RELAY, not an immediate execution (see real-handlers.ts's
+    // createRefundHandler and merchant-handlers.ts's RefundResult docs): the
+    // route responds with a PENDING refund request, never a completed
+    // refund, and never calls a payment provider itself.
+    it("POST /transactions/:id/refund returns a pending refund request, not an immediate refund", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createTestToken();
+      const response = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions/txn_001/refund`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "idempotency-key": "idem_refund_001",
+        },
+        payload: { reason: "Item arrived damaged" },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body) as {
+        refundRequestId: string;
+        transactionId: string;
+        status: string;
+        requestedAt: string;
+      };
+      expect(body.refundRequestId).toBeDefined();
+      expect(body.transactionId).toBe("txn_001");
+      expect(body.status).toBe("pending");
+      expect(body.requestedAt).toBeDefined();
+      // Explicitly NOT the old immediate-refund shape.
+      expect(body).not.toHaveProperty("refundId");
+      expect(body).not.toHaveProperty("refundedAt");
+    });
   });
 
   describe("review-required - 202", () => {
@@ -362,7 +406,11 @@ describe("merchant routes", () => {
       });
       expect(response.statusCode).toBe(409);
       const body = JSON.parse(response.body) as {
-        error: { code: string; message: string; details: { currentVersion: string; requestedVersion: string } };
+        error: {
+          code: string;
+          message: string;
+          details: { currentVersion: string; requestedVersion: string };
+        };
       };
       expect(body.error.code).toBe("STALE");
       expect(body.error.details.currentVersion).toBe("v2");

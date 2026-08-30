@@ -33,6 +33,8 @@ import { recurringMandateRoutesPlugin } from "./recurring-mandate-routes.js";
 import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
 import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
 import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
+import { refundRequestRoutesPlugin } from "./refund-request-routes.js";
+import type { RefundRequestStoreLike } from "./refund-request-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -129,6 +131,11 @@ export interface CreateServerOptions {
    * one every deployment of this app needs.
    */
   readonly shopifyConnectionProvisioner?: ShopifyConnectionProvisionerLike | undefined;
+  /**
+   * Only when present is /control/v1/merchants/*\/refund-requests
+   * registered — same optional-feature pattern as walletUserProvisioner.
+   */
+  readonly refundRequestStore?: RefundRequestStoreLike | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -220,6 +227,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.shopifyConnectionProvisioner !== undefined) {
     void server.register(shopifyConnectRoutesPlugin, {
       provisioner: options.shopifyConnectionProvisioner,
+    });
+  }
+
+  // Refund-request relay routes (list/approve/deny) — only registered when
+  // a store is wired (see CreateServerOptions.refundRequestStore).
+  if (options?.refundRequestStore !== undefined) {
+    void server.register(refundRequestRoutesPlugin, {
+      store: options.refundRequestStore,
     });
   }
 

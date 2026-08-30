@@ -17,6 +17,8 @@ export const PERMISSIONS = [
   "identity.support_grant.use",
   "payment.mandate.read",
   "payment.mandate.manage",
+  "payment.refund.read",
+  "payment.refund.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -61,8 +63,16 @@ const tenantManagePermissions = [
 ] as const satisfies readonly Permission[];
 
 export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Object.freeze({
-  "merchant.owner": definition(["merchant_user"], ["merchant"], tenantManagePermissions),
-  "merchant.admin": definition(["merchant_user"], ["merchant"], tenantManagePermissions),
+  "merchant.owner": definition(
+    ["merchant_user"],
+    ["merchant"],
+    [...tenantManagePermissions, "payment.refund.read", "payment.refund.manage"],
+  ),
+  "merchant.admin": definition(
+    ["merchant_user"],
+    ["merchant"],
+    [...tenantManagePermissions, "payment.refund.read", "payment.refund.manage"],
+  ),
   "merchant.integration": definition(
     ["merchant_user"],
     ["merchant"],
@@ -75,8 +85,18 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
       "identity.service_identity.manage",
     ],
   ),
-  "merchant.operations": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
-  "merchant.auditor": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
+  // Deciding a refund is a real merchant-owner-level decision — operations
+  // can SEE pending requests but only owner/admin can approve/deny them.
+  "merchant.operations": definition(
+    ["merchant_user"],
+    ["merchant"],
+    [...tenantReadPermissions, "payment.refund.read"],
+  ),
+  "merchant.auditor": definition(
+    ["merchant_user"],
+    ["merchant"],
+    [...tenantReadPermissions, "payment.refund.read"],
+  ),
   "merchant.read_only": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
   "wallet.owner": definition(
     ["wallet_user"],
