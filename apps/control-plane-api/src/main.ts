@@ -12,6 +12,7 @@ import { resolveCounterEnvironment, type Environment } from "@counter/domain";
 import { PostgresDatabase } from "@counter/data";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
+import { createDefaultPolicyCompiler } from "./policy-routes.js";
 import { createPostgresTransactionStore } from "./transaction-store-postgres.js";
 import { WalletUserProvisioner, type RuntimeCredentialConfig } from "./wallet-user-store.js";
 import {
@@ -25,6 +26,9 @@ import {
 } from "./shopify-connection-store.js";
 import { RefundRequestStore } from "./refund-request-store.js";
 import { MerchantApplicationProvisioner } from "./merchant-application-store.js";
+import { MerchantPaymentConnectionStore } from "./merchant-payment-connection-store.js";
+import { MerchantReadinessService } from "./merchant-readiness-store.js";
+import { MerchantManifestStore } from "./merchant-manifest-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -148,13 +152,27 @@ const razorpayRefundProvider =
       })
     : undefined;
 
+// Shared with Step 5's MerchantReadinessService below, so a self-serve
+// merchant's synthesized default policy (see merchant-readiness-store.ts's
+// header) is written into and read from the SAME store/compiler
+// policy-routes.ts's own GET/POST /merchants/:merchantId/policy routes use
+// — never a second, shadow policy store.
+const policyStore =
+  database !== undefined ? createPostgresPolicyStore(database, runtimeEnvironment) : undefined;
+const policyCompiler = createDefaultPolicyCompiler();
+
+const readinessService =
+  database !== undefined && policyStore !== undefined
+    ? new MerchantReadinessService(database, runtimeEnvironment, policyStore, policyCompiler)
+    : undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
   version: process.env["APP_VERSION"] || "0.1.0",
   ...(database !== undefined
     ? {
-        policyStore: createPostgresPolicyStore(database, runtimeEnvironment),
+        ...(policyStore !== undefined ? { policyStore, policyCompiler } : {}),
         transactionStore: createPostgresTransactionStore(database, runtimeEnvironment),
         walletUserProvisioner: new WalletUserProvisioner(
           database,
@@ -165,6 +183,25 @@ const serverOptions: CreateServerOptions = {
           database,
           runtimeEnvironment,
         ),
+        merchantPaymentConnectionStore: new MerchantPaymentConnectionStore(
+          database,
+          runtimeEnvironment,
+          {
+            ...(process.env["RAZORPAY_BASE_URL"]
+              ? { baseUrl: process.env["RAZORPAY_BASE_URL"] }
+              : {}),
+          },
+        ),
+        ...(readinessService !== undefined
+          ? {
+              merchantReadinessService: readinessService,
+              merchantManifestStore: new MerchantManifestStore(
+                database,
+                runtimeEnvironment,
+                readinessService,
+              ),
+            }
+          : {}),
         ...(razorpayRecurringProvider !== undefined
           ? {
               recurringMandateProvisioner: new RecurringMandateProvisioner(

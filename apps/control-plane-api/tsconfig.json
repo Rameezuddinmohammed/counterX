@@ -20,6 +20,9 @@
     },
     {
       "path": "../../packages/merchant-application"
+    },
+    {
+      "path": "../../packages/trust-protocol"
     }
   ]
 }

@@ -114,6 +114,9 @@ importers:
       '@counter/razorpay-adapter':
         specifier: workspace:0.1.0
         version: link:../../packages/razorpay-adapter
+      '@counter/trust-protocol':
+        specifier: workspace:0.1.0
+        version: link:../../packages/trust-protocol
       fastify:
         specifier: 5.2.1
         version: 5.2.1

@@ -125,6 +125,7 @@ class FakeMerchantApplicationProvisioner implements MerchantApplicationProvision
       lifecycleVersion: 0,
       createdAt: now,
       updatedAt: now,
+      catalogConfirmedAt: null,
     });
     return {
       merchantId,
@@ -189,6 +190,7 @@ class FakeMerchantApplicationProvisioner implements MerchantApplicationProvision
       priceMinor: input.priceMinor,
       currency: input.currency,
       createdAt: new Date().toISOString(),
+      reviewed: false,
     };
     items.push(item);
     this.#manualItems.set(merchantId, items);
@@ -219,6 +221,41 @@ class FakeMerchantApplicationProvisioner implements MerchantApplicationProvision
       lifecycleState: "MAPPING",
       lifecycleVersion: existing.lifecycleVersion + 1,
       updatedAt: new Date().toISOString(),
+    };
+    this.#applications.set(merchantId, updated);
+    return updated;
+  }
+
+  async confirmManualCatalogItems(merchantId: string): Promise<readonly ManualCatalogItem[]> {
+    const items = this.#manualItems.get(merchantId) ?? [];
+    const reviewed = items.map((item) => ({ ...item, reviewed: true }));
+    this.#manualItems.set(merchantId, reviewed);
+    return reviewed;
+  }
+
+  async confirmCatalog(merchantId: string): Promise<MerchantApplicationSnapshot> {
+    const existing = this.#applications.get(merchantId);
+    if (existing === undefined) {
+      throw new MerchantApplicationValidationError(`No such merchant application: ${merchantId}`);
+    }
+    if (existing.lifecycleState !== "MAPPING") {
+      return existing;
+    }
+    const hasManualItems = (this.#manualItems.get(merchantId)?.length ?? 0) > 0;
+    const hasShopify = this.shopifyConnectedMerchantIds.has(merchantId);
+    if (!hasManualItems && !hasShopify) {
+      throw new MerchantApplicationValidationError(
+        "No catalog to review yet — connect Shopify or add at least one item first",
+      );
+    }
+    await this.confirmManualCatalogItems(merchantId);
+    const now = new Date().toISOString();
+    const updated: MerchantApplicationSnapshot = {
+      ...existing,
+      lifecycleState: "VERIFYING",
+      lifecycleVersion: existing.lifecycleVersion + 1,
+      updatedAt: now,
+      catalogConfirmedAt: now,
     };
     this.#applications.set(merchantId, updated);
     return updated;
@@ -395,6 +432,7 @@ describe("merchant-application routes", () => {
         lifecycleVersion: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        catalogConfirmedAt: null,
       });
       server = createServer({
         jwks,
@@ -685,6 +723,72 @@ describe("merchant-application routes", () => {
         url: `/control/v1/merchant-applications/${merchantId}/manual-catalog-items`,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         payload: { name: "Mug", priceMinor: 100, currency: "INR" },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+  });
+
+  describe("POST /merchant-applications/:merchantId/catalog/confirm", () => {
+    async function provisionAndAdvanceToMapping(
+      provisioner: FakeMerchantApplicationProvisioner,
+    ): Promise<string> {
+      const { merchantId } = await provisioner.provisionForAuth0Subject("auth0|test-merchant-user");
+      await provisioner.updateBusinessBasics(merchantId, {
+        legalEntityName: "Acme",
+        contactEmail: "owner@acme.example",
+        goodsTypes: ["fulfillment.physical.ship"],
+      });
+      await provisioner.addManualCatalogItem(merchantId, {
+        name: "Hand-thrown mug",
+        priceMinor: 45000,
+        currency: "INR",
+      });
+      await provisioner.markCatalogConnected(merchantId);
+      return merchantId;
+    }
+
+    it("confirms the catalog and transitions MAPPING -> VERIFYING (200)", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeMerchantApplicationProvisioner();
+      const merchantId = await provisionAndAdvanceToMapping(provisioner);
+      server = createServer({
+        jwks,
+        environment: "test",
+        merchantApplicationProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const token = await createMerchantOwnerToken(merchantId, {
+        [`${CLAIMS_NAMESPACE}assurance`]: "step_up",
+      });
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchant-applications/${merchantId}/catalog/confirm`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body) as { lifecycleState: string };
+      expect(body.lifecycleState).toBe("VERIFYING");
+    });
+
+    it("a DIFFERENT merchant's token gets 404, not 403 (existence-hiding)", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeMerchantApplicationProvisioner();
+      const merchantId = await provisionAndAdvanceToMapping(provisioner);
+      server = createServer({
+        jwks,
+        environment: "test",
+        merchantApplicationProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const token = await createMerchantOwnerToken(OTHER_MERCHANT_ID, {
+        [`${CLAIMS_NAMESPACE}assurance`]: "step_up",
+      });
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchant-applications/${merchantId}/catalog/confirm`,
+        headers: { authorization: `Bearer ${token}` },
       });
       expect(response.statusCode).toBe(404);
     });

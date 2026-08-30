@@ -192,6 +192,38 @@ gatedDescribe("MerchantApplicationProvisioner (real Supabase)", () => {
     },
   );
 
+  vitestIt(
+    "confirmCatalog bulk-confirms manual items and transitions MAPPING -> VERIFYING",
+    async () => {
+      const { merchantId } = await provisioner.provisionForAuth0Subject(
+        `merchant-application-store-test|${RUN_ID}-g`,
+      );
+      insertedMerchantIds.push(merchantId);
+      await provisioner.updateBusinessBasics(merchantId, {
+        legalEntityName: "Test Merchant",
+        contactEmail: "owner@test.example",
+        goodsTypes: ["fulfillment.physical.ship"],
+      });
+      await provisioner.addManualCatalogItem(merchantId, {
+        name: "Hand-thrown mug",
+        priceMinor: 45000,
+        currency: "INR",
+      });
+      await provisioner.markCatalogConnected(merchantId);
+
+      const confirmed = await provisioner.confirmCatalog(merchantId);
+      expect(confirmed.lifecycleState).toBe("VERIFYING");
+      expect(confirmed.catalogConfirmedAt).not.toBeNull();
+
+      const items = await provisioner.listManualCatalogItems(merchantId);
+      expect(items.every((item) => item.reviewed)).toBe(true);
+
+      // Idempotent: calling again once past MAPPING is a no-op, not an error.
+      const again = await provisioner.confirmCatalog(merchantId);
+      expect(again.lifecycleState).toBe("VERIFYING");
+    },
+  );
+
   vitestIt("refuses a manual catalog item for a nonexistent merchant", async () => {
     await expect(
       provisioner.addManualCatalogItem("ctr_merchant_doesnotexist0000000000", {

@@ -58,6 +58,8 @@ export interface MerchantApplicationSnapshot {
   readonly lifecycleVersion: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Set when Step 3 (catalog review) confirms the catalog — null before that. Used as Step 5's mapping_freshness evidence timestamp. */
+  readonly catalogConfirmedAt: string | null;
 }
 
 export interface ManualCatalogItemInput {
@@ -75,6 +77,7 @@ export interface ManualCatalogItem {
   readonly priceMinor: number;
   readonly currency: string;
   readonly createdAt: string;
+  readonly reviewed: boolean;
 }
 
 /** A client-caused failure (bad goodsTypes, disallowed lifecycle transition) — maps to 400. */
@@ -120,6 +123,27 @@ export interface MerchantApplicationProvisionerLike {
    * called before Step 1 (still in DRAFT).
    */
   markCatalogConnected(merchantId: string): Promise<MerchantApplicationSnapshot>;
+  /**
+   * Step 3, catalog review. JUDGMENT CALL (disclosed): the merchant typed
+   * manual items themselves, so no AI extraction was involved — they are
+   * eligible for a single bulk "confirm all" rather than a mandatory
+   * per-item AI-review gate (that gate only matters once AI-driven
+   * extraction exists, which it doesn't yet). Marks every one of the
+   * merchant's manual catalog items `reviewed = true`. Idempotent: items
+   * already reviewed are left as-is.
+   */
+  confirmManualCatalogItems(merchantId: string): Promise<readonly ManualCatalogItem[]>;
+  /**
+   * Step 3 -> Step 4: validates the merchant is in MAPPING, requires EITHER
+   * (a) an active Shopify connection (sufficient on its own — see this
+   * method's implementation for why no per-item review applies to Shopify
+   * catalogs in this pass) OR (b) at least one manual item (bulk-confirmed
+   * by this same call), then transitions MAPPING -> VERIFYING. Idempotent:
+   * a no-op (returns the current snapshot) if already past MAPPING. Throws
+   * MerchantApplicationValidationError if neither condition holds, or if
+   * called before Step 2 (still before MAPPING).
+   */
+  confirmCatalog(merchantId: string): Promise<MerchantApplicationSnapshot>;
 }
 
 function requireCounterId(
@@ -155,6 +179,7 @@ interface ApplicationRow {
   lifecycle_version: number;
   created_at: string | Date;
   updated_at: string | Date;
+  catalog_confirmed_at: string | Date | null;
 }
 
 function toSnapshot(row: ApplicationRow): MerchantApplicationSnapshot {
@@ -182,6 +207,8 @@ function toSnapshot(row: ApplicationRow): MerchantApplicationSnapshot {
     lifecycleVersion: row.lifecycle_version,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
+    catalogConfirmedAt:
+      row.catalog_confirmed_at === null ? null : new Date(row.catalog_confirmed_at).toISOString(),
   };
 }
 
@@ -405,11 +432,12 @@ export class MerchantApplicationProvisioner implements MerchantApplicationProvis
       price_minor: string | number;
       currency: string;
       created_at: string | Date;
+      reviewed: boolean;
     }>(
       `INSERT INTO merchant.manual_catalog_items
          (environment, merchant_id, name, description, price_minor, currency, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING item_id, merchant_id, name, description, price_minor, currency, created_at`,
+       RETURNING item_id, merchant_id, name, description, price_minor, currency, created_at, reviewed`,
       [
         this.environment,
         merchantId,
@@ -432,6 +460,7 @@ export class MerchantApplicationProvisioner implements MerchantApplicationProvis
       priceMinor: Number(row.price_minor),
       currency: row.currency,
       createdAt: new Date(row.created_at).toISOString(),
+      reviewed: row.reviewed,
     };
   }
 
@@ -444,8 +473,9 @@ export class MerchantApplicationProvisioner implements MerchantApplicationProvis
       price_minor: string | number;
       currency: string;
       created_at: string | Date;
+      reviewed: boolean;
     }>(
-      `SELECT item_id, merchant_id, name, description, price_minor, currency, created_at
+      `SELECT item_id, merchant_id, name, description, price_minor, currency, created_at, reviewed
          FROM merchant.manual_catalog_items
         WHERE environment = $1 AND merchant_id = $2
         ORDER BY item_id`,
@@ -459,7 +489,115 @@ export class MerchantApplicationProvisioner implements MerchantApplicationProvis
       priceMinor: Number(row.price_minor),
       currency: row.currency,
       createdAt: new Date(row.created_at).toISOString(),
+      reviewed: row.reviewed,
     }));
+  }
+
+  async confirmManualCatalogItems(merchantId: string): Promise<readonly ManualCatalogItem[]> {
+    await this.database.query(
+      `UPDATE merchant.manual_catalog_items
+          SET reviewed = true
+        WHERE environment = $1 AND merchant_id = $2 AND reviewed = false`,
+      [this.environment, merchantId],
+    );
+    return this.listManualCatalogItems(merchantId);
+  }
+
+  /**
+   * Step 3, catalog review -> Step 4. JUDGMENT CALL, disclosed: a Shopify
+   * connection has no real product-fetch/sync pipeline yet (confirmed —
+   * shopify-connection-store.ts only stores the OAuth token, never calls
+   * Shopify's product API), so there is no real per-item product data to
+   * show a review UI for. Rather than block the wizard on unbuilt Shopify
+   * catalog sync, a verified-active Shopify connection is treated as
+   * sufficient on its own for this step. Building real Shopify catalog sync
+   * (and a real per-item review UI for it) is a distinct, large follow-up,
+   * explicitly out of scope here.
+   */
+  async confirmCatalog(merchantId: string): Promise<MerchantApplicationSnapshot> {
+    const parsedMerchantId = parseCounterId(merchantId, "merchant");
+    if (!parsedMerchantId.ok) {
+      throw new MerchantApplicationValidationError(
+        `Invalid merchantId: ${parsedMerchantId.error.message}`,
+      );
+    }
+
+    return this.database.transaction(async (session) => {
+      const existing = await session.query<ApplicationRow>(
+        `SELECT * FROM merchant.onboarding_applications
+          WHERE environment = $1 AND merchant_id = $2
+          FOR UPDATE`,
+        [this.environment, merchantId],
+      );
+      const row = existing.rows[0];
+      if (row === undefined) {
+        throw new MerchantApplicationValidationError(`No such merchant application: ${merchantId}`);
+      }
+      const snapshot = toSnapshot(row);
+
+      // Idempotent: already past MAPPING — just return the current state.
+      if (snapshot.lifecycleState !== "MAPPING") {
+        return snapshot;
+      }
+
+      const shopifyConnected = await session.query(
+        `SELECT 1 FROM merchant.shopify_connections
+          WHERE environment = $1 AND merchant_id = $2 AND status = 'active'`,
+        [this.environment, merchantId],
+      );
+      const hasManualItems = await session.query(
+        `SELECT 1 FROM merchant.manual_catalog_items
+          WHERE environment = $1 AND merchant_id = $2 LIMIT 1`,
+        [this.environment, merchantId],
+      );
+      if (shopifyConnected.rows.length === 0 && hasManualItems.rows.length === 0) {
+        throw new MerchantApplicationValidationError(
+          "No catalog to review yet — connect Shopify or add at least one item first",
+        );
+      }
+
+      // Bulk-confirm-all: the merchant typed manual items themselves, so no
+      // AI extraction was involved — they're eligible for confirmation as-is.
+      await session.query(
+        `UPDATE merchant.manual_catalog_items
+            SET reviewed = true
+          WHERE environment = $1 AND merchant_id = $2 AND reviewed = false`,
+        [this.environment, merchantId],
+      );
+
+      const parsedActorId = parseCounterId(snapshot.merchantUserActorId, "merchant-user");
+      if (!parsedActorId.ok) {
+        throw new Error("Corrupt onboarding application row: invalid merchant_user_actor_id");
+      }
+
+      const transition = transitionMerchantLifecycle({
+        merchantId: parsedMerchantId.value as MerchantId,
+        currentState: snapshot.lifecycleState,
+        targetState: "VERIFYING",
+        actor: { kind: "merchant_user", id: parsedActorId.value as MerchantUserId },
+        reason: "catalog reviewed and confirmed",
+        occurredAt: nowInstant(),
+        currentVersion: snapshot.lifecycleVersion,
+      });
+      if (!transition.ok) {
+        throw new MerchantApplicationValidationError(transition.error.message);
+      }
+
+      const now = new Date().toISOString();
+      const updated = await session.query<ApplicationRow>(
+        `UPDATE merchant.onboarding_applications
+            SET lifecycle_state = $3, lifecycle_version = $4, updated_at = $5,
+                catalog_confirmed_at = $5
+          WHERE environment = $1 AND merchant_id = $2
+        RETURNING *`,
+        [this.environment, merchantId, transition.value.toState, transition.value.version, now],
+      );
+      const updatedRow = updated.rows[0];
+      if (updatedRow === undefined) {
+        throw new Error("Failed to persist catalog-confirmed transition");
+      }
+      return toSnapshot(updatedRow);
+    });
   }
 
   async markCatalogConnected(merchantId: string): Promise<MerchantApplicationSnapshot> {

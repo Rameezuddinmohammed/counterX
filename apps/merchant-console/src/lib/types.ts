@@ -119,6 +119,7 @@ export interface ManualCatalogItem {
   readonly priceMinor: number;
   readonly currency: string;
   readonly createdAt: string;
+  readonly reviewed: boolean;
 }
 
 export interface ManualCatalogItemRequest {
@@ -126,6 +127,80 @@ export interface ManualCatalogItemRequest {
   readonly description?: string;
   readonly priceMinor: number;
   readonly currency: string;
+}
+
+// ---------------------------------------------------------------------------
+// Merchant Application, Steps 3-6 (catalog review, own-gateway payment
+// connect, readiness check, manifest confirmation) — mirrors the REAL
+// control-plane-api responses exactly. Deliberately distinct names from the
+// operator-facing RazorpayStatus/ReadinessStatus/ManifestStatus types above
+// (which back a different, older-demo concern — see those pages' own
+// headers) so this wizard's real, narrower response shapes are never
+// confused with that unrelated surface.
+// ---------------------------------------------------------------------------
+
+/** POST/GET .../payment-connection — Step 4, own-gateway Razorpay ONLY. See that route's docs for the real scope boundary. */
+export interface WizardPaymentConnectionStatus {
+  readonly connected: boolean;
+  readonly provider?: "razorpay";
+  readonly keyId?: string;
+  readonly verifiedAt?: string;
+}
+
+export interface RazorpayConnectRequest {
+  readonly keyId: string;
+  readonly keySecret: string;
+}
+
+/** Mirrors readiness-types.ts's ReadinessStatus severities exactly. */
+export type WizardReadinessCheckStatus =
+  | "Blocking"
+  | "AcceptedLimitation"
+  | "Advisory"
+  | "Expiring";
+
+/** Mirrors readiness-types.ts's ReadinessCheckKind exactly (minus evidence_valid — not evaluated by this pass). */
+export type WizardReadinessCheckKind =
+  | "connector_health"
+  | "mapping_freshness"
+  | "policy_compiled"
+  | "payment_configured"
+  | "protocol_version";
+
+export interface WizardReadinessCheck {
+  readonly checkKind: WizardReadinessCheckKind;
+  readonly status: WizardReadinessCheckStatus;
+  readonly reason: string;
+}
+
+export interface WizardVersionBindings {
+  readonly connectorVersion: string;
+  readonly mappingSchemaHash: string;
+  readonly policyVersion: string;
+  readonly protocolVersion: string;
+  readonly paymentProviderVersion: string;
+}
+
+/** GET .../readiness — Step 5. */
+export interface WizardReadinessSummary {
+  readonly merchantId: string;
+  readonly isReady: boolean;
+  readonly overallStatus: WizardReadinessCheckStatus;
+  readonly checks: readonly WizardReadinessCheck[];
+  readonly lifecycleState: MerchantLifecycleState;
+  readonly versionBindings: WizardVersionBindings;
+  readonly evaluatedAt: string;
+}
+
+/** POST/GET .../manifest — Step 6. */
+export interface WizardManifest {
+  readonly merchantId: string;
+  readonly manifestVersion: string;
+  readonly capabilities: readonly string[];
+  readonly fulfillmentCapabilities: readonly string[];
+  readonly versionBindings: WizardVersionBindings;
+  readonly generatedAt: string;
+  readonly signatureDigest: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -5,7 +5,12 @@
  * FulfillmentCapability goes through here rather than printing the wire
  * value directly.
  */
-import type { FulfillmentCapability, MerchantLifecycleState } from "./types.js";
+import type {
+  FulfillmentCapability,
+  MerchantLifecycleState,
+  WizardReadinessCheckKind,
+  WizardReadinessCheckStatus,
+} from "./types.js";
 
 export function lifecycleStateLabel(state: MerchantLifecycleState): string {
   switch (state) {
@@ -49,3 +54,42 @@ export const FULFILLMENT_CAPABILITY_OPTIONS: ReadonlyArray<{
   { value: "fulfillment.rental.temporary", label: "Rents out items temporarily" },
   { value: "fulfillment.quote.custom", label: "Custom quotes, no fixed price" },
 ];
+
+/** Plain-language name for each readiness dimension — never show the raw checkKind. */
+export function readinessCheckLabel(kind: WizardReadinessCheckKind): string {
+  switch (kind) {
+    case "connector_health":
+      return "Catalog connected";
+    case "mapping_freshness":
+      return "Catalog reviewed";
+    case "policy_compiled":
+      return "Selling rules set up";
+    case "payment_configured":
+      return "Payments connected";
+    case "protocol_version":
+      return "Counter protocol version";
+  }
+}
+
+/** Whether a readiness check counts as passing for the purposes of a ✓/✗ display. */
+export function readinessCheckPassed(status: WizardReadinessCheckStatus): boolean {
+  return status !== "Blocking";
+}
+
+/** Plain-language name for each of the 5 static PILOT_CAPABILITIES (never shown as a raw wire value). */
+export const PILOT_CAPABILITY_LABELS: Readonly<Record<string, string>> = {
+  "quote.create": "Create price quotes",
+  "quote.accept": "Accept price quotes",
+  "payment.initiate": "Start payments",
+  "payment.confirm": "Confirm payments",
+  "refund.initiate": "Start refunds",
+};
+
+export function pilotCapabilityLabel(value: string): string {
+  return PILOT_CAPABILITY_LABELS[value] ?? value;
+}
+
+export function fulfillmentCapabilityLabel(value: string): string {
+  const match = FULFILLMENT_CAPABILITY_OPTIONS.find((option) => option.value === value);
+  return match?.label ?? value;
+}
