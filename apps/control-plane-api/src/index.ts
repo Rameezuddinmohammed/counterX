@@ -27,8 +27,19 @@ import {
   createInMemoryTransactionStore,
   type TransactionReadStore,
 } from "./transaction-routes.js";
+import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
+import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
+
+/**
+ * Shopify's own redirect back from the OAuth consent screen carries no
+ * Counter session at all, and its path includes a dynamic :merchantId
+ * segment, so it can't be listed as a literal skip-auth path. See
+ * @counter/http-api-kit's auth.ts isSkipped, which matches this against
+ * the request's resolved route PATTERN, not the literal URL.
+ */
+const SHOPIFY_CALLBACK_ROUTE_PATTERN = "/control/v1/merchants/:merchantId/shopify/callback";
 
 const DEFAULT_VERSION = "0.1.0";
 const DEFAULT_ENVIRONMENT = "local";
@@ -97,14 +108,19 @@ export interface CreateServerOptions {
   readonly policyStore?: PolicyStore | undefined;
   readonly policyCompiler?: PolicyCompiler | undefined;
   readonly transactionStore?: TransactionReadStore | undefined;
+  /**
+   * Only when present is /control/v1/merchants/:merchantId/shopify/*
+   * registered — a new, optional feature (self-serve Shopify OAuth), not
+   * one every deployment of this app needs.
+   */
+  readonly shopifyConnectionProvisioner?: ShopifyConnectionProvisionerLike | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
   const version = options?.version ?? DEFAULT_VERSION;
   const environment = options?.environment ?? DEFAULT_ENVIRONMENT;
 
-  const jwks: JWTVerifyGetKey | string =
-    options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
+  const jwks: JWTVerifyGetKey | string = options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
 
   const serverOptions: ServerFactoryOptions = {
     name: APP_NAME,
@@ -117,6 +133,11 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     },
     ...(environment !== "production"
       ? { openApi: { title: "Counter Control Plane API", version } }
+      : {}),
+    // Shopify's OAuth callback carries no Counter session — see the
+    // SHOPIFY_CALLBACK_ROUTE_PATTERN comment above.
+    ...(options?.shopifyConnectionProvisioner !== undefined
+      ? { skipAuthRoutes: [SHOPIFY_CALLBACK_ROUTE_PATTERN] }
       : {}),
     logger: options?.logger ?? false,
   };
@@ -156,6 +177,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   // in-memory.
   const transactionStore = resolveTransactionStore(environment, options);
   void server.register(transactionRoutesPlugin, { store: transactionStore, environment });
+
+  // Self-serve Shopify OAuth routes — only registered when a provisioner is
+  // wired (see CreateServerOptions.shopifyConnectionProvisioner).
+  if (options?.shopifyConnectionProvisioner !== undefined) {
+    void server.register(shopifyConnectRoutesPlugin, {
+      provisioner: options.shopifyConnectionProvisioner,
+    });
+  }
 
   return server;
 }

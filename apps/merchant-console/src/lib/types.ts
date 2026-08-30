@@ -64,6 +64,21 @@ export interface ShopifySetupStatus {
   readonly errorMessage: string | null;
 }
 
+/**
+ * The REAL Shopify OAuth connection status — mirrors
+ * apps/control-plane-api/src/shopify-connection-store.ts's
+ * ShopifyConnectionStatus response shape exactly (GET
+ * /control/v1/merchants/:merchantId/shopify/connection). Deliberately
+ * narrower than ShopifySetupStatus above (no webhook/sync/product-count
+ * fields) — this only reports whether a real access token has been
+ * obtained via the authorization-code grant, not sync state.
+ */
+export interface ShopifyConnectionStatus {
+  readonly connected: boolean;
+  readonly shopDomain?: string;
+  readonly connectedAt?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Mapping Preview
 // ---------------------------------------------------------------------------
