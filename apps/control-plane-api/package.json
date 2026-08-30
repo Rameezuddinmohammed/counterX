@@ -22,7 +22,8 @@
     "fastify": "5.2.1",
     "@counter/data": "workspace:0.1.0",
     "@counter/razorpay-adapter": "workspace:0.1.0",
-    "@counter/payment-sdk": "workspace:0.1.0"
+    "@counter/payment-sdk": "workspace:0.1.0",
+    "@counter/merchant-application": "workspace:0.1.0"
   },
   "devDependencies": {
     "jose": "6.0.11",

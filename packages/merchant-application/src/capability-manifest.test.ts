@@ -11,6 +11,8 @@ import {
   generateManifest,
   signManifest,
   PILOT_CAPABILITIES,
+  FULFILLMENT_CAPABILITIES,
+  isFulfillmentCapability,
   type GenerateManifestInput,
   type VersionBindings,
 } from "./capability-manifest.js";
@@ -223,6 +225,77 @@ describe("CapabilityManifest", () => {
       expect(() => {
         (result.value as { manifestVersion: string }).manifestVersion = "hacked";
       }).toThrow();
+    });
+  });
+
+  describe("FulfillmentCapability", () => {
+    it("is a closed vocabulary of 7 values", () => {
+      expect(FULFILLMENT_CAPABILITIES).toHaveLength(7);
+    });
+
+    it("isFulfillmentCapability accepts every declared value", () => {
+      for (const value of FULFILLMENT_CAPABILITIES) {
+        expect(isFulfillmentCapability(value)).toBe(true);
+      }
+    });
+
+    it("isFulfillmentCapability rejects unknown strings and non-strings", () => {
+      expect(isFulfillmentCapability("fulfillment.teleport.instant")).toBe(false);
+      expect(isFulfillmentCapability("quote.create")).toBe(false);
+      expect(isFulfillmentCapability(undefined)).toBe(false);
+      expect(isFulfillmentCapability(42)).toBe(false);
+    });
+
+    it("generateManifest accepts an empty fulfillmentCapabilities array", () => {
+      const input: GenerateManifestInput = { ...testInput(), fulfillmentCapabilities: [] };
+      const result = generateManifest(input);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.fulfillmentCapabilities).toEqual([]);
+    });
+
+    it("generateManifest carries fulfillmentCapabilities through when supplied", () => {
+      const input: GenerateManifestInput = {
+        ...testInput(),
+        fulfillmentCapabilities: ["fulfillment.physical.ship", "fulfillment.digital.deliver"],
+      };
+      const result = generateManifest(input);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.fulfillmentCapabilities).toEqual([
+        "fulfillment.physical.ship",
+        "fulfillment.digital.deliver",
+      ]);
+    });
+
+    it("generateManifest omits fulfillmentCapabilities when not supplied (backward compatible)", () => {
+      const result = generateManifest(testInput());
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.fulfillmentCapabilities).toBeUndefined();
+    });
+
+    it("signManifest is order-independent for fulfillmentCapabilities, like capabilities", () => {
+      const input1: GenerateManifestInput = {
+        ...testInput(),
+        fulfillmentCapabilities: ["fulfillment.physical.ship", "fulfillment.digital.deliver"],
+      };
+      const input2: GenerateManifestInput = {
+        ...testInput(),
+        fulfillmentCapabilities: ["fulfillment.digital.deliver", "fulfillment.physical.ship"],
+      };
+      expect(signManifest(input1)).toBe(signManifest(input2));
+    });
+
+    it("signManifest produces a different digest when fulfillmentCapabilities differ", () => {
+      const withFulfillment: GenerateManifestInput = {
+        ...testInput(),
+        fulfillmentCapabilities: ["fulfillment.physical.ship"],
+      };
+      const without: GenerateManifestInput = { ...testInput() };
+      expect(signManifest(withFulfillment)).not.toBe(signManifest(without));
     });
   });
 });
