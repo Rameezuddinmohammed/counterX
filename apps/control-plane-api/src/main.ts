@@ -24,6 +24,7 @@ import {
   type ShopifyOAuthConfig,
 } from "./shopify-connection-store.js";
 import { RefundRequestStore } from "./refund-request-store.js";
+import { MerchantApplicationProvisioner } from "./merchant-application-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -159,6 +160,10 @@ const serverOptions: CreateServerOptions = {
           database,
           runtimeEnvironment,
           runtimeCredentialConfig,
+        ),
+        merchantApplicationProvisioner: new MerchantApplicationProvisioner(
+          database,
+          runtimeEnvironment,
         ),
         ...(razorpayRecurringProvider !== undefined
           ? {

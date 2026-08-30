@@ -9,13 +9,18 @@
 
 import type {
   AuditEntry,
+  BusinessBasicsRequest,
   Finding,
   InvitationStatus,
   KillSwitchState,
   ManifestStatus,
+  ManualCatalogItem,
+  ManualCatalogItemRequest,
   MappingPreview,
+  MerchantApplicationStatus,
   MerchantPolicyConfig,
   PolicySimulationResult,
+  ProvisionMerchantApplicationResponse,
   RazorpayStatus,
   ReadinessStatus,
   ShopifyConnectionStatus,
@@ -127,6 +132,21 @@ export interface MerchantApiClient {
   // Invitation & Lifecycle
   getInvitation(merchantId: string): Promise<ApiResult<InvitationStatus>>;
   acceptInvitation(req: AcceptInvitationRequest): Promise<ApiResult<InvitationStatus>>;
+
+  // Merchant Application (REAL self-serve onboarding wizard, Steps 0-2)
+  /** POST /merchant-applications/provision — idempotent, self-authorizing (see the route's own header). */
+  provisionMerchantApplication(): Promise<ApiResult<ProvisionMerchantApplicationResponse>>;
+  getMerchantApplication(merchantId: string): Promise<ApiResult<MerchantApplicationStatus>>;
+  updateBusinessBasics(
+    merchantId: string,
+    req: BusinessBasicsRequest,
+  ): Promise<ApiResult<MerchantApplicationStatus>>;
+  listManualCatalogItems(merchantId: string): Promise<ApiResult<readonly ManualCatalogItem[]>>;
+  addManualCatalogItem(
+    merchantId: string,
+    req: ManualCatalogItemRequest,
+  ): Promise<ApiResult<ManualCatalogItem>>;
+  markCatalogConnected(merchantId: string): Promise<ApiResult<MerchantApplicationStatus>>;
 
   // Shopify Setup
   getShopifyStatus(merchantId: string): Promise<ApiResult<ShopifySetupStatus>>;
@@ -269,6 +289,35 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       request<InvitationStatus>("GET", `/merchants/${merchantId}/invitation`),
     acceptInvitation: (req) =>
       request<InvitationStatus>("POST", `/merchants/${req.merchantId}/invitation/accept`, req),
+    provisionMerchantApplication: () =>
+      request<ProvisionMerchantApplicationResponse>("POST", `/merchant-applications/provision`),
+    getMerchantApplication: (merchantId) =>
+      request<MerchantApplicationStatus>("GET", `/merchant-applications/${merchantId}`),
+    updateBusinessBasics: (merchantId, req) =>
+      request<MerchantApplicationStatus>(
+        "PATCH",
+        `/merchant-applications/${merchantId}/business-basics`,
+        req,
+      ),
+    listManualCatalogItems: async (merchantId) => {
+      const result = await request<{ readonly items: readonly ManualCatalogItem[] }>(
+        "GET",
+        `/merchant-applications/${merchantId}/manual-catalog-items`,
+      );
+      if (!result.ok) return result;
+      return { ok: true, data: result.data.items };
+    },
+    addManualCatalogItem: (merchantId, req) =>
+      request<ManualCatalogItem>(
+        "POST",
+        `/merchant-applications/${merchantId}/manual-catalog-items`,
+        req,
+      ),
+    markCatalogConnected: (merchantId) =>
+      request<MerchantApplicationStatus>(
+        "POST",
+        `/merchant-applications/${merchantId}/catalog-connected`,
+      ),
     getShopifyStatus: (merchantId) =>
       request<ShopifySetupStatus>("GET", `/merchants/${merchantId}/shopify`),
     getShopifyConnectionStatus: (merchantId) =>
