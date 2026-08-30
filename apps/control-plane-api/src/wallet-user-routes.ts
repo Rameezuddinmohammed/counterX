@@ -2,9 +2,14 @@
  * Self-serve wallet onboarding routes.
  *
  *   POST /control/v1/wallet-users/provision
- *     Platform-operator only. Called by the Auth0 Post-Login Action the
- *     instant someone logs in — never by a browser directly. Idempotent:
- *     the same Auth0 subject always gets the same wallet back.
+ *     Requires platform scope + identity.scope.manage — held by a real
+ *     human platform operator, OR by the narrow "service.onboarding"
+ *     machine credential the Auth0 Credentials Exchange Action stamps for
+ *     the Post-Login Action (see packages/authorization/src/catalog.ts —
+ *     it is the one deliberate exception to "machine credentials are
+ *     read-only"). Called the instant someone logs in — never by a browser
+ *     directly. Idempotent: the same Auth0 subject always gets the same
+ *     wallet back.
  *
  *   POST /control/v1/wallet-users/:walletId/setup-tokens
  *     The logged-in wallet owner's own session mints a short-lived,
@@ -19,10 +24,10 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getActorContext, registerRoutePermission } from "@counter/http-api-kit";
-import type { WalletUserProvisioner } from "./wallet-user-store.js";
+import type { WalletUserProvisionerLike } from "./wallet-user-store.js";
 
 export interface WalletUserRoutesOptions {
-  readonly provisioner: WalletUserProvisioner;
+  readonly provisioner: WalletUserProvisionerLike;
 }
 
 function sendValidationError(reply: FastifyReply, message: string): void {
@@ -60,6 +65,18 @@ export async function walletUserRoutesPlugin(
   fastify.post(
     "/control/v1/wallet-users/provision",
     async (request: FastifyRequest, reply: FastifyReply) => {
+      // identity.scope.manage is also granted by wallet.owner (for managing
+      // one's own wallet-scoped resources) — without this check, any logged-in
+      // wallet owner's own session token could call this route and provision
+      // an arbitrary auth0Subject. Only a platform-scoped actor may call it.
+      const actorContext = getActorContext(request);
+      if (actorContext?.scope.kind !== "platform") {
+        void reply.status(403).send({
+          error: { code: "UNAUTHORIZED", message: "Requires platform scope" },
+        });
+        return;
+      }
+
       const body = request.body as Record<string, unknown> | undefined;
       const auth0Subject = body?.["auth0Subject"];
       if (typeof auth0Subject !== "string" || auth0Subject.length === 0) {
@@ -99,9 +116,14 @@ export async function walletUserRoutesPlugin(
     async (request: FastifyRequest, reply: FastifyReply) => {
       const body = request.body as Record<string, unknown> | undefined;
       const setupToken = body?.["setupToken"];
+      const keyId = body?.["keyId"];
       const publicKeyBase64Url = body?.["publicKeyBase64Url"];
       if (typeof setupToken !== "string" || setupToken.length === 0) {
         sendValidationError(reply, "Field 'setupToken' is required");
+        return;
+      }
+      if (typeof keyId !== "string" || keyId.length === 0) {
+        sendValidationError(reply, "Field 'keyId' is required");
         return;
       }
       if (typeof publicKeyBase64Url !== "string" || publicKeyBase64Url.length === 0) {
@@ -120,7 +142,7 @@ export async function walletUserRoutesPlugin(
         return;
       }
 
-      const result = await provisioner.registerAgentKey(walletId, publicKeyBase64Url);
+      const result = await provisioner.registerAgentKey(walletId, keyId, publicKeyBase64Url);
       void reply.status(201).send({ walletId, agentId: result.agentId, keyId: result.keyId });
     },
   );

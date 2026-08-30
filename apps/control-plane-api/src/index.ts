@@ -28,7 +28,7 @@ import {
   type TransactionReadStore,
 } from "./transaction-routes.js";
 import { walletUserRoutesPlugin } from "./wallet-user-routes.js";
-import type { WalletUserProvisioner } from "./wallet-user-store.js";
+import type { WalletUserProvisionerLike } from "./wallet-user-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -104,15 +104,14 @@ export interface CreateServerOptions {
    * new, optional feature (self-serve onboarding), not one every deployment
    * of this app needs, unlike policy/transaction routes.
    */
-  readonly walletUserProvisioner?: WalletUserProvisioner | undefined;
+  readonly walletUserProvisioner?: WalletUserProvisionerLike | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
   const version = options?.version ?? DEFAULT_VERSION;
   const environment = options?.environment ?? DEFAULT_ENVIRONMENT;
 
-  const jwks: JWTVerifyGetKey | string =
-    options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
+  const jwks: JWTVerifyGetKey | string = options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
 
   const serverOptions: ServerFactoryOptions = {
     name: APP_NAME,

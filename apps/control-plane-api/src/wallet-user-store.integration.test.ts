@@ -11,6 +11,7 @@
 import { afterAll, beforeAll, expect } from "vitest";
 import { describe as vitestDescribe, it as vitestIt } from "vitest";
 import { PostgresDatabase } from "@counter/data";
+import { createCounterId } from "@counter/domain";
 import { WalletUserProvisioner } from "./wallet-user-store.js";
 
 const databaseUrl = process.env["DATABASE_URL"];
@@ -21,6 +22,12 @@ const RUN_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const SUBJECT_A = `wallet-user-store-test|${RUN_ID}-a`;
 const SUBJECT_B = `wallet-user-store-test|${RUN_ID}-b`;
 const FAKE_PUBLIC_KEY = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI"; // 32 synthetic bytes, base64url
+
+function fakeKeyId(): string {
+  const result = createCounterId("key", crypto.getRandomValues(new Uint8Array(16)));
+  if (!result.ok) throw new Error("Failed to derive a test key id");
+  return result.value as unknown as string;
+}
 
 gatedDescribe("WalletUserProvisioner (real Supabase)", () => {
   let database: PostgresDatabase;
@@ -55,10 +62,10 @@ gatedDescribe("WalletUserProvisioner (real Supabase)", () => {
         `DELETE FROM identity.actors WHERE environment = $1 AND owner_scope_id = $2`,
         [TEST_ENV, walletId],
       );
-      await database.query(
-        `DELETE FROM wallet.scopes WHERE environment = $1 AND wallet_id = $2`,
-        [TEST_ENV, walletId],
-      );
+      await database.query(`DELETE FROM wallet.scopes WHERE environment = $1 AND wallet_id = $2`, [
+        TEST_ENV,
+        walletId,
+      ]);
       await database.query(
         `DELETE FROM identity.scope_registry WHERE environment = $1 AND scope_id = $2`,
         [TEST_ENV, walletId],
@@ -67,22 +74,25 @@ gatedDescribe("WalletUserProvisioner (real Supabase)", () => {
     await database.close();
   });
 
-  vitestIt("provisions a real wallet for a new subject, and is idempotent on repeat login", async () => {
-    const first = await provisioner.provisionForAuth0Subject(SUBJECT_A);
-    insertedWalletIds.push(first.walletId);
-    expect(first.created).toBe(true);
-    expect(first.walletId).toMatch(/^ctr_wallet_/);
+  vitestIt(
+    "provisions a real wallet for a new subject, and is idempotent on repeat login",
+    async () => {
+      const first = await provisioner.provisionForAuth0Subject(SUBJECT_A);
+      insertedWalletIds.push(first.walletId);
+      expect(first.created).toBe(true);
+      expect(first.walletId).toMatch(/^ctr_wallet_/);
 
-    const second = await provisioner.provisionForAuth0Subject(SUBJECT_A);
-    expect(second.created).toBe(false);
-    expect(second.walletId).toBe(first.walletId);
+      const second = await provisioner.provisionForAuth0Subject(SUBJECT_A);
+      expect(second.created).toBe(false);
+      expect(second.walletId).toBe(first.walletId);
 
-    const rows = await database.query(
-      `SELECT wallet_id FROM identity.wallet_users WHERE environment = $1 AND auth0_subject = $2`,
-      [TEST_ENV, SUBJECT_A],
-    );
-    expect(rows.rows).toHaveLength(1);
-  });
+      const rows = await database.query(
+        `SELECT wallet_id FROM identity.wallet_users WHERE environment = $1 AND auth0_subject = $2`,
+        [TEST_ENV, SUBJECT_A],
+      );
+      expect(rows.rows).toHaveLength(1);
+    },
+  );
 
   vitestIt("different subjects get different wallets", async () => {
     const a = await provisioner.provisionForAuth0Subject(SUBJECT_A);
@@ -119,9 +129,14 @@ gatedDescribe("WalletUserProvisioner (real Supabase)", () => {
     );
     insertedWalletIds.push(walletId);
 
-    const { agentId, keyId } = await provisioner.registerAgentKey(walletId, FAKE_PUBLIC_KEY);
+    const suppliedKeyId = fakeKeyId();
+    const { agentId, keyId } = await provisioner.registerAgentKey(
+      walletId,
+      suppliedKeyId,
+      FAKE_PUBLIC_KEY,
+    );
     expect(agentId).toMatch(/^ctr_agent_/);
-    expect(keyId).toMatch(/^ctr_key_/);
+    expect(keyId).toBe(suppliedKeyId);
 
     const keyRow = await database.query<{ owner_scope_id: string; public_key_base64url: string }>(
       `SELECT owner_scope_id, public_key_base64url FROM identity.agent_public_keys
@@ -134,7 +149,18 @@ gatedDescribe("WalletUserProvisioner (real Supabase)", () => {
 
   vitestIt("refuses to register a key for a nonexistent wallet", async () => {
     await expect(
-      provisioner.registerAgentKey("ctr_wallet_doesnotexist00000000", FAKE_PUBLIC_KEY),
+      provisioner.registerAgentKey("ctr_wallet_doesnotexist00000000", fakeKeyId(), FAKE_PUBLIC_KEY),
     ).rejects.toThrow(/No such wallet/);
+  });
+
+  vitestIt("refuses a malformed keyId", async () => {
+    const { walletId } = await provisioner.provisionForAuth0Subject(
+      `wallet-user-store-test|${RUN_ID}-e`,
+    );
+    insertedWalletIds.push(walletId);
+
+    await expect(
+      provisioner.registerAgentKey(walletId, "not-a-counter-id", FAKE_PUBLIC_KEY),
+    ).rejects.toThrow(/Invalid keyId/);
   });
 });

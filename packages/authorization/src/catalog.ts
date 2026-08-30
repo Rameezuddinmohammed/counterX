@@ -29,6 +29,7 @@ export const ROLE_KEYS = [
   "wallet.owner",
   "platform.operator",
   "service.identity",
+  "service.onboarding",
 ] as const;
 
 export type RoleKey = (typeof ROLE_KEYS)[number];
@@ -58,16 +59,8 @@ const tenantManagePermissions = [
 ] as const satisfies readonly Permission[];
 
 export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Object.freeze({
-  "merchant.owner": definition(
-    ["merchant_user"],
-    ["merchant"],
-    tenantManagePermissions,
-  ),
-  "merchant.admin": definition(
-    ["merchant_user"],
-    ["merchant"],
-    tenantManagePermissions,
-  ),
+  "merchant.owner": definition(["merchant_user"], ["merchant"], tenantManagePermissions),
+  "merchant.admin": definition(["merchant_user"], ["merchant"], tenantManagePermissions),
   "merchant.integration": definition(
     ["merchant_user"],
     ["merchant"],
@@ -80,21 +73,9 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
       "identity.service_identity.manage",
     ],
   ),
-  "merchant.operations": definition(
-    ["merchant_user"],
-    ["merchant"],
-    tenantReadPermissions,
-  ),
-  "merchant.auditor": definition(
-    ["merchant_user"],
-    ["merchant"],
-    tenantReadPermissions,
-  ),
-  "merchant.read_only": definition(
-    ["merchant_user"],
-    ["merchant"],
-    tenantReadPermissions,
-  ),
+  "merchant.operations": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
+  "merchant.auditor": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
+  "merchant.read_only": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
   "wallet.owner": definition(["wallet_user"], ["wallet"], tenantManagePermissions),
   "platform.operator": definition(
     ["operator"],
@@ -113,6 +94,16 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
     ["merchant", "wallet", "platform"],
     tenantReadPermissions,
   ),
+  /**
+   * The ONE deliberate exception to "machine credentials are read-only":
+   * a service actor allowed to create wallet-user identity records, and
+   * nothing else. Exists for the login-triggered self-serve provisioning
+   * flow (apps/control-plane-api/src/wallet-user-routes.ts), where a
+   * Post-Login Action — not a human operator — must create a wallet the
+   * instant someone logs in. Scoped to platform only, and to exactly the
+   * one permission that route needs.
+   */
+  "service.onboarding": definition(["service"], ["platform"], ["identity.scope.manage"]),
 });
 
 const permissionSet: ReadonlySet<string> = new Set(PERMISSIONS);

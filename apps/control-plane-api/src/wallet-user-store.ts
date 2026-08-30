@@ -23,7 +23,7 @@
  */
 import { randomBytes, createHash } from "node:crypto";
 import type { Environment } from "@counter/domain";
-import { createCounterId } from "@counter/domain";
+import { createCounterId, parseCounterId } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
 
 const SETUP_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -44,7 +44,27 @@ export interface AgentKeyResult {
   readonly keyId: string;
 }
 
-function requireCounterId(kind: Parameters<typeof createCounterId>[0], entropy: Uint8Array): string {
+/**
+ * Structural interface for WalletUserProvisioner's public surface — lets
+ * wallet-user-routes.ts (and its tests) depend on the interface rather than
+ * the concrete direct-SQL class, matching PolicyStore/TransactionReadStore's
+ * existing separation in this app.
+ */
+export interface WalletUserProvisionerLike {
+  provisionForAuth0Subject(auth0Subject: string): Promise<ProvisionResult>;
+  mintSetupToken(walletId: string): Promise<SetupTokenResult>;
+  redeemSetupToken(rawToken: string): Promise<string | undefined>;
+  registerAgentKey(
+    walletId: string,
+    keyId: string,
+    publicKeyBase64Url: string,
+  ): Promise<AgentKeyResult>;
+}
+
+function requireCounterId(
+  kind: Parameters<typeof createCounterId>[0],
+  entropy: Uint8Array,
+): string {
   const result = createCounterId(kind, entropy);
   if (!result.ok) {
     throw new Error(`Failed to derive a ${kind} id: ${result.error.message}`);
@@ -56,7 +76,7 @@ function hashToken(rawToken: string): string {
   return createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
 
-export class WalletUserProvisioner {
+export class WalletUserProvisioner implements WalletUserProvisionerLike {
   constructor(
     private readonly database: TransactionalDatabase,
     private readonly environment: Environment,
@@ -71,7 +91,11 @@ export class WalletUserProvisioner {
     );
     const row = existing.rows[0];
     if (row !== undefined) {
-      return { walletId: row.wallet_id, walletUserActorId: row.wallet_user_actor_id, created: false };
+      return {
+        walletId: row.wallet_id,
+        walletUserActorId: row.wallet_user_actor_id,
+        created: false,
+      };
     }
 
     const walletId = requireCounterId("wallet", randomBytes(16));
@@ -140,8 +164,22 @@ export class WalletUserProvisioner {
     });
   }
 
-  /** Registers a new agent signing key for an already-provisioned wallet. */
-  async registerAgentKey(walletId: string, publicKeyBase64Url: string): Promise<AgentKeyResult> {
+  /**
+   * Registers a new agent signing key for an already-provisioned wallet.
+   *
+   * keyId is supplied by the caller, not generated here: it must be the same
+   * id the local signing script's key store already assigned the private
+   * key (FileSecureKeyStore.generateKey), because that id is what future
+   * sign() calls use as the CTP envelope's "kid" — the server verifies a
+   * purchase signature by looking up this exact key_id. Generating our own
+   * id here would silently break every purchase this agent ever tries to
+   * sign.
+   */
+  async registerAgentKey(
+    walletId: string,
+    keyId: string,
+    publicKeyBase64Url: string,
+  ): Promise<AgentKeyResult> {
     const walletExists = await this.database.query(
       `SELECT 1 FROM wallet.scopes WHERE environment = $1 AND wallet_id = $2`,
       [this.environment, walletId],
@@ -150,8 +188,12 @@ export class WalletUserProvisioner {
       throw new Error(`No such wallet: ${walletId}`);
     }
 
+    const parsedKeyId = parseCounterId(keyId, "key");
+    if (!parsedKeyId.ok) {
+      throw new Error(`Invalid keyId: ${parsedKeyId.error.message}`);
+    }
+
     const agentId = requireCounterId("agent", randomBytes(16));
-    const keyId = requireCounterId("key", randomBytes(16));
     const now = new Date().toISOString();
 
     await this.database.transaction(async (session) => {
