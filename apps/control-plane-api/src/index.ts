@@ -37,6 +37,12 @@ import { refundRequestRoutesPlugin } from "./refund-request-routes.js";
 import type { RefundRequestStoreLike } from "./refund-request-store.js";
 import { merchantApplicationRoutesPlugin } from "./merchant-application-routes.js";
 import type { MerchantApplicationProvisionerLike } from "./merchant-application-store.js";
+import { merchantPaymentConnectionRoutesPlugin } from "./merchant-payment-connection-routes.js";
+import type { MerchantPaymentConnectionStoreLike } from "./merchant-payment-connection-store.js";
+import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
+import type { MerchantReadinessServiceLike } from "./merchant-readiness-store.js";
+import { merchantManifestRoutesPlugin } from "./merchant-manifest-routes.js";
+import type { MerchantManifestStoreLike } from "./merchant-manifest-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -143,6 +149,22 @@ export interface CreateServerOptions {
    * same optional-feature pattern as walletUserProvisioner.
    */
   readonly merchantApplicationProvisioner?: MerchantApplicationProvisionerLike | undefined;
+  /**
+   * Only when present is /control/v1/merchant-applications/:merchantId/
+   * payment-connection registered — Step 4 (own-gateway Razorpay connect),
+   * same optional-feature pattern as merchantApplicationProvisioner.
+   */
+  readonly merchantPaymentConnectionStore?: MerchantPaymentConnectionStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/merchant-applications/:merchantId/
+   * readiness registered — Step 5, same optional-feature pattern.
+   */
+  readonly merchantReadinessService?: MerchantReadinessServiceLike | undefined;
+  /**
+   * Only when present is /control/v1/merchant-applications/:merchantId/
+   * manifest registered — Step 6, same optional-feature pattern.
+   */
+  readonly merchantManifestStore?: MerchantManifestStoreLike | undefined;
 }
 
 /**
@@ -264,6 +286,30 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.merchantApplicationProvisioner !== undefined) {
     void server.register(merchantApplicationRoutesPlugin, {
       provisioner: options.merchantApplicationProvisioner,
+    });
+  }
+
+  // Self-serve onboarding, Step 4 (own-gateway Razorpay connect) — only
+  // registered when a store is wired.
+  if (options?.merchantPaymentConnectionStore !== undefined) {
+    void server.register(merchantPaymentConnectionRoutesPlugin, {
+      store: options.merchantPaymentConnectionStore,
+    });
+  }
+
+  // Self-serve onboarding, Step 5 (readiness check) — only registered when
+  // a service is wired.
+  if (options?.merchantReadinessService !== undefined) {
+    void server.register(merchantReadinessRoutesPlugin, {
+      service: options.merchantReadinessService,
+    });
+  }
+
+  // Self-serve onboarding, Step 6 (manifest confirmation) — only registered
+  // when a store is wired.
+  if (options?.merchantManifestStore !== undefined) {
+    void server.register(merchantManifestRoutesPlugin, {
+      store: options.merchantManifestStore,
     });
   }
 

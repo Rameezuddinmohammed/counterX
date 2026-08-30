@@ -150,6 +150,9 @@ export async function merchantApplicationRoutesPlugin(
   registerRoutePermission("POST:/control/v1/merchant-applications/:merchantId/catalog-connected", {
     permission: "identity.scope.manage",
   });
+  registerRoutePermission("POST:/control/v1/merchant-applications/:merchantId/catalog/confirm", {
+    permission: "identity.scope.manage",
+  });
 
   fastify.post(
     "/control/v1/merchant-applications/provision",
@@ -344,6 +347,32 @@ export async function merchantApplicationRoutesPlugin(
 
       try {
         const updated = await provisioner.markCatalogConnected(merchantId);
+        void reply.status(200).send(updated);
+      } catch (error) {
+        if (error instanceof MerchantApplicationValidationError) {
+          sendValidationError(reply, error.message);
+          return;
+        }
+        throw error;
+      }
+    },
+  );
+
+  // Step 3: catalog review. See merchant-application-store.ts's
+  // confirmCatalog docs for the Shopify-vs-manual judgment call.
+  fastify.post(
+    "/control/v1/merchant-applications/:merchantId/catalog/confirm",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = request.params as Record<string, string>;
+      const merchantId = params["merchantId"] ?? "";
+
+      if (!verifyMerchantAccess(request, merchantId)) {
+        sendNotFound(reply);
+        return;
+      }
+
+      try {
+        const updated = await provisioner.confirmCatalog(merchantId);
         void reply.status(200).send(updated);
       } catch (error) {
         if (error instanceof MerchantApplicationValidationError) {

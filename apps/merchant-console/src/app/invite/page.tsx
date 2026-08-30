@@ -45,10 +45,18 @@ function nextStepHref(
       return "/invite/business-basics";
     case "CONNECTING":
       return "/invite/catalog-connect";
+    case "MAPPING":
+      return "/invite/catalog-review";
+    case "VERIFYING":
+      // Straight to the readiness check — it surfaces whichever step (e.g.
+      // payment connect) is still missing, with a link right there, rather
+      // than guessing which one to send the merchant to from here.
+      return "/invite/readiness";
+    case "SANDBOX_READY":
+      return "/invite/manifest";
     default:
-      // MAPPING and beyond: Steps 3+ (catalog review, payment connect,
-      // readiness, manifest confirmation) are a later pass — nothing to
-      // link to yet from here.
+      // ACTIVATION_REVIEW and beyond: operator-driven steps this wizard
+      // does not build — nothing to link to yet from here.
       return null;
   }
 }
@@ -59,6 +67,12 @@ function nextStepLabel(state: ProvisionMerchantApplicationResponse["lifecycleSta
       return "Add your business details";
     case "CONNECTING":
       return "Connect your catalog";
+    case "MAPPING":
+      return "Review your catalog";
+    case "VERIFYING":
+      return "Check readiness";
+    case "SANDBOX_READY":
+      return "Confirm your capabilities";
     default:
       return "Continue";
   }
