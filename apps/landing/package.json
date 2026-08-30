@@ -9,7 +9,9 @@
     "build": "next build",
     "dev": "next dev",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf .next"
+    "clean": "rm -rf .next",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@counter/ui": "workspace:*",

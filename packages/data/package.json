@@ -15,7 +15,9 @@
     "test": "vitest run --no-file-parallelism",
     "test:integration": "vitest run --no-file-parallelism src/migrations.integration.test.ts src/rls.integration.test.ts",
     "schema:diff": "drizzle-kit generate --config=drizzle.config.ts",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "@types/pg": "8.11.11",

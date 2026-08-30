@@ -13,18 +13,20 @@
     "build": "tsc -b tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@counter/authorization": "workspace:0.1.0",
+    "@counter/data": "workspace:0.1.0",
     "@counter/domain": "workspace:0.1.0",
     "@counter/http-api-kit": "workspace:0.1.0",
-    "fastify": "5.2.1",
-    "@counter/data": "workspace:0.1.0",
-    "@counter/razorpay-adapter": "workspace:0.1.0",
-    "@counter/payment-sdk": "workspace:0.1.0",
     "@counter/merchant-application": "workspace:0.1.0",
-    "@counter/trust-protocol": "workspace:0.1.0"
+    "@counter/payment-sdk": "workspace:0.1.0",
+    "@counter/razorpay-adapter": "workspace:0.1.0",
+    "@counter/trust-protocol": "workspace:0.1.0",
+    "fastify": "5.2.1"
   },
   "devDependencies": {
     "jose": "6.0.11",

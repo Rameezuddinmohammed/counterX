@@ -13,12 +13,14 @@
     "build": "tsc -b tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@counter/domain": "workspace:0.1.0",
     "@counter/authorization": "workspace:0.1.0",
     "@counter/config": "workspace:0.1.0",
+    "@counter/domain": "workspace:0.1.0",
     "@counter/trust-protocol": "workspace:0.1.0"
   },
   "devDependencies": {

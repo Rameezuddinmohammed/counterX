@@ -10,7 +10,9 @@
     "dev": "next dev --port 3100",
     "start": "next start --port 3100",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\""
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.5.1",
