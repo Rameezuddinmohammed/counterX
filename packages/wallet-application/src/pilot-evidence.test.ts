@@ -55,11 +55,13 @@ describe("PilotEvidenceBundle", () => {
       const bundle = new PilotEvidenceBundle();
 
       bundle.addCoverageMapping(createMapping());
-      bundle.addCoverageMapping(createMapping({
-        corpusScenarioId: "corpus-002",
-        walletScenarioId: "wallet-002",
-        coverageType: "functional_equivalent",
-      }));
+      bundle.addCoverageMapping(
+        createMapping({
+          corpusScenarioId: "corpus-002",
+          walletScenarioId: "wallet-002",
+          coverageType: "functional_equivalent",
+        }),
+      );
 
       const mappings = bundle.getMappings();
       expect(mappings).toHaveLength(2);

@@ -27,7 +27,9 @@ class RecordingSink implements ReceiptSink {
 }
 
 function provider(result: PaymentAuthorizationResult): PaymentAuthorizationPort {
-  return { authorizeAndCapture: (): Promise<PaymentAuthorizationResult> => Promise.resolve(result) };
+  return {
+    authorizeAndCapture: (): Promise<PaymentAuthorizationResult> => Promise.resolve(result),
+  };
 }
 
 const job: HandledJob = {

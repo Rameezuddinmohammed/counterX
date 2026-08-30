@@ -320,19 +320,22 @@ export async function merchantRoutesPlugin(
   }
 
   // --- Capability Route ---
-  fastify.get(`${ROUTE_PREFIX}/capabilities`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const result = await handlers.capability.handle(ctx);
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
-  });
+  fastify.get(
+    `${ROUTE_PREFIX}/capabilities`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
+      }
+      const result = await handlers.capability.handle(ctx);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return;
+      }
+      void reply.send(result.value);
+    },
+  );
 
   // --- Search Route ---
   fastify.post(`${ROUTE_PREFIX}/search`, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -347,7 +350,11 @@ export async function merchantRoutesPlugin(
       sendValidationError(reply, validationError, "query");
       return;
     }
-    const typedBody = body as { query: string; filters?: Record<string, unknown>; pagination?: { limit: number; cursor?: string } };
+    const typedBody = body as {
+      query: string;
+      filters?: Record<string, unknown>;
+      pagination?: { limit: number; cursor?: string };
+    };
     const result = await handlers.search.handle(ctx, {
       query: typedBody.query,
       filters: typedBody.filters,
@@ -361,25 +368,28 @@ export async function merchantRoutesPlugin(
   });
 
   // --- Product Route ---
-  fastify.get(`${ROUTE_PREFIX}/products/:variantId`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const params = request.params as Record<string, string>;
-    const variantId = params["variantId"] ?? "";
-    if (variantId === "") {
-      sendValidationError(reply, "variantId is required", "variantId");
-      return;
-    }
-    const result = await handlers.product.handle(ctx, variantId);
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
-  });
+  fastify.get(
+    `${ROUTE_PREFIX}/products/:variantId`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
+      }
+      const params = request.params as Record<string, string>;
+      const variantId = params["variantId"] ?? "";
+      if (variantId === "") {
+        sendValidationError(reply, "variantId is required", "variantId");
+        return;
+      }
+      const result = await handlers.product.handle(ctx, variantId);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return;
+      }
+      void reply.send(result.value);
+    },
+  );
 
   // --- Quote Route ---
   fastify.post(`${ROUTE_PREFIX}/quotes`, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -405,10 +415,10 @@ export async function merchantRoutesPlugin(
     }
     await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.quote.handle(ctx, {
-      variantId: typedBody.variantId,
-      quantity: typedBody.quantity,
-      currency: typedBody.currency,
-    });
+        variantId: typedBody.variantId,
+        quantity: typedBody.quantity,
+        currency: typedBody.currency,
+      });
       if (!result.ok) {
         sendHandlerError(reply, result.error, ctx.correlationId);
         return { handled: false };
@@ -419,181 +429,209 @@ export async function merchantRoutesPlugin(
   });
 
   // --- Transaction Create Route ---
-  fastify.post(`${ROUTE_PREFIX}/transactions`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const body = request.body as Record<string, unknown> | undefined;
-    const validationError = validateBody(body, ["quoteId", "paymentMethod"]);
-    if (validationError !== undefined) {
-      const field = ["quoteId", "paymentMethod"].find((f) => {
-        const obj = (body ?? {}) as Record<string, unknown>;
-        return obj[f] === undefined || obj[f] === null || obj[f] === "";
-      });
-      sendValidationError(reply, validationError, field);
-      return;
-    }
-    const typedBody = body as {
-      quoteId: string;
-      paymentMethod: string;
-      billingAddress?: { line1: string; city: string; region?: string; postalCode: string; country: string };
-      ctpEnvelope?: unknown;
-    };
-    await runWithIdempotency(ctx, request, reply, async () => {
-      const result = await handlers.transactionCreate.handle(ctx, {
-      quoteId: typedBody.quoteId,
-      paymentMethod: typedBody.paymentMethod,
-      billingAddress: typedBody.billingAddress,
-      ctpEnvelope: typedBody.ctpEnvelope as TransactionCreateInput["ctpEnvelope"],
-    });
-      if (!result.ok) {
-        sendHandlerError(reply, result.error, ctx.correlationId);
-        return { handled: false };
+  fastify.post(
+    `${ROUTE_PREFIX}/transactions`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
       }
-      void reply.send(result.value);
-      return { handled: true, snapshot: result.value };
-    });
-  });
+      const body = request.body as Record<string, unknown> | undefined;
+      const validationError = validateBody(body, ["quoteId", "paymentMethod"]);
+      if (validationError !== undefined) {
+        const field = ["quoteId", "paymentMethod"].find((f) => {
+          const obj = (body ?? {}) as Record<string, unknown>;
+          return obj[f] === undefined || obj[f] === null || obj[f] === "";
+        });
+        sendValidationError(reply, validationError, field);
+        return;
+      }
+      const typedBody = body as {
+        quoteId: string;
+        paymentMethod: string;
+        billingAddress?: {
+          line1: string;
+          city: string;
+          region?: string;
+          postalCode: string;
+          country: string;
+        };
+        ctpEnvelope?: unknown;
+      };
+      await runWithIdempotency(ctx, request, reply, async () => {
+        const result = await handlers.transactionCreate.handle(ctx, {
+          quoteId: typedBody.quoteId,
+          paymentMethod: typedBody.paymentMethod,
+          billingAddress: typedBody.billingAddress,
+          ctpEnvelope: typedBody.ctpEnvelope as TransactionCreateInput["ctpEnvelope"],
+        });
+        if (!result.ok) {
+          sendHandlerError(reply, result.error, ctx.correlationId);
+          return { handled: false };
+        }
+        void reply.send(result.value);
+        return { handled: true, snapshot: result.value };
+      });
+    },
+  );
 
   // --- Transaction Status Route ---
-  fastify.get(`${ROUTE_PREFIX}/transactions/:transactionId`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const params = request.params as Record<string, string>;
-    const transactionId = params["transactionId"] ?? "";
-    if (transactionId === "") {
-      sendValidationError(reply, "transactionId is required", "transactionId");
-      return;
-    }
-    const result = await handlers.transactionStatus.handle(ctx, transactionId);
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
-  });
+  fastify.get(
+    `${ROUTE_PREFIX}/transactions/:transactionId`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
+      }
+      const params = request.params as Record<string, string>;
+      const transactionId = params["transactionId"] ?? "";
+      if (transactionId === "") {
+        sendValidationError(reply, "transactionId is required", "transactionId");
+        return;
+      }
+      const result = await handlers.transactionStatus.handle(ctx, transactionId);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return;
+      }
+      void reply.send(result.value);
+    },
+  );
 
   // --- Payment Action Result Route ---
-  fastify.post(`${ROUTE_PREFIX}/transactions/:transactionId/payment-result`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const params = request.params as Record<string, string>;
-    const transactionId = params["transactionId"] ?? "";
-    const body = request.body as Record<string, unknown> | undefined;
-    const validationError = validateBody(body, ["providerReference", "outcome"]);
-    if (validationError !== undefined) {
-      const field = ["providerReference", "outcome"].find((f) => {
-        const obj = (body ?? {}) as Record<string, unknown>;
-        return obj[f] === undefined || obj[f] === null || obj[f] === "";
-      });
-      sendValidationError(reply, validationError, field);
-      return;
-    }
-    const typedBody = body as { providerReference: string; outcome: "success" | "failure" | "pending"; providerMetadata?: Record<string, unknown> };
-    const validOutcomes = ["success", "failure", "pending"];
-    if (!validOutcomes.includes(typedBody.outcome)) {
-      sendValidationError(reply, "outcome must be 'success', 'failure', or 'pending'", "outcome");
-      return;
-    }
-    await runWithIdempotency(ctx, request, reply, async () => {
-      const result = await handlers.paymentActionResult.handle(ctx, transactionId, {
-      providerReference: typedBody.providerReference,
-      outcome: typedBody.outcome,
-      providerMetadata: typedBody.providerMetadata,
-    });
-      if (!result.ok) {
-        sendHandlerError(reply, result.error, ctx.correlationId);
-        return { handled: false };
+  fastify.post(
+    `${ROUTE_PREFIX}/transactions/:transactionId/payment-result`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
       }
-      void reply.send(result.value);
-      return { handled: true, snapshot: result.value };
-    });
-  });
+      const params = request.params as Record<string, string>;
+      const transactionId = params["transactionId"] ?? "";
+      const body = request.body as Record<string, unknown> | undefined;
+      const validationError = validateBody(body, ["providerReference", "outcome"]);
+      if (validationError !== undefined) {
+        const field = ["providerReference", "outcome"].find((f) => {
+          const obj = (body ?? {}) as Record<string, unknown>;
+          return obj[f] === undefined || obj[f] === null || obj[f] === "";
+        });
+        sendValidationError(reply, validationError, field);
+        return;
+      }
+      const typedBody = body as {
+        providerReference: string;
+        outcome: "success" | "failure" | "pending";
+        providerMetadata?: Record<string, unknown>;
+      };
+      const validOutcomes = ["success", "failure", "pending"];
+      if (!validOutcomes.includes(typedBody.outcome)) {
+        sendValidationError(reply, "outcome must be 'success', 'failure', or 'pending'", "outcome");
+        return;
+      }
+      await runWithIdempotency(ctx, request, reply, async () => {
+        const result = await handlers.paymentActionResult.handle(ctx, transactionId, {
+          providerReference: typedBody.providerReference,
+          outcome: typedBody.outcome,
+          providerMetadata: typedBody.providerMetadata,
+        });
+        if (!result.ok) {
+          sendHandlerError(reply, result.error, ctx.correlationId);
+          return { handled: false };
+        }
+        void reply.send(result.value);
+        return { handled: true, snapshot: result.value };
+      });
+    },
+  );
 
   // --- Cancel Route ---
-  fastify.post(`${ROUTE_PREFIX}/transactions/:transactionId/cancel`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const params = request.params as Record<string, string>;
-    const transactionId = params["transactionId"] ?? "";
-    const body = request.body as Record<string, unknown> | undefined;
-    const validationError = validateBody(body, ["reason"]);
-    if (validationError !== undefined) {
-      sendValidationError(reply, validationError, "reason");
-      return;
-    }
-    const typedBody = body as { reason: string };
-    await runWithIdempotency(ctx, request, reply, async () => {
-      const result = await handlers.cancel.handle(ctx, transactionId, {
-      reason: typedBody.reason,
-    });
-      if (!result.ok) {
-        sendHandlerError(reply, result.error, ctx.correlationId);
-        return { handled: false };
+  fastify.post(
+    `${ROUTE_PREFIX}/transactions/:transactionId/cancel`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
       }
-      void reply.send(result.value);
-      return { handled: true, snapshot: result.value };
-    });
-  });
+      const params = request.params as Record<string, string>;
+      const transactionId = params["transactionId"] ?? "";
+      const body = request.body as Record<string, unknown> | undefined;
+      const validationError = validateBody(body, ["reason"]);
+      if (validationError !== undefined) {
+        sendValidationError(reply, validationError, "reason");
+        return;
+      }
+      const typedBody = body as { reason: string };
+      await runWithIdempotency(ctx, request, reply, async () => {
+        const result = await handlers.cancel.handle(ctx, transactionId, {
+          reason: typedBody.reason,
+        });
+        if (!result.ok) {
+          sendHandlerError(reply, result.error, ctx.correlationId);
+          return { handled: false };
+        }
+        void reply.send(result.value);
+        return { handled: true, snapshot: result.value };
+      });
+    },
+  );
 
   // --- Refund Route ---
-  fastify.post(`${ROUTE_PREFIX}/transactions/:transactionId/refund`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const params = request.params as Record<string, string>;
-    const transactionId = params["transactionId"] ?? "";
-    const body = request.body as Record<string, unknown> | undefined;
-    const validationError = validateBody(body, ["reason"]);
-    if (validationError !== undefined) {
-      sendValidationError(reply, validationError, "reason");
-      return;
-    }
-    const typedBody = body as { reason: string };
-    await runWithIdempotency(ctx, request, reply, async () => {
-      const result = await handlers.refund.handle(ctx, transactionId, {
-      reason: typedBody.reason,
-    });
-      if (!result.ok) {
-        sendHandlerError(reply, result.error, ctx.correlationId);
-        return { handled: false };
+  fastify.post(
+    `${ROUTE_PREFIX}/transactions/:transactionId/refund`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
       }
-      void reply.send(result.value);
-      return { handled: true, snapshot: result.value };
-    });
-  });
+      const params = request.params as Record<string, string>;
+      const transactionId = params["transactionId"] ?? "";
+      const body = request.body as Record<string, unknown> | undefined;
+      const validationError = validateBody(body, ["reason"]);
+      if (validationError !== undefined) {
+        sendValidationError(reply, validationError, "reason");
+        return;
+      }
+      const typedBody = body as { reason: string };
+      await runWithIdempotency(ctx, request, reply, async () => {
+        const result = await handlers.refund.handle(ctx, transactionId, {
+          reason: typedBody.reason,
+        });
+        if (!result.ok) {
+          sendHandlerError(reply, result.error, ctx.correlationId);
+          return { handled: false };
+        }
+        void reply.send(result.value);
+        return { handled: true, snapshot: result.value };
+      });
+    },
+  );
 
   // --- Receipt Route ---
-  fastify.get(`${ROUTE_PREFIX}/transactions/:transactionId/receipt`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = buildContext(request);
-    if (!verifyTenantAccess(request, ctx.merchantId)) {
-      sendForbiddenError(reply);
-      return;
-    }
-    const params = request.params as Record<string, string>;
-    const transactionId = params["transactionId"] ?? "";
-    if (transactionId === "") {
-      sendValidationError(reply, "transactionId is required", "transactionId");
-      return;
-    }
-    const result = await handlers.receipt.handle(ctx, transactionId);
-    if (!result.ok) {
-      sendHandlerError(reply, result.error, ctx.correlationId);
-      return;
-    }
-    void reply.send(result.value);
-  });
+  fastify.get(
+    `${ROUTE_PREFIX}/transactions/:transactionId/receipt`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const ctx = buildContext(request);
+      if (!verifyTenantAccess(request, ctx.merchantId)) {
+        sendForbiddenError(reply);
+        return;
+      }
+      const params = request.params as Record<string, string>;
+      const transactionId = params["transactionId"] ?? "";
+      if (transactionId === "") {
+        sendValidationError(reply, "transactionId is required", "transactionId");
+        return;
+      }
+      const result = await handlers.receipt.handle(ctx, transactionId);
+      if (!result.ok) {
+        sendHandlerError(reply, result.error, ctx.correlationId);
+        return;
+      }
+      void reply.send(result.value);
+    },
+  );
 }

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InMemorySecureKeyStore } from "@counter/wallet-domain";
-import {
-  PurchaseProposalBuilder,
-  deriveProposalIdempotencyKey,
-} from "./purchase-proposal.js";
+import { PurchaseProposalBuilder, deriveProposalIdempotencyKey } from "./purchase-proposal.js";
 import type { MerchantQuote, PrecheckResult } from "./policy-precheck.js";
 
 // ---------------------------------------------------------------------------

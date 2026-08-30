@@ -78,7 +78,9 @@ export function validateTransition(
 /**
  * Returns the list of valid target states from the given state.
  */
-export function allowedTransitionsFrom(state: WalletLifecycleState): readonly WalletLifecycleState[] {
+export function allowedTransitionsFrom(
+  state: WalletLifecycleState,
+): readonly WalletLifecycleState[] {
   return ALLOWED_TRANSITIONS[state];
 }
 

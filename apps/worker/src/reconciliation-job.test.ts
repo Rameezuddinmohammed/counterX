@@ -200,9 +200,7 @@ describe("bounded re-recording for terminal non-closed dispositions", () => {
       },
       isResolved(idempotencyKey): Promise<boolean> {
         return Promise.resolve(
-          recorded.some(
-            (r) => r.idempotencyKey === idempotencyKey && terminal.has(r.disposition),
-          ),
+          recorded.some((r) => r.idempotencyKey === idempotencyKey && terminal.has(r.disposition)),
         );
       },
     };

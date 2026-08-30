@@ -256,7 +256,10 @@ function buildComponentSchemas(): Record<string, unknown> {
         correlationId: { type: "string" },
       },
     },
-    IndeterminateError: buildErrorSchema("INDETERMINATE", "The operation outcome is not yet authoritative"),
+    IndeterminateError: buildErrorSchema(
+      "INDETERMINATE",
+      "The operation outcome is not yet authoritative",
+    ),
   };
 }
 
@@ -270,7 +273,8 @@ export function generateOpenApiSpec(): OpenApiSpec {
     info: {
       title: "Counter Merchant Runtime API",
       version: "1.0.0",
-      description: "Merchant-facing runtime endpoints for capability discovery, search, quotes, transactions, and receipts.",
+      description:
+        "Merchant-facing runtime endpoints for capability discovery, search, quotes, transactions, and receipts.",
     },
     paths: buildPaths(),
     components: {

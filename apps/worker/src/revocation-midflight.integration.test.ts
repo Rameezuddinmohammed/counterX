@@ -35,35 +35,35 @@ import {
 
 const gatedDescribe = hasCreds ? describe : describe.skip;
 
-gatedDescribe("revocation mid-flight — blocks next step, routes to INDETERMINATE (creds+DB-gated)", () => {
-  const database = new PostgresDatabase(databaseUrl as string);
-  const bundle = realBundleOrNull();
-  const idempotencyKey = `revoke-midflight-${Date.now()}`;
+gatedDescribe(
+  "revocation mid-flight — blocks next step, routes to INDETERMINATE (creds+DB-gated)",
+  () => {
+    const database = new PostgresDatabase(databaseUrl as string);
+    const bundle = realBundleOrNull();
+    const idempotencyKey = `revoke-midflight-${Date.now()}`;
 
-  afterAll(async () => {
-    try {
-      const orderRow = (
-        await database.query<{ reference: string | null }>(
-          `SELECT reference FROM runtime.lifecycle_steps
+    afterAll(async () => {
+      try {
+        const orderRow = (
+          await database.query<{ reference: string | null }>(
+            `SELECT reference FROM runtime.lifecycle_steps
            WHERE idempotency_key = $1 AND step = 'shopify.finalize'`,
-          [idempotencyKey],
-        )
-      ).rows[0];
-      const orderId = orderRow?.reference ?? undefined;
-      if (bundle !== null && orderId !== undefined && orderId.length > 0) {
-        await cancelShopifyOrder(bundle.shopify, orderId, idempotencyKey);
+            [idempotencyKey],
+          )
+        ).rows[0];
+        const orderId = orderRow?.reference ?? undefined;
+        if (bundle !== null && orderId !== undefined && orderId.length > 0) {
+          await cancelShopifyOrder(bundle.shopify, orderId, idempotencyKey);
+        }
+      } finally {
+        await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+          idempotencyKey,
+        ]);
+        await database.close();
       }
-    } finally {
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        idempotencyKey,
-      ]);
-      await database.close();
-    }
-  });
+    });
 
-  it(
-    "blocks the consequential mark-paid step after a mid-flight revocation and leaves the order PENDING (no compounding effect)",
-    async () => {
+    it("blocks the consequential mark-paid step after a mid-flight revocation and leaves the order PENDING (no compounding effect)", async () => {
       await database.query(RUNTIME_DDL);
       await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
         idempotencyKey,
@@ -140,7 +140,6 @@ gatedDescribe("revocation mid-flight — blocks next step, routes to INDETERMINA
         [idempotencyKey],
       );
       expect(markPaidRows.rowCount).toBe(0);
-    },
-    180_000,
-  );
-});
+    }, 180_000);
+  },
+);

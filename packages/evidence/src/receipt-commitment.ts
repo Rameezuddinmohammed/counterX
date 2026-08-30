@@ -17,9 +17,7 @@ import type { ReceiptCommitment, ReceiptIssuanceInput } from "./receipt-types.js
  * Builds a ReceiptCommitment from issuance input data.
  * The commitment captures all fields that both audiences agree on.
  */
-export function buildReceiptCommitment(
-  input: ReceiptIssuanceInput,
-): ReceiptCommitment {
+export function buildReceiptCommitment(input: ReceiptIssuanceInput): ReceiptCommitment {
   return {
     transactionId: input.transactionId,
     orchestrationPhase: input.orchestrationPhase,

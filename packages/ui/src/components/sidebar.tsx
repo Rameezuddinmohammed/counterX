@@ -25,10 +25,7 @@ export interface SidebarProviderProps {
   defaultCollapsed?: boolean;
 }
 
-export function SidebarProvider({
-  children,
-  defaultCollapsed = false,
-}: SidebarProviderProps) {
+export function SidebarProvider({ children, defaultCollapsed = false }: SidebarProviderProps) {
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
   const toggle = React.useCallback(() => setCollapsed((c) => !c), []);
 
@@ -49,7 +46,7 @@ export function Sidebar({ className, children, ...props }: SidebarProps) {
       className={cn(
         "flex h-full flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-all duration-300",
         collapsed ? "w-16" : "w-64",
-        className
+        className,
       )}
       {...props}
     >
@@ -64,10 +61,7 @@ export function SidebarHeader({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn("flex items-center gap-2 px-4 py-4", className)}
-      {...props}
-    >
+    <div className={cn("flex items-center gap-2 px-4 py-4", className)} {...props}>
       {children}
     </div>
   );
@@ -79,10 +73,7 @@ export function SidebarContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn("flex-1 overflow-y-auto px-3 py-2", className)}
-      {...props}
-    >
+    <div className={cn("flex-1 overflow-y-auto px-3 py-2", className)} {...props}>
       {children}
     </div>
   );
@@ -108,8 +99,7 @@ export function SidebarSection({
   );
 }
 
-export interface SidebarItemProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface SidebarItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: React.ReactNode;
   active?: boolean;
   badge?: string | number;
@@ -133,7 +123,7 @@ export function SidebarItem({
           ? "bg-[var(--brand-orange)]/10 text-[var(--brand-orange)]"
           : "text-[var(--foreground-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]",
         collapsed && "justify-center px-2",
-        className
+        className,
       )}
       {...props}
     >
@@ -154,13 +144,7 @@ export function SidebarFooter({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn(
-        "border-t border-[var(--border)] px-3 py-3",
-        className
-      )}
-      {...props}
-    >
+    <div className={cn("border-t border-[var(--border)] px-3 py-3", className)} {...props}>
       {children}
     </div>
   );
@@ -176,17 +160,13 @@ export function SidebarToggle({
     <button
       className={cn(
         "flex items-center justify-center rounded-lg p-2 text-[var(--foreground-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] transition-colors",
-        className
+        className,
       )}
       onClick={toggle}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       {...props}
     >
-      {collapsed ? (
-        <PanelLeft className="h-5 w-5" />
-      ) : (
-        <PanelLeftClose className="h-5 w-5" />
-      )}
+      {collapsed ? <PanelLeft className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
     </button>
   );
 }

@@ -80,10 +80,7 @@ function buildRefundPayload(orderId: string, amountMinor: number | undefined): R
  * - failed: 409 Conflict (action was rejected)
  * - indeterminate: 202 Accepted (outcome unknown, caller should poll)
  */
-function statusCodeForOutcome(
-  outcome: { status: string },
-  successCode: number,
-): number {
+function statusCodeForOutcome(outcome: { status: string }, successCode: number): number {
   switch (outcome.status) {
     case "succeeded":
       return successCode;
@@ -127,8 +124,18 @@ export function buildServer(): FastifyInstance {
 
   let quoteAction = createQuoteAction(eventStream, faultControls);
   let draftOrderAction = createDraftOrderAction(eventStream, inventory, faultControls);
-  let completeOrderAction = createCompleteOrderAction(eventStream, inventory, faultControls, orderRegistry);
-  let cancelOrderAction = createCancelOrderAction(eventStream, inventory, faultControls, orderRegistry);
+  let completeOrderAction = createCompleteOrderAction(
+    eventStream,
+    inventory,
+    faultControls,
+    orderRegistry,
+  );
+  let cancelOrderAction = createCancelOrderAction(
+    eventStream,
+    inventory,
+    faultControls,
+    orderRegistry,
+  );
   let refundAction = createRefundAction(eventStream, faultControls);
 
   // ─── Health ───────────────────────────────────────────────────────────────
@@ -334,8 +341,18 @@ export function buildServer(): FastifyInstance {
     variants = createVariantResourcePort(faultControls);
     quoteAction = createQuoteAction(eventStream, faultControls);
     draftOrderAction = createDraftOrderAction(eventStream, inventory, faultControls);
-    completeOrderAction = createCompleteOrderAction(eventStream, inventory, faultControls, orderRegistry);
-    cancelOrderAction = createCancelOrderAction(eventStream, inventory, faultControls, orderRegistry);
+    completeOrderAction = createCompleteOrderAction(
+      eventStream,
+      inventory,
+      faultControls,
+      orderRegistry,
+    );
+    cancelOrderAction = createCancelOrderAction(
+      eventStream,
+      inventory,
+      faultControls,
+      orderRegistry,
+    );
     refundAction = createRefundAction(eventStream, faultControls);
 
     return reply.send({ status: "updated", config: faultControls.config });

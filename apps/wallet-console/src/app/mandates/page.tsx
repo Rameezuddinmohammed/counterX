@@ -15,10 +15,42 @@ interface Mandate {
 }
 
 const MOCK_MANDATES: Mandate[] = [
-  { id: "mdt-001", merchant: "StreamFlix", maxAmount: "INR 999/month", frequency: "Monthly", status: "active", expiresAt: "2026-01-01", nextDebit: "2025-02-01" },
-  { id: "mdt-002", merchant: "CloudStore Pro", maxAmount: "INR 2,500/month", frequency: "Monthly", status: "active", expiresAt: "2025-12-15", nextDebit: "2025-02-15" },
-  { id: "mdt-003", merchant: "GymFit Premium", maxAmount: "INR 1,500/month", frequency: "Monthly", status: "paused", expiresAt: "2025-06-30", nextDebit: "-" },
-  { id: "mdt-004", merchant: "NewsDaily", maxAmount: "INR 299/month", frequency: "Monthly", status: "expired", expiresAt: "2025-01-01", nextDebit: "-" },
+  {
+    id: "mdt-001",
+    merchant: "StreamFlix",
+    maxAmount: "INR 999/month",
+    frequency: "Monthly",
+    status: "active",
+    expiresAt: "2026-01-01",
+    nextDebit: "2025-02-01",
+  },
+  {
+    id: "mdt-002",
+    merchant: "CloudStore Pro",
+    maxAmount: "INR 2,500/month",
+    frequency: "Monthly",
+    status: "active",
+    expiresAt: "2025-12-15",
+    nextDebit: "2025-02-15",
+  },
+  {
+    id: "mdt-003",
+    merchant: "GymFit Premium",
+    maxAmount: "INR 1,500/month",
+    frequency: "Monthly",
+    status: "paused",
+    expiresAt: "2025-06-30",
+    nextDebit: "-",
+  },
+  {
+    id: "mdt-004",
+    merchant: "NewsDaily",
+    maxAmount: "INR 299/month",
+    frequency: "Monthly",
+    status: "expired",
+    expiresAt: "2025-01-01",
+    nextDebit: "-",
+  },
 ];
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "secondary"> = {
@@ -60,7 +92,9 @@ export default function MandatesPage() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-[var(--foreground-muted)]">Max Amount</p>
-                    <p className="font-mono font-medium text-[var(--foreground)]">{mandate.maxAmount}</p>
+                    <p className="font-mono font-medium text-[var(--foreground)]">
+                      {mandate.maxAmount}
+                    </p>
                   </div>
                   <div>
                     <p className="text-[var(--foreground-muted)]">Frequency</p>
@@ -76,9 +110,21 @@ export default function MandatesPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  {mandate.status === "active" && <Button variant="outline" size="sm">Pause</Button>}
-                  {mandate.status === "paused" && <Button variant="outline" size="sm">Resume</Button>}
-                  {mandate.status === "expired" && <Button variant="outline" size="sm" disabled>Expired</Button>}
+                  {mandate.status === "active" && (
+                    <Button variant="outline" size="sm">
+                      Pause
+                    </Button>
+                  )}
+                  {mandate.status === "paused" && (
+                    <Button variant="outline" size="sm">
+                      Resume
+                    </Button>
+                  )}
+                  {mandate.status === "expired" && (
+                    <Button variant="outline" size="sm" disabled>
+                      Expired
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

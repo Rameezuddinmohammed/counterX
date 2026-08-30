@@ -140,7 +140,15 @@ export function useOperatorApi() {
       fetchSupportSessions(),
       fetchAdapters(),
     ]);
-  }, [fetchFleet, fetchIncidents, fetchQueues, fetchDeadLetters, fetchKillSwitches, fetchSupportSessions, fetchAdapters]);
+  }, [
+    fetchFleet,
+    fetchIncidents,
+    fetchQueues,
+    fetchDeadLetters,
+    fetchKillSwitches,
+    fetchSupportSessions,
+    fetchAdapters,
+  ]);
 
   return {
     fleet,

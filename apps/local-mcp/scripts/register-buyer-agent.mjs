@@ -113,4 +113,6 @@ console.log(`  walletId:    ${walletId}`);
 console.log(`  agentId:     ${agentId}`);
 console.log(`  keyId (kid): ${keyId}`);
 console.log(`  keyStorePath: ${keyStorePath}`);
-console.log("\nSet these as COUNTER_WALLET_ID / COUNTER_AGENT_ID / COUNTER_AGENT_KID for main-real.ts.");
+console.log(
+  "\nSet these as COUNTER_WALLET_ID / COUNTER_AGENT_ID / COUNTER_AGENT_KID for main-real.ts.",
+);

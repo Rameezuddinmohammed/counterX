@@ -23,8 +23,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: "Counter - The commerce layer for AI agents",
-    description:
-      "The commerce infrastructure that lets AI agents transact on behalf of users.",
+    description: "The commerce infrastructure that lets AI agents transact on behalf of users.",
     url: "https://getcounter.in",
     siteName: "Counter",
     type: "website",
@@ -32,8 +31,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Counter - The commerce layer for AI agents",
-    description:
-      "The commerce infrastructure that lets AI agents transact on behalf of users.",
+    description: "The commerce infrastructure that lets AI agents transact on behalf of users.",
   },
   robots: {
     index: true,
@@ -45,12 +43,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {children}
         </ThemeProvider>
       </body>

@@ -16,10 +16,42 @@ interface TriggerRule {
 }
 
 const MOCK_TRIGGERS: TriggerRule[] = [
-  { id: "trg-001", name: "Auto-approve small payments", condition: "Amount < INR 1,000 AND Merchant in trusted list", action: "Auto-approve transaction", enabled: true, lastFired: "2 hours ago", firedCount: 47 },
-  { id: "trg-002", name: "Block suspicious merchants", condition: "Merchant risk score > 80", action: "Auto-reject and alert", enabled: true, lastFired: "3 days ago", firedCount: 2 },
-  { id: "trg-003", name: "Notify on high value", condition: "Amount > INR 10,000", action: "Send push notification", enabled: true, lastFired: "1 day ago", firedCount: 8 },
-  { id: "trg-004", name: "Weekend spending limit", condition: "Day is Saturday OR Sunday AND total > INR 5,000", action: "Require additional approval", enabled: false, lastFired: "Never", firedCount: 0 },
+  {
+    id: "trg-001",
+    name: "Auto-approve small payments",
+    condition: "Amount < INR 1,000 AND Merchant in trusted list",
+    action: "Auto-approve transaction",
+    enabled: true,
+    lastFired: "2 hours ago",
+    firedCount: 47,
+  },
+  {
+    id: "trg-002",
+    name: "Block suspicious merchants",
+    condition: "Merchant risk score > 80",
+    action: "Auto-reject and alert",
+    enabled: true,
+    lastFired: "3 days ago",
+    firedCount: 2,
+  },
+  {
+    id: "trg-003",
+    name: "Notify on high value",
+    condition: "Amount > INR 10,000",
+    action: "Send push notification",
+    enabled: true,
+    lastFired: "1 day ago",
+    firedCount: 8,
+  },
+  {
+    id: "trg-004",
+    name: "Weekend spending limit",
+    condition: "Day is Saturday OR Sunday AND total > INR 5,000",
+    action: "Require additional approval",
+    enabled: false,
+    lastFired: "Never",
+    firedCount: 0,
+  },
 ];
 
 export default function TriggersPage() {
@@ -61,11 +93,15 @@ export default function TriggersPage() {
                       </div>
                       <div className="mt-2 space-y-1">
                         <p className="text-xs text-[var(--foreground-muted)]">
-                          <span className="font-medium text-[var(--foreground-secondary)]">If:</span>{" "}
+                          <span className="font-medium text-[var(--foreground-secondary)]">
+                            If:
+                          </span>{" "}
                           {trigger.condition}
                         </p>
                         <p className="text-xs text-[var(--foreground-muted)]">
-                          <span className="font-medium text-[var(--foreground-secondary)]">Then:</span>{" "}
+                          <span className="font-medium text-[var(--foreground-secondary)]">
+                            Then:
+                          </span>{" "}
                           {trigger.action}
                         </p>
                       </div>
@@ -75,7 +111,10 @@ export default function TriggersPage() {
                       </div>
                     </div>
                   </div>
-                  <Switch defaultChecked={trigger.enabled} onCheckedChange={(checked) => handleToggle(trigger.name, checked)} />
+                  <Switch
+                    defaultChecked={trigger.enabled}
+                    onCheckedChange={(checked) => handleToggle(trigger.name, checked)}
+                  />
                 </div>
               </CardContent>
             </Card>

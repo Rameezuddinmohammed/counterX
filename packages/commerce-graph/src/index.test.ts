@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMoney } from "@counter/domain";
 import type { Instant, Sha256Digest } from "@counter/domain";
-import {
-  PACKAGE_NAME,
-} from "./index.js";
+import { PACKAGE_NAME } from "./index.js";
 import type {
   Product,
   Variant,
@@ -176,7 +174,8 @@ describe("@counter/commerce-graph", () => {
       id: "mv-1",
       merchantId: "m1",
       version: "1.0.0",
-      schemaHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
+      schemaHash:
+        "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
       transforms: [],
       status: "draft",
       publishedAt: null,

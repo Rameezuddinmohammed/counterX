@@ -57,8 +57,8 @@ export function HowItWorks() {
             transition={{ delay: 0.2 }}
             className="mx-auto max-w-2xl text-[var(--foreground-secondary)] text-lg"
           >
-            From discovery to settlement, Counter handles the entire transaction
-            lifecycle with security at every step.
+            From discovery to settlement, Counter handles the entire transaction lifecycle with
+            security at every step.
           </motion.p>
         </div>
 

@@ -60,11 +60,7 @@ export const DEFAULT_RAZORPAY_BASE_URL = "https://api.razorpay.com";
  * credentials are tolerated (resolve to `null`). Mirrors
  * `MOCK_ELIGIBLE_ENVIRONMENTS` in `apps/agent-runtime/src/index.ts`.
  */
-const MOCK_ELIGIBLE_ENVIRONMENTS: ReadonlySet<string> = new Set([
-  "local",
-  "test",
-  "development",
-]);
+const MOCK_ELIGIBLE_ENVIRONMENTS: ReadonlySet<string> = new Set(["local", "test", "development"]);
 
 /**
  * Reads and trims a single environment value, treating empty/whitespace-only

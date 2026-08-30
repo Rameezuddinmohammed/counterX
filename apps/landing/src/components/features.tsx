@@ -1,14 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  Wallet,
-  Shield,
-  Zap,
-  Network,
-  Lock,
-  BarChart3,
-} from "lucide-react";
+import { Wallet, Shield, Zap, Network, Lock, BarChart3 } from "lucide-react";
 
 const FEATURES = [
   {
@@ -92,8 +85,8 @@ export function Features() {
             transition={{ delay: 0.2 }}
             className="mx-auto max-w-2xl text-[var(--foreground-secondary)] text-lg"
           >
-            A complete commerce stack designed from the ground up for autonomous
-            agents, with the controls merchants and users demand.
+            A complete commerce stack designed from the ground up for autonomous agents, with the
+            controls merchants and users demand.
           </motion.p>
         </div>
 

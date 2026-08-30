@@ -12,10 +12,7 @@ import type {
   UnsignedCtpEnvelope,
   CtpEnvironment,
 } from "@counter/trust-protocol";
-import {
-  buildUnsignedEnvelope,
-  computePayloadDigest,
-} from "@counter/trust-protocol";
+import { buildUnsignedEnvelope, computePayloadDigest } from "@counter/trust-protocol";
 import type { StepUpAssuranceLevel } from "./step-up-service.js";
 import { ConsentTextRenderer } from "./consent-text-renderer.js";
 import type { ConsentOperationType, RenderedConsentText } from "./consent-text-renderer.js";
@@ -24,11 +21,7 @@ import type { ConsentOperationType, RenderedConsentText } from "./consent-text-r
 // Auth Methods
 // ---------------------------------------------------------------------------
 
-export const CONSENT_AUTH_METHODS = [
-  "pilot_password",
-  "webauthn",
-  "external_provider",
-] as const;
+export const CONSENT_AUTH_METHODS = ["pilot_password", "webauthn", "external_provider"] as const;
 
 export type ConsentAuthMethod = (typeof CONSENT_AUTH_METHODS)[number];
 
@@ -272,10 +265,7 @@ export class ConsentAttestationBuilder {
   /**
    * Validates that the audience in an attestation includes the expected audience.
    */
-  validateAudience(
-    attestationAudience: readonly string[],
-    expectedAudience: string,
-  ): boolean {
+  validateAudience(attestationAudience: readonly string[], expectedAudience: string): boolean {
     return attestationAudience.includes(expectedAudience);
   }
 }

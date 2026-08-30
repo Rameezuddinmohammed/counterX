@@ -39,15 +39,14 @@ export class ProductIndex {
   public indexProducts(products: readonly Product[]): void {
     for (const product of products) {
       if (product.status === "released") {
-        const variantProjections: VariantProjection[] = product.variants.map(
-          (v: Variant) =>
-            Object.freeze({
-              id: v.id,
-              productId: v.productId,
-              sku: v.sku,
-              title: v.title,
-              active: v.active,
-            }),
+        const variantProjections: VariantProjection[] = product.variants.map((v: Variant) =>
+          Object.freeze({
+            id: v.id,
+            productId: v.productId,
+            sku: v.sku,
+            title: v.title,
+            active: v.active,
+          }),
         );
 
         const projection: ProductProjection = Object.freeze({
@@ -90,9 +89,7 @@ export class ProductIndex {
 
       const titleMatch = product.title.toLowerCase().includes(normalizedQuery);
       const descMatch = product.description.toLowerCase().includes(normalizedQuery);
-      const skuMatch = product.variants.some((v) =>
-        v.sku.toLowerCase().includes(normalizedQuery),
-      );
+      const skuMatch = product.variants.some((v) => v.sku.toLowerCase().includes(normalizedQuery));
 
       if (titleMatch || descMatch || skuMatch) {
         results.push(product);

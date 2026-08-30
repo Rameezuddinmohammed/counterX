@@ -7,13 +7,7 @@
  */
 
 import type { Instant, Sha256Digest } from "@counter/domain";
-import {
-  createCanonicalError,
-  err,
-  ok,
-  sha256Digest,
-  sha256DigestsEqual,
-} from "@counter/domain";
+import { createCanonicalError, err, ok, sha256Digest, sha256DigestsEqual } from "@counter/domain";
 import type { Result } from "@counter/domain";
 import type { AuditEntry, IntegrityCheckpoint } from "./types.js";
 
@@ -94,26 +88,18 @@ export class AuditLog {
   public createCheckpoint(id: string, now: Instant): IntegrityCheckpoint {
     const lastCheckpointIndex = this.#checkpoints.length - 1;
     const entriesStart =
-      lastCheckpointIndex >= 0
-        ? (this.#entryCountsAtCheckpoint[lastCheckpointIndex] ?? 0)
-        : 0;
+      lastCheckpointIndex >= 0 ? (this.#entryCountsAtCheckpoint[lastCheckpointIndex] ?? 0) : 0;
 
     const entriesSinceLastCheckpoint = this.#entries.slice(entriesStart);
     const entriesDigest = computeEntriesDigest(entriesSinceLastCheckpoint);
 
     const lastCheckpoint =
-      lastCheckpointIndex >= 0
-        ? this.#checkpoints[lastCheckpointIndex]
-        : undefined;
+      lastCheckpointIndex >= 0 ? this.#checkpoints[lastCheckpointIndex] : undefined;
 
     const checkpoint: IntegrityCheckpoint = Object.freeze({
       id,
-      sequenceNumber: lastCheckpoint
-        ? lastCheckpoint.sequenceNumber + 1
-        : 0,
-      previousCheckpointDigest: lastCheckpoint
-        ? lastCheckpoint.entriesDigest
-        : undefined,
+      sequenceNumber: lastCheckpoint ? lastCheckpoint.sequenceNumber + 1 : 0,
+      previousCheckpointDigest: lastCheckpoint ? lastCheckpoint.entriesDigest : undefined,
       entriesDigest,
       createdAt: now,
     });
@@ -124,10 +110,7 @@ export class AuditLog {
     return checkpoint;
   }
 
-  public verifyIntegrity(
-    from: IntegrityCheckpoint,
-    to: IntegrityCheckpoint,
-  ): Result<boolean> {
+  public verifyIntegrity(from: IntegrityCheckpoint, to: IntegrityCheckpoint): Result<boolean> {
     const fromIdx = this.#checkpoints.findIndex((cp) => cp.id === from.id);
     const toIdx = this.#checkpoints.findIndex((cp) => cp.id === to.id);
 
@@ -152,8 +135,7 @@ export class AuditLog {
         createCanonicalError({
           category: "validation",
           code: "INVALID_FORMAT",
-          message:
-            "Integrity check failed: entries digest does not match checkpoint",
+          message: "Integrity check failed: entries digest does not match checkpoint",
         }),
       );
     }

@@ -9,7 +9,11 @@
 import { describe, it, expect, vi } from "vitest";
 import type { MerchantId, WalletId } from "@counter/domain";
 import type { PrecheckResult } from "./policy-precheck.js";
-import type { CreateTriggerParams, PurchaseTemplate, TriggerExecutionDeps } from "./time-trigger.js";
+import type {
+  CreateTriggerParams,
+  PurchaseTemplate,
+  TriggerExecutionDeps,
+} from "./time-trigger.js";
 import { TimeTriggerScheduler } from "./time-trigger.js";
 
 // ---------------------------------------------------------------------------

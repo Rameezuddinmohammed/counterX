@@ -23,12 +23,7 @@ export type TimeoutSemantics = "before_effect" | "after_effect";
 
 // ─── Preconditions ────────────────────────────────────────────────────────────
 
-export const PRECONDITION_TYPES = [
-  "version_match",
-  "state_match",
-  "exists",
-  "not_exists",
-] as const;
+export const PRECONDITION_TYPES = ["version_match", "state_match", "exists", "not_exists"] as const;
 export type PreconditionType = (typeof PRECONDITION_TYPES)[number];
 
 export interface Precondition {

@@ -43,9 +43,7 @@ describe("lifecycle state machine", () => {
       for (const fromState of MERCHANT_LIFECYCLE_STATES) {
         const allowed = LIFECYCLE_TRANSITIONS[fromState];
         for (const toState of allowed) {
-          const result = transitionMerchantLifecycle(
-            makeTransitionParams(fromState, toState),
-          );
+          const result = transitionMerchantLifecycle(makeTransitionParams(fromState, toState));
           expect(result.ok).toBe(true);
           if (result.ok) {
             expect(result.value.fromState).toBe(fromState);
@@ -66,9 +64,7 @@ describe("lifecycle state machine", () => {
           (from, to) => {
             const allowed = LIFECYCLE_TRANSITIONS[from];
             if (!allowed.includes(to)) {
-              const result = transitionMerchantLifecycle(
-                makeTransitionParams(from, to),
-              );
+              const result = transitionMerchantLifecycle(makeTransitionParams(from, to));
               expect(result.ok).toBe(false);
             }
           },
@@ -80,9 +76,7 @@ describe("lifecycle state machine", () => {
   describe("terminal state (CLOSED)", () => {
     it("rejects ALL transitions from CLOSED", () => {
       for (const target of MERCHANT_LIFECYCLE_STATES) {
-        const result = transitionMerchantLifecycle(
-          makeTransitionParams("CLOSED", target),
-        );
+        const result = transitionMerchantLifecycle(makeTransitionParams("CLOSED", target));
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.code).toBe("CONFLICT");
@@ -117,9 +111,7 @@ describe("lifecycle state machine", () => {
         if (target === "ACTIVATION_REVIEW" || target === "OFFBOARDING") {
           continue;
         }
-        const result = transitionMerchantLifecycle(
-          makeTransitionParams("SUSPENDED", target),
-        );
+        const result = transitionMerchantLifecycle(makeTransitionParams("SUSPENDED", target));
         expect(result.ok).toBe(false);
       }
     });
@@ -127,9 +119,7 @@ describe("lifecycle state machine", () => {
 
   describe("kill switch: operator can force suspend", () => {
     it("ACTIVE -> SUSPENDED is a valid transition", () => {
-      const result = transitionMerchantLifecycle(
-        makeTransitionParams("ACTIVE", "SUSPENDED"),
-      );
+      const result = transitionMerchantLifecycle(makeTransitionParams("ACTIVE", "SUSPENDED"));
       expect(result.ok).toBe(true);
     });
 
@@ -163,14 +153,10 @@ describe("lifecycle state machine", () => {
 
   describe("offboarding paths", () => {
     it("ACTIVE -> OFFBOARDING -> CLOSED", () => {
-      const step1 = transitionMerchantLifecycle(
-        makeTransitionParams("ACTIVE", "OFFBOARDING", 0),
-      );
+      const step1 = transitionMerchantLifecycle(makeTransitionParams("ACTIVE", "OFFBOARDING", 0));
       expect(step1.ok).toBe(true);
 
-      const step2 = transitionMerchantLifecycle(
-        makeTransitionParams("OFFBOARDING", "CLOSED", 1),
-      );
+      const step2 = transitionMerchantLifecycle(makeTransitionParams("OFFBOARDING", "CLOSED", 1));
       expect(step2.ok).toBe(true);
     });
 
@@ -180,9 +166,7 @@ describe("lifecycle state machine", () => {
       );
       expect(step1.ok).toBe(true);
 
-      const step2 = transitionMerchantLifecycle(
-        makeTransitionParams("OFFBOARDING", "CLOSED", 1),
-      );
+      const step2 = transitionMerchantLifecycle(makeTransitionParams("OFFBOARDING", "CLOSED", 1));
       expect(step2.ok).toBe(true);
     });
 
@@ -192,9 +176,7 @@ describe("lifecycle state machine", () => {
       );
       expect(step1.ok).toBe(true);
 
-      const step2 = transitionMerchantLifecycle(
-        makeTransitionParams("OFFBOARDING", "CLOSED", 1),
-      );
+      const step2 = transitionMerchantLifecycle(makeTransitionParams("OFFBOARDING", "CLOSED", 1));
       expect(step2.ok).toBe(true);
     });
   });
@@ -256,9 +238,7 @@ describe("lifecycle state machine", () => {
           fc.constantFrom(...MERCHANT_LIFECYCLE_STATES),
           fc.integer({ min: 0, max: 1000 }),
           (from, to, version) => {
-            const result = transitionMerchantLifecycle(
-              makeTransitionParams(from, to, version),
-            );
+            const result = transitionMerchantLifecycle(makeTransitionParams(from, to, version));
             if (result.ok) {
               expect(Object.isFrozen(result.value)).toBe(true);
               expect(result.value.version).toBe(version + 1);

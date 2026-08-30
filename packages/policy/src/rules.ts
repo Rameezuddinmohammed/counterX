@@ -162,7 +162,10 @@ export function evaluateBuyerTimeWindow(input: PolicyEvaluationInput): RuleResul
   }
   const b = input.buyer;
 
-  if (input.requestedAt < b.timeWindow.allowedFrom || input.requestedAt > b.timeWindow.allowedUntil) {
+  if (
+    input.requestedAt < b.timeWindow.allowedFrom ||
+    input.requestedAt > b.timeWindow.allowedUntil
+  ) {
     return deny(ruleId, "Transaction is outside buyer allowed time window", b.source);
   }
 
@@ -180,10 +183,7 @@ export function evaluateBuyerOperations(input: PolicyEvaluationInput): RuleResul
   }
   const b = input.buyer;
 
-  if (
-    b.allowedOperations.length > 0 &&
-    !b.allowedOperations.includes(input.operationType)
-  ) {
+  if (b.allowedOperations.length > 0 && !b.allowedOperations.includes(input.operationType)) {
     return deny(ruleId, "Operation type is not allowed by buyer policy", b.source);
   }
 
@@ -207,11 +207,7 @@ export function evaluateBuyerApprovalThreshold(input: PolicyEvaluationInput): Ru
     input.requestedAmount.currency === threshold.thresholdAmount.currency &&
     input.requestedAmount.amountMinor >= threshold.thresholdAmount.amountMinor
   ) {
-    return reviewRequired(
-      ruleId,
-      "Transaction requires approval per buyer threshold",
-      b.source,
-    );
+    return reviewRequired(ruleId, "Transaction requires approval per buyer threshold", b.source);
   }
 
   return pass(ruleId, b.source);
@@ -289,13 +285,13 @@ export function evaluateMerchantPolicy(input: PolicyEvaluationInput): RuleResult
   if (m.allowedDestinations.length > 0 && !m.allowedDestinations.includes(input.destination)) {
     return deny(ruleId, "Destination is not allowed by merchant policy", m.source);
   }
-  if (
-    m.allowedPaymentPaths.length > 0 &&
-    !m.allowedPaymentPaths.includes(input.paymentMethod)
-  ) {
+  if (m.allowedPaymentPaths.length > 0 && !m.allowedPaymentPaths.includes(input.paymentMethod)) {
     return deny(ruleId, "Payment method is not allowed by merchant policy", m.source);
   }
-  if (input.requestedAt < m.timeWindow.allowedFrom || input.requestedAt > m.timeWindow.allowedUntil) {
+  if (
+    input.requestedAt < m.timeWindow.allowedFrom ||
+    input.requestedAt > m.timeWindow.allowedUntil
+  ) {
     return deny(ruleId, "Transaction is outside merchant allowed time window", m.source);
   }
 
@@ -388,11 +384,7 @@ export function evaluateRiskThreshold(input: PolicyEvaluationInput): RuleResult 
     return reviewRequired(ruleId, "Risk level is high - review required", r.source);
   }
   if (r.requiredActions.length > 0) {
-    return reviewRequired(
-      ruleId,
-      "Risk assessment requires additional actions",
-      r.source,
-    );
+    return reviewRequired(ruleId, "Risk assessment requires additional actions", r.source);
   }
 
   return pass(ruleId, r.source);
@@ -410,7 +402,11 @@ export function evaluateTransactionState(input: PolicyEvaluationInput): RuleResu
   const t = input.transactionState;
 
   if (t.allowedTransitions.length > 0 && !t.allowedTransitions.includes(t.currentPhase)) {
-    return deny(ruleId, "Current transaction phase does not allow the requested operation", t.source);
+    return deny(
+      ruleId,
+      "Current transaction phase does not allow the requested operation",
+      t.source,
+    );
   }
 
   return pass(ruleId, t.source);

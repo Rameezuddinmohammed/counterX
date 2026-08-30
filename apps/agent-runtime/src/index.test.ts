@@ -34,7 +34,10 @@ async function createTestToken(claims: Record<string, unknown> = {}): Promise<st
     sub: "ctr_merchant-user_AAAAAAAAAAAAAAAAAAAAAA",
     [`${CLAIMS_NAMESPACE}actor_kind`]: "merchant_user",
     [`${CLAIMS_NAMESPACE}environment`]: "test",
-    [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA" },
+    [`${CLAIMS_NAMESPACE}scope`]: {
+      kind: "merchant",
+      merchantId: "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA",
+    },
     [`${CLAIMS_NAMESPACE}roles`]: ["merchant.owner"],
     [`${CLAIMS_NAMESPACE}assurance`]: "session",
     permissions: ["identity.scope.read"],
@@ -69,7 +72,11 @@ describe("@counter/agent-runtime", () => {
 
     const response = await server.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { status: string; version: string; environment: string };
+    const body = JSON.parse(response.body) as {
+      status: string;
+      version: string;
+      environment: string;
+    };
     expect(body.status).toBe("healthy");
     expect(body.version).toBe("2.0.0");
     expect(body.environment).toBe("test");
@@ -121,7 +128,12 @@ describe("@counter/agent-runtime", () => {
     const adapters = new Map<string, WebhookHandler>();
     adapters.set("test-adapter", testHandler);
 
-    server = createServer({ jwks, environment: "test", webhooks: { adapters }, allowMockHandlers: true });
+    server = createServer({
+      jwks,
+      environment: "test",
+      webhooks: { adapters },
+      allowMockHandlers: true,
+    });
     await server.ready();
 
     const response = await server.inject({
@@ -205,9 +217,9 @@ describe("@counter/agent-runtime", () => {
 
       it(`throws in '${environment}' even when allowMockHandlers is set (opt-in ignored outside local/test)`, async () => {
         const { jwks } = await getTestKeys();
-        expect(() =>
-          createServer({ jwks, environment, allowMockHandlers: true }),
-        ).toThrow(/Refusing to start in production-like environment/);
+        expect(() => createServer({ jwks, environment, allowMockHandlers: true })).toThrow(
+          /Refusing to start in production-like environment/,
+        );
       });
     }
 

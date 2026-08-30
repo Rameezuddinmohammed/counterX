@@ -43,17 +43,32 @@ export default function SupportSessionsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
-                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">Grant ID</th>
-                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">Purpose</th>
-                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">Target</th>
-                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">Permissions</th>
-                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">Expiry</th>
-                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">Actions</th>
+                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">
+                      Grant ID
+                    </th>
+                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">
+                      Purpose
+                    </th>
+                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">
+                      Target
+                    </th>
+                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">
+                      Permissions
+                    </th>
+                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">
+                      Expiry
+                    </th>
+                    <th className="px-5 py-3 text-left font-medium text-[var(--foreground-muted)]">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
                   {MOCK_SESSIONS.map((session) => (
-                    <tr key={session.grantId} className="hover:bg-[var(--surface-secondary)]/50 transition-colors">
+                    <tr
+                      key={session.grantId}
+                      className="hover:bg-[var(--surface-secondary)]/50 transition-colors"
+                    >
                       <td className="px-5 py-3.5">
                         <code className="text-xs bg-[var(--surface-secondary)] px-1.5 py-0.5 rounded">
                           {session.grantId}
@@ -77,11 +92,17 @@ export default function SupportSessionsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5 text-[var(--foreground-muted)]">
                           <Clock className="h-3 w-3" />
-                          <span className="text-xs">{new Date(session.expiresAt).toLocaleTimeString()}</span>
+                          <span className="text-xs">
+                            {new Date(session.expiresAt).toLocaleTimeString()}
+                          </span>
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <Button size="sm" variant="outline" className="flex items-center gap-1.5 text-red-500 border-red-500/20 hover:bg-red-500/10">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex items-center gap-1.5 text-red-500 border-red-500/20 hover:bg-red-500/10"
+                        >
                           <XCircle className="h-3 w-3" />
                           Revoke
                         </Button>

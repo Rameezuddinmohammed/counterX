@@ -28,15 +28,9 @@ import { afterAll, expect, it, describe } from "vitest";
 
 import { PostgresDatabase, PostgresStepLedger } from "@counter/data";
 
-import {
-  buildRealConnectorBundle,
-  createPostgresStepLedgerPort,
-} from "./boot.js";
+import { buildRealConnectorBundle, createPostgresStepLedgerPort } from "./boot.js";
 import { requireRazorpayCredentials, requireShopifyCredentials } from "./connector-env.js";
-import {
-  createRealPaymentAuthorizationPort,
-  type StepLedgerPort,
-} from "./real-lifecycle.js";
+import { createRealPaymentAuthorizationPort, type StepLedgerPort } from "./real-lifecycle.js";
 import type { PaymentAuthorizationRequest } from "./transaction-lifecycle.js";
 
 const databaseUrl =
@@ -105,118 +99,112 @@ gatedDescribe("durable step-ledger crash-resume (creds+DB-gated, live network)",
         });
       }
     } finally {
-      await database.query(
-        `DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`,
-        [idempotencyKey],
-      );
+      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+        idempotencyKey,
+      ]);
       await database.close();
     }
   });
 
-  it(
-    "does not create a SECOND Shopify order when resuming after a crash between draft and finalize",
-    async () => {
-      await database.query(LIFECYCLE_STEPS_DDL);
-      await database.query(
-        `DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`,
+  it("does not create a SECOND Shopify order when resuming after a crash between draft and finalize", async () => {
+    await database.query(LIFECYCLE_STEPS_DDL);
+    await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+      idempotencyKey,
+    ]);
+
+    const durableLedger: StepLedgerPort = createPostgresStepLedgerPort(
+      new PostgresStepLedger(database, "local"),
+    );
+
+    const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
+    const request: PaymentAuthorizationRequest = {
+      transactionId: "ctr_txn_crashsim" as PaymentAuthorizationRequest["transactionId"],
+      amountMinor: 100,
+      currency: "INR",
+      idempotencyKey,
+      ...(variantId !== undefined ? { variantId } : {}),
+      quantity: 1,
+    };
+
+    // ── Attempt A: REAL connectors, but finalize is forced to throw AFTER the
+    //    real draft runs (a crash between draft and finalize). ──
+    const bundleA = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
+    const crashingShopify = {
+      ...bundleA.shopify,
+      orderFinalize: {
+        execute: (): Promise<never> =>
+          Promise.reject(new Error("simulated crash after draft, before finalize")),
+      } as unknown as typeof bundleA.shopify.orderFinalize,
+    };
+    const portA = createRealPaymentAuthorizationPort({
+      shopify: crashingShopify,
+      razorpay: bundleA.razorpay,
+      payments: bundleA.payments,
+      merchantId: bundleA.merchantId,
+      stepLedger: durableLedger,
+      actionTimeoutMs: 20_000,
+    });
+
+    await expect(portA.authorizeAndCapture(request)).rejects.toThrow();
+
+    // The real draft ran once and its outcome is durably recorded.
+    const draftRow = (
+      await database.query<{ reference: string | null }>(
+        `SELECT reference FROM runtime.lifecycle_steps
+           WHERE idempotency_key = $1 AND step = 'shopify.draft'`,
         [idempotencyKey],
-      );
+      )
+    ).rows[0];
+    expect(draftRow).toBeDefined();
+    expect(draftRow!.reference).toBeTruthy();
+    const draftReferenceAfterA = draftRow!.reference;
 
-      const durableLedger: StepLedgerPort = createPostgresStepLedgerPort(
-        new PostgresStepLedger(database, "local"),
-      );
+    // ── Attempt B: a FRESH real port + FRESH connectors (a restart) with the
+    //    SAME durable ledger + SAME key. Finalize now works; the lifecycle
+    //    RESUMES from the recorded draft and finalizes the REAL order. The
+    //    mark-paid leg is forced to stay INDETERMINATE so the resumed order is
+    //    left in PENDING (unpaid) — this keeps the proof focused on the
+    //    draft/finalize resume AND lets the connector cancel it cleanly in
+    //    afterAll (Shopify refuses a no-refund cancel on a PAID order). ──
+    const bundleB = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
+    const nonPayingShopify = {
+      ...bundleB.shopify,
+      paymentRecord: {
+        execute: (): Promise<{
+          readonly status: "indeterminate";
+          readonly lastKnownState: string;
+        }> =>
+          Promise.resolve({
+            status: "indeterminate" as const,
+            lastKnownState: "markPaid.simulated-unpaid",
+          }),
+      } as unknown as typeof bundleB.shopify.paymentRecord,
+    };
+    const portB = createRealPaymentAuthorizationPort({
+      shopify: nonPayingShopify,
+      razorpay: bundleB.razorpay,
+      payments: bundleB.payments,
+      merchantId: bundleB.merchantId,
+      stepLedger: durableLedger,
+      actionTimeoutMs: 20_000,
+    });
 
-      const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
-      const request: PaymentAuthorizationRequest = {
-        transactionId: "ctr_txn_crashsim" as PaymentAuthorizationRequest["transactionId"],
-        amountMinor: 100,
-        currency: "INR",
-        idempotencyKey,
-        ...(variantId !== undefined ? { variantId } : {}),
-        quantity: 1,
-      };
+    const second = await portB.authorizeAndCapture(request);
+    // The draft was RESUMED and the REAL order was finalized; mark-paid stays
+    // indeterminate by injection, so the order is left PENDING (cancellable).
+    // A declined/failed here would be a resume bug.
+    expect(second.status).toBe("indeterminate");
 
-      // ── Attempt A: REAL connectors, but finalize is forced to throw AFTER the
-      //    real draft runs (a crash between draft and finalize). ──
-      const bundleA = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
-      const crashingShopify = {
-        ...bundleA.shopify,
-        orderFinalize: {
-          execute: (): Promise<never> =>
-            Promise.reject(new Error("simulated crash after draft, before finalize")),
-        } as unknown as typeof bundleA.shopify.orderFinalize,
-      };
-      const portA = createRealPaymentAuthorizationPort({
-        shopify: crashingShopify,
-        razorpay: bundleA.razorpay,
-        payments: bundleA.payments,
-        merchantId: bundleA.merchantId,
-        stepLedger: durableLedger,
-        actionTimeoutMs: 20_000,
-      });
-
-      await expect(portA.authorizeAndCapture(request)).rejects.toThrow();
-
-      // The real draft ran once and its outcome is durably recorded.
-      const draftRow = (
-        await database.query<{ reference: string | null }>(
-          `SELECT reference FROM runtime.lifecycle_steps
+    // KEY INVARIANT: exactly ONE draft reference, unchanged from attempt A —
+    // the draft was RESUMED, never re-created.
+    const draftRows = (
+      await database.query<{ reference: string | null }>(
+        `SELECT reference FROM runtime.lifecycle_steps
            WHERE idempotency_key = $1 AND step = 'shopify.draft'`,
-          [idempotencyKey],
-        )
-      ).rows[0];
-      expect(draftRow).toBeDefined();
-      expect(draftRow!.reference).toBeTruthy();
-      const draftReferenceAfterA = draftRow!.reference;
-
-      // ── Attempt B: a FRESH real port + FRESH connectors (a restart) with the
-      //    SAME durable ledger + SAME key. Finalize now works; the lifecycle
-      //    RESUMES from the recorded draft and finalizes the REAL order. The
-      //    mark-paid leg is forced to stay INDETERMINATE so the resumed order is
-      //    left in PENDING (unpaid) — this keeps the proof focused on the
-      //    draft/finalize resume AND lets the connector cancel it cleanly in
-      //    afterAll (Shopify refuses a no-refund cancel on a PAID order). ──
-      const bundleB = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
-      const nonPayingShopify = {
-        ...bundleB.shopify,
-        paymentRecord: {
-          execute: (): Promise<{
-            readonly status: "indeterminate";
-            readonly lastKnownState: string;
-          }> =>
-            Promise.resolve({
-              status: "indeterminate" as const,
-              lastKnownState: "markPaid.simulated-unpaid",
-            }),
-        } as unknown as typeof bundleB.shopify.paymentRecord,
-      };
-      const portB = createRealPaymentAuthorizationPort({
-        shopify: nonPayingShopify,
-        razorpay: bundleB.razorpay,
-        payments: bundleB.payments,
-        merchantId: bundleB.merchantId,
-        stepLedger: durableLedger,
-        actionTimeoutMs: 20_000,
-      });
-
-      const second = await portB.authorizeAndCapture(request);
-      // The draft was RESUMED and the REAL order was finalized; mark-paid stays
-      // indeterminate by injection, so the order is left PENDING (cancellable).
-      // A declined/failed here would be a resume bug.
-      expect(second.status).toBe("indeterminate");
-
-      // KEY INVARIANT: exactly ONE draft reference, unchanged from attempt A —
-      // the draft was RESUMED, never re-created.
-      const draftRows = (
-        await database.query<{ reference: string | null }>(
-          `SELECT reference FROM runtime.lifecycle_steps
-           WHERE idempotency_key = $1 AND step = 'shopify.draft'`,
-          [idempotencyKey],
-        )
-      ).rows;
-      expect(draftRows).toHaveLength(1);
-      expect(draftRows[0]!.reference).toBe(draftReferenceAfterA);
-    },
-    120_000,
-  );
+        [idempotencyKey],
+      )
+    ).rows;
+    expect(draftRows).toHaveLength(1);
+    expect(draftRows[0]!.reference).toBe(draftReferenceAfterA);
+  }, 120_000);
 });

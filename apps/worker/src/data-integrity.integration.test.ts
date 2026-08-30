@@ -96,24 +96,24 @@ describe("data integrity — independent CTP verifier rejects a tampered receipt
 
 const gatedDescribe = hasCreds ? describe : describe.skip;
 
-gatedDescribe("data integrity — amount tamper between quote and commit is rejected (creds+DB-gated)", () => {
-  const database = new PostgresDatabase(databaseUrl as string);
-  const bundle = realBundleOrNull();
-  const idempotencyKey = `data-integrity-${Date.now()}`;
+gatedDescribe(
+  "data integrity — amount tamper between quote and commit is rejected (creds+DB-gated)",
+  () => {
+    const database = new PostgresDatabase(databaseUrl as string);
+    const bundle = realBundleOrNull();
+    const idempotencyKey = `data-integrity-${Date.now()}`;
 
-  afterAll(async () => {
-    try {
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        idempotencyKey,
-      ]);
-    } finally {
-      await database.close();
-    }
-  });
+    afterAll(async () => {
+      try {
+        await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+          idempotencyKey,
+        ]);
+      } finally {
+        await database.close();
+      }
+    });
 
-  it(
-    "rejects a commit whose amount differs from the authoritatively quoted amount — no external effect",
-    async () => {
+    it("rejects a commit whose amount differs from the authoritatively quoted amount — no external effect", async () => {
       await database.query(RUNTIME_DDL);
       await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
         idempotencyKey,
@@ -157,7 +157,6 @@ gatedDescribe("data integrity — amount tamper between quote and commit is reje
       expect(spy.calls.finalize).toBe(0);
       expect(spy.calls.markPaid).toBe(0);
       expect(await ledgerRowCount(database, idempotencyKey)).toBe(0);
-    },
-    120_000,
-  );
-});
+    }, 120_000);
+  },
+);

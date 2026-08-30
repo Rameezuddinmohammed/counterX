@@ -64,26 +64,28 @@ export function buildMerchantReceiptView(
 
   // Extract payment information from payment_provider evidence
   const paymentEvidence = evidence.filter((r) => r.source === "payment_provider");
-  const latestPayment = paymentEvidence.length > 0
-    ? paymentEvidence.reduce((latest, r) => (r.observedAt > latest.observedAt ? r : latest))
-    : undefined;
+  const latestPayment =
+    paymentEvidence.length > 0
+      ? paymentEvidence.reduce((latest, r) => (r.observedAt > latest.observedAt ? r : latest))
+      : undefined;
 
   const paymentStatus = latestPayment?.canonicalClaim.type ?? "unknown";
-  const paymentProvider = latestPayment !== undefined
-    ? extractProviderName(latestPayment.sourceId)
-    : "unknown";
+  const paymentProvider =
+    latestPayment !== undefined ? extractProviderName(latestPayment.sourceId) : "unknown";
   const amount = latestPayment?.canonicalClaim.details["amount"] as number | undefined;
   const currency = latestPayment?.canonicalClaim.details["currency"] as string | undefined;
   const paymentTimestamp = latestPayment?.observedAt;
 
   // Extract order information from merchant_connector evidence
   const orderEvidence = evidence.filter((r) => r.source === "merchant_connector");
-  const latestOrder = orderEvidence.length > 0
-    ? orderEvidence.reduce((latest, r) => (r.observedAt > latest.observedAt ? r : latest))
-    : undefined;
+  const latestOrder =
+    orderEvidence.length > 0
+      ? orderEvidence.reduce((latest, r) => (r.observedAt > latest.observedAt ? r : latest))
+      : undefined;
 
-  const orderRef = latestOrder?.canonicalClaim.details["orderId"] as string | undefined
-    ?? latestOrder?.canonicalClaim.details["orderNumber"] as string | undefined;
+  const orderRef =
+    (latestOrder?.canonicalClaim.details["orderId"] as string | undefined) ??
+    (latestOrder?.canonicalClaim.details["orderNumber"] as string | undefined);
   const orderStatus = latestOrder?.canonicalClaim.type;
   const orderTimestamp = latestOrder?.observedAt;
 
@@ -93,15 +95,14 @@ export function buildMerchantReceiptView(
       r.canonicalClaim.type === "fulfillment_shipped" ||
       r.canonicalClaim.type === "fulfillment_delivered",
   );
-  const latestFulfillment = fulfillmentEvidence.length > 0
-    ? fulfillmentEvidence.reduce((latest, r) => (r.observedAt > latest.observedAt ? r : latest))
-    : undefined;
+  const latestFulfillment =
+    fulfillmentEvidence.length > 0
+      ? fulfillmentEvidence.reduce((latest, r) => (r.observedAt > latest.observedAt ? r : latest))
+      : undefined;
   const fulfillmentStatus = latestFulfillment?.canonicalClaim.type;
 
   // Extract refund status
-  const refundEvidence = evidence.filter(
-    (r) => r.canonicalClaim.type === "refund_issued",
-  );
+  const refundEvidence = evidence.filter((r) => r.canonicalClaim.type === "refund_issued");
   const refundStatus = refundEvidence.length > 0 ? "refund_issued" : undefined;
 
   // Build findings summary
@@ -164,9 +165,7 @@ function buildFindingsSummary(findings: readonly FindingRecord[]): FindingsSumma
  * Computes a commitment digest for the merchant receipt projection.
  * Used when issuing a CTP-signed envelope for the merchant view.
  */
-export function computeMerchantReceiptDigest(
-  projection: MerchantReceiptProjection,
-): Sha256Digest {
+export function computeMerchantReceiptDigest(projection: MerchantReceiptProjection): Sha256Digest {
   const canonical = JSON.stringify({
     transactionId: projection.transactionId,
     merchantId: projection.merchantId,

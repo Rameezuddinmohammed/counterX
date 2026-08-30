@@ -17,14 +17,70 @@ interface Transaction {
 }
 
 const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: "txn-001", merchant: "MerchantCo", amount: "INR 2,500", method: "UPI", status: "settled", date: "2025-01-15" },
-  { id: "txn-002", merchant: "StreamFlix", amount: "INR 499", method: "Mandate", status: "settled", date: "2025-01-14" },
-  { id: "txn-003", merchant: "ShopEase", amount: "INR 8,750", method: "UPI", status: "pending", date: "2025-01-14" },
-  { id: "txn-004", merchant: "CloudStore", amount: "INR 1,200", method: "UPI", status: "settled", date: "2025-01-13" },
-  { id: "txn-005", merchant: "FoodDash", amount: "INR 350", method: "UPI", status: "refunded", date: "2025-01-12" },
-  { id: "txn-006", merchant: "TechMart", amount: "INR 15,999", method: "Card", status: "failed", date: "2025-01-11" },
-  { id: "txn-007", merchant: "GroceryHub", amount: "INR 890", method: "UPI", status: "settled", date: "2025-01-10" },
-  { id: "txn-008", merchant: "RideNow", amount: "INR 245", method: "Mandate", status: "settled", date: "2025-01-10" },
+  {
+    id: "txn-001",
+    merchant: "MerchantCo",
+    amount: "INR 2,500",
+    method: "UPI",
+    status: "settled",
+    date: "2025-01-15",
+  },
+  {
+    id: "txn-002",
+    merchant: "StreamFlix",
+    amount: "INR 499",
+    method: "Mandate",
+    status: "settled",
+    date: "2025-01-14",
+  },
+  {
+    id: "txn-003",
+    merchant: "ShopEase",
+    amount: "INR 8,750",
+    method: "UPI",
+    status: "pending",
+    date: "2025-01-14",
+  },
+  {
+    id: "txn-004",
+    merchant: "CloudStore",
+    amount: "INR 1,200",
+    method: "UPI",
+    status: "settled",
+    date: "2025-01-13",
+  },
+  {
+    id: "txn-005",
+    merchant: "FoodDash",
+    amount: "INR 350",
+    method: "UPI",
+    status: "refunded",
+    date: "2025-01-12",
+  },
+  {
+    id: "txn-006",
+    merchant: "TechMart",
+    amount: "INR 15,999",
+    method: "Card",
+    status: "failed",
+    date: "2025-01-11",
+  },
+  {
+    id: "txn-007",
+    merchant: "GroceryHub",
+    amount: "INR 890",
+    method: "UPI",
+    status: "settled",
+    date: "2025-01-10",
+  },
+  {
+    id: "txn-008",
+    merchant: "RideNow",
+    amount: "INR 245",
+    method: "Mandate",
+    status: "settled",
+    date: "2025-01-10",
+  },
 ];
 
 const STATUS_VARIANT: Record<TxStatus, "success" | "warning" | "error" | "secondary"> = {
@@ -92,7 +148,9 @@ export default function TransactionsPage() {
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <ArrowLeftRight className="h-8 w-8 text-[var(--foreground-muted)] mb-3" />
-                <p className="text-sm text-[var(--foreground-muted)]">No transactions match your filters</p>
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  No transactions match your filters
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-[var(--border)]">
@@ -104,8 +162,13 @@ export default function TransactionsPage() {
                   <span>Date</span>
                 </div>
                 {filtered.map((tx) => (
-                  <div key={tx.id} className="grid grid-cols-5 gap-4 px-5 py-3.5 items-center hover:bg-[var(--surface-secondary)] transition-colors">
-                    <span className="text-sm font-medium text-[var(--foreground)]">{tx.merchant}</span>
+                  <div
+                    key={tx.id}
+                    className="grid grid-cols-5 gap-4 px-5 py-3.5 items-center hover:bg-[var(--surface-secondary)] transition-colors"
+                  >
+                    <span className="text-sm font-medium text-[var(--foreground)]">
+                      {tx.merchant}
+                    </span>
                     <span className="text-sm font-mono text-[var(--foreground)]">{tx.amount}</span>
                     <span className="text-sm text-[var(--foreground-secondary)]">{tx.method}</span>
                     <Badge variant={STATUS_VARIANT[tx.status]}>{tx.status}</Badge>

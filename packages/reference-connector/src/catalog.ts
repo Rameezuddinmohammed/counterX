@@ -88,25 +88,15 @@ const SLIM_JEANS: Product = {
   variants: makeVariants("prod-slim-jeans", 199900n, 40),
 };
 
-export const CATALOG_PRODUCTS: readonly Product[] = [
-  CLASSIC_T_SHIRT,
-  URBAN_HOODIE,
-  SLIM_JEANS,
-];
+export const CATALOG_PRODUCTS: readonly Product[] = [CLASSIC_T_SHIRT, URBAN_HOODIE, SLIM_JEANS];
 
-export const ALL_VARIANTS: readonly ProductVariant[] = CATALOG_PRODUCTS.flatMap(
-  (p) => p.variants,
-);
+export const ALL_VARIANTS: readonly ProductVariant[] = CATALOG_PRODUCTS.flatMap((p) => p.variants);
 
 // ─── Lookup Helpers ───────────────────────────────────────────────────────────
 
-const productMap = new Map<string, Product>(
-  CATALOG_PRODUCTS.map((p) => [p.productId, p]),
-);
+const productMap = new Map<string, Product>(CATALOG_PRODUCTS.map((p) => [p.productId, p]));
 
-const variantMap = new Map<string, ProductVariant>(
-  ALL_VARIANTS.map((v) => [v.variantId, v]),
-);
+const variantMap = new Map<string, ProductVariant>(ALL_VARIANTS.map((v) => [v.variantId, v]));
 
 export function getProduct(id: string): Product | undefined {
   return productMap.get(id);

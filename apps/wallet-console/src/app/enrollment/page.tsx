@@ -12,12 +12,42 @@ interface EnrollmentStep {
 }
 
 const ENROLLMENT_STEPS: EnrollmentStep[] = [
-  { id: "step-1", title: "Account Creation", description: "Create your Counter wallet account with email verification", completed: true },
-  { id: "step-2", title: "Identity Verification", description: "Complete KYC with government-issued ID and selfie", completed: true },
-  { id: "step-3", title: "Device Registration", description: "Pair your primary device with biometric authentication", completed: true },
-  { id: "step-4", title: "Payment Method", description: "Link a bank account or UPI ID for transactions", completed: true },
-  { id: "step-5", title: "Policy Acceptance", description: "Review and accept the buyer protection policy", completed: true },
-  { id: "step-6", title: "First Transaction", description: "Complete a test transaction to activate the wallet", completed: false },
+  {
+    id: "step-1",
+    title: "Account Creation",
+    description: "Create your Counter wallet account with email verification",
+    completed: true,
+  },
+  {
+    id: "step-2",
+    title: "Identity Verification",
+    description: "Complete KYC with government-issued ID and selfie",
+    completed: true,
+  },
+  {
+    id: "step-3",
+    title: "Device Registration",
+    description: "Pair your primary device with biometric authentication",
+    completed: true,
+  },
+  {
+    id: "step-4",
+    title: "Payment Method",
+    description: "Link a bank account or UPI ID for transactions",
+    completed: true,
+  },
+  {
+    id: "step-5",
+    title: "Policy Acceptance",
+    description: "Review and accept the buyer protection policy",
+    completed: true,
+  },
+  {
+    id: "step-6",
+    title: "First Transaction",
+    description: "Complete a test transaction to activate the wallet",
+    completed: false,
+  },
 ];
 
 export default function EnrollmentPage() {
@@ -51,7 +81,10 @@ export default function EnrollmentPage() {
               <Badge variant={progress === 100 ? "success" : "warning"}>{progress}%</Badge>
             </div>
             <div className="h-2 rounded-full bg-[var(--surface-secondary)] overflow-hidden">
-              <div className="h-full rounded-full bg-[var(--brand-orange)] transition-all duration-500" style={{ width: progress + "%" }} />
+              <div
+                className="h-full rounded-full bg-[var(--brand-orange)] transition-all duration-500"
+                style={{ width: progress + "%" }}
+              />
             </div>
           </CardContent>
         </Card>
@@ -73,15 +106,34 @@ export default function EnrollmentPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <p className={"text-sm font-medium " + (step.completed ? "text-[var(--foreground)]" : "text-[var(--foreground-muted)]")}>
+                      <p
+                        className={
+                          "text-sm font-medium " +
+                          (step.completed
+                            ? "text-[var(--foreground)]"
+                            : "text-[var(--foreground-muted)]")
+                        }
+                      >
                         {step.title}
                       </p>
-                      {step.completed && <Badge variant="success" className="text-[10px]">Done</Badge>}
-                      {!step.completed && i === completedCount && <Badge variant="warning" className="text-[10px]">Next</Badge>}
+                      {step.completed && (
+                        <Badge variant="success" className="text-[10px]">
+                          Done
+                        </Badge>
+                      )}
+                      {!step.completed && i === completedCount && (
+                        <Badge variant="warning" className="text-[10px]">
+                          Next
+                        </Badge>
+                      )}
                     </div>
-                    <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{step.description}</p>
+                    <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                      {step.description}
+                    </p>
                   </div>
-                  <span className="text-xs text-[var(--foreground-muted)] tabular-nums">Step {i + 1}</span>
+                  <span className="text-xs text-[var(--foreground-muted)] tabular-nums">
+                    Step {i + 1}
+                  </span>
                 </div>
               ))}
             </div>

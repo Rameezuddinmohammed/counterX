@@ -929,11 +929,15 @@ describe("support-grants", () => {
     const grants = new Map<string, SupportGrant>();
     return {
       grants,
-      save: async (grant) => { grants.set(grant.id, grant); },
+      save: async (grant) => {
+        grants.set(grant.id, grant);
+      },
       findById: async (id) => grants.get(id) ?? null,
       findByMerchant: async (merchantId) =>
         Array.from(grants.values()).filter((g) => g.merchantId === merchantId),
-      update: async (grant) => { grants.set(grant.id, grant); },
+      update: async (grant) => {
+        grants.set(grant.id, grant);
+      },
     };
   }
 

@@ -60,8 +60,7 @@ module.exports = {
     {
       name: "merchant-no-wallet-imports",
       severity: "error",
-      comment:
-        "Merchant packages must not import from wallet-related packages or apps.",
+      comment: "Merchant packages must not import from wallet-related packages or apps.",
       from: {
         path: "^packages/(commerce-graph|merchant-application|merchant-policy|shopify-connector|reference-connector|razorpay-adapter|merchant-contracts)",
       },
@@ -72,8 +71,7 @@ module.exports = {
     {
       name: "wallet-no-merchant-implementation",
       severity: "error",
-      comment:
-        "Wallet packages must not import from merchant implementation packages.",
+      comment: "Wallet packages must not import from merchant implementation packages.",
       from: {
         path: "^packages/wallet",
       },

@@ -36,9 +36,7 @@ import {
 const NAV_SECTIONS = [
   {
     title: "Overview",
-    items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    ],
+    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     title: "Activity",
@@ -94,15 +92,15 @@ export function AppSidebar() {
           <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] px-3 py-2">
             <Wallet className="h-4 w-4 text-[var(--brand-orange)]" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-[var(--foreground)] truncate">
-                wlt-pilot-001
-              </p>
+              <p className="text-xs font-medium text-[var(--foreground)] truncate">wlt-pilot-001</p>
               <div className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                 <span className="text-[10px] text-[var(--foreground-muted)]">Active</span>
               </div>
             </div>
-            <Badge variant="secondary" className="text-[10px]">Pilot</Badge>
+            <Badge variant="secondary" className="text-[10px]">
+              Pilot
+            </Badge>
           </div>
         )}
 
@@ -112,11 +110,7 @@ export function AppSidebar() {
               <Link key={item.href} href={item.href} className="no-underline">
                 <SidebarItem
                   icon={<item.icon className="h-4 w-4" />}
-                  active={
-                    item.href === "/"
-                      ? pathname === "/"
-                      : pathname.startsWith(item.href)
-                  }
+                  active={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
                 >
                   {item.label}
                 </SidebarItem>
@@ -135,16 +129,15 @@ export function AppSidebar() {
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                Wallet User
-              </p>
-              <p className="text-xs text-[var(--foreground-muted)] truncate">
-                Pilot Mode
-              </p>
+              <p className="text-sm font-medium text-[var(--foreground)] truncate">Wallet User</p>
+              <p className="text-xs text-[var(--foreground-muted)] truncate">Pilot Mode</p>
             </div>
           )}
           {!collapsed && (
-            <Link href="/settings" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">
+            <Link
+              href="/settings"
+              className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            >
               <Settings className="h-4 w-4" />
             </Link>
           )}

@@ -89,16 +89,13 @@ const arbCurrency = fc.constantFrom(
   "JPY" as IsoCurrencyCode,
 );
 
-
 const arbAuthority: fc.Arbitrary<AuthorityContext> = fc
   .tuple(
     fc.constant(undefined),
     fc.integer({ min: 1, max: 100 }),
     fc.string({ minLength: 1, maxLength: 50 }),
   )
-  .map(([_, version, destination]) =>
-    makeAuthority({ transactionVersion: version, destination }),
-  );
+  .map(([_, version, destination]) => makeAuthority({ transactionVersion: version, destination }));
 
 const arbCreateTransaction: fc.Arbitrary<CreateTransaction> = fc
   .tuple(arbCurrency, fc.string({ minLength: 1, maxLength: 100 }), arbAuthority, arbInstant)
@@ -193,18 +190,14 @@ describe("material change detection", () => {
       currency: "EUR" as IsoCurrencyCode,
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("detects change in description field", () => {
     const base = makeCreateTransaction({ description: "original" });
     const changed = makeCreateTransaction({ ...base, description: "modified" });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("detects change in transactionId", () => {
@@ -214,9 +207,7 @@ describe("material change detection", () => {
       transactionId: idGen.generate("transaction"),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("detects material change in SubmitQuote amounts", () => {
@@ -226,9 +217,7 @@ describe("material change detection", () => {
       sourceAmount: makeMoney(99999n, "USD" as IsoCurrencyCode),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("detects material change via property-based testing", () => {
@@ -242,9 +231,7 @@ describe("material change detection", () => {
             ...cmd,
             description: newDescription,
           });
-          expect(computeCommandMaterialDigest(cmd)).not.toBe(
-            computeCommandMaterialDigest(changed),
-          );
+          expect(computeCommandMaterialDigest(cmd)).not.toBe(computeCommandMaterialDigest(changed));
         },
       ),
     );
@@ -266,9 +253,7 @@ describe("non-material field exclusion", () => {
       commandId: idGen.generate("command"),
     });
 
-    expect(computeCommandMaterialDigest(cmd1)).toBe(
-      computeCommandMaterialDigest(cmd2),
-    );
+    expect(computeCommandMaterialDigest(cmd1)).toBe(computeCommandMaterialDigest(cmd2));
   });
 
   it("issuedAt does not affect digest", () => {
@@ -285,9 +270,7 @@ describe("non-material field exclusion", () => {
       issuedAt: makeInstant(1700099999999),
     });
 
-    expect(computeCommandMaterialDigest(cmd1)).toBe(
-      computeCommandMaterialDigest(cmd2),
-    );
+    expect(computeCommandMaterialDigest(cmd1)).toBe(computeCommandMaterialDigest(cmd2));
   });
 
   it("non-material fields excluded across all command types (property)", () => {
@@ -317,9 +300,7 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("change in policyDecisionId produces different digest", () => {
@@ -332,9 +313,7 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("change in quoteDigest produces different digest", () => {
@@ -347,9 +326,7 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("change in paymentReference produces different digest", () => {
@@ -362,9 +339,7 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("change in destination produces different digest", () => {
@@ -377,9 +352,7 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("change in idempotencyKey produces different digest", () => {
@@ -392,9 +365,7 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 
   it("change in transactionVersion produces different digest", () => {
@@ -407,8 +378,6 @@ describe("authority context materiality", () => {
       }),
     });
 
-    expect(computeCommandMaterialDigest(base)).not.toBe(
-      computeCommandMaterialDigest(changed),
-    );
+    expect(computeCommandMaterialDigest(base)).not.toBe(computeCommandMaterialDigest(changed));
   });
 });

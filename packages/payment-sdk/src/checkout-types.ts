@@ -5,7 +5,14 @@
  * CheckoutOrchestrator to compose the full checkout flow.
  */
 
-import type { Environment, Instant, IsoCurrencyCode, MerchantId, Money, WalletId } from "@counter/domain";
+import type {
+  Environment,
+  Instant,
+  IsoCurrencyCode,
+  MerchantId,
+  Money,
+  WalletId,
+} from "@counter/domain";
 import type { PaymentAuthorization } from "./authorization.js";
 
 // ─── Checkout Phase ──────────────────────────────────────────────────────────

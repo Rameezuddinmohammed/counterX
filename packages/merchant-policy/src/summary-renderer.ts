@@ -49,7 +49,10 @@ export function renderPolicySummary(policy: CompiledMerchantPolicy): readonly st
   }
 
   // Cancellation policy
-  if (policy.cancellationWindowMs !== undefined && policy.cancellationRefundPercentage !== undefined) {
+  if (
+    policy.cancellationWindowMs !== undefined &&
+    policy.cancellationRefundPercentage !== undefined
+  ) {
     lines.push(
       `Cancellation allowed within ${String(policy.cancellationWindowMs)}ms with ${String(policy.cancellationRefundPercentage)}% refund`,
     );

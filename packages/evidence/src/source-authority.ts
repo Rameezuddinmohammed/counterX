@@ -17,11 +17,7 @@ import type { CanonicalClaimType, EvidenceSource, SourceAuthorityMap } from "./t
  * - agent_claim: NEVER authoritative for any claim type
  */
 export const AUTHORITY_MAP: SourceAuthorityMap = Object.freeze({
-  wallet_intent: Object.freeze([
-    "intent_created",
-    "consent_given",
-    "consent_revoked",
-  ] as const),
+  wallet_intent: Object.freeze(["intent_created", "consent_given", "consent_revoked"] as const),
   merchant_connector: Object.freeze([
     "order_committed",
     "order_cancelled",
@@ -45,10 +41,7 @@ export const AUTHORITY_MAP: SourceAuthorityMap = Object.freeze({
  * Returns true if the given source is authoritative for the given claim type.
  * Agent claims are NEVER authoritative.
  */
-export function isAuthoritative(
-  source: EvidenceSource,
-  claimType: CanonicalClaimType,
-): boolean {
+export function isAuthoritative(source: EvidenceSource, claimType: CanonicalClaimType): boolean {
   const authorizedClaims = AUTHORITY_MAP[source];
   return (authorizedClaims as readonly string[]).includes(claimType);
 }
@@ -57,9 +50,7 @@ export function isAuthoritative(
  * Returns the authoritative source for a given claim type, or undefined
  * if no source is authoritative (should not happen for well-known claim types).
  */
-export function getAuthoritativeSource(
-  claimType: CanonicalClaimType,
-): EvidenceSource | undefined {
+export function getAuthoritativeSource(claimType: CanonicalClaimType): EvidenceSource | undefined {
   if (
     claimType === "intent_created" ||
     claimType === "consent_given" ||

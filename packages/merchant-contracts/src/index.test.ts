@@ -21,10 +21,18 @@ describe("@counter/merchant-contracts", () => {
       expect(paths).toContain("/runtime/v1/merchants/{merchantId}/quotes");
       expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions");
       expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}");
-      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/payment-result");
-      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/cancel");
-      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/refund");
-      expect(paths).toContain("/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/receipt");
+      expect(paths).toContain(
+        "/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/payment-result",
+      );
+      expect(paths).toContain(
+        "/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/cancel",
+      );
+      expect(paths).toContain(
+        "/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/refund",
+      );
+      expect(paths).toContain(
+        "/runtime/v1/merchants/{merchantId}/transactions/{transactionId}/receipt",
+      );
     });
 
     it("defines security scheme for Bearer JWT", () => {
@@ -55,10 +63,14 @@ describe("@counter/merchant-contracts", () => {
     it("unauthorized error shape does not leak resource existence", () => {
       const spec = generateOpenApiSpec();
       const unauthorized = spec.components.schemas["UnauthorizedError"] as Record<string, unknown>;
-      const props = (unauthorized as { properties: { error: { properties: Record<string, unknown> } } }).properties.error.properties;
+      const props = (
+        unauthorized as { properties: { error: { properties: Record<string, unknown> } } }
+      ).properties.error.properties;
       // Code and message are fixed constants - no dynamic resource information
       expect((props["code"] as Record<string, unknown>)["const"]).toBe("UNAUTHENTICATED");
-      expect((props["message"] as Record<string, unknown>)["const"]).toBe("Authentication is required");
+      expect((props["message"] as Record<string, unknown>)["const"]).toBe(
+        "Authentication is required",
+      );
     });
   });
 

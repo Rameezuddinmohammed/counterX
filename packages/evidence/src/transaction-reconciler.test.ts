@@ -34,14 +34,15 @@ function makeTaskId(): string {
   return `task_${taskCounter}`;
 }
 
-function computeClaimDigest(claim: { type: string; details: Record<string, unknown> }): Sha256Digest {
+function computeClaimDigest(claim: {
+  type: string;
+  details: Record<string, unknown>;
+}): Sha256Digest {
   const canonical = JSON.stringify({ type: claim.type, details: claim.details });
   return sha256Digest(new TextEncoder().encode(canonical));
 }
 
-function makeEvidenceRecord(
-  overrides: Partial<EvidenceRecord> = {},
-): EvidenceRecord {
+function makeEvidenceRecord(overrides: Partial<EvidenceRecord> = {}): EvidenceRecord {
   const canonicalClaim = overrides.canonicalClaim ?? {
     type: "payment_confirmed" as const,
     details: {},
@@ -171,9 +172,7 @@ describe("TransactionReconciler", () => {
 
       const result = await reconciler.reconcile([paymentRecord], NOW);
 
-      const mismatchFindings = result.findings.filter(
-        (f) => f.type === "payment_order_mismatch",
-      );
+      const mismatchFindings = result.findings.filter((f) => f.type === "payment_order_mismatch");
       expect(mismatchFindings.length).toBeGreaterThan(0);
     });
 
@@ -187,9 +186,7 @@ describe("TransactionReconciler", () => {
 
       const result = await reconciler.reconcile([orderRecord], NOW);
 
-      const mismatchFindings = result.findings.filter(
-        (f) => f.type === "payment_order_mismatch",
-      );
+      const mismatchFindings = result.findings.filter((f) => f.type === "payment_order_mismatch");
       expect(mismatchFindings.length).toBeGreaterThan(0);
 
       // Cancel compensation should be dispatched for the orphan order
@@ -235,9 +232,7 @@ describe("TransactionReconciler", () => {
 
       const result = await reconciler.reconcile([authRecord], NOW);
 
-      const orphanFindings = result.findings.filter(
-        (f) => f.type === "orphaned_authorization",
-      );
+      const orphanFindings = result.findings.filter((f) => f.type === "orphaned_authorization");
       expect(orphanFindings.length).toBeGreaterThan(0);
 
       const executed = executor.getExecuted();
@@ -286,10 +281,7 @@ describe("TransactionReconciler", () => {
         canonicalClaim: { type: "order_committed", details: { orderId: "order_x" } },
       });
 
-      const result = await reconciler.reconcile(
-        [providerRecord, agentRecord, orderRecord],
-        NOW,
-      );
+      const result = await reconciler.reconcile([providerRecord, agentRecord, orderRecord], NOW);
 
       const authorityFindings = result.findings.filter(
         (f) => f.type === "intent_authority_mismatch",
@@ -298,9 +290,7 @@ describe("TransactionReconciler", () => {
 
       // Human task should be created
       expect(result.humanTasks.length).toBeGreaterThan(0);
-      const authTask = result.humanTasks.find(
-        (t) => t.type === "intent_authority_mismatch",
-      );
+      const authTask = result.humanTasks.find((t) => t.type === "intent_authority_mismatch");
       expect(authTask).toBeDefined();
       expect(authTask?.assignee).toBe("trust-team");
       expect(authTask?.status).toBe("pending");
@@ -324,14 +314,10 @@ describe("TransactionReconciler", () => {
 
       const result = await reconciler.reconcile([tamperedRecord, orderRecord], NOW);
 
-      const integrityFindings = result.findings.filter(
-        (f) => f.type === "integrity_failure",
-      );
+      const integrityFindings = result.findings.filter((f) => f.type === "integrity_failure");
       expect(integrityFindings.length).toBeGreaterThan(0);
 
-      const integrityTask = result.humanTasks.find(
-        (t) => t.type === "integrity_failure",
-      );
+      const integrityTask = result.humanTasks.find((t) => t.type === "integrity_failure");
       expect(integrityTask).toBeDefined();
       expect(integrityTask?.assignee).toBe("security-oncall");
     });
@@ -357,14 +343,10 @@ describe("TransactionReconciler", () => {
 
       const result = await reconciler.reconcile([record1, record2, orderRecord], NOW);
 
-      const duplicateFindings = result.findings.filter(
-        (f) => f.type === "duplicate_effect",
-      );
+      const duplicateFindings = result.findings.filter((f) => f.type === "duplicate_effect");
       expect(duplicateFindings.length).toBeGreaterThan(0);
 
-      const duplicateTask = result.humanTasks.find(
-        (t) => t.type === "duplicate_effect",
-      );
+      const duplicateTask = result.humanTasks.find((t) => t.type === "duplicate_effect");
       expect(duplicateTask).toBeDefined();
       expect(duplicateTask?.assignee).toBe("payments-oncall");
     });

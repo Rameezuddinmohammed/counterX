@@ -2,11 +2,7 @@
   "task_id": "task-fix-backend-docker-build",
   "task_description": "Fix the Fly.io backend Docker build. From a clean Docker layer, `pnpm --filter \"./apps/worker...\" run build` fails with TS2307 (Cannot find module @counter/domain, @counter/data, etc.) plus TS7006 implicit-any from test files. Root cause: pnpm -r builds packages in parallel and does not wait for a dependency's dist/*.d.ts before a dependent compiles (declared workspace deps exist but the emit-ordering is not guaranteed); and tsconfigs compile *.test.ts in production. Fix with TypeScript project references + `tsc -b` and a test-excluding tsconfig.build.json per package, plus a corrected Dockerfile that builds the target backend app + its dependency closure (by package name) without building the 4 Next.js consoles (preserving the OOM fix). Verify all 3 backend apps build from a completely clean checkout via podman.",
   "status": "completed",
-  "feature_order": [
-    "FEAT-001",
-    "FEAT-002",
-    "FEAT-003"
-  ],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
   "blocked_reason": null,
   "verification": {
     "build": "pass",

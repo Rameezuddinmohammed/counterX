@@ -74,7 +74,9 @@ export function validateAndRecordTransition(input: TransitionInput): TransitionR
         kind: "transition_error",
         from: input.from_state,
         to: input.to_state,
-        reason: validation.reason ?? `Transition from ${input.from_state} to ${input.to_state} is not allowed`,
+        reason:
+          validation.reason ??
+          `Transition from ${input.from_state} to ${input.to_state} is not allowed`,
       },
     };
   }

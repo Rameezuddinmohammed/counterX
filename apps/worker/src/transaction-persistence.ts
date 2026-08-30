@@ -16,7 +16,10 @@
 
 import { sha256Digest, type Environment } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
-import type { TransactionProjectionInput, TransactionProjectionStore } from "./transaction-lifecycle.js";
+import type {
+  TransactionProjectionInput,
+  TransactionProjectionStore,
+} from "./transaction-lifecycle.js";
 
 export type { TransactionProjectionInput, TransactionProjectionStore };
 

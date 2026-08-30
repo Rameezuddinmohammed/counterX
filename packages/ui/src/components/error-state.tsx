@@ -21,19 +21,15 @@ export function ErrorState({
     <div
       className={cn(
         "flex flex-col items-center justify-center rounded-xl border border-red-500/20 bg-red-500/5 px-6 py-12 text-center",
-        className
+        className,
       )}
       {...props}
     >
       <div className="mb-4 rounded-full bg-red-500/10 p-3">
         <AlertTriangle className="h-6 w-6 text-red-500" />
       </div>
-      <h3 className="text-base font-semibold text-[var(--foreground)]">
-        {title}
-      </h3>
-      <p className="mt-1 max-w-sm text-sm text-[var(--foreground-secondary)]">
-        {message}
-      </p>
+      <h3 className="text-base font-semibold text-[var(--foreground)]">{title}</h3>
+      <p className="mt-1 max-w-sm text-sm text-[var(--foreground-secondary)]">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}

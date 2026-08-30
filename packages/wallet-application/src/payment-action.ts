@@ -254,11 +254,7 @@ export class PaymentActionService {
       action.merchant.merchantId,
     );
     if (killSwitchActive) {
-      return this.#transitionState(
-        action,
-        "continuation_denied",
-        "Kill switch active",
-      );
+      return this.#transitionState(action, "continuation_denied", "Kill switch active");
     }
 
     return this.#transitionState(action, "order_confirmed", "Shopify order complete");
@@ -271,17 +267,10 @@ export class PaymentActionService {
   markRefundPending(actionId: string, reason?: string): HostedPaymentAction | undefined {
     const action = this.#actions.get(actionId);
     if (action === undefined) return undefined;
-    if (
-      action.state !== "continuation_denied" &&
-      action.state !== "provider_confirmed"
-    ) {
+    if (action.state !== "continuation_denied" && action.state !== "provider_confirmed") {
       return action;
     }
-    return this.#transitionState(
-      action,
-      "refund_pending",
-      reason ?? "Refund initiated",
-    );
+    return this.#transitionState(action, "refund_pending", reason ?? "Refund initiated");
   }
 
   /**
@@ -292,11 +281,7 @@ export class PaymentActionService {
     const action = this.#actions.get(actionId);
     if (action === undefined) return undefined;
     // Can transition from various non-terminal states
-    if (
-      action.state === "completed" ||
-      action.state === "expired" ||
-      action.state === "aborted"
-    ) {
+    if (action.state === "completed" || action.state === "expired" || action.state === "aborted") {
       return action;
     }
     return this.#transitionState(

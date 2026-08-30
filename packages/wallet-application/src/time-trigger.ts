@@ -128,7 +128,11 @@ export interface TriggerExecutionError {
 // ---------------------------------------------------------------------------
 
 export interface TriggerExecutionDeps {
-  readonly freshPolicyPrecheck: (walletId: WalletId, policyVersionId: string, merchantId: MerchantId) => PrecheckResult;
+  readonly freshPolicyPrecheck: (
+    walletId: WalletId,
+    policyVersionId: string,
+    merchantId: MerchantId,
+  ) => PrecheckResult;
   readonly isMandateValid: (mandateRef: string) => boolean;
   readonly isKillSwitchActive: (walletId: WalletId, merchantId: MerchantId) => boolean;
   readonly onExecute: (trigger: TimeTrigger, scheduledTime: string) => void;
@@ -230,13 +234,27 @@ export class TimeTriggerScheduler {
 
     // Fresh mandate validity check
     if (!this.#deps.isMandateValid(trigger.mandateRef)) {
-      const record = this.#recordExecution(occurrenceKey, triggerRef, scheduledTime, now, "mandate_expired", "Mandate is no longer valid");
+      const record = this.#recordExecution(
+        occurrenceKey,
+        triggerRef,
+        scheduledTime,
+        now,
+        "mandate_expired",
+        "Mandate is no longer valid",
+      );
       return { ok: true, value: record };
     }
 
     // Kill-switch check
     if (this.#deps.isKillSwitchActive(trigger.walletId, trigger.template.merchantId)) {
-      const record = this.#recordExecution(occurrenceKey, triggerRef, scheduledTime, now, "kill_switch_blocked", "Kill switch is active");
+      const record = this.#recordExecution(
+        occurrenceKey,
+        triggerRef,
+        scheduledTime,
+        now,
+        "kill_switch_blocked",
+        "Kill switch is active",
+      );
       return { ok: true, value: record };
     }
 

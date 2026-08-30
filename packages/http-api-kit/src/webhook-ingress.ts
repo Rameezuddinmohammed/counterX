@@ -35,70 +35,60 @@ export async function webhookIngressPlugin(
   const maxPayloadBytes = options?.maxPayloadBytes ?? DEFAULT_MAX_PAYLOAD_BYTES;
   const adapters = options?.adapters ?? new Map<string, WebhookHandler>();
 
-  fastify.addContentTypeParser(
-    "*",
-    { bodyLimit: maxPayloadBytes },
-    (_request, payload, done) => {
-      const chunks: Buffer[] = [];
-      let size = 0;
+  fastify.addContentTypeParser("*", { bodyLimit: maxPayloadBytes }, (_request, payload, done) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
 
-      payload.on("data", (chunk: Buffer) => {
-        size += chunk.length;
-        if (size > maxPayloadBytes) {
-          done(new Error("Payload too large"), undefined);
-          return;
-        }
-        chunks.push(chunk);
-      });
-
-      payload.on("end", () => {
-        const body = Buffer.concat(chunks);
-        done(null, body);
-      });
-
-      payload.on("error", (readError: Error) => {
-        done(readError, undefined);
-      });
-    },
-  );
-
-  fastify.post(
-    "/webhooks/v1/:adapter/*",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const params = request.params as { adapter: string };
-      if (Buffer.isBuffer(request.body)) {
-        rawBodies.set(request, request.body);
-      }
-      const handler = adapters.get(params.adapter);
-
-      if (handler === undefined) {
-        void reply.status(404).send({
-          error: { code: "INVALID_FORMAT", message: "Unknown webhook adapter" },
-        });
+    payload.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxPayloadBytes) {
+        done(new Error("Payload too large"), undefined);
         return;
       }
+      chunks.push(chunk);
+    });
 
-      await handler(request, reply);
-    },
-  );
+    payload.on("end", () => {
+      const body = Buffer.concat(chunks);
+      done(null, body);
+    });
 
-  fastify.post(
-    "/webhooks/v1/:adapter",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const params = request.params as { adapter: string };
-      if (Buffer.isBuffer(request.body)) {
-        rawBodies.set(request, request.body);
-      }
-      const handler = adapters.get(params.adapter);
+    payload.on("error", (readError: Error) => {
+      done(readError, undefined);
+    });
+  });
 
-      if (handler === undefined) {
-        void reply.status(404).send({
-          error: { code: "INVALID_FORMAT", message: "Unknown webhook adapter" },
-        });
-        return;
-      }
+  fastify.post("/webhooks/v1/:adapter/*", async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { adapter: string };
+    if (Buffer.isBuffer(request.body)) {
+      rawBodies.set(request, request.body);
+    }
+    const handler = adapters.get(params.adapter);
 
-      await handler(request, reply);
-    },
-  );
+    if (handler === undefined) {
+      void reply.status(404).send({
+        error: { code: "INVALID_FORMAT", message: "Unknown webhook adapter" },
+      });
+      return;
+    }
+
+    await handler(request, reply);
+  });
+
+  fastify.post("/webhooks/v1/:adapter", async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as { adapter: string };
+    if (Buffer.isBuffer(request.body)) {
+      rawBodies.set(request, request.body);
+    }
+    const handler = adapters.get(params.adapter);
+
+    if (handler === undefined) {
+      void reply.status(404).send({
+        error: { code: "INVALID_FORMAT", message: "Unknown webhook adapter" },
+      });
+      return;
+    }
+
+    await handler(request, reply);
+  });
 }

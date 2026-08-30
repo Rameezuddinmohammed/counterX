@@ -56,12 +56,12 @@ function makeAmount(minor: bigint): Money {
 }
 
 function computeSignature(orderId: string, paymentId: string, secret: string): string {
-  return createHmac("sha256", secret)
-    .update(`${orderId}|${paymentId}`)
-    .digest("hex");
+  return createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex");
 }
 
-function createMockPolicyPort(outcome: "allow" | "deny" | "stale" = "allow"): CertificationPolicyPort {
+function createMockPolicyPort(
+  outcome: "allow" | "deny" | "stale" = "allow",
+): CertificationPolicyPort {
   return {
     evaluateFreshDecision: () => {
       if (outcome === "allow") {
@@ -85,7 +85,9 @@ function createMockDraftOrderPort(): CertificationDraftOrderPort {
   };
 }
 
-function createMockFindingPort(): CertificationFindingPort & { findings: { transactionId: string; reason: string }[] } {
+function createMockFindingPort(): CertificationFindingPort & {
+  findings: { transactionId: string; reason: string }[];
+} {
   const findings: { transactionId: string; reason: string }[] = [];
   return {
     findings,
@@ -96,7 +98,9 @@ function createMockFindingPort(): CertificationFindingPort & { findings: { trans
   };
 }
 
-function createMockRefundPort(): CertificationRefundPort & { refunds: { paymentRef: string; amount: Money }[] } {
+function createMockRefundPort(): CertificationRefundPort & {
+  refunds: { paymentRef: string; amount: Money }[];
+} {
   const refunds: { paymentRef: string; amount: Money }[] = [];
   return {
     refunds,
@@ -140,10 +144,12 @@ function makePayment(overrides: Partial<RazorpayPayment> = {}): RazorpayPayment 
   };
 }
 
-function setupWorkflow(opts: {
-  clockTime?: number;
-  policyOutcome?: "allow" | "deny" | "stale";
-} = {}) {
+function setupWorkflow(
+  opts: {
+    clockTime?: number;
+    policyOutcome?: "allow" | "deny" | "stale";
+  } = {},
+) {
   const clockTime = opts.clockTime ?? BASE_TIME;
   const http = new MockRazorpayHttp();
   http.onCreateOrder(makeOrder());

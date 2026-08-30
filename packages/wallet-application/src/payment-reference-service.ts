@@ -279,10 +279,7 @@ export class PaymentReferenceService {
   // ---------------------------------------------------------------------------
 
   #validateStepUp(session: StepUpSession): PaymentReferenceResult<void> {
-    const requirement = this.#stepUpService.requireStepUp(
-      "payment_reference_change",
-      session,
-    );
+    const requirement = this.#stepUpService.requireStepUp("payment_reference_change", session);
 
     if (requirement.required) {
       return {
@@ -337,9 +334,7 @@ export class PaymentReferenceService {
   /**
    * After a reference revocation, invalidate ALL mandates that reference it.
    */
-  #invalidateAllMandatesForReference(
-    reference: PaymentAuthorizationReference,
-  ): readonly string[] {
+  #invalidateAllMandatesForReference(reference: PaymentAuthorizationReference): readonly string[] {
     const mandates = this.#mandateRepo.findActive(reference.walletId);
     const invalidated: string[] = [];
 
@@ -357,7 +352,12 @@ export class PaymentReferenceService {
    * Checks whether a mandate violates the updated reference constraints.
    */
   #mandateViolatesReference(
-    mandate: { readonly constraints: { readonly merchantAllowlist?: { readonly allowedMerchantIds?: readonly string[] }; readonly operations?: { readonly allowedOperations?: readonly string[] } } },
+    mandate: {
+      readonly constraints: {
+        readonly merchantAllowlist?: { readonly allowedMerchantIds?: readonly string[] };
+        readonly operations?: { readonly allowedOperations?: readonly string[] };
+      };
+    },
     reference: PaymentAuthorizationReference,
   ): boolean {
     // Check merchant constraints

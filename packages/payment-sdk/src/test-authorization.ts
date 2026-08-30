@@ -1,4 +1,11 @@
-import type { AgentId, Environment, Instant, IsoCurrencyCode, MerchantId, WalletId } from "@counter/domain";
+import type {
+  AgentId,
+  Environment,
+  Instant,
+  IsoCurrencyCode,
+  MerchantId,
+  WalletId,
+} from "@counter/domain";
 import { createCanonicalError, instantFromEpochMilliseconds } from "@counter/domain";
 import type { PaymentAuthorization } from "./authorization.js";
 
@@ -54,14 +61,18 @@ const DEFAULT_VALIDITY_MS = 3_600_000; // 1 hour
 /**
  * Creates a PaymentAuthorization scoped to test environments with testOnly=true.
  */
-export function createCounterTestAuthorization(config: TestAuthorizationConfig): PaymentAuthorization {
+export function createCounterTestAuthorization(
+  config: TestAuthorizationConfig,
+): PaymentAuthorization {
   const now = Date.now();
-  const validFromResult = config.validFrom !== undefined
-    ? { ok: true as const, value: config.validFrom }
-    : instantFromEpochMilliseconds(now);
-  const validUntilResult = config.validUntil !== undefined
-    ? { ok: true as const, value: config.validUntil }
-    : instantFromEpochMilliseconds(now + DEFAULT_VALIDITY_MS);
+  const validFromResult =
+    config.validFrom !== undefined
+      ? { ok: true as const, value: config.validFrom }
+      : instantFromEpochMilliseconds(now);
+  const validUntilResult =
+    config.validUntil !== undefined
+      ? { ok: true as const, value: config.validUntil }
+      : instantFromEpochMilliseconds(now + DEFAULT_VALIDITY_MS);
 
   if (!validFromResult.ok) {
     throw new TypeError("Failed to compute validFrom instant");

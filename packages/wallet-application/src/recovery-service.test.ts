@@ -117,7 +117,12 @@ describe("RecoveryService", () => {
     it("revokes a mandate via the revocation service", () => {
       const { service, revocationStore } = createRecoveryService();
 
-      const result = service.revokeMandate(WALLET_ID, PRINCIPAL_ID, MANDATE_ID, "Compromised mandate");
+      const result = service.revokeMandate(
+        WALLET_ID,
+        PRINCIPAL_ID,
+        MANDATE_ID,
+        "Compromised mandate",
+      );
 
       expect(result.ok).toBe(true);
       expect(revocationStore.isRevoked("mandate", MANDATE_ID)).toBe(true);

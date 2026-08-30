@@ -8,11 +8,7 @@
 
 import type { Instant } from "@counter/domain";
 import type { Money } from "@counter/domain";
-import type {
-  Product,
-  PriceSnapshot,
-  InventorySnapshot,
-} from "@counter/commerce-graph";
+import type { Product, PriceSnapshot, InventorySnapshot } from "@counter/commerce-graph";
 import type { ShopifyGraphQLPort } from "./graphql-client.js";
 import type { CursorStore, DurableCursor } from "./sync-cursor.js";
 import {
@@ -23,10 +19,7 @@ import {
   mapVariantToInventorySnapshot,
   SHOPIFY_MAPPING_VERSION,
 } from "./catalog-queries.js";
-import type {
-  ShopifyProductsListResponse,
-  ShopifyProductNode,
-} from "./catalog-queries.js";
+import type { ShopifyProductsListResponse, ShopifyProductNode } from "./catalog-queries.js";
 
 // ─── Webhook Event ────────────────────────────────────────────────────────────
 
@@ -329,7 +322,11 @@ export class CatalogSyncService {
    * Paginates through all pages using a server-side query filter where
    * supported, with client-side filtering as a safety net.
    */
-  async reconciliationPoll(merchantId: string, since: Instant, storeCurrency: Money["currency"]): Promise<SyncResult> {
+  async reconciliationPoll(
+    merchantId: string,
+    since: Instant,
+    storeCurrency: Money["currency"],
+  ): Promise<SyncResult> {
     const allProducts: Product[] = [];
     const allPrices: PriceSnapshot[] = [];
     const allInventory: InventorySnapshot[] = [];

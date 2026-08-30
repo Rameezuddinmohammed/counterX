@@ -57,7 +57,11 @@ export function createJobAuthorizationEnvelope(
 export function parseJobAuthorizationEnvelope(
   value: unknown,
 ): Result<JobAuthorizationEnvelope, CanonicalErrorFor<"UNAUTHORIZED">> {
-  if (!isRecord(value) || !isEnvironment(value["environment"]) || !isPermission(value["requiredPermission"])) {
+  if (
+    !isRecord(value) ||
+    !isEnvironment(value["environment"]) ||
+    !isPermission(value["requiredPermission"])
+  ) {
     return unauthorized();
   }
   const serviceId = parseCounterId(value["serviceId"], "service");
@@ -105,9 +109,7 @@ export function reauthorizeJob(
   });
 }
 
-function parseJobScope(
-  value: unknown,
-): Result<JobScope, CanonicalErrorFor<"UNAUTHORIZED">> {
+function parseJobScope(value: unknown): Result<JobScope, CanonicalErrorFor<"UNAUTHORIZED">> {
   if (!isRecord(value) || typeof value["kind"] !== "string") {
     return unauthorized();
   }

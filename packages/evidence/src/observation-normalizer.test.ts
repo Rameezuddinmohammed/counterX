@@ -527,10 +527,7 @@ describe("observation-normalizer", () => {
           { paymentId: "r1", status: "captured", amount: 100, currency: "INR", isWebhook: false },
           ctx,
         ),
-        normalizeAgentClaim(
-          { agentId: "a1", claimType: "payment_confirmed", details: {} },
-          ctx,
-        ),
+        normalizeAgentClaim({ agentId: "a1", claimType: "payment_confirmed", details: {} }, ctx),
       ];
 
       for (const record of records) {
@@ -542,10 +539,7 @@ describe("observation-normalizer", () => {
       const ctx = makeContext({ environment: "test" });
 
       const records = [
-        normalizeShopifyObservation(
-          { orderId: "o1", orderNumber: "1", status: "active" },
-          ctx,
-        ),
+        normalizeShopifyObservation({ orderId: "o1", orderNumber: "1", status: "active" }, ctx),
         normalizeTestProviderObservation(
           { paymentId: "p1", status: "captured", amount: 100, currency: "INR" },
           ctx,
@@ -554,10 +548,7 @@ describe("observation-normalizer", () => {
           { paymentId: "r1", status: "captured", amount: 100, currency: "INR", isWebhook: false },
           ctx,
         ),
-        normalizeAgentClaim(
-          { agentId: "a1", claimType: "payment_confirmed", details: {} },
-          ctx,
-        ),
+        normalizeAgentClaim({ agentId: "a1", claimType: "payment_confirmed", details: {} }, ctx),
       ];
 
       for (const record of records) {

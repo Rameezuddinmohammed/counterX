@@ -65,7 +65,10 @@ function mapShopifyStatusToClaimType(observation: ShopifyObservation): Canonical
   if (observation.financialStatus === "paid" || observation.financialStatus === "partially_paid") {
     return "order_committed";
   }
-  if (observation.financialStatus === "refunded" || observation.financialStatus === "partially_refunded") {
+  if (
+    observation.financialStatus === "refunded" ||
+    observation.financialStatus === "partially_refunded"
+  ) {
     return "refund_issued";
   }
   return "order_committed";

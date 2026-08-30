@@ -60,14 +60,8 @@ export interface InvitationRepository {
     walletId: CounterId<"wallet">,
     acceptedAt: string,
   ): MutationRejection | undefined;
-  revoke(
-    invitationId: string,
-    walletId: CounterId<"wallet">,
-  ): MutationRejection | undefined;
-  expire(
-    invitationId: string,
-    walletId: CounterId<"wallet">,
-  ): MutationRejection | undefined;
+  revoke(invitationId: string, walletId: CounterId<"wallet">): MutationRejection | undefined;
+  expire(invitationId: string, walletId: CounterId<"wallet">): MutationRejection | undefined;
   save(invitation: WalletInvitation): MutationRejection | undefined;
 }
 
@@ -97,7 +91,8 @@ export function createMutationRejection(
 ): MutationRejection {
   const stateDescriptions: Record<string, string> = {
     SUSPENDED: "Wallet is suspended; mutations are not permitted until reinstatement",
-    RECOVERY_LOCKED: "Wallet is recovery-locked; mutations are not permitted until recovery completes",
+    RECOVERY_LOCKED:
+      "Wallet is recovery-locked; mutations are not permitted until recovery completes",
     OFFBOARDING: "Wallet is offboarding; no further mutations are permitted",
     CLOSED: "Wallet is closed; this is a terminal state and no mutations are permitted",
   };

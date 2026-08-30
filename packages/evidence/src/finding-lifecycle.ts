@@ -13,21 +13,15 @@ import { createCanonicalError, err, ok } from "@counter/domain";
 import type { Result } from "@counter/domain";
 import type { FindingRecord, FindingStatus } from "./types.js";
 
-export const VALID_FINDING_TRANSITIONS: Readonly<
-  Record<FindingStatus, readonly FindingStatus[]>
-> = Object.freeze({
-  open: Object.freeze(["investigating"] as const),
-  investigating: Object.freeze([
-    "compensating",
-    "resolved",
-    "unresolved",
-    "accepted",
-  ] as const),
-  compensating: Object.freeze(["resolved", "unresolved"] as const),
-  resolved: Object.freeze([] as const),
-  unresolved: Object.freeze(["investigating", "accepted"] as const),
-  accepted: Object.freeze([] as const),
-});
+export const VALID_FINDING_TRANSITIONS: Readonly<Record<FindingStatus, readonly FindingStatus[]>> =
+  Object.freeze({
+    open: Object.freeze(["investigating"] as const),
+    investigating: Object.freeze(["compensating", "resolved", "unresolved", "accepted"] as const),
+    compensating: Object.freeze(["resolved", "unresolved"] as const),
+    resolved: Object.freeze([] as const),
+    unresolved: Object.freeze(["investigating", "accepted"] as const),
+    accepted: Object.freeze([] as const),
+  });
 
 /**
  * Validates that a finding transition is allowed and returns a new frozen

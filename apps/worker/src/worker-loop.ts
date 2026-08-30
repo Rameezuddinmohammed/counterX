@@ -53,7 +53,11 @@ function nowInstant(): Instant {
   return result.value;
 }
 
-function classifyError(error: unknown): { errorClass: string; message: string; retryable: boolean } {
+function classifyError(error: unknown): {
+  errorClass: string;
+  message: string;
+  retryable: boolean;
+} {
   if (error instanceof HandlerError) {
     return { errorClass: error.errorClass, message: error.message, retryable: error.retryable };
   }
@@ -139,15 +143,7 @@ export async function runTick(
         retryable: classified.retryable,
         message: classified.message,
       });
-      await failJob(
-        repo,
-        job.id,
-        config,
-        classified.errorClass,
-        classified.message,
-        clock,
-        logger,
-      );
+      await failJob(repo, job.id, config, classified.errorClass, classified.message, clock, logger);
     }
   }
 

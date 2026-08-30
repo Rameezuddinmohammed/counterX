@@ -7,12 +7,7 @@
 
 import type { CounterId, Instant } from "@counter/domain";
 import { sha256Digest, sha256DigestsEqual } from "@counter/domain";
-import type {
-  EvidenceRecord,
-  FindingRecord,
-  FindingSeverity,
-  FindingType,
-} from "./types.js";
+import type { EvidenceRecord, FindingRecord, FindingSeverity, FindingType } from "./types.js";
 import { isAuthoritative } from "./source-authority.js";
 
 interface FindingBuilder {
@@ -128,8 +123,7 @@ export function reconcileTransaction(
   // Detect price mismatch: different amounts in claims
   const paymentRecords = evidenceRecords.filter(
     (r) =>
-      r.canonicalClaim.type === "payment_confirmed" ||
-      r.canonicalClaim.type === "payment_pending",
+      r.canonicalClaim.type === "payment_confirmed" || r.canonicalClaim.type === "payment_pending",
   );
   for (let i = 0; i < paymentRecords.length; i++) {
     const a = paymentRecords[i];
@@ -139,11 +133,7 @@ export function reconcileTransaction(
       if (b === undefined) continue;
       const amountA = a.canonicalClaim.details["amount"];
       const amountB = b.canonicalClaim.details["amount"];
-      if (
-        amountA !== undefined &&
-        amountB !== undefined &&
-        amountA !== amountB
-      ) {
+      if (amountA !== undefined && amountB !== undefined && amountA !== amountB) {
         findings.push(
           createFindingFromBuilder(
             {
@@ -197,8 +187,7 @@ export function reconcileTransaction(
   );
   const hasOrderCommitted = evidenceRecords.some(
     (r) =>
-      r.canonicalClaim.type === "order_committed" &&
-      isAuthoritative(r.source, "order_committed"),
+      r.canonicalClaim.type === "order_committed" && isAuthoritative(r.source, "order_committed"),
   );
   if (hasPaymentConfirmed && !hasOrderCommitted) {
     const paymentEvidence = evidenceRecords.filter(
@@ -212,9 +201,7 @@ export function reconcileTransaction(
           type: "payment_order_mismatch",
           severity: "high",
           affectedObjects: paymentEvidence.map((r) => r.id),
-          conflictingEvidence: paymentEvidence.map(
-            (r) => r.id,
-          ),
+          conflictingEvidence: paymentEvidence.map((r) => r.id),
           missingEvidence: ["order_committed"],
         },
         options.findingIdGenerator(),
@@ -226,8 +213,7 @@ export function reconcileTransaction(
   } else if (!hasPaymentConfirmed && hasOrderCommitted) {
     const orderEvidence = evidenceRecords.filter(
       (r) =>
-        r.canonicalClaim.type === "order_committed" &&
-        isAuthoritative(r.source, "order_committed"),
+        r.canonicalClaim.type === "order_committed" && isAuthoritative(r.source, "order_committed"),
     );
     findings.push(
       createFindingFromBuilder(
@@ -235,9 +221,7 @@ export function reconcileTransaction(
           type: "payment_order_mismatch",
           severity: "high",
           affectedObjects: orderEvidence.map((r) => r.id),
-          conflictingEvidence: orderEvidence.map(
-            (r) => r.id,
-          ),
+          conflictingEvidence: orderEvidence.map((r) => r.id),
           missingEvidence: ["payment_confirmed"],
         },
         options.findingIdGenerator(),
@@ -266,9 +250,7 @@ export function reconcileTransaction(
           type: "fulfillment_mismatch",
           severity: "high",
           affectedObjects: fulfillmentEvidence.map((r) => r.id),
-          conflictingEvidence: fulfillmentEvidence.map(
-            (r) => r.id,
-          ),
+          conflictingEvidence: fulfillmentEvidence.map((r) => r.id),
           missingEvidence: ["order_committed"],
         },
         options.findingIdGenerator(),
@@ -302,9 +284,7 @@ export function reconcileTransaction(
           type: "orphaned_authorization",
           severity: "medium",
           affectedObjects: authEvidence.map((r) => r.id),
-          conflictingEvidence: authEvidence.map(
-            (r) => r.id,
-          ),
+          conflictingEvidence: authEvidence.map((r) => r.id),
           missingEvidence: ["payment_confirmed", "authorization_voided"],
         },
         options.findingIdGenerator(),
@@ -317,15 +297,12 @@ export function reconcileTransaction(
 
   // Detect refund mismatch: refund issued but no payment confirmed
   const hasRefundIssued = evidenceRecords.some(
-    (r) =>
-      r.canonicalClaim.type === "refund_issued" &&
-      isAuthoritative(r.source, "refund_issued"),
+    (r) => r.canonicalClaim.type === "refund_issued" && isAuthoritative(r.source, "refund_issued"),
   );
   if (hasRefundIssued && !hasPaymentConfirmed) {
     const refundEvidence = evidenceRecords.filter(
       (r) =>
-        r.canonicalClaim.type === "refund_issued" &&
-        isAuthoritative(r.source, "refund_issued"),
+        r.canonicalClaim.type === "refund_issued" && isAuthoritative(r.source, "refund_issued"),
     );
     findings.push(
       createFindingFromBuilder(
@@ -333,9 +310,7 @@ export function reconcileTransaction(
           type: "refund_mismatch",
           severity: "high",
           affectedObjects: refundEvidence.map((r) => r.id),
-          conflictingEvidence: refundEvidence.map(
-            (r) => r.id,
-          ),
+          conflictingEvidence: refundEvidence.map((r) => r.id),
           missingEvidence: ["payment_confirmed"],
         },
         options.findingIdGenerator(),

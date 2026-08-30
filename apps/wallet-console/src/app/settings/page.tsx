@@ -43,11 +43,15 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[var(--foreground-secondary)]">Display Name</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                Display Name
+              </label>
               <Input placeholder="Wallet User" className="mt-1" />
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--foreground-secondary)]">Email</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                Email
+              </label>
               <Input placeholder="user@example.com" className="mt-1" disabled />
             </div>
             <Button onClick={handleSave}>Save Changes</Button>
@@ -66,7 +70,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Transaction Alerts</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Get notified for every transaction</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Get notified for every transaction
+                </p>
               </div>
               <Switch defaultChecked />
             </div>
@@ -74,7 +80,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Approval Requests</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Push notification for pending approvals</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Push notification for pending approvals
+                </p>
               </div>
               <Switch defaultChecked />
             </div>
@@ -82,7 +90,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Security Alerts</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Notify on suspicious activity</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Notify on suspicious activity
+                </p>
               </div>
               <Switch defaultChecked />
             </div>
@@ -90,7 +100,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Mandate Reminders</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Reminder before scheduled debits</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Reminder before scheduled debits
+                </p>
               </div>
               <Switch defaultChecked />
             </div>
@@ -98,7 +110,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Weekly Summary</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Weekly spending digest via email</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Weekly spending digest via email
+                </p>
               </div>
               <Switch />
             </div>
@@ -115,12 +129,18 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[var(--foreground-secondary)]">Wallet ID</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                Wallet ID
+              </label>
               <div className="mt-1 flex gap-2">
                 <Input value="wlt-pilot-001" disabled className="font-mono" />
-                <Button variant="outline" onClick={handleCopyKey}>Copy</Button>
+                <Button variant="outline" onClick={handleCopyKey}>
+                  Copy
+                </Button>
               </div>
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">Use this identifier when referencing your wallet in API calls</p>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                Use this identifier when referencing your wallet in API calls
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -137,9 +157,13 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Close Wallet</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Permanently close your wallet and export all data</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Permanently close your wallet and export all data
+                </p>
               </div>
-              <Button variant="destructive" size="sm">Close Wallet</Button>
+              <Button variant="destructive" size="sm">
+                Close Wallet
+              </Button>
             </div>
           </CardContent>
         </Card>

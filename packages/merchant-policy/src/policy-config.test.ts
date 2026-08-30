@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { DecimalQuantity, Instant, IsoCurrencyCode } from "@counter/domain";
 
 import type { MerchantPolicyRuleConfig, MerchantPolicyRuleSet } from "./policy-config.js";
-import { isValidRuleKind, RULE_KINDS, validateRuleConfig, validateRuleSet } from "./policy-config.js";
+import {
+  isValidRuleKind,
+  RULE_KINDS,
+  validateRuleConfig,
+  validateRuleSet,
+} from "./policy-config.js";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -54,7 +59,10 @@ describe("isValidRuleKind", () => {
 
 describe("validateRuleConfig", () => {
   it("validates product-allowlist with products", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "product-allowlist", products: ["sku1", "sku2"] };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "product-allowlist",
+      products: ["sku1", "sku2"],
+    };
     expect(validateRuleConfig(rule)).toEqual([]);
   });
 
@@ -64,13 +72,18 @@ describe("validateRuleConfig", () => {
   });
 
   it("validates category-allowlist with categories", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "category-allowlist", categories: ["electronics"] };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "category-allowlist",
+      categories: ["electronics"],
+    };
     expect(validateRuleConfig(rule)).toEqual([]);
   });
 
   it("rejects category-allowlist with empty categories", () => {
     const rule: MerchantPolicyRuleConfig = { kind: "category-allowlist", categories: [] };
-    expect(validateRuleConfig(rule)).toContain("category-allowlist must have at least one category");
+    expect(validateRuleConfig(rule)).toContain(
+      "category-allowlist must have at least one category",
+    );
   });
 
   it("validates inr-only (no parameters)", () => {
@@ -88,42 +101,71 @@ describe("validateRuleConfig", () => {
       kind: "quantity-limit",
       maxQuantity: { value: "0", unit: "item" as DecimalQuantity["unit"] },
     };
-    expect(validateRuleConfig(rule)).toContain("quantity-limit maxQuantity must be greater than zero");
+    expect(validateRuleConfig(rule)).toContain(
+      "quantity-limit maxQuantity must be greater than zero",
+    );
   });
 
   it("validates count-limit with positive values", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "count-limit", maxCount: 5, windowDurationMs: 3600_000 };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "count-limit",
+      maxCount: 5,
+      windowDurationMs: 3600_000,
+    };
     expect(validateRuleConfig(rule)).toEqual([]);
   });
 
   it("rejects count-limit with non-positive maxCount", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "count-limit", maxCount: 0, windowDurationMs: 3600_000 };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "count-limit",
+      maxCount: 0,
+      windowDurationMs: 3600_000,
+    };
     expect(validateRuleConfig(rule)).toContain("count-limit maxCount must be positive");
   });
 
   it("rejects count-limit with non-positive windowDurationMs", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "count-limit", maxCount: 5, windowDurationMs: -1 };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "count-limit",
+      maxCount: 5,
+      windowDurationMs: -1,
+    };
     expect(validateRuleConfig(rule)).toContain("count-limit windowDurationMs must be positive");
   });
 
   it("validates india-destination with destinations", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "india-destination", allowedDestinations: ["IN"] };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "india-destination",
+      allowedDestinations: ["IN"],
+    };
     expect(validateRuleConfig(rule)).toEqual([]);
   });
 
   it("rejects india-destination with empty destinations", () => {
     const rule: MerchantPolicyRuleConfig = { kind: "india-destination", allowedDestinations: [] };
-    expect(validateRuleConfig(rule)).toContain("india-destination must have at least one destination");
+    expect(validateRuleConfig(rule)).toContain(
+      "india-destination must have at least one destination",
+    );
   });
 
   it("validates operating-window with valid time range", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "operating-window", allowedFrom: now, allowedUntil: later };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "operating-window",
+      allowedFrom: now,
+      allowedUntil: later,
+    };
     expect(validateRuleConfig(rule)).toEqual([]);
   });
 
   it("rejects operating-window where from >= until", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "operating-window", allowedFrom: later, allowedUntil: now };
-    expect(validateRuleConfig(rule)).toContain("operating-window allowedFrom must be before allowedUntil");
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "operating-window",
+      allowedFrom: later,
+      allowedUntil: now,
+    };
+    expect(validateRuleConfig(rule)).toContain(
+      "operating-window allowedFrom must be before allowedUntil",
+    );
   });
 
   it("validates freshness-requirement with positive maxAgeMs", () => {
@@ -137,13 +179,18 @@ describe("validateRuleConfig", () => {
   });
 
   it("validates payment-path with methods", () => {
-    const rule: MerchantPolicyRuleConfig = { kind: "payment-path", allowedMethods: ["upi", "card"] };
+    const rule: MerchantPolicyRuleConfig = {
+      kind: "payment-path",
+      allowedMethods: ["upi", "card"],
+    };
     expect(validateRuleConfig(rule)).toEqual([]);
   });
 
   it("rejects payment-path with empty methods", () => {
     const rule: MerchantPolicyRuleConfig = { kind: "payment-path", allowedMethods: [] };
-    expect(validateRuleConfig(rule)).toContain("payment-path must have at least one payment method");
+    expect(validateRuleConfig(rule)).toContain(
+      "payment-path must have at least one payment method",
+    );
   });
 
   it("validates review-threshold with positive amount", () => {
@@ -177,7 +224,9 @@ describe("validateRuleConfig", () => {
       allowedWithinMs: 3600_000,
       refundPercentage: 150,
     };
-    expect(validateRuleConfig(rule)).toContain("cancellation-policy refundPercentage must be between 0 and 100");
+    expect(validateRuleConfig(rule)).toContain(
+      "cancellation-policy refundPercentage must be between 0 and 100",
+    );
   });
 
   it("validates refund-policy with valid params", () => {

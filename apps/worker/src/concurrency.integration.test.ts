@@ -66,35 +66,35 @@ function instrument(
   };
 }
 
-gatedDescribe("concurrency — same-key checkouts create at most ONE real draft (creds+DB-gated)", () => {
-  const database = new PostgresDatabase(databaseUrl as string);
-  const bundle = realBundleOrNull();
-  const idempotencyKey = `concurrency-${Date.now()}`;
+gatedDescribe(
+  "concurrency — same-key checkouts create at most ONE real draft (creds+DB-gated)",
+  () => {
+    const database = new PostgresDatabase(databaseUrl as string);
+    const bundle = realBundleOrNull();
+    const idempotencyKey = `concurrency-${Date.now()}`;
 
-  afterAll(async () => {
-    try {
-      const orderRow = (
-        await database.query<{ reference: string | null }>(
-          `SELECT reference FROM runtime.lifecycle_steps
+    afterAll(async () => {
+      try {
+        const orderRow = (
+          await database.query<{ reference: string | null }>(
+            `SELECT reference FROM runtime.lifecycle_steps
            WHERE idempotency_key = $1 AND step = 'shopify.finalize'`,
-          [idempotencyKey],
-        )
-      ).rows[0];
-      const orderId = orderRow?.reference ?? undefined;
-      if (bundle !== null && orderId !== undefined && orderId.length > 0) {
-        await cancelShopifyOrder(bundle.shopify, orderId, idempotencyKey);
+            [idempotencyKey],
+          )
+        ).rows[0];
+        const orderId = orderRow?.reference ?? undefined;
+        if (bundle !== null && orderId !== undefined && orderId.length > 0) {
+          await cancelShopifyOrder(bundle.shopify, orderId, idempotencyKey);
+        }
+      } finally {
+        await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+          idempotencyKey,
+        ]);
+        await database.close();
       }
-    } finally {
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        idempotencyKey,
-      ]);
-      await database.close();
-    }
-  });
+    });
 
-  it(
-    "invokes the real draftOrderCreate EXACTLY ONCE for two concurrent checkouts and a racing retry",
-    async () => {
+    it("invokes the real draftOrderCreate EXACTLY ONCE for two concurrent checkouts and a racing retry", async () => {
       await database.query(RUNTIME_DDL);
       await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
         idempotencyKey,
@@ -161,7 +161,6 @@ gatedDescribe("concurrency — same-key checkouts create at most ONE real draft 
       );
       expect(finalizeRows.rows).toHaveLength(1);
       expect(finalizeRows.rows[0]!.reference).toBeTruthy();
-    },
-    180_000,
-  );
-});
+    }, 180_000);
+  },
+);

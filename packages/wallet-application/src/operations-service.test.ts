@@ -81,10 +81,12 @@ describe("OperationsService", () => {
     it("flags unusual amounts exceeding threshold", () => {
       const service = new OperationsService({ unusualAmountThreshold: 50000n });
 
-      service.recordEvent(createEvent({
-        eventType: "transaction",
-        amount: 100000n,
-      }));
+      service.recordEvent(
+        createEvent({
+          eventType: "transaction",
+          amount: 100000n,
+        }),
+      );
 
       const alerts = service.getAlerts(WALLET_ID);
       expect(alerts.length).toBeGreaterThanOrEqual(1);
@@ -97,10 +99,12 @@ describe("OperationsService", () => {
     it("does not flag amounts below threshold", () => {
       const service = new OperationsService({ unusualAmountThreshold: 50000n });
 
-      service.recordEvent(createEvent({
-        eventType: "transaction",
-        amount: 10000n,
-      }));
+      service.recordEvent(
+        createEvent({
+          eventType: "transaction",
+          amount: 10000n,
+        }),
+      );
 
       const alerts = service.getAlerts(WALLET_ID);
       const amountAlert = alerts.find((a) => a.anomalyType === "unusual_amount");
@@ -115,10 +119,12 @@ describe("OperationsService", () => {
 
       const now = Date.now();
       for (let i = 0; i < 5; i++) {
-        service.recordEvent(createEvent({
-          eventType: "transaction",
-          timestamp: new Date(now + i * 1000).toISOString(),
-        }));
+        service.recordEvent(
+          createEvent({
+            eventType: "transaction",
+            timestamp: new Date(now + i * 1000).toISOString(),
+          }),
+        );
       }
 
       const alerts = service.getAlerts(WALLET_ID);

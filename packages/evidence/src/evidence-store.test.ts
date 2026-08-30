@@ -3,9 +3,7 @@ import type { CounterId, Instant, Sha256Digest } from "@counter/domain";
 import { InMemoryEvidenceStore } from "./evidence-store.js";
 import type { EvidenceRecord } from "./types.js";
 
-function makeEvidenceRecord(
-  overrides: Partial<EvidenceRecord> = {},
-): EvidenceRecord {
+function makeEvidenceRecord(overrides: Partial<EvidenceRecord> = {}): EvidenceRecord {
   return {
     id: "ctr_evidence_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"evidence">,
     transactionId: "ctr_transaction_BBBBBBBBBBBBBBBBBBBBBB" as CounterId<"transaction">,
@@ -14,7 +12,8 @@ function makeEvidenceRecord(
     observedAt: 1_700_000_000_000 as Instant,
     sourceId: "provider-123",
     sourceVersion: "1",
-    integrityDigest: "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" as Sha256Digest,
+    integrityDigest:
+      "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" as Sha256Digest,
     dataClassification: "restricted",
     retentionClass: "standard",
     canonicalClaim: { type: "payment_confirmed", details: {} },
@@ -98,9 +97,7 @@ describe("InMemoryEvidenceStore", () => {
     it("returns undefined for unknown id", () => {
       const store = new InMemoryEvidenceStore();
 
-      const result = store.getById(
-        "ctr_evidence_CCCCCCCCCCCCCCCCCCCCCC" as CounterId<"evidence">,
-      );
+      const result = store.getById("ctr_evidence_CCCCCCCCCCCCCCCCCCCCCC" as CounterId<"evidence">);
 
       expect(result).toBeUndefined();
     });

@@ -26,11 +26,7 @@
  * any diagnostic logging elsewhere can scrub the header.
  */
 
-import type {
-  RazorpayHttpPort,
-  RazorpayHttpRequest,
-  RazorpayHttpResponse,
-} from "./http-client.js";
+import type { RazorpayHttpPort, RazorpayHttpRequest, RazorpayHttpResponse } from "./http-client.js";
 
 /** Configuration for the real fetch-based Razorpay HTTP client. */
 export interface RealRazorpayHttpConfig {

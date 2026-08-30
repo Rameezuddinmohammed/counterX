@@ -9,11 +9,7 @@
  * - Supports idempotent replay via the IdempotencyStore
  */
 
-import type {
-  ActionInput,
-  ActionOutcome,
-  ActionPort,
-} from "@counter/connector-sdk";
+import type { ActionInput, ActionOutcome, ActionPort } from "@counter/connector-sdk";
 import { createConnectorError } from "@counter/connector-sdk";
 import type { Instant } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
@@ -206,17 +202,21 @@ export class DraftOrderCreateAction implements ActionPort<DraftOrderCreateInput,
     this.#idempotencyStore = createIdempotencyStore<DraftOrderResult>();
   }
 
-  public async execute(input: ActionInput<DraftOrderCreateInput>): Promise<ActionOutcome<DraftOrderResult>> {
+  public async execute(
+    input: ActionInput<DraftOrderCreateInput>,
+  ): Promise<ActionOutcome<DraftOrderResult>> {
     const payloadHash = computePayloadHash(input.payload);
     const lookup = this.#idempotencyStore.lookup(input.idempotencyKey, payloadHash);
 
     if (lookup.status === "divergent") {
-      return failed(createConnectorError({
-        code: "conflict",
-        message: "Divergent duplicate: same idempotency key with different payload",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "conflict",
+          message: "Divergent duplicate: same idempotency key with different payload",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
     if (lookup.status === "cached" && lookup.cachedOutcome) {
       return lookup.cachedOutcome;
@@ -258,13 +258,15 @@ export class DraftOrderCreateAction implements ActionPort<DraftOrderCreateInput,
     // Throttle check
     if (isThrottled(response)) {
       const retryAfterMs = computeRetryAfterMs(response.extensions?.cost?.throttleStatus);
-      return failed(createConnectorError({
-        code: "rate_limited",
-        message: "Shopify API throttled",
-        retryable: true,
-        retryAfterMs,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "rate_limited",
+          message: "Shopify API throttled",
+          retryable: true,
+          retryAfterMs,
+          source: "shopify",
+        }),
+      );
     }
 
     // GraphQL-level errors
@@ -274,12 +276,14 @@ export class DraftOrderCreateAction implements ActionPort<DraftOrderCreateInput,
 
     const payload = response.data?.draftOrderCreate;
     if (!payload) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "No data returned from draftOrderCreate",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "No data returned from draftOrderCreate",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     // User errors
@@ -288,12 +292,14 @@ export class DraftOrderCreateAction implements ActionPort<DraftOrderCreateInput,
     }
 
     if (!payload.draftOrder) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "Draft order was not created",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "Draft order was not created",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     const outcome: ActionOutcome<DraftOrderResult> = {
@@ -337,7 +343,9 @@ export class DraftOrderQueryAction implements ActionPort<DraftOrderQueryInput, D
     this.#client = client;
   }
 
-  public async execute(input: ActionInput<DraftOrderQueryInput>): Promise<ActionOutcome<DraftOrderResult>> {
+  public async execute(
+    input: ActionInput<DraftOrderQueryInput>,
+  ): Promise<ActionOutcome<DraftOrderResult>> {
     let result: { response: ShopifyGraphQLResponse<DraftOrderQueryResponse>; timedOut: boolean };
     try {
       result = await executeMutation<DraftOrderQueryResponse>(
@@ -362,12 +370,14 @@ export class DraftOrderQueryAction implements ActionPort<DraftOrderQueryInput, D
 
     const draftOrder = response.data?.draftOrder;
     if (!draftOrder) {
-      return failed(createConnectorError({
-        code: "not_found",
-        message: "Draft order not found",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "not_found",
+          message: "Draft order not found",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
 
     return {
@@ -402,17 +412,21 @@ export class OrderFinalizeAction implements ActionPort<OrderFinalizeInput, Order
     this.#idempotencyStore = createIdempotencyStore<OrderResult>();
   }
 
-  public async execute(input: ActionInput<OrderFinalizeInput>): Promise<ActionOutcome<OrderResult>> {
+  public async execute(
+    input: ActionInput<OrderFinalizeInput>,
+  ): Promise<ActionOutcome<OrderResult>> {
     const payloadHash = computePayloadHash(input.payload);
     const lookup = this.#idempotencyStore.lookup(input.idempotencyKey, payloadHash);
 
     if (lookup.status === "divergent") {
-      return failed(createConnectorError({
-        code: "conflict",
-        message: "Divergent duplicate: same idempotency key with different payload",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "conflict",
+          message: "Divergent duplicate: same idempotency key with different payload",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
     if (lookup.status === "cached" && lookup.cachedOutcome) {
       return lookup.cachedOutcome;
@@ -443,13 +457,15 @@ export class OrderFinalizeAction implements ActionPort<OrderFinalizeInput, Order
 
     if (isThrottled(response)) {
       const retryAfterMs = computeRetryAfterMs(response.extensions?.cost?.throttleStatus);
-      return failed(createConnectorError({
-        code: "rate_limited",
-        message: "Shopify API throttled",
-        retryable: true,
-        retryAfterMs,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "rate_limited",
+          message: "Shopify API throttled",
+          retryable: true,
+          retryAfterMs,
+          source: "shopify",
+        }),
+      );
     }
 
     if (response.errors && response.errors.length > 0) {
@@ -458,12 +474,14 @@ export class OrderFinalizeAction implements ActionPort<OrderFinalizeInput, Order
 
     const payload = response.data?.draftOrderComplete;
     if (!payload) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "No data returned from draftOrderComplete",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "No data returned from draftOrderComplete",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     if (payload.userErrors.length > 0) {
@@ -472,12 +490,14 @@ export class OrderFinalizeAction implements ActionPort<OrderFinalizeInput, Order
 
     const order = payload.draftOrder?.order;
     if (!order) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "Order was not created from draft",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "Order was not created from draft",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     const outcome: ActionOutcome<OrderResult> = {
@@ -515,17 +535,21 @@ export class PaymentRecordAction implements ActionPort<PaymentRecordInput, Payme
     this.#idempotencyStore = createIdempotencyStore<PaymentRecordResult>();
   }
 
-  public async execute(input: ActionInput<PaymentRecordInput>): Promise<ActionOutcome<PaymentRecordResult>> {
+  public async execute(
+    input: ActionInput<PaymentRecordInput>,
+  ): Promise<ActionOutcome<PaymentRecordResult>> {
     const payloadHash = computePayloadHash(input.payload);
     const lookup = this.#idempotencyStore.lookup(input.idempotencyKey, payloadHash);
 
     if (lookup.status === "divergent") {
-      return failed(createConnectorError({
-        code: "conflict",
-        message: "Divergent duplicate: same idempotency key with different payload",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "conflict",
+          message: "Divergent duplicate: same idempotency key with different payload",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
     if (lookup.status === "cached" && lookup.cachedOutcome) {
       return lookup.cachedOutcome;
@@ -557,13 +581,15 @@ export class PaymentRecordAction implements ActionPort<PaymentRecordInput, Payme
 
     if (isThrottled(response)) {
       const retryAfterMs = computeRetryAfterMs(response.extensions?.cost?.throttleStatus);
-      return failed(createConnectorError({
-        code: "rate_limited",
-        message: "Shopify API throttled",
-        retryable: true,
-        retryAfterMs,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "rate_limited",
+          message: "Shopify API throttled",
+          retryable: true,
+          retryAfterMs,
+          source: "shopify",
+        }),
+      );
     }
 
     if (response.errors && response.errors.length > 0) {
@@ -572,12 +598,14 @@ export class PaymentRecordAction implements ActionPort<PaymentRecordInput, Payme
 
     const data = response.data?.orderMarkAsPaid;
     if (!data) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "No data returned from orderMarkAsPaid",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "No data returned from orderMarkAsPaid",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     if (data.userErrors.length > 0) {
@@ -585,12 +613,14 @@ export class PaymentRecordAction implements ActionPort<PaymentRecordInput, Payme
     }
 
     if (!data.order) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "Order payment was not recorded",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "Order payment was not recorded",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     const outcome: ActionOutcome<PaymentRecordResult> = {
@@ -653,12 +683,14 @@ export class OrderQueryAction implements ActionPort<OrderQueryInput, OrderResult
 
     const order = response.data?.order;
     if (!order) {
-      return failed(createConnectorError({
-        code: "not_found",
-        message: "Order not found",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "not_found",
+          message: "Order not found",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
 
     return {
@@ -698,12 +730,14 @@ export class OrderCancelAction implements ActionPort<OrderCancelInput, CancelRes
     const lookup = this.#idempotencyStore.lookup(input.idempotencyKey, payloadHash);
 
     if (lookup.status === "divergent") {
-      return failed(createConnectorError({
-        code: "conflict",
-        message: "Divergent duplicate: same idempotency key with different payload",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "conflict",
+          message: "Divergent duplicate: same idempotency key with different payload",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
     if (lookup.status === "cached" && lookup.cachedOutcome) {
       return lookup.cachedOutcome;
@@ -740,13 +774,15 @@ export class OrderCancelAction implements ActionPort<OrderCancelInput, CancelRes
 
     if (isThrottled(response)) {
       const retryAfterMs = computeRetryAfterMs(response.extensions?.cost?.throttleStatus);
-      return failed(createConnectorError({
-        code: "rate_limited",
-        message: "Shopify API throttled",
-        retryable: true,
-        retryAfterMs,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "rate_limited",
+          message: "Shopify API throttled",
+          retryable: true,
+          retryAfterMs,
+          source: "shopify",
+        }),
+      );
     }
 
     if (response.errors && response.errors.length > 0) {
@@ -755,12 +791,14 @@ export class OrderCancelAction implements ActionPort<OrderCancelInput, CancelRes
 
     const data = response.data?.orderCancel;
     if (!data) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "No data returned from orderCancel",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "No data returned from orderCancel",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     if (data.orderCancelUserErrors.length > 0) {
@@ -803,12 +841,14 @@ export class OrderRefundAction implements ActionPort<RefundInput, RefundResult> 
     const lookup = this.#idempotencyStore.lookup(input.idempotencyKey, payloadHash);
 
     if (lookup.status === "divergent") {
-      return failed(createConnectorError({
-        code: "conflict",
-        message: "Divergent duplicate: same idempotency key with different payload",
-        retryable: false,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "conflict",
+          message: "Divergent duplicate: same idempotency key with different payload",
+          retryable: false,
+          source: "shopify",
+        }),
+      );
     }
     if (lookup.status === "cached" && lookup.cachedOutcome) {
       return lookup.cachedOutcome;
@@ -841,13 +881,15 @@ export class OrderRefundAction implements ActionPort<RefundInput, RefundResult> 
 
     if (isThrottled(response)) {
       const retryAfterMs = computeRetryAfterMs(response.extensions?.cost?.throttleStatus);
-      return failed(createConnectorError({
-        code: "rate_limited",
-        message: "Shopify API throttled",
-        retryable: true,
-        retryAfterMs,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "rate_limited",
+          message: "Shopify API throttled",
+          retryable: true,
+          retryAfterMs,
+          source: "shopify",
+        }),
+      );
     }
 
     if (response.errors && response.errors.length > 0) {
@@ -856,12 +898,14 @@ export class OrderRefundAction implements ActionPort<RefundInput, RefundResult> 
 
     const data = response.data?.refundCreate;
     if (!data) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "No data returned from refundCreate",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "No data returned from refundCreate",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     if (data.userErrors.length > 0) {
@@ -869,12 +913,14 @@ export class OrderRefundAction implements ActionPort<RefundInput, RefundResult> 
     }
 
     if (!data.refund) {
-      return failed(createConnectorError({
-        code: "unavailable",
-        message: "Refund was not created",
-        retryable: true,
-        source: "shopify",
-      }));
+      return failed(
+        createConnectorError({
+          code: "unavailable",
+          message: "Refund was not created",
+          retryable: true,
+          source: "shopify",
+        }),
+      );
     }
 
     const outcome: ActionOutcome<RefundResult> = {

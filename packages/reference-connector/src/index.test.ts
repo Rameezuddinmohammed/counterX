@@ -243,7 +243,10 @@ describe("resources", () => {
     });
 
     it("get returns variant by reference", async () => {
-      const ref = { source: CONNECTOR_SOURCE, value: "prod-classic-tshirt-m-white" } as ExternalReference;
+      const ref = {
+        source: CONNECTOR_SOURCE,
+        value: "prod-classic-tshirt-m-white",
+      } as ExternalReference;
       const result = await port.get(ref);
       expect(result).not.toBeNull();
       expect(result!.data.size).toBe("M");
@@ -508,10 +511,7 @@ describe("createReferenceConnector", () => {
 describe("certification harness", () => {
   it("passes all certification tests", async () => {
     const connector = createReferenceConnector();
-    const harness = createCertificationHarness(
-      connector.manifest,
-      connector,
-    );
+    const harness = createCertificationHarness(connector.manifest, connector);
 
     const result = await harness.run();
 

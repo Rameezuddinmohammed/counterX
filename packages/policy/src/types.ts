@@ -7,13 +7,7 @@
  * - Readonly properties (immutable once constructed)
  */
 
-import type {
-  CounterId,
-  DecimalQuantity,
-  Instant,
-  IsoCurrencyCode,
-  Money,
-} from "@counter/domain";
+import type { CounterId, DecimalQuantity, Instant, IsoCurrencyCode, Money } from "@counter/domain";
 
 // ---------------------------------------------------------------------------
 // Common types

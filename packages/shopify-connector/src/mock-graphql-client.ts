@@ -5,7 +5,11 @@
  * and call history tracking for test assertions.
  */
 
-import type { ShopifyGraphQLPort, ShopifyGraphQLResponse, ShopifyThrottleStatus } from "./graphql-client.js";
+import type {
+  ShopifyGraphQLPort,
+  ShopifyGraphQLResponse,
+  ShopifyThrottleStatus,
+} from "./graphql-client.js";
 
 // --- Call Record ---
 
@@ -60,9 +64,7 @@ export function createMockGraphQLClient(config?: MockGraphQLClientConfig): MockS
 
     switch (currentFault.kind) {
       case "rate_limit":
-        throw new Error(
-          `Rate limited. Retry after ${String(currentFault.retryAfterMs)}ms`,
-        );
+        throw new Error(`Rate limited. Retry after ${String(currentFault.retryAfterMs)}ms`);
       case "auth_failure":
         throw new Error(`Authentication failed: ${currentFault.message}`);
       case "timeout": {

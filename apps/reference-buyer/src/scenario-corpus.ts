@@ -95,7 +95,8 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
   {
     id: "SCENARIO-001",
     name: "Prompt-triggered unattended purchase below threshold",
-    description: "Agent autonomously completes a purchase below the approval threshold within a valid mandate.",
+    description:
+      "Agent autonomously completes a purchase below the approval threshold within a valid mandate.",
     expectedOutcome: "success",
     category: "happy_path",
     setup: (ctx) => ({
@@ -107,8 +108,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         triggerType: "prompt",
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "success",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "success",
   },
 
   {
@@ -126,14 +126,14 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         triggerType: "time",
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "success",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "success",
   },
 
   {
     id: "SCENARIO-003",
     name: "Above-threshold purchase with explicit approval",
-    description: "Purchase exceeding the unattended threshold succeeds with valid explicit approval.",
+    description:
+      "Purchase exceeding the unattended threshold succeeds with valid explicit approval.",
     expectedOutcome: "success",
     category: "happy_path",
     setup: (ctx) => ({
@@ -146,8 +146,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         triggerType: "prompt",
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "success",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "success",
   },
 
   // ─── Provenance Paths ────────────────────────────────────────────────────
@@ -166,8 +165,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         verifyDigest: true,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "success",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "success",
   },
 
   {
@@ -193,7 +191,8 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
   {
     id: "SCENARIO-006",
     name: "Razorpay PAYMENT_ACTION_REQUIRED flow",
-    description: "Payment triggers action_required which results in review_required outcome in autonomous mode.",
+    description:
+      "Payment triggers action_required which results in review_required outcome in autonomous mode.",
     expectedOutcome: "review_required",
     category: "provenance",
     setup: (ctx) => ({
@@ -204,8 +203,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         simulateActionRequired: true,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "review_required",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "review_required",
   },
 
   // ─── Denial Paths ────────────────────────────────────────────────────────
@@ -224,14 +222,14 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         merchantAllowlisted: false,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   {
     id: "SCENARIO-008",
     name: "Non-India region denial",
-    description: "Purchase attempt to a merchant outside India is denied (pilot geographic constraint).",
+    description:
+      "Purchase attempt to a merchant outside India is denied (pilot geographic constraint).",
     expectedOutcome: "declined",
     category: "denial",
     setup: (ctx) => ({
@@ -243,8 +241,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         regionAllowed: false,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   {
@@ -261,8 +258,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         disallowedCurrency: true,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   // ─── Limit and Expiry Paths ──────────────────────────────────────────────
@@ -281,8 +277,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         exceedsLimit: true,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   {
@@ -303,14 +298,14 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         }),
       };
     },
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   {
     id: "SCENARIO-012",
     name: "Material change detection",
-    description: "Quote price changed between intent creation and checkout execution, causing denial.",
+    description:
+      "Quote price changed between intent creation and checkout execution, causing denial.",
     expectedOutcome: "declined",
     category: "limit_expiry",
     setup: (ctx) => ({
@@ -323,8 +318,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         currentQuoteDigest: "sha256:changed",
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   // ─── Security Paths ──────────────────────────────────────────────────────
@@ -332,7 +326,8 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
   {
     id: "SCENARIO-013",
     name: "Approval self-bypass attempt",
-    description: "Agent attempts to approve its own above-threshold transaction (same principal). Denied.",
+    description:
+      "Agent attempts to approve its own above-threshold transaction (same principal). Denied.",
     expectedOutcome: "declined",
     category: "security",
     setup: (ctx) => ({
@@ -344,8 +339,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         selfApprovalAttempt: true,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   {
@@ -363,8 +357,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         idempotencyKey: "idem-test-duplicate-001",
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "success",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "success",
   },
 
   {
@@ -383,8 +376,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         originalAmount: 50_000n,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "declined",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "declined",
   },
 
   // ─── Uncertainty Paths ───────────────────────────────────────────────────
@@ -392,7 +384,8 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
   {
     id: "SCENARIO-016",
     name: "Process failure before/after intent",
-    description: "System failure during checkout results in indeterminate state with compensation flag.",
+    description:
+      "System failure during checkout results in indeterminate state with compensation flag.",
     expectedOutcome: "indeterminate",
     category: "uncertainty",
     setup: (ctx) => ({
@@ -404,14 +397,14 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         failurePhase: "payment_execution",
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "indeterminate",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "indeterminate",
   },
 
   {
     id: "SCENARIO-017",
     name: "Payment timeout indeterminate",
-    description: "Payment provider timeout results in indeterminate state requiring manual resolution.",
+    description:
+      "Payment provider timeout results in indeterminate state requiring manual resolution.",
     expectedOutcome: "indeterminate",
     category: "uncertainty",
     setup: (ctx) => ({
@@ -422,8 +415,7 @@ const scenarios: readonly ScenarioDefinition[] = Object.freeze([
         simulateTimeout: true,
       }),
     }),
-    assertion: (input) =>
-      input.result !== undefined && input.result.outcome === "indeterminate",
+    assertion: (input) => input.result !== undefined && input.result.outcome === "indeterminate",
   },
 ]);
 

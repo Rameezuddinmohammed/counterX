@@ -8,7 +8,11 @@
 
 import { createConnectorError, type ConnectorError } from "@counter/connector-sdk";
 
-import type { ShopifyGraphQLError, ShopifyGraphQLResponse, ShopifyThrottleStatus } from "./graphql-client.js";
+import type {
+  ShopifyGraphQLError,
+  ShopifyGraphQLResponse,
+  ShopifyThrottleStatus,
+} from "./graphql-client.js";
 
 // ─── User Error Shape ─────────────────────────────────────────────────────────
 
@@ -113,9 +117,7 @@ export function normalizeGraphQLErrors(
 
 // ─── User Error Normalization ─────────────────────────────────────────────────
 
-export function normalizeUserErrors(
-  userErrors: readonly ShopifyUserError[],
-): ConnectorError {
+export function normalizeUserErrors(userErrors: readonly ShopifyUserError[]): ConnectorError {
   const firstError = userErrors[0];
   if (!firstError) {
     return createConnectorError({

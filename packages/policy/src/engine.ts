@@ -148,10 +148,7 @@ export class PolicyEngine {
         if (existingReservations !== undefined) {
           existingReservations.push(reserveResult.value.reservationId);
         } else {
-          this.#decisionReservations.set(
-            input.transactionId,
-            [reserveResult.value.reservationId],
-          );
+          this.#decisionReservations.set(input.transactionId, [reserveResult.value.reservationId]);
         }
 
         // Return ALLOW with the reservation ID

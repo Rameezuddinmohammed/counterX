@@ -13,9 +13,7 @@ import type { EvidenceRecord, EvidenceSource } from "./types.js";
 export interface EvidenceStore {
   append(record: EvidenceRecord): Result<EvidenceRecord>;
   getById(id: CounterId<"evidence">): EvidenceRecord | undefined;
-  getByTransaction(
-    transactionId: CounterId<"transaction">,
-  ): readonly EvidenceRecord[];
+  getByTransaction(transactionId: CounterId<"transaction">): readonly EvidenceRecord[];
   getBySource(
     transactionId: CounterId<"transaction">,
     source: EvidenceSource,
@@ -24,10 +22,7 @@ export interface EvidenceStore {
 
 export class InMemoryEvidenceStore implements EvidenceStore {
   readonly #records: Map<CounterId<"evidence">, EvidenceRecord> = new Map();
-  readonly #byTransaction: Map<
-    CounterId<"transaction">,
-    EvidenceRecord[]
-  > = new Map();
+  readonly #byTransaction: Map<CounterId<"transaction">, EvidenceRecord[]> = new Map();
 
   public append(record: EvidenceRecord): Result<EvidenceRecord> {
     if (this.#records.has(record.id)) {
@@ -57,9 +52,7 @@ export class InMemoryEvidenceStore implements EvidenceStore {
     return this.#records.get(id);
   }
 
-  public getByTransaction(
-    transactionId: CounterId<"transaction">,
-  ): readonly EvidenceRecord[] {
+  public getByTransaction(transactionId: CounterId<"transaction">): readonly EvidenceRecord[] {
     return this.#byTransaction.get(transactionId) ?? [];
   }
 

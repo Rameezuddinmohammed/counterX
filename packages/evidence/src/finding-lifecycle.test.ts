@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CounterId, Instant } from "@counter/domain";
-import {
-  transitionFinding,
-  VALID_FINDING_TRANSITIONS,
-} from "./finding-lifecycle.js";
+import { transitionFinding, VALID_FINDING_TRANSITIONS } from "./finding-lifecycle.js";
 import type { FindingRecord } from "./types.js";
 import { FINDING_STATUSES } from "./types.js";
 
@@ -84,9 +81,7 @@ describe("finding-lifecycle", () => {
 
     it("investigating -> resolved succeeds with resolution evidence", () => {
       const finding = makeFinding({ status: "investigating" });
-      const evidenceRefs = [
-        "ctr_evidence_BBBBBBBBBBBBBBBBBBBBBB" as CounterId<"evidence">,
-      ];
+      const evidenceRefs = ["ctr_evidence_BBBBBBBBBBBBBBBBBBBBBB" as CounterId<"evidence">];
 
       const result = transitionFinding(finding, "resolved", evidenceRefs);
 

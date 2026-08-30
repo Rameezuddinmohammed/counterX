@@ -230,7 +230,8 @@ export function createMetricSnapshot(
   window: MetricWindow,
 ): MetricSnapshot {
   const currentValue = dataPoints.length > 0 ? dataPoints[dataPoints.length - 1]!.value : 0;
-  const previousValue = dataPoints.length > 1 ? dataPoints[dataPoints.length - 2]!.value : currentValue;
+  const previousValue =
+    dataPoints.length > 1 ? dataPoints[dataPoints.length - 2]!.value : currentValue;
 
   const trend: "up" | "down" | "stable" =
     currentValue > previousValue ? "up" : currentValue < previousValue ? "down" : "stable";

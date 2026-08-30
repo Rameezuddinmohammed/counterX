@@ -115,10 +115,38 @@ gatedDescribe("transaction read-model projection (DB-gated, live Supabase)", () 
     const stepsSql = `INSERT INTO runtime.lifecycle_steps
         (environment, idempotency_key, step, status, reference, snapshot, created_at, completed_at)
        VALUES ($1, $2, $3, $4, $5, NULL, $6::timestamptz, $6::timestamptz)`;
-    await database.query(stepsSql, [TEST_ENV, TXN_ID, "shopify.draft.claim", "completed", null, "2025-01-20T10:00:30.000Z"]);
-    await database.query(stepsSql, [TEST_ENV, TXN_ID, "shopify.draft", "completed", "ord_proj_1", "2025-01-20T10:01:00.000Z"]);
-    await database.query(stepsSql, [TEST_ENV, TXN_ID, "shopify.finalize", "completed", "ord_proj_1", "2025-01-20T10:02:00.000Z"]);
-    await database.query(stepsSql, [TEST_ENV, TXN_ID, "shopify.markPaid", "completed", "ord_proj_1", "2025-01-20T10:03:00.000Z"]);
+    await database.query(stepsSql, [
+      TEST_ENV,
+      TXN_ID,
+      "shopify.draft.claim",
+      "completed",
+      null,
+      "2025-01-20T10:00:30.000Z",
+    ]);
+    await database.query(stepsSql, [
+      TEST_ENV,
+      TXN_ID,
+      "shopify.draft",
+      "completed",
+      "ord_proj_1",
+      "2025-01-20T10:01:00.000Z",
+    ]);
+    await database.query(stepsSql, [
+      TEST_ENV,
+      TXN_ID,
+      "shopify.finalize",
+      "completed",
+      "ord_proj_1",
+      "2025-01-20T10:02:00.000Z",
+    ]);
+    await database.query(stepsSql, [
+      TEST_ENV,
+      TXN_ID,
+      "shopify.markPaid",
+      "completed",
+      "ord_proj_1",
+      "2025-01-20T10:03:00.000Z",
+    ]);
 
     // Amount: 150000 minor units => 1500 major (INR).
     await database.query(
@@ -149,96 +177,104 @@ gatedDescribe("transaction read-model projection (DB-gated, live Supabase)", () 
     }
   }, 60_000);
 
-  vitestIt("projects the seeded real rows into a settled Transaction (store + route)", async () => {
-    // (a) Direct store projection.
-    const store = createPostgresTransactionStore(database, TEST_ENV);
-    const list = await store.list(TEST_MERCHANT_A, { limit: 50, offset: 0 }, TEST_ENV);
-    expect(list).toHaveLength(1);
-    const projected = list[0]!;
-    expect(projected.transactionId).toBe(TXN_ID);
-    expect(projected.merchantId).toBe(TEST_MERCHANT_A);
-    expect(projected.amount).toBe(1500); // MAJOR units (150000 minor / 100)
-    expect(projected.currency).toBe("INR");
-    expect(projected.currentState).toBe("settled");
-    // buyerRef/method are read from authority_context when present.
-    expect(projected.buyerRef).toBe("buyer_proj_seed");
-    expect(projected.method).toBe("upi");
-    // Transitions: synthetic initiated + authorized + captured + settled; the
-    // .claim row is excluded.
-    expect(projected.transitions.map((t) => t.to)).toEqual([
-      "initiated",
-      "authorized",
-      "captured",
-      "settled",
-    ]);
-    expect(projected.transitions.some((t) => t.evidenceRef === "ord_proj_1")).toBe(true);
+  vitestIt(
+    "projects the seeded real rows into a settled Transaction (store + route)",
+    async () => {
+      // (a) Direct store projection.
+      const store = createPostgresTransactionStore(database, TEST_ENV);
+      const list = await store.list(TEST_MERCHANT_A, { limit: 50, offset: 0 }, TEST_ENV);
+      expect(list).toHaveLength(1);
+      const projected = list[0]!;
+      expect(projected.transactionId).toBe(TXN_ID);
+      expect(projected.merchantId).toBe(TEST_MERCHANT_A);
+      expect(projected.amount).toBe(1500); // MAJOR units (150000 minor / 100)
+      expect(projected.currency).toBe("INR");
+      expect(projected.currentState).toBe("settled");
+      // buyerRef/method are read from authority_context when present.
+      expect(projected.buyerRef).toBe("buyer_proj_seed");
+      expect(projected.method).toBe("upi");
+      // Transitions: synthetic initiated + authorized + captured + settled; the
+      // .claim row is excluded.
+      expect(projected.transitions.map((t) => t.to)).toEqual([
+        "initiated",
+        "authorized",
+        "captured",
+        "settled",
+      ]);
+      expect(projected.transitions.some((t) => t.evidenceRef === "ord_proj_1")).toBe(true);
 
-    // (b) Via the HTTP route with a merchant-A token.
-    const tokenA = await mintToken(
-      { kind: "merchant", merchantId: TEST_MERCHANT_A },
-      "merchant_user",
-      "merchant.owner",
-      privateKey,
-    );
-    const routeList = await server.inject({
-      method: "GET",
-      url: `/control/v1/merchants/${TEST_MERCHANT_A}/transactions`,
-      headers: { authorization: `Bearer ${tokenA}` },
-    });
-    expect(routeList.statusCode).toBe(200);
-    const body = JSON.parse(routeList.body) as Transaction[];
-    expect(body).toHaveLength(1);
-    expect(body[0]!.transactionId).toBe(TXN_ID);
-    expect(body[0]!.amount).toBe(1500);
-    expect(body[0]!.currentState).toBe("settled");
+      // (b) Via the HTTP route with a merchant-A token.
+      const tokenA = await mintToken(
+        { kind: "merchant", merchantId: TEST_MERCHANT_A },
+        "merchant_user",
+        "merchant.owner",
+        privateKey,
+      );
+      const routeList = await server.inject({
+        method: "GET",
+        url: `/control/v1/merchants/${TEST_MERCHANT_A}/transactions`,
+        headers: { authorization: `Bearer ${tokenA}` },
+      });
+      expect(routeList.statusCode).toBe(200);
+      const body = JSON.parse(routeList.body) as Transaction[];
+      expect(body).toHaveLength(1);
+      expect(body[0]!.transactionId).toBe(TXN_ID);
+      expect(body[0]!.amount).toBe(1500);
+      expect(body[0]!.currentState).toBe("settled");
 
-    const routeGet = await server.inject({
-      method: "GET",
-      url: `/control/v1/transactions/${TXN_ID}`,
-      headers: { authorization: `Bearer ${tokenA}` },
-    });
-    expect(routeGet.statusCode).toBe(200);
-    const single = JSON.parse(routeGet.body) as Transaction;
-    expect(single.transactionId).toBe(TXN_ID);
-    expect(single.merchantId).toBe(TEST_MERCHANT_A);
-  }, 60_000);
+      const routeGet = await server.inject({
+        method: "GET",
+        url: `/control/v1/transactions/${TXN_ID}`,
+        headers: { authorization: `Bearer ${tokenA}` },
+      });
+      expect(routeGet.statusCode).toBe(200);
+      const single = JSON.parse(routeGet.body) as Transaction;
+      expect(single.transactionId).toBe(TXN_ID);
+      expect(single.merchantId).toBe(TEST_MERCHANT_A);
+    },
+    60_000,
+  );
 
-  vitestIt("enforces tenant isolation: merchant B cannot see A's transaction", async () => {
-    const store = createPostgresTransactionStore(database, TEST_ENV);
-    // Direct store: B's list is empty.
-    const bList = await store.list(TEST_MERCHANT_B, { limit: 50, offset: 0 }, TEST_ENV);
-    expect(bList).toHaveLength(0);
+  vitestIt(
+    "enforces tenant isolation: merchant B cannot see A's transaction",
+    async () => {
+      const store = createPostgresTransactionStore(database, TEST_ENV);
+      // Direct store: B's list is empty.
+      const bList = await store.list(TEST_MERCHANT_B, { limit: 50, offset: 0 }, TEST_ENV);
+      expect(bList).toHaveLength(0);
 
-    const tokenB = await mintToken(
-      { kind: "merchant", merchantId: TEST_MERCHANT_B },
-      "merchant_user",
-      "merchant.owner",
-      privateKey,
-    );
+      const tokenB = await mintToken(
+        { kind: "merchant", merchantId: TEST_MERCHANT_B },
+        "merchant_user",
+        "merchant.owner",
+        privateKey,
+      );
 
-    // B lists its own merchant scope: empty array.
-    const bRouteList = await server.inject({
-      method: "GET",
-      url: `/control/v1/merchants/${TEST_MERCHANT_B}/transactions`,
-      headers: { authorization: `Bearer ${tokenB}` },
-    });
-    expect(bRouteList.statusCode).toBe(200);
-    expect(JSON.parse(bRouteList.body)).toHaveLength(0);
+      // B lists its own merchant scope: empty array.
+      const bRouteList = await server.inject({
+        method: "GET",
+        url: `/control/v1/merchants/${TEST_MERCHANT_B}/transactions`,
+        headers: { authorization: `Bearer ${tokenB}` },
+      });
+      expect(bRouteList.statusCode).toBe(200);
+      expect(JSON.parse(bRouteList.body)).toHaveLength(0);
 
-    // B tries to list A's merchant scope: forbidden.
-    const bCross = await server.inject({
-      method: "GET",
-      url: `/control/v1/merchants/${TEST_MERCHANT_A}/transactions`,
-      headers: { authorization: `Bearer ${tokenB}` },
-    });
-    expect(bCross.statusCode).toBe(403);
+      // B tries to list A's merchant scope: forbidden.
+      const bCross = await server.inject({
+        method: "GET",
+        url: `/control/v1/merchants/${TEST_MERCHANT_A}/transactions`,
+        headers: { authorization: `Bearer ${tokenB}` },
+      });
+      expect(bCross.statusCode).toBe(403);
 
-    // B tries to fetch A's transaction by id: 404 (no disclosure).
-    const bGet = await server.inject({
-      method: "GET",
-      url: `/control/v1/transactions/${TXN_ID}`,
-      headers: { authorization: `Bearer ${tokenB}` },
-    });
-    expect(bGet.statusCode).toBe(404);
-  }, 60_000);
+      // B tries to fetch A's transaction by id: 404 (no disclosure).
+      const bGet = await server.inject({
+        method: "GET",
+        url: `/control/v1/transactions/${TXN_ID}`,
+        headers: { authorization: `Bearer ${tokenB}` },
+      });
+      expect(bGet.statusCode).toBe(404);
+    },
+    60_000,
+  );
 });

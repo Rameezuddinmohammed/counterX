@@ -2,30 +2,24 @@ import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
 import type { ExternalReference, Instant } from "@counter/domain";
 
+import type { ConnectorManifest } from "./types.js";
 import type {
-  ConnectorManifest,
-} from "./types.js";
-import type { ResourceObservation, PagedResult, ListParams, SearchParams } from "./resource-ports.js";
+  ResourceObservation,
+  PagedResult,
+  ListParams,
+  SearchParams,
+} from "./resource-ports.js";
 import type { ResourceReadPort } from "./resource-ports.js";
-import type {
-  ActionInput,
-  ActionOutcome,
-} from "./action-ports.js";
+import type { ActionInput, ActionOutcome } from "./action-ports.js";
 import type { ActionPort } from "./action-ports.js";
 import type { FreshnessPolicy } from "./freshness.js";
 import { evaluateFreshness, FRESHNESS_STATUSES, isFreshnessStatus } from "./freshness.js";
 import { CONNECTOR_HEALTH_STATUSES, isConnectorHealthStatus } from "./health.js";
 import type { HealthCheck } from "./health.js";
-import {
-  CONNECTOR_ERROR_CODES,
-  createConnectorError,
-  isConnectorError,
-} from "./errors.js";
+import { CONNECTOR_ERROR_CODES, createConnectorError, isConnectorError } from "./errors.js";
 import type { ConnectorContract } from "./safety-boundary.js";
 import { CAPABILITY_STATUSES, isCapabilityStatus } from "./capability-status.js";
-import {
-  createCertificationHarness,
-} from "./certification-harness.js";
+import { createCertificationHarness } from "./certification-harness.js";
 import type { ConnectorHealthPort } from "./health.js";
 import {
   createPaginationFixtures,
@@ -371,7 +365,11 @@ describe("evaluateFreshness", () => {
   });
 
   it("budgetMs always equals policy maxAgeMs", () => {
-    const result = evaluateFreshness(1_700_000_050_000 as Instant, 1_700_000_060_000 as Instant, policy);
+    const result = evaluateFreshness(
+      1_700_000_050_000 as Instant,
+      1_700_000_060_000 as Instant,
+      policy,
+    );
     expect(result.budgetMs).toBe(policy.maxAgeMs);
   });
 });
@@ -577,7 +575,6 @@ describe("certification harness - broken connector", () => {
   });
 
   it("fails certification for a connector that ignores rate limits", async () => {
-
     // A connector that responds to rate_limited with non-retryable would be wrong
     // This tests that the harness validates rate_limited errors are retryable
     const rateLimitErr = createConnectorError({

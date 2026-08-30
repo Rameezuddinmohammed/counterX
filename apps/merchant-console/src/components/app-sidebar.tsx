@@ -36,9 +36,7 @@ import {
 const NAV_SECTIONS = [
   {
     title: "Overview",
-    items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    ],
+    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     title: "Commerce",
@@ -97,11 +95,7 @@ export function AppSidebar() {
               <Link key={item.href} href={item.href} className="no-underline">
                 <SidebarItem
                   icon={<item.icon className="h-4 w-4" />}
-                  active={
-                    item.href === "/"
-                      ? pathname === "/"
-                      : pathname.startsWith(item.href)
-                  }
+                  active={item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)}
                 >
                   {item.label}
                 </SidebarItem>
@@ -120,16 +114,15 @@ export function AppSidebar() {
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                Merchant
-              </p>
-              <p className="text-xs text-[var(--foreground-muted)] truncate">
-                Pilot Mode
-              </p>
+              <p className="text-sm font-medium text-[var(--foreground)] truncate">Merchant</p>
+              <p className="text-xs text-[var(--foreground-muted)] truncate">Pilot Mode</p>
             </div>
           )}
           {!collapsed && (
-            <Link href="/settings" className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">
+            <Link
+              href="/settings"
+              className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            >
               <Settings className="h-4 w-4" />
             </Link>
           )}

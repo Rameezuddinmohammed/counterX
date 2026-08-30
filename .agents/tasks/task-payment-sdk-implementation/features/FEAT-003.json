@@ -31,9 +31,7 @@
     "No external HTTP calls - everything is in-memory",
     "pnpm --filter @counter/payment-sdk build succeeds"
   ],
-  "verification": [
-    "pnpm --filter @counter/payment-sdk build"
-  ],
+  "verification": ["pnpm --filter @counter/payment-sdk build"],
   "blocked_reason": null,
   "findings": "Build passes. exactOptionalPropertyTypes required conditional object construction instead of ternary undefined assignment for optional fields in frozen objects. Used object spread pattern to satisfy the constraint."
 }

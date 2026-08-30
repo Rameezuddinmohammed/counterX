@@ -88,22 +88,15 @@ export function projectMerchantHealth(input: {
   readonly lastTransactionAt: string | null;
 }): MerchantHealthProjection {
   const successRate =
-    input.totalTransactions > 0
-      ? input.successfulTransactions / input.totalTransactions
-      : 1;
+    input.totalTransactions > 0 ? input.successfulTransactions / input.totalTransactions : 1;
   const avgLatency =
-    input.totalTransactions > 0
-      ? input.totalLatencyMs / input.totalTransactions
-      : 0;
+    input.totalTransactions > 0 ? input.totalLatencyMs / input.totalTransactions : 0;
 
   // Health score: 100 base, deductions for issues
   const healthScore = Math.max(
     0,
     Math.round(
-      100 -
-        (1 - successRate) * 50 -
-        input.activeIncidents * 15 -
-        input.killSwitchesActive * 10,
+      100 - (1 - successRate) * 50 - input.activeIncidents * 15 - input.killSwitchesActive * 10,
     ),
   );
 
@@ -156,8 +149,7 @@ export function createAlertProjection(input: {
   }
 
   const ratio = input.currentValue / input.threshold;
-  const severity: AlertSeverity =
-    ratio >= 3 ? "critical" : ratio >= 1.5 ? "warning" : "info";
+  const severity: AlertSeverity = ratio >= 3 ? "critical" : ratio >= 1.5 ? "warning" : "info";
 
   return Object.freeze({
     id: input.id,
@@ -203,11 +195,7 @@ export function projectQueueHealth(input: {
   const isBacklogged = input.depth > backlogThreshold;
 
   const healthStatus: "healthy" | "degraded" | "critical" =
-    input.depth > backlogThreshold * 3
-      ? "critical"
-      : isBacklogged
-        ? "degraded"
-        : "healthy";
+    input.depth > backlogThreshold * 3 ? "critical" : isBacklogged ? "degraded" : "healthy";
 
   return Object.freeze({
     name: input.name,

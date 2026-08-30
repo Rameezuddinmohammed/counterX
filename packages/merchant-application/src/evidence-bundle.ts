@@ -8,11 +8,7 @@
 
 import type { Instant, Sha256Digest } from "@counter/domain";
 import { sha256Digest } from "@counter/domain";
-import type {
-  CtpEnvelope,
-  CtpEnvironment,
-  Signer,
-} from "@counter/trust-protocol";
+import type { CtpEnvelope, CtpEnvironment, Signer } from "@counter/trust-protocol";
 import {
   buildUnsignedEnvelope,
   generateNonce,
@@ -211,14 +207,11 @@ export async function verifyBundle(
   keyRegistry.add(TEST_KEY_RECORD_A);
   keyRegistry.add(TEST_KEY_RECORD_B);
 
-  const verifyResult = await verifyEnvelope(
-    envelope as CtpEnvelope,
-    {
-      keyRegistry,
-      currentTime: new Date().toISOString(),
-      expectedAudience: "counter://pilot-verifier",
-    },
-  );
+  const verifyResult = await verifyEnvelope(envelope as CtpEnvelope, {
+    keyRegistry,
+    currentTime: new Date().toISOString(),
+    expectedAudience: "counter://pilot-verifier",
+  });
 
   if (!verifyResult.ok) {
     return Object.freeze({

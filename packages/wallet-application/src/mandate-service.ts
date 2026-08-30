@@ -15,7 +15,11 @@ import type { CounterId } from "@counter/domain";
 import { CryptoIdGenerator } from "@counter/domain";
 import type { MandatePayload, UnsignedCtpEnvelope, MoneyAmount } from "@counter/trust-protocol";
 import { buildUnsignedEnvelope, computePayloadDigest } from "@counter/trust-protocol";
-import type { BuyerPolicyConstraints, WalletMandate, MandateRepository } from "@counter/wallet-domain";
+import type {
+  BuyerPolicyConstraints,
+  WalletMandate,
+  MandateRepository,
+} from "@counter/wallet-domain";
 import type { AgentRegistration } from "./agent-registration.js";
 import type { StepUpSession } from "./step-up-service.js";
 import { StepUpService } from "./step-up-service.js";
@@ -192,15 +196,27 @@ export class MandateService {
       merchant_countries: [...params.constraints.geography.allowedMerchantCountries],
       delivery_countries: [...params.constraints.geography.allowedDeliveryCountries],
       categories: [...params.constraints.category.allowedCategories],
-      ...(params.constraints.category.allowedSkus ? { skus: [...params.constraints.category.allowedSkus] } : {}),
+      ...(params.constraints.category.allowedSkus
+        ? { skus: [...params.constraints.category.allowedSkus] }
+        : {}),
       currencies: [...params.constraints.currency.allowedCurrencies],
-      per_transaction_limit: bigintToMoneyAmount(params.constraints.amountLimits.perTransactionMaxPaise, "INR"),
+      per_transaction_limit: bigintToMoneyAmount(
+        params.constraints.amountLimits.perTransactionMaxPaise,
+        "INR",
+      ),
       ...buildOptionalRollingLimits(params.constraints),
       ...buildOptionalAggregateLimit(params.constraints),
-      ...(params.constraints.countLimits.maxQuantityPerTransaction !== undefined ? { quantity_limit: params.constraints.countLimits.maxQuantityPerTransaction } : {}),
-      ...(params.constraints.countLimits.maxTransactions !== undefined ? { transaction_count_limit: params.constraints.countLimits.maxTransactions } : {}),
+      ...(params.constraints.countLimits.maxQuantityPerTransaction !== undefined
+        ? { quantity_limit: params.constraints.countLimits.maxQuantityPerTransaction }
+        : {}),
+      ...(params.constraints.countLimits.maxTransactions !== undefined
+        ? { transaction_count_limit: params.constraints.countLimits.maxTransactions }
+        : {}),
       allowed_operations: [...params.constraints.operations.allowedOperations],
-      approval_threshold: bigintToMoneyAmount(params.constraints.approvalThreshold.thresholdPaise, "INR"),
+      approval_threshold: bigintToMoneyAmount(
+        params.constraints.approvalThreshold.thresholdPaise,
+        "INR",
+      ),
       ...buildOptionalTimeWindows(params.constraints),
       payment_authorization_ref: params.paymentReferenceId,
       validity_start: params.validFrom,
@@ -290,7 +306,11 @@ function bigintToMoneyAmount(paise: bigint, currency: string): MoneyAmount {
   return { amount: Number(paise), currency };
 }
 
-function buildOptionalRollingLimits(constraints: BuyerPolicyConstraints): { rolling_limits: readonly { amount: number; currency: string; period: string }[] } | Record<string, never> {
+function buildOptionalRollingLimits(
+  constraints: BuyerPolicyConstraints,
+):
+  | { rolling_limits: readonly { amount: number; currency: string; period: string }[] }
+  | Record<string, never> {
   const { rollingPeriodMs, rollingMaxPaise } = constraints.amountLimits;
   if (rollingPeriodMs !== undefined && rollingMaxPaise !== undefined) {
     return {
@@ -306,14 +326,22 @@ function buildOptionalRollingLimits(constraints: BuyerPolicyConstraints): { roll
   return {};
 }
 
-function buildOptionalAggregateLimit(constraints: BuyerPolicyConstraints): { aggregate_limit: MoneyAmount } | Record<string, never> {
+function buildOptionalAggregateLimit(
+  constraints: BuyerPolicyConstraints,
+): { aggregate_limit: MoneyAmount } | Record<string, never> {
   if (constraints.amountLimits.aggregateMaxPaise !== undefined) {
-    return { aggregate_limit: bigintToMoneyAmount(constraints.amountLimits.aggregateMaxPaise, "INR") };
+    return {
+      aggregate_limit: bigintToMoneyAmount(constraints.amountLimits.aggregateMaxPaise, "INR"),
+    };
   }
   return {};
 }
 
-function buildOptionalTimeWindows(constraints: BuyerPolicyConstraints): { time_windows: readonly { start: string; end: string; timezone: string }[] } | Record<string, never> {
+function buildOptionalTimeWindows(
+  constraints: BuyerPolicyConstraints,
+):
+  | { time_windows: readonly { start: string; end: string; timezone: string }[] }
+  | Record<string, never> {
   const { validDays, validStartTime, validEndTime } = constraints.timeConstraints;
   if (validStartTime !== undefined && validEndTime !== undefined) {
     return {

@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
 import type { CounterId, Instant, Environment } from "@counter/domain";
 import { TENANT_STATUSES, isTenantStatus } from "./index.js";
-import type {
-  MerchantOrganization,
-  MerchantTenantEnvironment,
-  OrganizationId,
-} from "./index.js";
+import type { MerchantOrganization, MerchantTenantEnvironment, OrganizationId } from "./index.js";
 
 // --- Test Helpers ---
 

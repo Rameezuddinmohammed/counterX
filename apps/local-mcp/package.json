@@ -16,23 +16,25 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "register-buyer-agent": "node scripts/register-buyer-agent.mjs",
     "register-agent-self-serve": "node scripts/register-agent-self-serve.mjs",
-    "start:real": "node dist/main-real.js"
+    "start:real": "node dist/main-real.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "typescript": "5.7.3",
     "vitest": "3.0.7"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "@counter/wallet-domain": "workspace:*",
+    "@counter/data": "workspace:*",
+    "@counter/domain": "workspace:*",
+    "@counter/evidence": "workspace:*",
+    "@counter/merchant-contracts": "workspace:*",
+    "@counter/payment-sdk": "workspace:*",
+    "@counter/trust-protocol": "workspace:*",
     "@counter/wallet-application": "workspace:*",
     "@counter/wallet-contracts": "workspace:*",
-    "@counter/payment-sdk": "workspace:*",
-    "@counter/evidence": "workspace:*",
-    "@counter/trust-protocol": "workspace:*",
-    "@counter/merchant-contracts": "workspace:*",
-    "@counter/domain": "workspace:*",
-    "@counter/data": "workspace:*",
+    "@counter/wallet-domain": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "zod": "3.25.76"
   }
 }

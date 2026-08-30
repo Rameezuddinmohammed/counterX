@@ -58,7 +58,9 @@ function createMockQuotePort(result?: QuoteResult): QuotePort {
         totalMinor: 100_000n,
         currency: TEST_CURRENCY,
         expiresAt: (Date.now() + 15 * 60 * 1000) as Instant,
-        items: [{ variantId: "var-001", quantity: 1, unitPriceMinor: 100_000n, lineTotalMinor: 100_000n }],
+        items: [
+          { variantId: "var-001", quantity: 1, unitPriceMinor: 100_000n, lineTotalMinor: 100_000n },
+        ],
       },
   };
 }

@@ -342,16 +342,13 @@ describe("verification negative tests", () => {
   describe("property-based tests", () => {
     it("property: for any random set of < 4 verification records, checkAllVerificationsComplete returns err", () => {
       fc.assert(
-        fc.property(
-          fc.integer({ min: 0, max: 3 }),
-          (count) => {
-            const records = METHOD_TARGET_PAIRS.slice(0, count).map((p) =>
-              createVerifiedRecord(p.method_name, p.target_type, p.target_id, p.subject),
-            );
-            const result = checkAllVerificationsComplete(records, LATER);
-            expect(result.ok).toBe(false);
-          },
-        ),
+        fc.property(fc.integer({ min: 0, max: 3 }), (count) => {
+          const records = METHOD_TARGET_PAIRS.slice(0, count).map((p) =>
+            createVerifiedRecord(p.method_name, p.target_type, p.target_id, p.subject),
+          );
+          const result = checkAllVerificationsComplete(records, LATER);
+          expect(result.ok).toBe(false);
+        }),
       );
     });
   });

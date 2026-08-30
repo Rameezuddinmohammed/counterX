@@ -87,7 +87,17 @@ export interface ValidateGrantParams {
  * Throws CanonicalError on expired or mismatched grants for enforcement use.
  */
 export function validateGrant(params: ValidateGrantParams): GrantValidationResult {
-  const { grant, now, transactionId, version, mandateRef, approvalRef, quoteDigest, amount, paymentRef } = params;
+  const {
+    grant,
+    now,
+    transactionId,
+    version,
+    mandateRef,
+    approvalRef,
+    quoteDigest,
+    amount,
+    paymentRef,
+  } = params;
 
   // Check expiry
   if (now > grant.expiresAt) {

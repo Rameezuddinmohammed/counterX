@@ -345,16 +345,10 @@ export function createSupportGrantAuthorizationRecord(
 export function isSupportGrantAuthorizationRecord(
   value: unknown,
 ): value is SupportGrantAuthorizationRecord {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    supportGrantAuthorizationRecords.has(value)
-  );
+  return typeof value === "object" && value !== null && supportGrantAuthorizationRecords.has(value);
 }
 
-export function createSupportGrantRecord(
-  input: SupportGrantRecord,
-): Result<SupportGrantRecord> {
+export function createSupportGrantRecord(input: SupportGrantRecord): Result<SupportGrantRecord> {
   const authorizationReference = getAuthorizationReference(input.authorization);
   const validatedReference = createExternalReference(
     authorizationReference.source,

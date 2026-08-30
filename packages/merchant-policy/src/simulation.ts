@@ -92,9 +92,7 @@ function buildSimulationEvalInput(input: SimulationInput): PolicyEvaluationInput
  * is the expected "fail closed" behavior for a simulation that focuses
  * on the buyer/merchant bilateral intersection.
  */
-export function simulateWalletAuthority(
-  input: SimulationInput,
-): Result<SimulationResult> {
+export function simulateWalletAuthority(input: SimulationInput): Result<SimulationResult> {
   // Validate that the compiled policy is not ambiguous
   if (input.compiledPolicy.constraints.version !== 1) {
     return err(

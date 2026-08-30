@@ -15,7 +15,11 @@ import type {
   PolicyDecision,
   ReviewRequiredDecision,
 } from "./decision.js";
-import { createAllowDecision, createDenyDecision, createReviewRequiredDecision } from "./decision.js";
+import {
+  createAllowDecision,
+  createDenyDecision,
+  createReviewRequiredDecision,
+} from "./decision.js";
 import type { RuleResult } from "./rules.js";
 import type { PolicyEvaluationInput } from "./types.js";
 
@@ -156,8 +160,12 @@ function computeEffectiveConstraints(input: PolicyEvaluationInput): EffectiveCon
   return Object.freeze({
     maxAmount,
     allowedCurrencies: Object.freeze(allowedCurrencies),
-    allowedOperations: Object.freeze(allowedOperations) as EffectiveConstraints["allowedOperations"],
-    allowedPaymentMethods: Object.freeze(allowedPaymentMethods) as EffectiveConstraints["allowedPaymentMethods"],
+    allowedOperations: Object.freeze(
+      allowedOperations,
+    ) as EffectiveConstraints["allowedOperations"],
+    allowedPaymentMethods: Object.freeze(
+      allowedPaymentMethods,
+    ) as EffectiveConstraints["allowedPaymentMethods"],
     validFrom,
     validUntil,
   });

@@ -1,6 +1,15 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, Avatar, AvatarFallback, Badge, Separator } from "@counter/ui";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Separator,
+} from "@counter/ui";
 import { User, Mail, Shield, Clock, Globe, Wallet } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 
@@ -26,7 +35,9 @@ export default function ProfilePage() {
               </Avatar>
               <div>
                 <h2 className="text-xl font-bold text-[var(--foreground)]">Wallet User</h2>
-                <p className="text-[var(--foreground-secondary)]">wallet-user@pilot.counter.network</p>
+                <p className="text-[var(--foreground-secondary)]">
+                  wallet-user@pilot.counter.network
+                </p>
                 <div className="mt-2 flex items-center gap-2">
                   <Badge variant="default">Owner</Badge>
                   <Badge variant="success">Active</Badge>
@@ -54,7 +65,9 @@ export default function ProfilePage() {
               <Mail className="h-4 w-4 text-[var(--foreground-muted)]" />
               <div className="flex-1">
                 <p className="text-sm text-[var(--foreground-secondary)]">Email</p>
-                <p className="text-sm font-medium text-[var(--foreground)]">wallet-user@pilot.counter.network</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  wallet-user@pilot.counter.network
+                </p>
               </div>
             </div>
             <Separator />
@@ -62,7 +75,9 @@ export default function ProfilePage() {
               <Wallet className="h-4 w-4 text-[var(--foreground-muted)]" />
               <div className="flex-1">
                 <p className="text-sm text-[var(--foreground-secondary)]">Wallet ID</p>
-                <p className="text-sm font-mono font-medium text-[var(--foreground)]">wlt-pilot-001</p>
+                <p className="text-sm font-mono font-medium text-[var(--foreground)]">
+                  wlt-pilot-001
+                </p>
               </div>
             </div>
             <Separator />

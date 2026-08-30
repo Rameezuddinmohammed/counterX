@@ -9,11 +9,7 @@
 import type { CounterId } from "@counter/domain";
 import type { WalletAccount, WalletInvitation } from "./value-objects.js";
 import type { StateTransitionRecord } from "./transition-record.js";
-import type {
-  WalletRepository,
-  InvitationRepository,
-  MutationRejection,
-} from "./repositories.js";
+import type { WalletRepository, InvitationRepository, MutationRejection } from "./repositories.js";
 import { isMutationRejectingState, createMutationRejection } from "./repositories.js";
 
 // ---------------------------------------------------------------------------
@@ -156,10 +152,7 @@ export class InMemoryInvitationRepository implements InvitationRepository {
     return undefined;
   }
 
-  revoke(
-    invitationId: string,
-    walletId: CounterId<"wallet">,
-  ): MutationRejection | undefined {
+  revoke(invitationId: string, walletId: CounterId<"wallet">): MutationRejection | undefined {
     const rejection = this.checkWalletMutation(walletId);
     if (rejection) return rejection;
 
@@ -176,10 +169,7 @@ export class InMemoryInvitationRepository implements InvitationRepository {
     return undefined;
   }
 
-  expire(
-    invitationId: string,
-    walletId: CounterId<"wallet">,
-  ): MutationRejection | undefined {
+  expire(invitationId: string, walletId: CounterId<"wallet">): MutationRejection | undefined {
     const rejection = this.checkWalletMutation(walletId);
     if (rejection) return rejection;
 

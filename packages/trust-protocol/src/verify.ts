@@ -19,7 +19,12 @@ import { canonicalBytesForVerification, computePayloadDigest } from "./canonical
 import type { KeyRecord, KeyRegistry } from "./keys.js";
 import { validateKeyForVerification } from "./keys.js";
 import type { CtpEnvelope } from "./types.js";
-import { CTP_SIGNATURE_ALGORITHM, CTP_VERSION, isCtpEnvironment, isCtpObjectType } from "./types.js";
+import {
+  CTP_SIGNATURE_ALGORITHM,
+  CTP_VERSION,
+  isCtpEnvironment,
+  isCtpObjectType,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Verification Options
@@ -171,7 +176,10 @@ export async function verifyEnvelope(
     );
   }
 
-  if (options.expectedEnvironment !== undefined && envelope.environment !== options.expectedEnvironment) {
+  if (
+    options.expectedEnvironment !== undefined &&
+    envelope.environment !== options.expectedEnvironment
+  ) {
     return err(
       createCanonicalError({
         category: "validation",

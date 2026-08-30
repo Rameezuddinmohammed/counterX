@@ -7,7 +7,8 @@ const DOC_SECTIONS = [
   {
     icon: Book,
     title: "Getting Started",
-    description: "Quick start guide to integrate Counter into your AI agent or merchant application.",
+    description:
+      "Quick start guide to integrate Counter into your AI agent or merchant application.",
     href: "#",
   },
   {
@@ -19,7 +20,8 @@ const DOC_SECTIONS = [
   {
     icon: Code,
     title: "API Reference",
-    description: "Complete REST API documentation with request/response examples for every endpoint.",
+    description:
+      "Complete REST API documentation with request/response examples for every endpoint.",
     href: "#",
   },
   {
@@ -37,7 +39,8 @@ const DOC_SECTIONS = [
   {
     icon: Zap,
     title: "SDKs & Libraries",
-    description: "Official client libraries for Node.js, Python, and Go with TypeScript definitions.",
+    description:
+      "Official client libraries for Node.js, Python, and Go with TypeScript definitions.",
     href: "#",
   },
 ] as const;
@@ -50,12 +53,10 @@ export default function DocsPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Page header */}
           <div className="mb-12">
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              Documentation
-            </h1>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">Documentation</h1>
             <p className="text-lg text-[var(--foreground-secondary)] max-w-2xl">
-              Everything you need to integrate Counter into your AI agent
-              infrastructure. From quick starts to advanced policy configuration.
+              Everything you need to integrate Counter into your AI agent infrastructure. From quick
+              starts to advanced policy configuration.
             </p>
           </div>
 
@@ -78,7 +79,10 @@ export default function DocsPage() {
                 </p>
                 <span className="inline-flex items-center gap-1 text-sm text-orange-500 font-medium">
                   Read more
-                  <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight
+                    size={14}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
                 </span>
               </a>
             ))}
@@ -86,9 +90,7 @@ export default function DocsPage() {
 
           {/* CTA */}
           <div className="mt-16 text-center">
-            <p className="text-[var(--foreground-secondary)] mb-4">
-              Need help getting started?
-            </p>
+            <p className="text-[var(--foreground-secondary)] mb-4">Need help getting started?</p>
             <Button variant="outline" className="gap-2">
               Contact Developer Support
               <ArrowRight size={16} />

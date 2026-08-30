@@ -25,12 +25,9 @@ import type { ReceiptIssuanceInput } from "./receipt-types.js";
 // Test Fixtures
 // ---------------------------------------------------------------------------
 
-const TEST_TRANSACTION_ID =
-  "ctr_transaction_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"transaction">;
-const TEST_RECEIPT_ID_1 =
-  "ctr_receipt_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"receipt">;
-const TEST_RECEIPT_ID_2 =
-  "ctr_receipt_BBBBBBBBBBBBBBBBBBBBBB" as CounterId<"receipt">;
+const TEST_TRANSACTION_ID = "ctr_transaction_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"transaction">;
+const TEST_RECEIPT_ID_1 = "ctr_receipt_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"receipt">;
+const TEST_RECEIPT_ID_2 = "ctr_receipt_BBBBBBBBBBBBBBBBBBBBBB" as CounterId<"receipt">;
 
 const TEST_NOW = 1_700_000_000_000 as Instant;
 
@@ -59,9 +56,7 @@ const TEST_TOTALS: CommercialTotals = {
   currency: "USD",
 };
 
-function makeIssuanceInput(
-  overrides: Partial<ReceiptIssuanceInput> = {},
-): ReceiptIssuanceInput {
+function makeIssuanceInput(overrides: Partial<ReceiptIssuanceInput> = {}): ReceiptIssuanceInput {
   return {
     transactionId: TEST_TRANSACTION_ID,
     intentId: "intent-001",
@@ -131,9 +126,7 @@ describe("ReceiptCommitment", () => {
     const input2 = makeIssuanceInput();
     const commitment2 = buildReceiptCommitment(input2);
 
-    expect(computeCommitmentDigest(commitment1)).toBe(
-      computeCommitmentDigest(commitment2),
-    );
+    expect(computeCommitmentDigest(commitment1)).toBe(computeCommitmentDigest(commitment2));
   });
 
   it("changes digest when data changes", () => {
@@ -396,13 +389,10 @@ describe("Supersession chain", () => {
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
     if (first.ok && second.ok) {
-      const verifyResult = await verifyReceipt(
-        second.value.record.receiptEnvelope,
-        {
-          trustedKeys: [TRUSTED_KEY_A],
-          predecessorEnvelope: first.value.record.receiptEnvelope,
-        },
-      );
+      const verifyResult = await verifyReceipt(second.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_A],
+        predecessorEnvelope: first.value.record.receiptEnvelope,
+      });
       expect(verifyResult.valid).toBe(true);
     }
   });
@@ -430,10 +420,9 @@ describe("Independent receipt verifier", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        { trustedKeys: [TRUSTED_KEY_A] },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_A],
+      });
       expect(verifyResult.valid).toBe(true);
       expect(verifyResult.error).toBeUndefined();
     }
@@ -457,10 +446,9 @@ describe("Independent receipt verifier", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       // Verify with key B (wrong key, receipt was signed with key A)
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        { trustedKeys: [TRUSTED_KEY_B] },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_B],
+      });
       expect(verifyResult.valid).toBe(false);
       expect(verifyResult.error).toContain("not in the trusted key set");
     }
@@ -483,10 +471,9 @@ describe("Independent receipt verifier", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        { trustedKeys: [] },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [],
+      });
       expect(verifyResult.valid).toBe(false);
       expect(verifyResult.error).toContain("not in the trusted key set");
     }
@@ -545,13 +532,10 @@ describe("Independent receipt verifier", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       // Verify expecting wallet audience but this is a merchant receipt
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        {
-          trustedKeys: [TRUSTED_KEY_A],
-          expectedAudience: "counter://wallet/intent-001",
-        },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_A],
+        expectedAudience: "counter://wallet/intent-001",
+      });
       expect(verifyResult.valid).toBe(false);
       expect(verifyResult.error).toContain("audience");
     }
@@ -591,13 +575,10 @@ describe("Independent receipt verifier", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        {
-          trustedKeys: [TRUSTED_KEY_A],
-          expectedAudience: "counter://merchant/merchant-001",
-        },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_A],
+        expectedAudience: "counter://merchant/merchant-001",
+      });
       expect(verifyResult.valid).toBe(true);
     }
   });
@@ -621,13 +602,10 @@ describe("Independent receipt verifier", () => {
     if (result.ok) {
       // Time within validity window
       const validTime = new Date(TEST_NOW + 1000).toISOString();
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        {
-          trustedKeys: [TRUSTED_KEY_A],
-          currentTime: validTime,
-        },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_A],
+        currentTime: validTime,
+      });
       expect(verifyResult.valid).toBe(true);
     }
   });
@@ -651,13 +629,10 @@ describe("Independent receipt verifier", () => {
     if (result.ok) {
       // Time well after expiry (validity is 1 hour)
       const expiredTime = new Date(TEST_NOW + 7_200_000).toISOString();
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        {
-          trustedKeys: [TRUSTED_KEY_A],
-          currentTime: expiredTime,
-        },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [TRUSTED_KEY_A],
+        currentTime: expiredTime,
+      });
       expect(verifyResult.valid).toBe(false);
       expect(verifyResult.error).toContain("expired");
     }
@@ -685,10 +660,9 @@ describe("Independent receipt verifier", () => {
         kid: TEST_KID_A,
         publicKey: TEST_KEY_RECORD_B.publicKey, // wrong public key for kid A
       };
-      const verifyResult = await verifyReceipt(
-        result.value.record.receiptEnvelope,
-        { trustedKeys: [wrongKey] },
-      );
+      const verifyResult = await verifyReceipt(result.value.record.receiptEnvelope, {
+        trustedKeys: [wrongKey],
+      });
       expect(verifyResult.valid).toBe(false);
       expect(verifyResult.error).toContain("signature verification failed");
     }
@@ -751,17 +725,11 @@ describe("InMemoryReceiptStore", () => {
     await issueReceipt(input, "merchant", TEST_RECEIPT_ID_1, signer, store, TEST_CONFIG, TEST_NOW);
     await issueReceipt(input, "wallet", TEST_RECEIPT_ID_2, signer, store, TEST_CONFIG, TEST_NOW);
 
-    const merchantRecords = store.getByTransactionAndAudience(
-      TEST_TRANSACTION_ID,
-      "merchant",
-    );
+    const merchantRecords = store.getByTransactionAndAudience(TEST_TRANSACTION_ID, "merchant");
     expect(merchantRecords).toHaveLength(1);
     expect(merchantRecords[0]?.audience).toBe("merchant");
 
-    const walletRecords = store.getByTransactionAndAudience(
-      TEST_TRANSACTION_ID,
-      "wallet",
-    );
+    const walletRecords = store.getByTransactionAndAudience(TEST_TRANSACTION_ID, "wallet");
     expect(walletRecords).toHaveLength(1);
     expect(walletRecords[0]?.audience).toBe("wallet");
   });

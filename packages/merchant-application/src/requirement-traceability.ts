@@ -46,7 +46,8 @@ export const PILOT_REQUIREMENTS: readonly {
   },
   {
     id: "REQ-004",
-    description: "immutable quote with tax/shipping/fees if applicable, expiry, freshness, and digest",
+    description:
+      "immutable quote with tax/shipping/fees if applicable, expiry, freshness, and digest",
     section: "3.4",
   },
   {
@@ -71,12 +72,14 @@ export const PILOT_REQUIREMENTS: readonly {
   },
   {
     id: "REQ-009",
-    description: "Counter test-provider payment and authoritative test status for unattended bounded scenarios",
+    description:
+      "Counter test-provider payment and authoritative test status for unattended bounded scenarios",
     section: "3.9",
   },
   {
     id: "REQ-010",
-    description: "Razorpay Standard Checkout test instruction, PAYMENT_ACTION_REQUIRED, and authoritative provider status",
+    description:
+      "Razorpay Standard Checkout test instruction, PAYMENT_ACTION_REQUIRED, and authoritative provider status",
     section: "3.10",
   },
   {
@@ -86,7 +89,8 @@ export const PILOT_REQUIREMENTS: readonly {
   },
   {
     id: "REQ-012",
-    description: "test order cancellation and full refund where current state/provider profile permits",
+    description:
+      "test order cancellation and full refund where current state/provider profile permits",
     section: "3.12",
   },
   {
@@ -142,7 +146,11 @@ export interface CertificationScenarioResult {
  */
 export function buildTraceabilityMatrix(
   certificationResults: readonly CertificationScenarioResult[],
-  requirements: readonly { readonly id: string; readonly description: string; readonly section: string }[] = PILOT_REQUIREMENTS,
+  requirements: readonly {
+    readonly id: string;
+    readonly description: string;
+    readonly section: string;
+  }[] = PILOT_REQUIREMENTS,
 ): TraceabilityMatrix {
   const links: RequirementLink[] = [];
   let coveredCount = 0;
@@ -151,9 +159,7 @@ export function buildTraceabilityMatrix(
 
   for (const req of requirements) {
     // Find all scenarios that reference this requirement
-    const matchingScenarios = certificationResults.filter((r) =>
-      r.requirementIds.includes(req.id),
-    );
+    const matchingScenarios = certificationResults.filter((r) => r.requirementIds.includes(req.id));
 
     if (matchingScenarios.length === 0) {
       links.push(
@@ -222,9 +228,7 @@ export function validateTraceability(matrix: TraceabilityMatrix): TraceabilityVa
     .map((l) => l.requirementId);
 
   const coveragePercentage =
-    matrix.totalRequirements > 0
-      ? (matrix.coveredCount / matrix.totalRequirements) * 100
-      : 0;
+    matrix.totalRequirements > 0 ? (matrix.coveredCount / matrix.totalRequirements) * 100 : 0;
 
   return Object.freeze({
     valid: missingRequirements.length === 0 && partialRequirements.length === 0,

@@ -1,23 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { CounterId, Instant, Sha256Digest } from "@counter/domain";
 import { sha256Digest } from "@counter/domain";
-import {
-  CompensationRegistry,
-  DEFAULT_COMPENSATION_REGISTRY,
-} from "./compensation-registry.js";
-import type {
-  CompensationCommandRecord,
-  EvidenceRecord,
-} from "./types.js";
+import { CompensationRegistry, DEFAULT_COMPENSATION_REGISTRY } from "./compensation-registry.js";
+import type { CompensationCommandRecord, EvidenceRecord } from "./types.js";
 
-function computeClaimDigest(claim: { type: string; details: Record<string, unknown> }): Sha256Digest {
+function computeClaimDigest(claim: {
+  type: string;
+  details: Record<string, unknown>;
+}): Sha256Digest {
   const canonical = JSON.stringify({ type: claim.type, details: claim.details });
   return sha256Digest(new TextEncoder().encode(canonical));
 }
 
-function makeEvidenceRecord(
-  overrides: Partial<EvidenceRecord> = {},
-): EvidenceRecord {
+function makeEvidenceRecord(overrides: Partial<EvidenceRecord> = {}): EvidenceRecord {
   const canonicalClaim = overrides.canonicalClaim ?? {
     type: "payment_confirmed" as const,
     details: {},
@@ -247,23 +242,17 @@ describe("compensation-registry", () => {
 
   describe("DEFAULT_COMPENSATION_REGISTRY", () => {
     it("has commands for payment_order_mismatch", () => {
-      const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands(
-        "payment_order_mismatch",
-      );
+      const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands("payment_order_mismatch");
       expect(commands.length).toBeGreaterThan(0);
     });
 
     it("has commands for orphaned_authorization", () => {
-      const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands(
-        "orphaned_authorization",
-      );
+      const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands("orphaned_authorization");
       expect(commands.length).toBeGreaterThan(0);
     });
 
     it("has commands for integrity_failure", () => {
-      const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands(
-        "integrity_failure",
-      );
+      const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands("integrity_failure");
       expect(commands.length).toBeGreaterThan(0);
     });
 
@@ -277,8 +266,7 @@ describe("compensation-registry", () => {
       ] as const;
 
       for (const findingType of findingTypes) {
-        const commands =
-          DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands(findingType);
+        const commands = DEFAULT_COMPENSATION_REGISTRY.getEligibleCommands(findingType);
         for (const cmd of commands) {
           expect(cmd.idempotencyKey).toBeDefined();
           expect(cmd.idempotencyKey.length).toBeGreaterThan(0);

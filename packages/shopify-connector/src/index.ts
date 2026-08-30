@@ -25,14 +25,9 @@ export {
   validateShopDomainSsrf,
   isPrivateIp,
 } from "./http-graphql-client.js";
-export type {
-  HttpGraphQLClientConfig,
-  DomainValidationResult,
-} from "./http-graphql-client.js";
+export type { HttpGraphQLClientConfig, DomainValidationResult } from "./http-graphql-client.js";
 
-export {
-  createMockGraphQLClient,
-} from "./mock-graphql-client.js";
+export { createMockGraphQLClient } from "./mock-graphql-client.js";
 export type {
   MockShopifyClient,
   MockCallRecord,
@@ -49,10 +44,7 @@ export {
   validateShopDomain,
   redactCredentials,
 } from "./auth.js";
-export type {
-  ShopifyTokenValidation,
-  ScopeCheckResult,
-} from "./auth.js";
+export type { ShopifyTokenValidation, ScopeCheckResult } from "./auth.js";
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
@@ -108,11 +100,7 @@ export type {
 // ─── Webhook Inbox ────────────────────────────────────────────────────────────
 
 export { WebhookInbox } from "./webhook-inbox.js";
-export type {
-  WebhookHeaders,
-  WebhookAcceptance,
-  DeadLetterEntry,
-} from "./webhook-inbox.js";
+export type { WebhookHeaders, WebhookAcceptance, DeadLetterEntry } from "./webhook-inbox.js";
 
 // ─── Retry ────────────────────────────────────────────────────────────────────
 
@@ -124,11 +112,7 @@ export {
   withRetryResult,
   extractShopifyRateLimit,
 } from "./retry.js";
-export type {
-  RetryConfig,
-  RetryExhaustedError,
-  RateLimitContext,
-} from "./retry.js";
+export type { RetryConfig, RetryExhaustedError, RateLimitContext } from "./retry.js";
 
 // ─── Product Index ────────────────────────────────────────────────────────────
 
@@ -218,14 +202,8 @@ export type { ShopifyUserError } from "./order-error-normalizer.js";
 
 // ─── Order Idempotency ────────────────────────────────────────────────────────
 
-export {
-  computePayloadHash,
-  createIdempotencyStore,
-} from "./order-idempotency.js";
-export type {
-  IdempotencyLookup,
-  IdempotencyStore,
-} from "./order-idempotency.js";
+export { computePayloadHash, createIdempotencyStore } from "./order-idempotency.js";
+export type { IdempotencyLookup, IdempotencyStore } from "./order-idempotency.js";
 
 // ─── Order Actions ────────────────────────────────────────────────────────────
 
@@ -238,18 +216,12 @@ export {
   OrderCancelAction,
   OrderRefundAction,
 } from "./order-actions.js";
-export type {
-  DraftOrderQueryInput,
-  OrderQueryInput,
-} from "./order-actions.js";
+export type { DraftOrderQueryInput, OrderQueryInput } from "./order-actions.js";
 
 // ─── Connector Factory ────────────────────────────────────────────────────────
 
 export { createShopifyConnectorFromConfig } from "./connector-factory.js";
-export type {
-  ShopifyConnector,
-  ShopifyConnectorConfig,
-} from "./connector-factory.js";
+export type { ShopifyConnector, ShopifyConnectorConfig } from "./connector-factory.js";
 
 // ─── Legacy Types (backward compat) ──────────────────────────────────────────
 

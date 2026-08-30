@@ -7,10 +7,7 @@
 
 import type { Instant, Result } from "@counter/domain";
 import { ok } from "@counter/domain";
-import type {
-  MerchantOwnershipVerification,
-  VerificationTargetType,
-} from "./verification.js";
+import type { MerchantOwnershipVerification, VerificationTargetType } from "./verification.js";
 
 // ─── Verification Repository Port ───────────────────────────────────────────
 
@@ -58,9 +55,7 @@ export class InMemoryVerificationRepository implements VerificationRepository {
     return ok(Object.freeze([...results]));
   }
 
-  async findExpiring(
-    before: Instant,
-  ): Promise<Result<readonly MerchantOwnershipVerification[]>> {
+  async findExpiring(before: Instant): Promise<Result<readonly MerchantOwnershipVerification[]>> {
     const results = this.records.filter((r) => r.expiry_time < before);
     return ok(Object.freeze([...results]));
   }

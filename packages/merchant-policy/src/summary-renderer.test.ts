@@ -63,9 +63,7 @@ describe("renderPolicySummary", () => {
   });
 
   it("sorts items within each line alphabetically", () => {
-    const policy = compiledPolicy([
-      { kind: "product-allowlist", products: ["zebra", "apple"] },
-    ]);
+    const policy = compiledPolicy([{ kind: "product-allowlist", products: ["zebra", "apple"] }]);
 
     const summary = renderPolicySummary(policy);
     const productsLine = summary.find((l) => l.startsWith("Allowed products:"));

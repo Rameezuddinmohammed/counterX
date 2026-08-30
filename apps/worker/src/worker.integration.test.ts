@@ -25,7 +25,9 @@ import {
 
 const testDatabaseUrl = process.env["TEST_DATABASE_URL"]?.trim() || undefined;
 const dbDescribe = testDatabaseUrl === undefined ? describe.skip : describe;
-const migrationsDirectory = fileURLToPath(new URL("../../../packages/data/migrations", import.meta.url));
+const migrationsDirectory = fileURLToPath(
+  new URL("../../../packages/data/migrations", import.meta.url),
+);
 const hookTimeout = 30_000;
 
 function instant(ms: number): Instant {

@@ -9,7 +9,6 @@ import {
   WALLET_INVITATION_STATUSES,
   isWalletInvitationStatus,
   validateAndRecordTransition,
-
   isMutationRejectingState,
   InMemoryWalletRepository,
   InMemoryInvitationRepository,
@@ -307,8 +306,13 @@ describe("State Transition Records", () => {
 
   it("CLOSED is terminal - no transitions out", () => {
     const targets: WalletLifecycleState[] = [
-      "INVITED", "ENROLLED", "VERIFIED", "ACTIVE",
-      "SUSPENDED", "RECOVERY_LOCKED", "OFFBOARDING",
+      "INVITED",
+      "ENROLLED",
+      "VERIFIED",
+      "ACTIVE",
+      "SUSPENDED",
+      "RECOVERY_LOCKED",
+      "OFFBOARDING",
     ];
     for (const to of targets) {
       const result = validateAndRecordTransition({
@@ -518,9 +522,7 @@ describe("InMemoryInvitationRepository", () => {
     const walletRepo = new InMemoryWalletRepository();
     walletRepo.save(walletA);
     walletRepo.save(walletB);
-    const invitationRepo = new InMemoryInvitationRepository(
-      (wId) => walletRepo.findById(wId),
-    );
+    const invitationRepo = new InMemoryInvitationRepository((wId) => walletRepo.findById(wId));
     return { walletRepo, invitationRepo };
   }
 
@@ -597,9 +599,7 @@ describe("InMemoryInvitationRepository", () => {
     const walletRepo = new InMemoryWalletRepository();
     const suspended: WalletAccount = { ...walletA, state: "SUSPENDED" };
     walletRepo.save(suspended);
-    const invitationRepo = new InMemoryInvitationRepository(
-      (wId) => walletRepo.findById(wId),
-    );
+    const invitationRepo = new InMemoryInvitationRepository((wId) => walletRepo.findById(wId));
     const rejection = invitationRepo.save(inviteA);
     expect(rejection).toBeDefined();
     expect(rejection!.kind).toBe("mutation_rejected");
@@ -610,9 +610,7 @@ describe("InMemoryInvitationRepository", () => {
     const walletRepo = new InMemoryWalletRepository();
     const closed: WalletAccount = { ...walletA, state: "CLOSED" };
     walletRepo.save(closed);
-    const invitationRepo = new InMemoryInvitationRepository(
-      (wId) => walletRepo.findById(wId),
-    );
+    const invitationRepo = new InMemoryInvitationRepository((wId) => walletRepo.findById(wId));
     const rejection = invitationRepo.accept(
       inviteA.invitation_id,
       walletA.wallet_id,
@@ -647,9 +645,7 @@ describe("Cross-Wallet Isolation", () => {
     walletRepo.save(walletA);
     walletRepo.save(walletB);
 
-    const invRepo = new InMemoryInvitationRepository(
-      (wId) => walletRepo.findById(wId),
-    );
+    const invRepo = new InMemoryInvitationRepository((wId) => walletRepo.findById(wId));
 
     const invA: WalletInvitation = {
       invitation_id: "inv-iso-a1",

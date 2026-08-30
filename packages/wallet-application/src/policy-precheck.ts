@@ -69,7 +69,15 @@ export class PolicyPrecheckService {
     readonly paymentReferenceId: string;
     readonly timestamp: string;
   }): PrecheckResult {
-    const { quote, policy, policyVersionId, mandate, accumulatedUsage, paymentReferenceId, timestamp } = params;
+    const {
+      quote,
+      policy,
+      policyVersionId,
+      mandate,
+      accumulatedUsage,
+      paymentReferenceId,
+      timestamp,
+    } = params;
 
     // Check revocation first
     if (mandate) {

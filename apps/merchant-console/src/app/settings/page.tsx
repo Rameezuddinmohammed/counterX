@@ -1,6 +1,15 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, Input, Button, Switch, Separator } from "@counter/ui";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  Button,
+  Switch,
+  Separator,
+} from "@counter/ui";
 import { Settings, Key, Bell, AlertTriangle } from "lucide-react";
 import { toast } from "@counter/ui";
 import { PageWrapper } from "@/components/page-wrapper";
@@ -34,11 +43,15 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[var(--foreground-secondary)]">Display Name</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                Display Name
+              </label>
               <Input placeholder="Merchant Pilot" className="mt-1" />
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--foreground-secondary)]">Email</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                Email
+              </label>
               <Input placeholder="admin@merchant-pilot.com" className="mt-1" disabled />
             </div>
             <Button onClick={handleSave}>Save Changes</Button>
@@ -57,15 +70,21 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Email Notifications</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Receive alerts for critical events</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Receive alerts for critical events
+                </p>
               </div>
               <Switch defaultChecked />
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">Webhook Notifications</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Push events to your endpoint</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Webhook Notifications
+                </p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Push events to your endpoint
+                </p>
               </div>
               <Switch />
             </div>
@@ -73,7 +92,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Weekly Reports</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Summary digest every Monday</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Summary digest every Monday
+                </p>
               </div>
               <Switch defaultChecked />
             </div>
@@ -90,12 +111,18 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[var(--foreground-secondary)]">Merchant API Key</label>
+              <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                Merchant API Key
+              </label>
               <div className="mt-1 flex gap-2">
                 <Input defaultValue="cx_test_xxxxxxxxxxxx" disabled className="font-mono" />
-                <Button variant="outline" onClick={handleCopyKey}>Copy</Button>
+                <Button variant="outline" onClick={handleCopyKey}>
+                  Copy
+                </Button>
               </div>
-              <p className="mt-1 text-xs text-[var(--foreground-muted)]">Use this key for API integrations in test mode</p>
+              <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                Use this key for API integrations in test mode
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -112,9 +139,13 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-[var(--foreground)]">Deactivate Account</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Permanently deactivate your merchant account</p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Permanently deactivate your merchant account
+                </p>
               </div>
-              <Button variant="destructive" size="sm">Deactivate</Button>
+              <Button variant="destructive" size="sm">
+                Deactivate
+              </Button>
             </div>
           </CardContent>
         </Card>

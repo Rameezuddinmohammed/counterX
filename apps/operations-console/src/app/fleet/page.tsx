@@ -8,7 +8,12 @@ const FLEET_DEPENDENCIES = [
   { name: "PostgreSQL", status: "healthy" as const, responseTime: "4ms", lastCheck: "30s ago" },
   { name: "Redis", status: "healthy" as const, responseTime: "1ms", lastCheck: "30s ago" },
   { name: "RabbitMQ", status: "healthy" as const, responseTime: "3ms", lastCheck: "30s ago" },
-  { name: "Razorpay API", status: "healthy" as const, responseTime: "120ms", lastCheck: "1 min ago" },
+  {
+    name: "Razorpay API",
+    status: "healthy" as const,
+    responseTime: "120ms",
+    lastCheck: "1 min ago",
+  },
   { name: "Shopify API", status: "healthy" as const, responseTime: "95ms", lastCheck: "1 min ago" },
   { name: "Auth0", status: "healthy" as const, responseTime: "45ms", lastCheck: "2 min ago" },
 ];
@@ -31,7 +36,9 @@ function StatusBadge({ status }: { status: "healthy" | "degraded" | "unhealthy" 
     unhealthy: "bg-red-500/10 text-red-500 border-red-500/20",
   };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${variants[status]}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${variants[status]}`}
+    >
       {status}
     </span>
   );

@@ -14,10 +14,34 @@ interface ExportOption {
 }
 
 const EXPORT_OPTIONS: ExportOption[] = [
-  { id: "transactions", label: "Transactions", description: "Full transaction history with all fields", format: "CSV", icon: FileText },
-  { id: "mandates", label: "Mandates", description: "Active and historical mandate records", format: "CSV", icon: FileText },
-  { id: "activity-log", label: "Activity Log", description: "Security and authorization event log", format: "JSON", icon: Archive },
-  { id: "full-export", label: "Full Data Export", description: "Complete wallet data package (GDPR compliant)", format: "ZIP", icon: Archive },
+  {
+    id: "transactions",
+    label: "Transactions",
+    description: "Full transaction history with all fields",
+    format: "CSV",
+    icon: FileText,
+  },
+  {
+    id: "mandates",
+    label: "Mandates",
+    description: "Active and historical mandate records",
+    format: "CSV",
+    icon: FileText,
+  },
+  {
+    id: "activity-log",
+    label: "Activity Log",
+    description: "Security and authorization event log",
+    format: "JSON",
+    icon: Archive,
+  },
+  {
+    id: "full-export",
+    label: "Full Data Export",
+    description: "Complete wallet data package (GDPR compliant)",
+    format: "ZIP",
+    icon: Archive,
+  },
 ];
 
 export default function ExportPage() {
@@ -45,7 +69,9 @@ export default function ExportPage() {
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-sm font-medium text-[var(--foreground-secondary)]">From</label>
+                <label className="text-sm font-medium text-[var(--foreground-secondary)]">
+                  From
+                </label>
                 <Input type="date" defaultValue="2025-01-01" className="mt-1" />
               </div>
               <div>
@@ -70,7 +96,9 @@ export default function ExportPage() {
                         <p className="font-medium text-[var(--foreground)]">{option.label}</p>
                         <Badge variant="secondary">{option.format}</Badge>
                       </div>
-                      <p className="text-xs text-[var(--foreground-muted)] mt-0.5">{option.description}</p>
+                      <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                        {option.description}
+                      </p>
                     </div>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => handleExport(option.label)}>

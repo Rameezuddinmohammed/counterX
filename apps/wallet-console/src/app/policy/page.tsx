@@ -13,11 +13,42 @@ interface PolicyRule {
 }
 
 const MOCK_POLICIES: PolicyRule[] = [
-  { id: "pol-001", name: "Maximum single transaction", description: "Reject any single transaction exceeding INR 50,000 without biometric verification", category: "Spending Limits", status: "enforced" },
-  { id: "pol-002", name: "Daily transaction limit", description: "Cap total daily spend at INR 1,00,000 across all merchants", category: "Spending Limits", status: "enforced" },
-  { id: "pol-003", name: "Trusted merchant bypass", description: "Allow auto-approval for verified merchants with risk score below 20", category: "Trust", status: "enforced" },
-  { id: "pol-004", name: "New device cooling period", description: "Restrict transactions from new devices for 24 hours after pairing", category: "Security", status: "advisory" },
-  { id: "pol-005", name: "Geofencing restriction", description: "Alert on transactions originating from outside registered locations", category: "Security", status: "draft" },
+  {
+    id: "pol-001",
+    name: "Maximum single transaction",
+    description:
+      "Reject any single transaction exceeding INR 50,000 without biometric verification",
+    category: "Spending Limits",
+    status: "enforced",
+  },
+  {
+    id: "pol-002",
+    name: "Daily transaction limit",
+    description: "Cap total daily spend at INR 1,00,000 across all merchants",
+    category: "Spending Limits",
+    status: "enforced",
+  },
+  {
+    id: "pol-003",
+    name: "Trusted merchant bypass",
+    description: "Allow auto-approval for verified merchants with risk score below 20",
+    category: "Trust",
+    status: "enforced",
+  },
+  {
+    id: "pol-004",
+    name: "New device cooling period",
+    description: "Restrict transactions from new devices for 24 hours after pairing",
+    category: "Security",
+    status: "advisory",
+  },
+  {
+    id: "pol-005",
+    name: "Geofencing restriction",
+    description: "Alert on transactions originating from outside registered locations",
+    category: "Security",
+    status: "draft",
+  },
 ];
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "secondary"> = {
@@ -92,15 +123,26 @@ export default function PolicyPage() {
           <CardContent className="p-0">
             <div className="divide-y divide-[var(--border)]">
               {MOCK_POLICIES.map((policy) => (
-                <div key={policy.id} className="px-5 py-4 hover:bg-[var(--surface-secondary)] transition-colors">
+                <div
+                  key={policy.id}
+                  className="px-5 py-4 hover:bg-[var(--surface-secondary)] transition-colors"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-[var(--foreground)]">{policy.name}</p>
-                        <Badge variant={STATUS_VARIANT[policy.status]} className="text-[10px]">{policy.status}</Badge>
+                        <p className="text-sm font-medium text-[var(--foreground)]">
+                          {policy.name}
+                        </p>
+                        <Badge variant={STATUS_VARIANT[policy.status]} className="text-[10px]">
+                          {policy.status}
+                        </Badge>
                       </div>
-                      <p className="mt-1 text-xs text-[var(--foreground-muted)]">{policy.description}</p>
-                      <p className="mt-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">{policy.category}</p>
+                      <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+                        {policy.description}
+                      </p>
+                      <p className="mt-1 text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">
+                        {policy.category}
+                      </p>
                     </div>
                   </div>
                 </div>

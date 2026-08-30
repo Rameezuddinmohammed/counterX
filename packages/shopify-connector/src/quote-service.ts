@@ -10,7 +10,11 @@ import type { Instant } from "@counter/domain";
 import type { Result, Sha256Digest } from "@counter/domain";
 import { ok, err, createCanonicalError } from "@counter/domain";
 import type { IdGenerator } from "@counter/domain";
-import type { PriceSnapshot, InventorySnapshot, FreshnessAssessment } from "@counter/commerce-graph";
+import type {
+  PriceSnapshot,
+  InventorySnapshot,
+  FreshnessAssessment,
+} from "@counter/commerce-graph";
 import { evaluateFreshness } from "@counter/commerce-graph";
 import type { PilotQuoteConfig } from "./quote-config.js";
 import type { ImmutableQuote, QuoteLineItem } from "./quote-types.js";
@@ -172,7 +176,11 @@ export class QuoteService {
         );
       }
 
-      const priceFreshness = evaluateFreshness(priceSnapshot.observedAt, now, config.freshnessPolicy);
+      const priceFreshness = evaluateFreshness(
+        priceSnapshot.observedAt,
+        now,
+        config.freshnessPolicy,
+      );
       if (!priceFreshness.withinBudget) {
         return err(
           createCanonicalError({
@@ -195,7 +203,11 @@ export class QuoteService {
         );
       }
 
-      const inventoryFreshness = evaluateFreshness(inventorySnapshot.observedAt, now, config.freshnessPolicy);
+      const inventoryFreshness = evaluateFreshness(
+        inventorySnapshot.observedAt,
+        now,
+        config.freshnessPolicy,
+      );
       if (!inventoryFreshness.withinBudget) {
         return err(
           createCanonicalError({

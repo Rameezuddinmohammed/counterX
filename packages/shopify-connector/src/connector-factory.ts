@@ -97,9 +97,7 @@ export function createShopifyConnectorFromConfig(
     orderQuery: new OrderQueryAction(client),
     orderCancel: new OrderCancelAction(client),
     orderRefund: new OrderRefundAction(client),
-    health: authConfig !== undefined
-      ? createShopifyHealthPort({ client, authConfig })
-      : undefined,
+    health: authConfig !== undefined ? createShopifyHealthPort({ client, authConfig }) : undefined,
   };
 
   return connector;

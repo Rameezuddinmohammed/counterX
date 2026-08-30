@@ -90,44 +90,46 @@ function outboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink {
   };
 }
 
-gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-end (creds+DB-gated)", () => {
-  const database = new PostgresDatabase(databaseUrl as string);
-  const transactionId = `order-reconcile-e2e-${Date.now()}`;
-  const shopifyCreds = hasCreds ? requireShopifyCredentials(process.env)! : null!;
-  const razorpayCreds = hasCreds ? requireRazorpayCredentials(process.env)! : null!;
-  const bundle = hasCreds ? buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env) : null!;
-  let createdOrderId: string | undefined;
+gatedDescribe(
+  "reconciliation scanner resolves a real INDETERMINATE txn end-to-end (creds+DB-gated)",
+  () => {
+    const database = new PostgresDatabase(databaseUrl as string);
+    const transactionId = `order-reconcile-e2e-${Date.now()}`;
+    const shopifyCreds = hasCreds ? requireShopifyCredentials(process.env)! : null!;
+    const razorpayCreds = hasCreds ? requireRazorpayCredentials(process.env)! : null!;
+    const bundle = hasCreds
+      ? buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env)
+      : null!;
+    let createdOrderId: string | undefined;
 
-  afterAll(async () => {
-    try {
-      if (bundle !== null && createdOrderId !== undefined) {
-        await bundle.shopify.orderCancel.execute({
-          payload: {
-            orderId: createdOrderId,
-            reason: "OTHER",
-            metadata: { correlationId: transactionId, idempotencyKey: transactionId },
-          },
-          idempotencyKey: `${transactionId}-cancel`,
-          correlationId: transactionId,
-          preconditions: [],
-          timeoutMs: 20_000,
-        });
+    afterAll(async () => {
+      try {
+        if (bundle !== null && createdOrderId !== undefined) {
+          await bundle.shopify.orderCancel.execute({
+            payload: {
+              orderId: createdOrderId,
+              reason: "OTHER",
+              metadata: { correlationId: transactionId, idempotencyKey: transactionId },
+            },
+            idempotencyKey: `${transactionId}-cancel`,
+            correlationId: transactionId,
+            preconditions: [],
+            timeoutMs: 20_000,
+          });
+        }
+      } finally {
+        await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+          transactionId,
+        ]);
+        await database.query(
+          `DELETE FROM runtime.outbox_events WHERE payload ->> 'idempotencyKey' = $1`,
+          [transactionId],
+        );
+        await database.close();
       }
-    } finally {
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        transactionId,
-      ]);
-      await database.query(
-        `DELETE FROM runtime.outbox_events WHERE payload ->> 'idempotencyKey' = $1`,
-        [transactionId],
-      );
-      await database.close();
-    }
-  });
+    });
 
-  it(
-    "drives the REAL handler (deriveTransactionId applied), then reconciliation joins on the RAW key and closes it",
-    async () => {
+    it("drives the REAL handler (deriveTransactionId applied), then reconciliation joins on the RAW key and closes it", async () => {
       // ── Drive a REAL order to PAID: draft -> finalize -> mark-paid. This is
       //    the authoritative order the scanner will find. Record the finalize
       //    reference in the durable ledger keyed on the RAW key, exactly as the
@@ -165,7 +167,10 @@ gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-e
       createdOrderId = orderId;
 
       const markPaidPayload = {
-        payload: { orderId, metadata: { correlationId: transactionId, idempotencyKey: transactionId } },
+        payload: {
+          orderId,
+          metadata: { correlationId: transactionId, idempotencyKey: transactionId },
+        },
         idempotencyKey: transactionId,
         correlationId: transactionId,
         preconditions: [] as const,
@@ -235,7 +240,11 @@ gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-e
 
       // ── Run the REAL scanner. It must join the receipt back to the ledger via
       //    the RAW idempotencyKey and resolve the candidate to closed. ──
-      const config = buildReconciliationScannerConfig({ database, outbox, shopify: bundle.shopify });
+      const config = buildReconciliationScannerConfig({
+        database,
+        outbox,
+        shopify: bundle.shopify,
+      });
       const resolutions = await runReconciliationPass(config);
 
       const mine = resolutions.find((r) => r.idempotencyKey === transactionId);
@@ -251,7 +260,6 @@ gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-e
         [transactionId],
       );
       expect(resolved.rows[0]?.n).toBe("1");
-    },
-    180_000,
-  );
-});
+    }, 180_000);
+  },
+);
