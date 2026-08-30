@@ -4,14 +4,8 @@ import { StatCard, Card, CardContent, Badge } from "@counter/ui";
 import { Receipt, Shield, Activity, Search, ShoppingBag, CreditCard, FileText } from "lucide-react";
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
-import { useApi } from "@/hooks/use-api";
+import { useApi, useCurrentMerchantId } from "@/hooks/use-api";
 import type { MerchantPolicyConfig, Transaction } from "@/lib/types";
-
-// The merchant scope is enforced server-side from the authenticated token; the
-// merchantId here only selects which merchant path to request. Kept in sync
-// with apps/merchant-console/src/app/transactions/page.tsx's MERCHANT_ID —
-// see that file's comment for why this fallback value is what it is.
-const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw";
 
 // control-plane-api's transaction list endpoint has no separate "total count"
 // field — it returns a page of transactions (default limit 50, hard max 200;
@@ -53,13 +47,21 @@ function formatCappedCount(count: number, cap: number): string {
 }
 
 export default function DashboardPage() {
+  const { merchantId, loading: merchantLoading, error: merchantError } = useCurrentMerchantId();
+
   const transactionsState = useApi<readonly Transaction[]>(
-    (client) => client.listTransactions(MERCHANT_ID, { limit: TRANSACTIONS_FETCH_LIMIT }),
-    [MERCHANT_ID],
+    (client) =>
+      merchantId
+        ? client.listTransactions(merchantId, { limit: TRANSACTIONS_FETCH_LIMIT })
+        : Promise.resolve({ ok: true, data: [] as readonly Transaction[] }),
+    [merchantId],
   );
   const policyState = useApi<MerchantPolicyConfig | null>(
-    (client) => client.getPolicyConfig(MERCHANT_ID),
-    [MERCHANT_ID],
+    (client) =>
+      merchantId
+        ? client.getPolicyConfig(merchantId)
+        : Promise.resolve({ ok: true, data: null as MerchantPolicyConfig | null }),
+    [merchantId],
   );
 
   const transactions = transactionsState.data ?? [];
@@ -67,26 +69,31 @@ export default function DashboardPage() {
   const policyRules = policyState.data?.rules ?? [];
   const activeRuleCount = policyRules.filter((r) => r.enabled).length;
 
-  const transactionsValue = transactionsState.loading
+  const transactionsLoading = merchantLoading || transactionsState.loading;
+  const transactionsError = merchantError ?? transactionsState.error;
+  const policyLoading = merchantLoading || policyState.loading;
+  const policyError = merchantError ?? policyState.error;
+
+  const transactionsValue = transactionsLoading
     ? "…"
-    : transactionsState.error
+    : transactionsError
       ? "—"
       : formatCappedCount(transactions.length, TRANSACTIONS_FETCH_LIMIT);
-  const settledValue = transactionsState.loading
+  const settledValue = transactionsLoading
     ? "…"
-    : transactionsState.error
+    : transactionsError
       ? "—"
       : settledCount.toLocaleString();
-  const activePoliciesValue = policyState.loading
+  const activePoliciesValue = policyLoading
     ? "…"
-    : policyState.error
+    : policyError
       ? "—"
       : activeRuleCount.toLocaleString();
-  const activePoliciesDescription = policyState.error
+  const activePoliciesDescription = policyError
     ? "Could not load"
-    : !policyState.loading && policyState.data === null
+    : !policyLoading && policyState.data === null
       ? "No policy configured yet"
-      : !policyState.loading && policyRules.length > activeRuleCount
+      : !policyLoading && policyRules.length > activeRuleCount
         ? `${policyRules.length} rule(s) total`
         : undefined;
 
@@ -105,7 +112,7 @@ export default function DashboardPage() {
             icon={<Receipt className="h-4 w-4" />}
             label="Total Transactions"
             value={transactionsValue}
-            {...(transactionsState.error ? { description: transactionsState.error } : {})}
+            {...(transactionsError ? { description: transactionsError } : {})}
           />
           <StatCard
             icon={<Activity className="h-4 w-4" />}

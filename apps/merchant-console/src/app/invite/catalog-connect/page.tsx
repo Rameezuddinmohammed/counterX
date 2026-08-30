@@ -3,16 +3,11 @@
 /**
  * Onboarding wizard Step 2: catalog connect. Two real paths:
  *   - "Connect Shopify" — links to the ALREADY-BUILT /shopify OAuth flow
- *     (apps/merchant-console/src/app/shopify/page.tsx), per this task's
- *     scope: reuse it as-is, don't rebuild it. KNOWN LIMITATION: that page
- *     operates on a single hardcoded NEXT_PUBLIC_MERCHANT_ID (see its own
- *     source), not this wizard's freshly-provisioned merchantId — so
- *     completing Shopify OAuth there only counts as "this application's
- *     catalog is connected" when the two happen to be the same merchant.
- *     Generalizing /shopify to accept an arbitrary merchantId is real
- *     follow-up work, out of scope here (this task was told not to modify
- *     that file). The manual-entry path below works correctly for ANY
- *     freshly-provisioned merchant regardless of this gap.
+ *     (apps/merchant-console/src/app/shopify/page.tsx). That page now
+ *     derives merchantId from the signed-in session itself
+ *     (useCurrentMerchantId, see hooks/use-api.ts) rather than a hardcoded
+ *     placeholder, so it naturally operates on THIS wizard's
+ *     freshly-provisioned merchant — no separate wiring needed here.
  *   - Manual catalog entry — a simple repeating form (name, description,
  *     price, currency), persisted to the new merchant.manual_catalog_items
  *     table. Schema.org/AI-driven extraction is explicitly deferred.
