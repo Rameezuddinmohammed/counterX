@@ -37,6 +37,9 @@
     },
     {
       "path": "../../packages/commerce-graph/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/trust-protocol/tsconfig.build.json"
     }
   ]
 }

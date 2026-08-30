@@ -95,7 +95,7 @@ gatedDescribe("reconciliation scanner resolves a real INDETERMINATE txn end-to-e
   const transactionId = `order-reconcile-e2e-${Date.now()}`;
   const shopifyCreds = hasCreds ? requireShopifyCredentials(process.env)! : null!;
   const razorpayCreds = hasCreds ? requireRazorpayCredentials(process.env)! : null!;
-  const bundle = hasCreds ? buildRealConnectorBundle(shopifyCreds, razorpayCreds) : null!;
+  const bundle = hasCreds ? buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env) : null!;
   let createdOrderId: string | undefined;
 
   afterAll(async () => {

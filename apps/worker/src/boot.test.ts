@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   selectPaymentAuthorizationPort,
   createDeterministicPaymentAuthorizationPort,
+  resolveSpendLimitConfig,
 } from "./boot.js";
+import { DEFAULT_SPEND_LIMIT_CONFIG, type PolicyConfigEntry } from "@counter/data";
 import type { EnvironmentBag } from "./connector-env.js";
 import { createCounterId, type CounterId } from "@counter/domain";
 
@@ -46,6 +48,50 @@ describe("selectPaymentAuthorizationPort", () => {
     };
     const selection = selectPaymentAuthorizationPort(env);
     expect(selection.mode).toBe("deterministic");
+  });
+});
+
+describe("resolveSpendLimitConfig", () => {
+  it("falls back to the platform default when no policy entry exists", () => {
+    expect(resolveSpendLimitConfig(undefined)).toEqual(DEFAULT_SPEND_LIMIT_CONFIG);
+  });
+
+  it("falls back to the default when the config has no spendLimits field", () => {
+    const entry: PolicyConfigEntry = { config: { policyVersion: "v1", rules: [] }, version: 1 };
+    expect(resolveSpendLimitConfig(entry)).toEqual(DEFAULT_SPEND_LIMIT_CONFIG);
+  });
+
+  it("falls back to the default when spendLimits is malformed (fails closed, not open)", () => {
+    const entry: PolicyConfigEntry = {
+      config: { spendLimits: { maxTransactionAmountMinor: "not-a-number" } },
+      version: 1,
+    };
+    expect(resolveSpendLimitConfig(entry)).toEqual(DEFAULT_SPEND_LIMIT_CONFIG);
+  });
+
+  it("parses a valid per-merchant override", () => {
+    const entry: PolicyConfigEntry = {
+      config: {
+        policyVersion: "v1",
+        rules: [],
+        effectiveFrom: "2026-01-01T00:00:00.000Z",
+        spendLimits: {
+          maxTransactionAmountMinor: "250000",
+          maxRolling24hTotalMinor: "500000",
+          maxAttemptsPerWindow: 3,
+          windowMs: 3_600_000,
+          currency: "INR",
+        },
+      },
+      version: 2,
+    };
+    expect(resolveSpendLimitConfig(entry)).toEqual({
+      maxTransactionAmountMinor: 250_000n,
+      maxRolling24hTotalMinor: 500_000n,
+      maxAttemptsPerWindow: 3,
+      windowMs: 3_600_000,
+      currency: "INR",
+    });
   });
 });
 

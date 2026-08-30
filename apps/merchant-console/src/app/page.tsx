@@ -4,15 +4,92 @@ import { StatCard, Card, CardContent, Badge } from "@counter/ui";
 import { Receipt, Shield, Activity, Search, ShoppingBag, CreditCard, FileText } from "lucide-react";
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
+import { useApi } from "@/hooks/use-api";
+import type { MerchantPolicyConfig, Transaction } from "@/lib/types";
+
+// The merchant scope is enforced server-side from the authenticated token; the
+// merchantId here only selects which merchant path to request. Kept in sync
+// with apps/merchant-console/src/app/transactions/page.tsx's MERCHANT_ID —
+// see that file's comment for why this fallback value is what it is.
+const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw";
+
+// control-plane-api's transaction list endpoint has no separate "total count"
+// field — it returns a page of transactions (default limit 50, hard max 200;
+// see apps/control-plane-api/src/transaction-routes.ts's MAX_LIMIT). We fetch
+// the max page size for the dashboard so the count is as complete as a single
+// request can make it, and label it "200+" rather than claim exactness when
+// there could be more.
+const TRANSACTIONS_FETCH_LIMIT = 200;
 
 const QUICK_ACTIONS = [
-  { label: "Connect Shopify", href: "/shopify", icon: ShoppingBag, description: "Set up your store integration" },
-  { label: "Configure Razorpay", href: "/razorpay", icon: CreditCard, description: "Payment processing setup" },
-  { label: "Run Policy Check", href: "/policy", icon: Shield, description: "Simulate policy rules" },
-  { label: "View Manifest", href: "/manifest", icon: FileText, description: "Activation capabilities" },
+  {
+    label: "Connect Shopify",
+    href: "/shopify",
+    icon: ShoppingBag,
+    description: "Set up your store integration",
+  },
+  {
+    label: "Configure Razorpay",
+    href: "/razorpay",
+    icon: CreditCard,
+    description: "Payment processing setup",
+  },
+  {
+    label: "Run Policy Check",
+    href: "/policy",
+    icon: Shield,
+    description: "Simulate policy rules",
+  },
+  {
+    label: "View Manifest",
+    href: "/manifest",
+    icon: FileText,
+    description: "Activation capabilities",
+  },
 ];
 
+function formatCappedCount(count: number, cap: number): string {
+  return count >= cap ? `${count}+` : count.toLocaleString();
+}
+
 export default function DashboardPage() {
+  const transactionsState = useApi<readonly Transaction[]>(
+    (client) => client.listTransactions(MERCHANT_ID, { limit: TRANSACTIONS_FETCH_LIMIT }),
+    [MERCHANT_ID],
+  );
+  const policyState = useApi<MerchantPolicyConfig | null>(
+    (client) => client.getPolicyConfig(MERCHANT_ID),
+    [MERCHANT_ID],
+  );
+
+  const transactions = transactionsState.data ?? [];
+  const settledCount = transactions.filter((t) => t.currentState === "settled").length;
+  const policyRules = policyState.data?.rules ?? [];
+  const activeRuleCount = policyRules.filter((r) => r.enabled).length;
+
+  const transactionsValue = transactionsState.loading
+    ? "…"
+    : transactionsState.error
+      ? "—"
+      : formatCappedCount(transactions.length, TRANSACTIONS_FETCH_LIMIT);
+  const settledValue = transactionsState.loading
+    ? "…"
+    : transactionsState.error
+      ? "—"
+      : settledCount.toLocaleString();
+  const activePoliciesValue = policyState.loading
+    ? "…"
+    : policyState.error
+      ? "—"
+      : activeRuleCount.toLocaleString();
+  const activePoliciesDescription = policyState.error
+    ? "Could not load"
+    : !policyState.loading && policyState.data === null
+      ? "No policy configured yet"
+      : !policyState.loading && policyRules.length > activeRuleCount
+        ? `${policyRules.length} rule(s) total`
+        : undefined;
+
   return (
     <PageWrapper>
       <div className="space-y-8">
@@ -24,10 +101,29 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard icon={<Receipt className="h-4 w-4" />} label="Total Transactions" value="1,247" trend={{ value: 12, direction: "up", label: "vs last month" }} />
-          <StatCard icon={<Shield className="h-4 w-4" />} label="Active Policies" value="8" description="All policies passing" />
-          <StatCard icon={<Activity className="h-4 w-4" />} label="Readiness Score" value="94%" trend={{ value: 3, direction: "up", label: "improvement" }} />
-          <StatCard icon={<Search className="h-4 w-4" />} label="Open Findings" value="2" trend={{ value: 1, direction: "down", label: "vs last week" }} />
+          <StatCard
+            icon={<Receipt className="h-4 w-4" />}
+            label="Total Transactions"
+            value={transactionsValue}
+            {...(transactionsState.error ? { description: transactionsState.error } : {})}
+          />
+          <StatCard
+            icon={<Activity className="h-4 w-4" />}
+            label="Settled Transactions"
+            value={settledValue}
+          />
+          <StatCard
+            icon={<Shield className="h-4 w-4" />}
+            label="Active Policies"
+            value={activePoliciesValue}
+            {...(activePoliciesDescription ? { description: activePoliciesDescription } : {})}
+          />
+          <StatCard
+            icon={<Search className="h-4 w-4" />}
+            label="Open Findings"
+            value="—"
+            description="Not yet available"
+          />
         </div>
 
         <div>
@@ -43,7 +139,9 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium text-[var(--foreground)]">{action.label}</p>
-                        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{action.description}</p>
+                        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                          {action.description}
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -59,10 +157,30 @@ export default function DashboardPage() {
             <CardContent className="p-0">
               <div className="divide-y divide-[var(--border)]">
                 {[
-                  { action: "Transaction settled", detail: "INR 1,500 via UPI", time: "2 min ago", badge: "settled" },
-                  { action: "Policy simulation passed", detail: "All rules satisfied", time: "15 min ago", badge: "passed" },
-                  { action: "Shopify sync completed", detail: "42 products synced", time: "1 hour ago", badge: "synced" },
-                  { action: "Readiness check passed", detail: "All blocking checks cleared", time: "3 hours ago", badge: "ready" },
+                  {
+                    action: "Transaction settled",
+                    detail: "INR 1,500 via UPI",
+                    time: "2 min ago",
+                    badge: "settled",
+                  },
+                  {
+                    action: "Policy simulation passed",
+                    detail: "All rules satisfied",
+                    time: "15 min ago",
+                    badge: "passed",
+                  },
+                  {
+                    action: "Shopify sync completed",
+                    detail: "42 products synced",
+                    time: "1 hour ago",
+                    badge: "synced",
+                  },
+                  {
+                    action: "Readiness check passed",
+                    detail: "All blocking checks cleared",
+                    time: "3 hours ago",
+                    badge: "ready",
+                  },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center justify-between px-5 py-3.5">
                     <div>

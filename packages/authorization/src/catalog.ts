@@ -15,6 +15,10 @@ export const PERMISSIONS = [
   "identity.support_grant.issue",
   "identity.support_grant.revoke",
   "identity.support_grant.use",
+  "payment.mandate.read",
+  "payment.mandate.manage",
+  "payment.refund.read",
+  "payment.refund.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -29,6 +33,7 @@ export const ROLE_KEYS = [
   "wallet.owner",
   "platform.operator",
   "service.identity",
+  "service.onboarding",
 ] as const;
 
 export type RoleKey = (typeof ROLE_KEYS)[number];
@@ -61,12 +66,12 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
   "merchant.owner": definition(
     ["merchant_user"],
     ["merchant"],
-    tenantManagePermissions,
+    [...tenantManagePermissions, "payment.refund.read", "payment.refund.manage"],
   ),
   "merchant.admin": definition(
     ["merchant_user"],
     ["merchant"],
-    tenantManagePermissions,
+    [...tenantManagePermissions, "payment.refund.read", "payment.refund.manage"],
   ),
   "merchant.integration": definition(
     ["merchant_user"],
@@ -80,22 +85,24 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
       "identity.service_identity.manage",
     ],
   ),
+  // Deciding a refund is a real merchant-owner-level decision — operations
+  // can SEE pending requests but only owner/admin can approve/deny them.
   "merchant.operations": definition(
     ["merchant_user"],
     ["merchant"],
-    tenantReadPermissions,
+    [...tenantReadPermissions, "payment.refund.read"],
   ),
   "merchant.auditor": definition(
     ["merchant_user"],
     ["merchant"],
-    tenantReadPermissions,
+    [...tenantReadPermissions, "payment.refund.read"],
   ),
-  "merchant.read_only": definition(
-    ["merchant_user"],
-    ["merchant"],
-    tenantReadPermissions,
+  "merchant.read_only": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
+  "wallet.owner": definition(
+    ["wallet_user"],
+    ["wallet"],
+    [...tenantManagePermissions, "payment.mandate.read", "payment.mandate.manage"],
   ),
-  "wallet.owner": definition(["wallet_user"], ["wallet"], tenantManagePermissions),
   "platform.operator": definition(
     ["operator"],
     ["platform"],
@@ -113,6 +120,16 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
     ["merchant", "wallet", "platform"],
     tenantReadPermissions,
   ),
+  /**
+   * The ONE deliberate exception to "machine credentials are read-only":
+   * a service actor allowed to create wallet-user identity records, and
+   * nothing else. Exists for the login-triggered self-serve provisioning
+   * flow (apps/control-plane-api/src/wallet-user-routes.ts), where a
+   * Post-Login Action — not a human operator — must create a wallet the
+   * instant someone logs in. Scoped to platform only, and to exactly the
+   * one permission that route needs.
+   */
+  "service.onboarding": definition(["service"], ["platform"], ["identity.scope.manage"]),
 });
 
 const permissionSet: ReadonlySet<string> = new Set(PERMISSIONS);

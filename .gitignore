@@ -1,6 +1,9 @@
 # Local pinned toolchain (Node/pnpm), not committed
 .tools/
 
+# Isolated agent worktrees (local scratch, not part of the repo)
+.claude/worktrees/
+
 # Dependencies
 node_modules/
 
@@ -21,6 +24,10 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Local MCP config — commonly ends up holding real bearer tokens / passphrases
+# for the "real" wallet server entry (counterx-wallet-real)
+.mcp.json
 
 # Local generated state (schema diffs, backups, restore artifacts)
 .local/

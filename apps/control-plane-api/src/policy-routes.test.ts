@@ -36,7 +36,12 @@ async function createTestToken(claims: Record<string, unknown> = {}): Promise<st
     [`${CLAIMS_NAMESPACE}environment`]: "test",
     [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: TEST_MERCHANT_ID },
     [`${CLAIMS_NAMESPACE}roles`]: ["merchant.owner"],
-    [`${CLAIMS_NAMESPACE}assurance`]: "session",
+    // identity.scope.manage requires step-up assurance (tenantMutationAssurances
+    // in packages/authorization/src/assurance.ts), now actually enforced by
+    // scope-enforcement.ts. Defaults here to step_up since most tests in this
+    // file POST (write); the read-only tests override to "session" explicitly
+    // to prove identity.scope.read only needs a plain session.
+    [`${CLAIMS_NAMESPACE}assurance`]: "step_up",
     // merchant.owner carries both read and manage in the permission catalog.
     // The manage permission is required to POST (create/update) policy.
     permissions: ["identity.scope.read", "identity.scope.manage"],
@@ -256,7 +261,9 @@ describe("policy routes", () => {
         },
       });
       expect(response.statusCode).toBe(400);
-      const body = JSON.parse(response.body) as { error: { code: string; message: string; details: { errors: string[] } } };
+      const body = JSON.parse(response.body) as {
+        error: { code: string; message: string; details: { errors: string[] } };
+      };
       expect(body.error.code).toBe("INVALID_FORMAT");
       expect(body.error.message).toBe("Policy validation failed");
       expect(body.error.details.errors).toContain("At least one policy rule is required");
@@ -346,7 +353,12 @@ describe("policy routes", () => {
       const { jwks } = await getTestKeys();
       const store = createInMemoryPolicyStore();
       const compiler = createDefaultPolicyCompiler();
-      server = createServer({ jwks, environment: "test", policyStore: store, policyCompiler: compiler });
+      server = createServer({
+        jwks,
+        environment: "test",
+        policyStore: store,
+        policyCompiler: compiler,
+      });
       await server.ready();
 
       const token = await createTestToken();
@@ -358,8 +370,20 @@ describe("policy routes", () => {
           ...VALID_POLICY_BODY,
           rules: [
             ...VALID_POLICY_BODY.rules,
-            { ruleId: "rule_velocity", category: "fraud", constraint: "velocity_check", parameters: { window: 3600 }, enabled: true },
-            { ruleId: "rule_disabled", category: "test", constraint: "noop", parameters: {}, enabled: false },
+            {
+              ruleId: "rule_velocity",
+              category: "fraud",
+              constraint: "velocity_check",
+              parameters: { window: 3600 },
+              enabled: true,
+            },
+            {
+              ruleId: "rule_disabled",
+              category: "test",
+              constraint: "noop",
+              parameters: {},
+              enabled: false,
+            },
           ],
         },
       });
@@ -433,7 +457,11 @@ describe("policy routes", () => {
       });
       expect(response.statusCode).toBe(409);
       const body = JSON.parse(response.body) as {
-        error: { code: string; message: string; details: { currentVersion: number; expectedVersion: number } };
+        error: {
+          code: string;
+          message: string;
+          details: { currentVersion: number; expectedVersion: number };
+        };
       };
       expect(body.error.code).toBe("VERSION_CONFLICT");
       expect(body.error.details.currentVersion).toBe(1);

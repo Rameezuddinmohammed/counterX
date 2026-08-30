@@ -4,12 +4,15 @@ import {
   DEFAULT_RAZORPAY_BASE_URL,
   DEFAULT_SHOPIFY_API_VERSION,
   isProdLike,
+  requireCounterTestPaymentSigner,
   requireRazorpayCredentials,
   requireShopifyCredentials,
+  resolveCounterTestPaymentSigner,
   resolveRazorpayCredentials,
   resolveShopifyCredentials,
   type EnvironmentBag,
 } from "./connector-env.js";
+import { TEST_KID_A } from "@counter/trust-protocol";
 
 // A sentinel secret used only inside these tests. It is NOT a real credential.
 const FAKE_SHOPIFY_TOKEN = "shpat_synthetic_test_token";
@@ -209,5 +212,60 @@ describe("requireRazorpayCredentials", () => {
     }
     expect(message).toContain("RAZORPAY_KEY_SECRET");
     expect(message).not.toContain(FAKE_RAZORPAY_SECRET);
+  });
+});
+
+// A synthetic 32-byte Ed25519 seed used only inside these tests. NOT a real key.
+const FAKE_SIGNER_SEED = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI";
+
+describe("resolveCounterTestPaymentSigner", () => {
+  it("returns null when either variable is absent", () => {
+    expect(resolveCounterTestPaymentSigner({})).toBeNull();
+    expect(
+      resolveCounterTestPaymentSigner({ COUNTER_TEST_PAYMENT_SIGNER_KID: "k1" }),
+    ).toBeNull();
+  });
+
+  it("returns null when the seed does not decode to 32 bytes", () => {
+    expect(
+      resolveCounterTestPaymentSigner({
+        COUNTER_TEST_PAYMENT_SIGNER_KID: "k1",
+        COUNTER_TEST_PAYMENT_SIGNER_SEED: Buffer.from("too-short").toString("base64url"),
+      }),
+    ).toBeNull();
+  });
+
+  it("resolves a valid kid/seed pair", () => {
+    const resolved = resolveCounterTestPaymentSigner({
+      COUNTER_TEST_PAYMENT_SIGNER_KID: "k1",
+      COUNTER_TEST_PAYMENT_SIGNER_SEED: FAKE_SIGNER_SEED,
+    });
+    expect(resolved?.kid).toBe("k1");
+    expect(resolved?.seed.length).toBe(32);
+  });
+});
+
+describe("requireCounterTestPaymentSigner", () => {
+  it("uses the real configured secret when present, in any environment", () => {
+    const resolved = requireCounterTestPaymentSigner(
+      prodEnv({
+        COUNTER_TEST_PAYMENT_SIGNER_KID: "k1",
+        COUNTER_TEST_PAYMENT_SIGNER_SEED: FAKE_SIGNER_SEED,
+      }),
+    );
+    expect(resolved.kid).toBe("k1");
+    expect(resolved.isFixture).toBe(false);
+  });
+
+  it("falls back to the named public fixture in a mock-eligible environment", () => {
+    const resolved = requireCounterTestPaymentSigner(localEnv());
+    expect(resolved.kid).toBe(TEST_KID_A);
+    expect(resolved.isFixture).toBe(true);
+  });
+
+  it("throws (fail loud) in a production-like environment without a real signer, never using the public fixture", () => {
+    expect(() => requireCounterTestPaymentSigner(prodEnv())).toThrow(
+      /COUNTER_TEST_PAYMENT_SIGNER_KID/,
+    );
   });
 });

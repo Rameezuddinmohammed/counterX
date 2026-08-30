@@ -65,9 +65,7 @@ function merchantContext(
   return result.value;
 }
 
-function supportGrant(
-  overrides: Partial<SupportGrantRecord> = {},
-): SupportGrantRecord {
+function supportGrant(overrides: Partial<SupportGrantRecord> = {}): SupportGrantRecord {
   const approvalReference = createExternalReference("support-ticket", "SYNTHETIC-1001");
   if (!approvalReference.ok) {
     throw new Error("test support reference was rejected");
@@ -132,9 +130,7 @@ describe("authentication assurance policy", () => {
     const supportMutationAssurances = [
       "step_up",
     ] as const satisfies readonly AuthenticationAssurance[];
-    const expectedAssurances: Readonly<
-      Record<Permission, readonly AuthenticationAssurance[]>
-    > = {
+    const expectedAssurances: Readonly<Record<Permission, readonly AuthenticationAssurance[]>> = {
       "identity.scope.read": AUTHENTICATION_ASSURANCES,
       "identity.scope.manage": tenantMutationAssurances,
       "identity.actor.read": AUTHENTICATION_ASSURANCES,
@@ -149,6 +145,10 @@ describe("authentication assurance policy", () => {
       "identity.support_grant.issue": supportMutationAssurances,
       "identity.support_grant.revoke": supportMutationAssurances,
       "identity.support_grant.use": supportAccessAssurances,
+      "payment.mandate.read": AUTHENTICATION_ASSURANCES,
+      "payment.mandate.manage": tenantMutationAssurances,
+      "payment.refund.read": AUTHENTICATION_ASSURANCES,
+      "payment.refund.manage": tenantMutationAssurances,
     };
 
     for (const permission of PERMISSIONS) {
@@ -162,10 +162,7 @@ describe("authentication assurance policy", () => {
 });
 
 describe("platform tenant-scope provisioning", () => {
-  const tenantScopes = [
-    merchantScope("test", merchantId),
-    walletScope("test", walletId),
-  ] as const;
+  const tenantScopes = [merchantScope("test", merchantId), walletScope("test", walletId)] as const;
 
   it("allows a step-up platform operator to provision merchant and wallet scopes grantlessly", () => {
     const context = operatorContext(undefined, "step_up");
@@ -286,14 +283,12 @@ describe("ActorContext", () => {
       correlationId,
     };
 
-    expect(
-      createActorContext({ ...validBase, scope: walletScope("test", walletId) }).ok,
-    ).toBe(false);
+    expect(createActorContext({ ...validBase, scope: walletScope("test", walletId) }).ok).toBe(
+      false,
+    );
     expect(createActorContext({ ...validBase, environment: "sandbox" }).ok).toBe(false);
     expect(createActorContext({ ...validBase, roles: ["platform.operator"] }).ok).toBe(false);
-    expect(
-      createActorContext({ ...validBase, assurance: "service_authenticated" }).ok,
-    ).toBe(false);
+    expect(createActorContext({ ...validBase, assurance: "service_authenticated" }).ok).toBe(false);
   });
 });
 
@@ -521,9 +516,7 @@ describe("identity record validation", () => {
         },
       }),
     ).toThrow("test support grant was rejected");
-    expect(() => supportGrant({ revokedAt: baseTime })).toThrow(
-      "test support grant was rejected",
-    );
+    expect(() => supportGrant({ revokedAt: baseTime })).toThrow("test support grant was rejected");
   });
 });
 

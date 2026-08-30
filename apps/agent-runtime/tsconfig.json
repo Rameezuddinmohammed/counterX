@@ -37,6 +37,9 @@
     },
     {
       "path": "../../packages/commerce-graph"
+    },
+    {
+      "path": "../../packages/trust-protocol"
     }
   ]
 }

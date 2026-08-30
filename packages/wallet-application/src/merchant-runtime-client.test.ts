@@ -167,6 +167,15 @@ describe("InMemoryMerchantRuntimeClient", () => {
         expect(result.error.kind).toBe("manifest_verification");
       }
     });
+
+    it("blocks requestRefund when manifest not verified", async () => {
+      const result = await client.requestRefund(TEST_MERCHANT_ID, "txn-1", "not as described");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.kind).toBe("manifest_verification");
+      }
+    });
   });
 
   describe("simulated failures", () => {
@@ -336,6 +345,7 @@ describe("InMemoryMerchantRuntimeClient", () => {
         unitPrice: { amount: "500", currency: "INR" },
         totalPrice: { amount: "1000", currency: "INR" },
         expiresAt: "2025-12-31T23:59:59Z",
+        quoteDigest: "sha256:test-digest",
         version: "v1",
       });
 
@@ -345,6 +355,26 @@ describe("InMemoryMerchantRuntimeClient", () => {
       if (result.ok) {
         expect(result.value.quoteId).toBe("quote-1");
         expect(result.value.totalPrice.amount).toBe("1000");
+      }
+    });
+
+    it("requestRefund returns the pending relay response, not an immediate refund", async () => {
+      client.setManifest(TEST_MERCHANT_ID, createValidManifest());
+      client.setRefundResponse(`${TEST_MERCHANT_ID}:txn-1`, {
+        refundRequestId: "refund-request-1",
+        transactionId: "txn-1",
+        status: "pending",
+        requestedAt: "2025-06-01T00:00:00Z",
+        amount: { amount: "1000", currency: "INR" },
+        version: "v1",
+      });
+
+      const result = await client.requestRefund(TEST_MERCHANT_ID, "txn-1", "not as described");
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.status).toBe("pending");
+        expect(result.value.refundRequestId).toBe("refund-request-1");
       }
     });
   });
@@ -367,18 +397,12 @@ describe("InMemoryMerchantRuntimeClient", () => {
     });
 
     it("all error kinds have appropriate retryable flags", async () => {
-      const nonRetryable: Array<"malformed_response" | "unauthorized" | "manifest_verification_failed"> = [
-        "malformed_response",
-        "unauthorized",
-        "manifest_verification_failed",
-      ];
-      const retryable: Array<"timeout" | "network_error" | "stale_manifest" | "indeterminate" | "server_error"> = [
-        "timeout",
-        "network_error",
-        "stale_manifest",
-        "indeterminate",
-        "server_error",
-      ];
+      const nonRetryable: Array<
+        "malformed_response" | "unauthorized" | "manifest_verification_failed"
+      > = ["malformed_response", "unauthorized", "manifest_verification_failed"];
+      const retryable: Array<
+        "timeout" | "network_error" | "stale_manifest" | "indeterminate" | "server_error"
+      > = ["timeout", "network_error", "stale_manifest", "indeterminate", "server_error"];
 
       for (const failure of nonRetryable) {
         client.simulateFailure(failure);

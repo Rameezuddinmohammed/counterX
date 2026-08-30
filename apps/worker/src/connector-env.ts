@@ -19,6 +19,8 @@
  * missing variables (names only) and never include their values.
  */
 
+import { TEST_KID_A, getTestPrivateKeyA } from "@counter/trust-protocol";
+
 /** Resolved Shopify Admin API credentials. */
 export interface ShopifyCredentials {
   readonly shopDomain: string;
@@ -32,6 +34,16 @@ export interface RazorpayCredentials {
   readonly keySecret: string;
   readonly webhookSecret: string;
   readonly baseUrl: string;
+}
+
+/**
+ * Resolved signing material for the unattended CTP-signed test-payment
+ * evidence (`CounterTestPaymentProvider`). A 32-byte Ed25519 seed, decoded
+ * from base64url.
+ */
+export interface CounterTestPaymentSigner {
+  readonly kid: string;
+  readonly seed: Uint8Array;
 }
 
 /** Minimal environment shape: a bag of optional string values. */
@@ -209,5 +221,61 @@ export function requireRazorpayCredentials(env: EnvironmentBag): RazorpayCredent
     `Refusing to start in a production-like environment without Razorpay ` +
       `credentials. Missing required environment variable(s): ` +
       `${missingRazorpayVars(env).join(", ")}.`,
+  );
+}
+
+/** Names of the environment variables the test-payment signer resolver requires. */
+const COUNTER_TEST_PAYMENT_SIGNER_REQUIRED_VARS: readonly string[] = [
+  "COUNTER_TEST_PAYMENT_SIGNER_KID",
+  "COUNTER_TEST_PAYMENT_SIGNER_SEED",
+];
+
+/**
+ * Resolves the deployment's own CTP signing key for `CounterTestPaymentProvider`
+ * evidence from `COUNTER_TEST_PAYMENT_SIGNER_KID` / `_SEED` (a 32-byte Ed25519
+ * seed, base64url-encoded). Returns `null` when either is absent or the seed
+ * does not decode to exactly 32 bytes.
+ */
+export function resolveCounterTestPaymentSigner(
+  env: EnvironmentBag,
+): CounterTestPaymentSigner | null {
+  const kid = readValue(env, "COUNTER_TEST_PAYMENT_SIGNER_KID");
+  const seedEncoded = readValue(env, "COUNTER_TEST_PAYMENT_SIGNER_SEED");
+  if (kid === undefined || seedEncoded === undefined) {
+    return null;
+  }
+  const seed = new Uint8Array(Buffer.from(seedEncoded, "base64url"));
+  if (seed.length !== 32) {
+    return null;
+  }
+  return { kid, seed };
+}
+
+/**
+ * Applies the shared environment policy to the test-payment signer resolver.
+ *
+ * Unlike Shopify/Razorpay, the "unset" fallback here is not "no connector" —
+ * it's a publicly-known, committed test key (`createTestSignerA`/`TEST_KID_A`
+ * in `@counter/trust-protocol`'s fixtures) that must never be mistaken for a
+ * real signer (see CLAUDE.md). So this always returns a usable signer: a real,
+ * deployment-specific secret when configured, or the named public fixture
+ * in a mock-eligible environment. Only a production-like environment with the
+ * variables unset fails loud — the one case where the public fixture would
+ * otherwise be silently used as if it were real.
+ */
+export function requireCounterTestPaymentSigner(
+  env: EnvironmentBag,
+): CounterTestPaymentSigner & { readonly isFixture: boolean } {
+  const resolved = resolveCounterTestPaymentSigner(env);
+  if (resolved !== null) {
+    return { ...resolved, isFixture: false };
+  }
+  if (!isProdLike(env)) {
+    return { kid: TEST_KID_A, seed: getTestPrivateKeyA(), isFixture: true };
+  }
+  throw new Error(
+    `Refusing to start in a production-like environment without a real CTP ` +
+      `test-payment signing key. Missing required environment variable(s): ` +
+      `${COUNTER_TEST_PAYMENT_SIGNER_REQUIRED_VARS.filter((name) => readValue(env, name) === undefined).join(", ")}.`,
   );
 }
