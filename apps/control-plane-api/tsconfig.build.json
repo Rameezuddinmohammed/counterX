@@ -3,10 +3,7 @@
   "compilerOptions": {
     "tsBuildInfoFile": "tsconfig.build.tsbuildinfo"
   },
-  "exclude": [
-    "**/*.test.ts",
-    "**/*.integration.test.ts"
-  ],
+  "exclude": ["**/*.test.ts", "**/*.integration.test.ts"],
   "references": [
     {
       "path": "../../packages/authorization/tsconfig.build.json"
@@ -19,6 +16,9 @@
     },
     {
       "path": "../../packages/http-api-kit/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/merchant-application/tsconfig.build.json"
     }
   ]
 }

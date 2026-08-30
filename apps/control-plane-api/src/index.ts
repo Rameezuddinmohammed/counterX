@@ -35,6 +35,8 @@ import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
 import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
 import { refundRequestRoutesPlugin } from "./refund-request-routes.js";
 import type { RefundRequestStoreLike } from "./refund-request-store.js";
+import { merchantApplicationRoutesPlugin } from "./merchant-application-routes.js";
+import type { MerchantApplicationProvisionerLike } from "./merchant-application-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -136,7 +138,23 @@ export interface CreateServerOptions {
    * registered — same optional-feature pattern as walletUserProvisioner.
    */
   readonly refundRequestStore?: RefundRequestStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/merchant-applications/* registered —
+   * same optional-feature pattern as walletUserProvisioner.
+   */
+  readonly merchantApplicationProvisioner?: MerchantApplicationProvisionerLike | undefined;
 }
+
+/**
+ * The self-serve provision route needs a valid Bearer JWT (so an anonymous
+ * request is still rejected) but must NOT be auto-401'd by
+ * actor-extraction's hard requirement for Counter's own custom claims — a
+ * brand-new merchant-console user has a real Auth0 session with no such
+ * claims yet, since no Post-Login Action stamps them for merchant users.
+ * See merchant-application-routes.ts's header for the full reasoning and
+ * server-factory.ts's skipActorClaimsRoutes docs for the mechanism.
+ */
+const MERCHANT_APPLICATION_PROVISION_ROUTE = "/control/v1/merchant-applications/provision";
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
   const version = options?.version ?? DEFAULT_VERSION;
@@ -167,6 +185,9 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
         ? [SHOPIFY_CALLBACK_ROUTE_PATTERN]
         : []),
     ],
+    ...(options?.merchantApplicationProvisioner !== undefined
+      ? { skipActorClaimsRoutes: [MERCHANT_APPLICATION_PROVISION_ROUTE] }
+      : {}),
     logger: options?.logger ?? false,
   };
 
@@ -235,6 +256,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.refundRequestStore !== undefined) {
     void server.register(refundRequestRoutesPlugin, {
       store: options.refundRequestStore,
+    });
+  }
+
+  // Self-serve merchant onboarding routes — only registered when a
+  // provisioner is wired (see CreateServerOptions.merchantApplicationProvisioner).
+  if (options?.merchantApplicationProvisioner !== undefined) {
+    void server.register(merchantApplicationRoutesPlugin, {
+      provisioner: options.merchantApplicationProvisioner,
     });
   }
 

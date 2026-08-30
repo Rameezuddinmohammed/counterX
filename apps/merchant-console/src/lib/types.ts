@@ -13,6 +13,8 @@
 export enum Screen {
   Home = "/",
   Invite = "/invite",
+  BusinessBasics = "/invite/business-basics",
+  CatalogConnect = "/invite/catalog-connect",
   Shopify = "/shopify",
   Mapping = "/mapping",
   Policy = "/policy",
@@ -45,6 +47,85 @@ export interface InvitationStatus {
   readonly acceptedAt: string | null;
   readonly phase: LifecyclePhase;
   readonly expiresAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Merchant Application (REAL self-serve onboarding wizard, Steps 0-2) —
+// mirrors apps/control-plane-api/src/merchant-application-store.ts's
+// MerchantApplicationSnapshot / lifecycle states exactly. Distinct from the
+// InvitationStatus/LifecyclePhase types above, which back the old, unwired
+// invite-gated demo concept this wizard replaces (see /invite/page.tsx).
+// ---------------------------------------------------------------------------
+
+/** Mirrors packages/merchant-application/src/lifecycle.ts's MERCHANT_LIFECYCLE_STATES exactly. */
+export type MerchantLifecycleState =
+  | "DRAFT"
+  | "CONNECTING"
+  | "MAPPING"
+  | "VERIFYING"
+  | "SANDBOX_READY"
+  | "ACTIVATION_REVIEW"
+  | "ACTIVE"
+  | "ACTIVE_DEGRADED"
+  | "SUSPENDED"
+  | "OFFBOARDING"
+  | "CLOSED";
+
+export type MerchantApprovalStatus = "pending" | "approved" | "rejected";
+
+/** Mirrors packages/merchant-application/src/capability-manifest.ts's FULFILLMENT_CAPABILITIES exactly. */
+export type FulfillmentCapability =
+  | "fulfillment.physical.ship"
+  | "fulfillment.digital.deliver"
+  | "fulfillment.access.grant"
+  | "fulfillment.booking.schedule"
+  | "fulfillment.event.ticket"
+  | "fulfillment.rental.temporary"
+  | "fulfillment.quote.custom";
+
+export interface ProvisionMerchantApplicationResponse {
+  readonly merchantId: string;
+  readonly merchantUserActorId: string;
+  readonly created: boolean;
+  readonly lifecycleState: MerchantLifecycleState;
+  readonly approvalStatus: MerchantApprovalStatus;
+}
+
+export interface MerchantApplicationStatus {
+  readonly merchantId: string;
+  readonly legalEntityName: string | null;
+  readonly contactEmail: string | null;
+  readonly contactPhone: string | null;
+  readonly goodsTypes: readonly string[];
+  readonly approvalStatus: MerchantApprovalStatus;
+  readonly lifecycleState: MerchantLifecycleState;
+  readonly lifecycleVersion: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface BusinessBasicsRequest {
+  readonly legalEntityName: string;
+  readonly contactEmail: string;
+  readonly contactPhone?: string;
+  readonly goodsTypes: readonly FulfillmentCapability[];
+}
+
+export interface ManualCatalogItem {
+  readonly itemId: string;
+  readonly merchantId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly priceMinor: number;
+  readonly currency: string;
+  readonly createdAt: string;
+}
+
+export interface ManualCatalogItemRequest {
+  readonly name: string;
+  readonly description?: string;
+  readonly priceMinor: number;
+  readonly currency: string;
 }
 
 // ---------------------------------------------------------------------------
