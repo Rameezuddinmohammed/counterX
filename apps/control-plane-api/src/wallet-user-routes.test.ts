@@ -6,6 +6,7 @@ import type {
   ProvisionResult,
   SetupTokenResult,
   AgentKeyResult,
+  RuntimeCredentialResult,
 } from "./wallet-user-store.js";
 import type { FastifyInstance } from "fastify";
 
@@ -84,6 +85,8 @@ class FakeWalletUserProvisioner implements WalletUserProvisionerLike {
   #setupTokens = new Map<string, { walletId: string; used: boolean }>();
   #registeredKeys: Array<{ walletId: string; keyId: string; publicKeyBase64Url: string }> = [];
   #tokenCounter = 0;
+  /** undefined = simulate "no runtime credential configured" (the real class's default). */
+  runtimeCredential: RuntimeCredentialResult | undefined = undefined;
 
   async provisionForAuth0Subject(auth0Subject: string): Promise<ProvisionResult> {
     const existing = this.#walletsBySubject.get(auth0Subject);
@@ -120,6 +123,13 @@ class FakeWalletUserProvisioner implements WalletUserProvisionerLike {
       agentId: `ctr_agent_generated_${this.#registeredKeys.length}`,
       keyId,
     };
+  }
+
+  async mintRuntimeCredential(): Promise<RuntimeCredentialResult> {
+    if (this.runtimeCredential === undefined) {
+      throw new Error("No runtime credential is configured for this deployment");
+    }
+    return this.runtimeCredential;
   }
 }
 
@@ -283,7 +293,7 @@ describe("wallet-user routes", () => {
   });
 
   describe("POST /wallet-users/agent-keys (deliberately unauthenticated)", () => {
-    it("works without any Authorization header at all", async () => {
+    it("works without any Authorization header at all, and degrades gracefully with no runtime credential configured", async () => {
       const { jwks } = await getTestKeys();
       const provisioner = new FakeWalletUserProvisioner();
       server = createServer({ jwks, environment: "test", walletUserProvisioner: provisioner });
@@ -301,9 +311,42 @@ describe("wallet-user routes", () => {
         walletId: string;
         agentId: string;
         keyId: string;
+        runtimeUrl?: string;
+        runtimeAuthToken?: string;
       };
       expect(body.walletId).toBe(TEST_WALLET_ID);
       expect(body.keyId).toBe(TEST_KEY_ID);
+      // Key registration must still succeed even though no runtime credential
+      // is configured on this fake — that's the graceful-degradation contract.
+      expect(body.runtimeUrl).toBeUndefined();
+      expect(body.runtimeAuthToken).toBeUndefined();
+    });
+
+    it("includes a runtime credential in the response when the deployment has one configured", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeWalletUserProvisioner();
+      provisioner.runtimeCredential = {
+        runtimeUrl: "https://counter-agent-runtime.fly.dev",
+        runtimeAuthToken: "fake-runtime-token",
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      };
+      server = createServer({ jwks, environment: "test", walletUserProvisioner: provisioner });
+      await server.ready();
+
+      const { setupToken } = await provisioner.mintSetupToken(TEST_WALLET_ID);
+      const response = await server.inject({
+        method: "POST",
+        url: "/control/v1/wallet-users/agent-keys",
+        headers: { "content-type": "application/json" },
+        payload: { setupToken, keyId: TEST_KEY_ID, publicKeyBase64Url: "ZmFrZS1wdWJsaWMta2V5" },
+      });
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body) as {
+        runtimeUrl?: string;
+        runtimeAuthToken?: string;
+      };
+      expect(body.runtimeUrl).toBe("https://counter-agent-runtime.fly.dev");
+      expect(body.runtimeAuthToken).toBe("fake-runtime-token");
     });
 
     it("rejects a reused setup token", async () => {

@@ -13,7 +13,7 @@ import { PostgresDatabase } from "@counter/data";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
 import { createPostgresTransactionStore } from "./transaction-store-postgres.js";
-import { WalletUserProvisioner } from "./wallet-user-store.js";
+import { WalletUserProvisioner, type RuntimeCredentialConfig } from "./wallet-user-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -56,6 +56,24 @@ if (!runtimeEnvironmentResult.ok) {
 }
 const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
 
+// Optional: self-serve buyers only get a fully working connect command when
+// this deployment has the shared merchant-runtime M2M credential configured
+// (see RuntimeCredentialConfig's docs in wallet-user-store.ts for the
+// deliberate shared-credential trade-off this makes). Missing it degrades
+// gracefully — key registration still works, the local script just falls
+// back to printing "ask Counter for these two values".
+const runtimeM2mClientId = process.env["AGENT_RUNTIME_M2M_CLIENT_ID"];
+const runtimeM2mClientSecret = process.env["AGENT_RUNTIME_M2M_CLIENT_SECRET"];
+const runtimeCredentialConfig: RuntimeCredentialConfig | undefined =
+  runtimeM2mClientId !== undefined && runtimeM2mClientSecret !== undefined
+    ? {
+        clientId: runtimeM2mClientId,
+        clientSecret: runtimeM2mClientSecret,
+        runtimeUrl:
+          process.env["COUNTER_AGENT_RUNTIME_URL"] || "https://counter-agent-runtime.fly.dev",
+      }
+    : undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -64,7 +82,11 @@ const serverOptions: CreateServerOptions = {
     ? {
         policyStore: createPostgresPolicyStore(database, runtimeEnvironment),
         transactionStore: createPostgresTransactionStore(database, runtimeEnvironment),
-        walletUserProvisioner: new WalletUserProvisioner(database, runtimeEnvironment),
+        walletUserProvisioner: new WalletUserProvisioner(
+          database,
+          runtimeEnvironment,
+          runtimeCredentialConfig,
+        ),
       }
     : {}),
 };

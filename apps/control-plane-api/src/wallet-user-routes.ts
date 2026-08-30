@@ -143,7 +143,28 @@ export async function walletUserRoutesPlugin(
       }
 
       const result = await provisioner.registerAgentKey(walletId, keyId, publicKeyBase64Url);
-      void reply.status(201).send({ walletId, agentId: result.agentId, keyId: result.keyId });
+
+      // Best-effort: a fresh agent is real and usable even if this fails, it
+      // just falls back to the old "ask Counter for a runtime credential"
+      // path. Never let a runtime-credential problem fail key registration —
+      // that write already durably succeeded above.
+      let runtimeCredential: { runtimeUrl: string; runtimeAuthToken: string } | undefined;
+      try {
+        const credential = await provisioner.mintRuntimeCredential();
+        runtimeCredential = {
+          runtimeUrl: credential.runtimeUrl,
+          runtimeAuthToken: credential.runtimeAuthToken,
+        };
+      } catch {
+        runtimeCredential = undefined;
+      }
+
+      void reply.status(201).send({
+        walletId,
+        agentId: result.agentId,
+        keyId: result.keyId,
+        ...(runtimeCredential ?? {}),
+      });
     },
   );
 }

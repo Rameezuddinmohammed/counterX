@@ -45,6 +45,33 @@ export interface AgentKeyResult {
 }
 
 /**
+ * Credentials for the ONE shared merchant-runtime M2M client
+ * ("Counter Agent Runtime (M2M)") this deployment already uses for the
+ * founder's own real MCP entrypoint. Reused here — not a new Auth0 app —
+ * because its Credentials Exchange Action already stamps exactly the
+ * merchant-scoped claims apps/agent-runtime expects.
+ *
+ * KNOWN LIMITATION (tracked in the onboarding plan, not silently papered
+ * over): every self-serve buyer's AI gets a token from this SAME shared
+ * client. purchase.execute stays individually safe (gated by each buyer's
+ * own signature), but in principle any holder could call cancel/refund on
+ * a transaction that isn't theirs. Acceptable for a test-mode pilot with a
+ * small number of real users; scoping this down per-buyer is real follow-up
+ * work, not solved here.
+ */
+export interface RuntimeCredentialConfig {
+  readonly clientId: string;
+  readonly clientSecret: string;
+  readonly runtimeUrl: string;
+}
+
+export interface RuntimeCredentialResult {
+  readonly runtimeUrl: string;
+  readonly runtimeAuthToken: string;
+  readonly expiresAt: string;
+}
+
+/**
  * Structural interface for WalletUserProvisioner's public surface — lets
  * wallet-user-routes.ts (and its tests) depend on the interface rather than
  * the concrete direct-SQL class, matching PolicyStore/TransactionReadStore's
@@ -59,6 +86,13 @@ export interface WalletUserProvisionerLike {
     keyId: string,
     publicKeyBase64Url: string,
   ): Promise<AgentKeyResult>;
+  /**
+   * Mints a merchant-runtime access token so a freshly self-served agent can
+   * actually reach a merchant, not just register a key. Throws if this
+   * deployment has no runtime credential configured — callers should treat
+   * that as an optional, gracefully-degradable step (see wallet-user-routes.ts).
+   */
+  mintRuntimeCredential(): Promise<RuntimeCredentialResult>;
 }
 
 function requireCounterId(
@@ -76,10 +110,14 @@ function hashToken(rawToken: string): string {
   return createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
 
+const AUTH0_TOKEN_URL = "https://dev-jzw3etjxnn3svs56.us.auth0.com/oauth/token";
+const RUNTIME_AUDIENCE = "https://api.counter.dev";
+
 export class WalletUserProvisioner implements WalletUserProvisionerLike {
   constructor(
     private readonly database: TransactionalDatabase,
     private readonly environment: Environment,
+    private readonly runtimeCredentialConfig?: RuntimeCredentialConfig,
   ) {}
 
   /** Idempotent: a repeat login for the same Auth0 subject returns the same wallet. */
@@ -213,5 +251,31 @@ export class WalletUserProvisioner implements WalletUserProvisionerLike {
     });
 
     return { agentId, keyId };
+  }
+
+  /** See RuntimeCredentialConfig's docs for the shared-credential trade-off this makes. */
+  async mintRuntimeCredential(): Promise<RuntimeCredentialResult> {
+    if (this.runtimeCredentialConfig === undefined) {
+      throw new Error("No runtime credential is configured for this deployment");
+    }
+    const { clientId, clientSecret, runtimeUrl } = this.runtimeCredentialConfig;
+
+    const response = await fetch(AUTH0_TOKEN_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        audience: RUNTIME_AUDIENCE,
+        grant_type: "client_credentials",
+      }),
+    });
+    if (!response.ok) {
+      throw new Error("Could not mint a merchant-runtime credential");
+    }
+
+    const body = (await response.json()) as { access_token: string; expires_in: number };
+    const expiresAt = new Date(Date.now() + body.expires_in * 1000).toISOString();
+    return { runtimeUrl, runtimeAuthToken: body.access_token, expiresAt };
   }
 }

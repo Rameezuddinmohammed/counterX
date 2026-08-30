@@ -119,17 +119,25 @@ console.log(`  walletId:     ${result.walletId}`);
 console.log(`  agentId:      ${result.agentId}`);
 console.log(`  keyId (kid):  ${result.keyId}`);
 console.log(`  keyStorePath: ${keyStorePath}`);
-console.log(
-  "\nYour AI tool still needs a merchant-runtime connection to actually make purchases " +
-    "(COUNTER_AGENT_RUNTIME_URL and COUNTER_RUNTIME_AUTH_TOKEN) — that part isn't self-serve yet, " +
-    "ask Counter for these two values for now.",
-);
-console.log("\nOnce you have them, run your AI tool's MCP server with:");
+
+const hasRuntimeCredential =
+  typeof result.runtimeUrl === "string" && typeof result.runtimeAuthToken === "string";
+
+console.log("\nRun your AI tool's MCP server with:");
 console.log(`  COUNTER_WALLET_KEYSTORE_PASSPHRASE=<the passphrase you just chose>`);
 console.log(`  COUNTER_WALLET_KEYSTORE_PATH=${keyStorePath}`);
-console.log(`  COUNTER_AGENT_RUNTIME_URL=<ask Counter>`);
-console.log(`  COUNTER_RUNTIME_AUTH_TOKEN=<ask Counter>`);
+console.log(
+  `  COUNTER_AGENT_RUNTIME_URL=${hasRuntimeCredential ? result.runtimeUrl : "<ask Counter>"}`,
+);
+console.log(
+  `  COUNTER_RUNTIME_AUTH_TOKEN=${hasRuntimeCredential ? result.runtimeAuthToken : "<ask Counter>"}`,
+);
 console.log(`  node apps/local-mcp/dist/main-real.js`);
+if (!hasRuntimeCredential) {
+  console.log(
+    "\n(Your merchant-runtime connection isn't self-serve on this deployment yet — ask Counter for those two values.)",
+  );
+}
 console.log(
   `\nWhen your AI calls a purchase tool, it should pass wallet_id=${result.walletId} and agent_id=${result.agentId}.`,
 );
