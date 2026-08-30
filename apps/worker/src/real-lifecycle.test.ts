@@ -26,10 +26,7 @@ import {
 } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
 
-import {
-  createInMemoryStepLedger,
-  createRealPaymentAuthorizationPort,
-} from "./real-lifecycle.js";
+import { createInMemoryStepLedger, createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
 import {
   createTransactionLifecycleHandler,
   type HandledJob,
@@ -707,9 +704,7 @@ describe("real connector lifecycle (mocked network)", () => {
     const first = await portA.authorizeAndCapture(request);
     expect(first.status).toBe("indeterminate");
     // The draft happened exactly once on attempt A and was recorded durably.
-    const draftsA = clientA.callHistory.filter(
-      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
-    );
+    const draftsA = clientA.callHistory.filter((c) => c.operation === DRAFT_ORDER_CREATE_MUTATION);
     expect(draftsA).toHaveLength(1);
 
     // ── Attempt B: FRESH port + FRESH connector (simulating a restart with a
@@ -733,9 +728,7 @@ describe("real connector lifecycle (mocked network)", () => {
     // The RESUME guarantee: attempt B did NOT re-create the draft (it read the
     // recorded outcome from the durable ledger). It DID drive finalize (which
     // had not been recorded because attempt A left it indeterminate).
-    const draftsB = clientB.callHistory.filter(
-      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
-    );
+    const draftsB = clientB.callHistory.filter((c) => c.operation === DRAFT_ORDER_CREATE_MUTATION);
     expect(draftsB).toHaveLength(0);
     const finalizesB = clientB.callHistory.filter(
       (c) => c.operation === DRAFT_ORDER_COMPLETE_MUTATION,
@@ -807,9 +800,7 @@ describe("real connector lifecycle (mocked network)", () => {
     expect(
       client.callHistory.filter((c) => c.operation === ORDER_MARK_AS_PAID_MUTATION),
     ).toHaveLength(0);
-    expect(
-      client.callHistory.filter((c) => c.operation === ORDER_QUERY),
-    ).toHaveLength(1);
+    expect(client.callHistory.filter((c) => c.operation === ORDER_QUERY)).toHaveLength(1);
   });
 
   it("pre-claim: a claim LOSER does not create a second draft and resumes from the winner's recorded outcome", async () => {
@@ -920,6 +911,144 @@ describe("real connector lifecycle (mocked network)", () => {
     ).length;
     // At most ONE real draftOrderCreate across the two racing instances.
     expect(draftsA + draftsB).toBe(1);
+  });
+});
 
+// ─── Recurring payment mandate branch ─────────────────────────────────────────
+
+describe("real connector lifecycle — recurring payment mandate branch", () => {
+  const activeMandate = {
+    status: "active" as const,
+    validUntilMs: 10_000_000,
+    ceilingMinor: 100_000n,
+    eligibleMerchants: [] as readonly string[],
+    providerCustomerId: "cust_fake001",
+    providerTokenId: "token_fake001",
+  };
+
+  function recurringRequest(overrides: Record<string, unknown> = {}) {
+    return {
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(9));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "recurring-order-abc",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+      paymentReferenceId: "ctr_payment-reference_fake001",
+      ...overrides,
+    };
+  }
+
+  it("charges via chargeRecurring instead of creating a fresh Razorpay order, and still completes the real Shopify flow", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp(); // no /v1/orders handler configured — proves it's never called
+
+    let chargeCalls = 0;
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      recurringMandateLookup: async () => activeMandate,
+      recurringPayments: {
+        chargeRecurring: async (params) => {
+          chargeCalls += 1;
+          expect(params.customerId).toBe("cust_fake001");
+          expect(params.tokenId).toBe("token_fake001");
+          expect(params.amountPaise).toBe(4999);
+          return {
+            kind: "confirmed",
+            evidence: { reference: "pay_fake001" as never, status: "confirmed" },
+          };
+        },
+      },
+    });
+
+    const result = await port.authorizeAndCapture(recurringRequest());
+
+    expect(result.status).toBe("captured");
+    expect(chargeCalls).toBe(1);
+    // No fresh Razorpay order was ever created for this branch.
+    expect(http.requests.filter((r) => r.path === "/v1/orders")).toHaveLength(0);
+    // The real Shopify draft still happened — the recurring branch only
+    // replaces the payment step, not the rest of the pipeline.
+    const drafts = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
+    expect(drafts).toHaveLength(1);
+  });
+
+  it("declines when no recurring provider/lookup is configured at all (fails closed)", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      // recurringPayments/recurringMandateLookup intentionally omitted
+    });
+
+    const result = await port.authorizeAndCapture(recurringRequest());
+    expect(result.status).toBe("declined");
+  });
+
+  it("declines when the independent mandate lookup finds no active mandate, without calling chargeRecurring", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    let chargeCalls = 0;
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      recurringMandateLookup: async () => undefined,
+      recurringPayments: {
+        chargeRecurring: async () => {
+          chargeCalls += 1;
+          return { kind: "confirmed", evidence: { reference: "x" as never, status: "confirmed" } };
+        },
+      },
+    });
+
+    const result = await port.authorizeAndCapture(recurringRequest());
+    expect(result.status).toBe("declined");
+    expect(chargeCalls).toBe(0);
+  });
+
+  it("declines when chargeRecurring itself declines", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      recurringMandateLookup: async () => activeMandate,
+      recurringPayments: {
+        chargeRecurring: async () => ({
+          kind: "declined",
+          reason: { code: "INSUFFICIENT_FUNDS", reason: "declined", retryable: false },
+        }),
+      },
+    });
+
+    const result = await port.authorizeAndCapture(recurringRequest());
+    expect(result.status).toBe("declined");
   });
 });

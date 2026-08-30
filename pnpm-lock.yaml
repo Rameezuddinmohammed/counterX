@@ -105,6 +105,12 @@ importers:
       '@counter/http-api-kit':
         specifier: workspace:0.1.0
         version: link:../../packages/http-api-kit
+      '@counter/payment-sdk':
+        specifier: workspace:0.1.0
+        version: link:../../packages/payment-sdk
+      '@counter/razorpay-adapter':
+        specifier: workspace:0.1.0
+        version: link:../../packages/razorpay-adapter
       fastify:
         specifier: 5.2.1
         version: 5.2.1

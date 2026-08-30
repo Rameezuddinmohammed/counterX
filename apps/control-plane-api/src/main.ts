@@ -14,6 +14,8 @@ import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
 import { createPostgresTransactionStore } from "./transaction-store-postgres.js";
 import { WalletUserProvisioner, type RuntimeCredentialConfig } from "./wallet-user-store.js";
+import { createRealRazorpayRecurringMandateProvider } from "@counter/razorpay-adapter";
+import { RecurringMandateProvisioner } from "./recurring-mandate-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -74,6 +76,23 @@ const runtimeCredentialConfig: RuntimeCredentialConfig | undefined =
       }
     : undefined;
 
+// Optional: recurring payment mandates (UPI Autopay / e-mandate) need the
+// same Razorpay test-mode credentials the worker already uses for one-shot
+// orders — reusing RAZORPAY_KEY_ID/KEY_SECRET rather than minting a new
+// secret. Missing them degrades gracefully: the routes simply aren't
+// registered (see index.ts's optional-provisioner pattern).
+const razorpayKeyId = process.env["RAZORPAY_KEY_ID"];
+const razorpayKeySecret = process.env["RAZORPAY_KEY_SECRET"];
+const razorpayRecurringProvider =
+  database !== undefined && razorpayKeyId !== undefined && razorpayKeySecret !== undefined
+    ? createRealRazorpayRecurringMandateProvider({
+        keyId: razorpayKeyId,
+        keySecret: razorpayKeySecret,
+        webhookSecret: process.env["RAZORPAY_WEBHOOK_SECRET"] || "",
+        baseUrl: process.env["RAZORPAY_BASE_URL"] || "https://api.razorpay.com",
+      })
+    : undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -87,6 +106,15 @@ const serverOptions: CreateServerOptions = {
           runtimeEnvironment,
           runtimeCredentialConfig,
         ),
+        ...(razorpayRecurringProvider !== undefined
+          ? {
+              recurringMandateProvisioner: new RecurringMandateProvisioner(
+                database,
+                runtimeEnvironment,
+                razorpayRecurringProvider,
+              ),
+            }
+          : {}),
       }
     : {}),
 };

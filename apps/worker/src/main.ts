@@ -35,11 +35,16 @@ import {
   PostgresKillSwitchStore,
   PostgresSpendLedger,
   PostgresPolicyStore,
+  PostgresRecurringMandateReadStore,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
-import { selectPaymentAuthorizationPort, pilotMerchantId, resolveSpendLimitConfig } from "./boot.js";
+import {
+  selectPaymentAuthorizationPort,
+  pilotMerchantId,
+  resolveSpendLimitConfig,
+} from "./boot.js";
 import { isProdLike } from "./connector-env.js";
 import {
   reconciliationEnabled,
@@ -132,7 +137,10 @@ function buildHandlers(
   projectionStore: TransactionProjectionStore | undefined,
 ): ReadonlyMap<string, JobHandler> {
   return new Map<string, JobHandler>([
-    [TRANSACTION_LIFECYCLE_JOB_TYPE, createTransactionLifecycleHandler(provider, sink, projectionStore)],
+    [
+      TRANSACTION_LIFECYCLE_JOB_TYPE,
+      createTransactionLifecycleHandler(provider, sink, projectionStore),
+    ],
   ]);
 }
 
@@ -192,8 +200,12 @@ async function main(): Promise<void> {
     stepLedger: new PostgresStepLedger(database, runtimeEnvironment),
     killSwitchStore: new PostgresKillSwitchStore(database, runtimeEnvironment),
     spendLedger: new PostgresSpendLedger(database, runtimeEnvironment, spendLimitConfig),
+    recurringMandateStore: new PostgresRecurringMandateReadStore(database, runtimeEnvironment),
   });
-  logger.info("payment connector selected", { mode: selection.mode, environment: runtimeEnvironment });
+  logger.info("payment connector selected", {
+    mode: selection.mode,
+    environment: runtimeEnvironment,
+  });
 
   // Only the real connector bundle has a configured merchant scope. Persist its
   // transaction spine before effects so the control plane can project it. Local
@@ -201,7 +213,11 @@ async function main(): Promise<void> {
   const projectionStore =
     selection.bundle === undefined
       ? undefined
-      : new PostgresTransactionProjectionStore(database, runtimeEnvironment, selection.bundle.merchantId);
+      : new PostgresTransactionProjectionStore(
+          database,
+          runtimeEnvironment,
+          selection.bundle.merchantId,
+        );
 
   const config: LoopConfig = {
     jobTypes: [TRANSACTION_LIFECYCLE_JOB_TYPE],
@@ -219,7 +235,11 @@ async function main(): Promise<void> {
   // active (a real Shopify connector is required to query authoritative order
   // state). Inert in unit/local runs and when RECONCILIATION_ENABLED is unset.
   let reconciliation: ReconciliationJobHandle | undefined;
-  if (reconciliationEnabled(process.env) && selection.mode === "real" && selection.bundle !== undefined) {
+  if (
+    reconciliationEnabled(process.env) &&
+    selection.mode === "real" &&
+    selection.bundle !== undefined
+  ) {
     const scannerConfig = buildReconciliationScannerConfig({
       database,
       outbox: outboxRepository,
@@ -262,6 +282,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(`[${APP_NAME}] fatal startup error`, error instanceof Error ? error.message : error);
+  console.error(
+    `[${APP_NAME}] fatal startup error`,
+    error instanceof Error ? error.message : error,
+  );
   process.exit(1);
 });

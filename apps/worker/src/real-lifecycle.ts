@@ -54,7 +54,13 @@ import { createCanonicalError } from "@counter/domain";
 import type { IsoCurrencyCode, MerchantId, Money } from "@counter/domain";
 import type { ActionOutcome } from "@counter/connector-sdk";
 import type { ShopifyConnector } from "@counter/shopify-connector";
-import type { PaymentProvider, ProviderPaymentEvidence } from "@counter/payment-sdk";
+import type {
+  PaymentProvider,
+  PaymentOperationResult,
+  ProviderPaymentEvidence,
+} from "@counter/payment-sdk";
+import type { ChargeRecurringParams } from "@counter/razorpay-adapter";
+import type { RecurringMandateLookupResult } from "./lifecycle-policy.js";
 
 import type {
   PaymentAuthorizationPort,
@@ -211,6 +217,25 @@ export interface RealLifecycleConfig {
    * Postgres-backed adapter so the Shopify legs dedup ACROSS worker restarts.
    */
   readonly stepLedger?: StepLedgerPort | undefined;
+  /**
+   * Charges a variable, on-demand amount against an already-authorized
+   * recurring payment mandate. Used instead of razorpay/payments when the
+   * job carries a paymentReferenceId. Structural interface (not the
+   * concrete RazorpayRecurringMandateProvider class) so tests can inject a
+   * fake — see recurring-mandate-provider.ts for the real implementation.
+   */
+  readonly recurringPayments?:
+    | { chargeRecurring(params: ChargeRecurringParams): Promise<PaymentOperationResult> }
+    | undefined;
+  /**
+   * Independent, durable read of a recurring mandate's current state — the
+   * SAME shape lifecycle-policy.ts's ProductionPolicyConfig.recurringMandateLookup
+   * uses, called again here (never trusting the policy gate's earlier read)
+   * for the actual money-moving call.
+   */
+  readonly recurringMandateLookup?:
+    | ((referenceId: string) => Promise<RecurringMandateLookupResult | undefined>)
+    | undefined;
 }
 
 const DEFAULT_ACTION_TIMEOUT_MS = 15_000;
@@ -364,9 +389,7 @@ export function createRealPaymentAuthorizationPort(
         // durable ledger the winner records, so at most ONE draft is ever
         // created for the key regardless of how many instances race.
         const claim =
-          stepLedger.claim !== undefined
-            ? await stepLedger.claim(key, STEP_DRAFT)
-            : { won: true };
+          stepLedger.claim !== undefined ? await stepLedger.claim(key, STEP_DRAFT) : { won: true };
 
         if (!claim.won) {
           // Another instance won the claim and is creating (or created) the
@@ -419,36 +442,82 @@ export function createRealPaymentAuthorizationPort(
         }
       }
 
-      // 4. REAL Razorpay order to PROVE the server-side integration. The
-      //    razorpay_order_id is captured as evidence in providerData. Explicit
-      //    outcome handling: a non-action_required kind is surfaced, never
-      //    swallowed. Razorpay dedups server-side via X-Razorpay-Idempotency, so
-      //    it is durable across restarts without a local ledger entry.
-      const razorpayResult = await config.razorpay.createInstruction({
-        authorizationRef: key,
-        amount: toMoney(request.amountMinor, request.currency),
-        currency: request.currency as IsoCurrencyCode,
-        merchantId: config.merchantId,
-        idempotencyKey: key,
-        metadata: { counterTransaction: key },
-      });
       let razorpayOrderId: string | undefined;
-      if (razorpayResult.kind === "action_required") {
-        razorpayOrderId = razorpayResult.action.metadata?.["razorpay_order_id"];
-      } else if (razorpayResult.kind === "indeterminate") {
-        return indeterminate("razorpay.order.indeterminate", `razorpay:${key}`);
-      } else if (razorpayResult.kind === "declined") {
-        return declined(`razorpay-declined:${key}`);
-      }
+      let authorized: AuthorizeCaptureOutcome;
 
-      // 5. Unattended payment through the CTP-signed provider for typed
-      //    authorize + capture evidence. The idempotency key dedups replays.
-      const authorized = await authorizeCapture(config.payments, config.merchantId, request, key);
-      if (authorized.kind === "declined") {
-        return declined(`payment-declined:${key}`);
-      }
-      if (authorized.kind === "indeterminate") {
-        return indeterminate(authorized.lastKnownState, `payment:${key}`);
+      if (request.paymentReferenceId !== undefined) {
+        // 4+5 (recurring branch). Charge against an already-authorized
+        // recurring payment mandate instead of creating a fresh one-shot
+        // order — no Razorpay "order" exists in this path, so
+        // razorpayOrderId stays undefined. The mandate is looked up AGAIN
+        // here, independently of whatever the policy gate already checked
+        // (never trust a previous read for the actual money-moving call) —
+        // fails closed exactly like the policy gate does.
+        if (config.recurringPayments === undefined || config.recurringMandateLookup === undefined) {
+          return declined(`recurring-mandate-not-configured:${key}`);
+        }
+        const mandate = await config.recurringMandateLookup(request.paymentReferenceId);
+        if (
+          mandate === undefined ||
+          mandate.status !== "active" ||
+          mandate.providerTokenId === null
+        ) {
+          return declined(`recurring-mandate-invalid:${key}`);
+        }
+        const chargeResult = await config.recurringPayments.chargeRecurring({
+          customerId: mandate.providerCustomerId,
+          tokenId: mandate.providerTokenId,
+          amountPaise: request.amountMinor,
+          idempotencyKey: key,
+        });
+        if (chargeResult.kind === "declined") {
+          return declined(`recurring-charge-declined:${key}`);
+        }
+        if (chargeResult.kind === "indeterminate") {
+          return indeterminate("recurring.charge.indeterminate", `recurring:${key}`);
+        }
+        if (chargeResult.kind !== "confirmed") {
+          // action_required/pending are not reachable outcomes of
+          // chargeRecurring in practice (see recurring-mandate-provider.ts),
+          // but handled explicitly rather than assumed away.
+          return indeterminate("recurring.charge.unexpected-outcome", `recurring:${key}`);
+        }
+        authorized = {
+          kind: "captured",
+          evidence: chargeResult.evidence,
+          capturedMinor: request.amountMinor,
+        };
+      } else {
+        // 4. REAL Razorpay order to PROVE the server-side integration. The
+        //    razorpay_order_id is captured as evidence in providerData. Explicit
+        //    outcome handling: a non-action_required kind is surfaced, never
+        //    swallowed. Razorpay dedups server-side via X-Razorpay-Idempotency, so
+        //    it is durable across restarts without a local ledger entry.
+        const razorpayResult = await config.razorpay.createInstruction({
+          authorizationRef: key,
+          amount: toMoney(request.amountMinor, request.currency),
+          currency: request.currency as IsoCurrencyCode,
+          merchantId: config.merchantId,
+          idempotencyKey: key,
+          metadata: { counterTransaction: key },
+        });
+        if (razorpayResult.kind === "action_required") {
+          razorpayOrderId = razorpayResult.action.metadata?.["razorpay_order_id"];
+        } else if (razorpayResult.kind === "indeterminate") {
+          return indeterminate("razorpay.order.indeterminate", `razorpay:${key}`);
+        } else if (razorpayResult.kind === "declined") {
+          return declined(`razorpay-declined:${key}`);
+        }
+
+        // 5. Unattended payment through the CTP-signed provider for typed
+        //    authorize + capture evidence. The idempotency key dedups replays.
+        authorized = await authorizeCapture(config.payments, config.merchantId, request, key);
+        if (authorized.kind === "declined") {
+          return declined(`payment-declined:${key}`);
+        }
+        if (authorized.kind === "indeterminate") {
+          return indeterminate(authorized.lastKnownState, `payment:${key}`);
+        }
       }
       const paymentEvidence = authorized.evidence;
 

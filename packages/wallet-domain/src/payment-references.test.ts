@@ -11,9 +11,14 @@
 
 import { describe, expect, it } from "vitest";
 import type { CounterId } from "@counter/domain";
-import type { CounterTestAuthorization, PaymentAuthorizationReference } from "./payment-references.js";
+import type {
+  CounterTestAuthorization,
+  PaymentAuthorizationReference,
+  RazorpayRecurringAuthorization,
+} from "./payment-references.js";
 import {
   createCounterTestReference,
+  createRazorpayRecurringReference,
   InMemoryPaymentReferenceRepository,
   isTestEnvironmentOnly,
 } from "./payment-references.js";
@@ -35,6 +40,22 @@ function createValidTestReference(): CounterTestAuthorization {
     amountCeilingPaise: 100_000n,
     eligibleMerchants: ["merchant-a", "merchant-b"],
     eligibleOperations: ["purchase", "refund"],
+  });
+}
+
+function createValidRecurringReference(): RazorpayRecurringAuthorization {
+  return createRazorpayRecurringReference({
+    referenceId: "ref-recurring-001",
+    walletId: TEST_WALLET_ID,
+    principalId: TEST_PRINCIPAL_ID,
+    environment: "pilot",
+    providerCustomerId: "cust_test123",
+    providerTokenId: "token_test456",
+    ceilingPaise: 500_000n,
+    validFrom: "2025-01-01T00:00:00Z",
+    validUntil: "2025-12-31T23:59:59Z",
+    eligibleMerchants: ["merchant-a"],
+    eligibleOperations: ["purchase"],
   });
 }
 
@@ -117,9 +138,7 @@ describe("PaymentAuthorizationReference", () => {
 
       for (const field of dangerousFields) {
         expect(field in ref).toBe(false);
-        expect(
-          (ref as unknown as Record<string, unknown>)[field],
-        ).toBeUndefined();
+        expect((ref as unknown as Record<string, unknown>)[field]).toBeUndefined();
       }
     });
 
@@ -136,6 +155,57 @@ describe("PaymentAuthorizationReference", () => {
         "bank_credential",
         "provider_secret",
         "token",
+      ] as const;
+
+      for (const field of dangerousFields) {
+        expect(field in ref).toBe(false);
+      }
+    });
+  });
+
+  describe("RazorpayRecurringAuthorization", () => {
+    it("has adapter set to razorpay_recurring", () => {
+      const ref = createValidRecurringReference();
+      expect(ref.adapter).toBe("razorpay_recurring");
+    });
+
+    it("carries only Razorpay's own opaque customer/token ids, not raw credentials", () => {
+      const ref = createValidRecurringReference();
+      expect(ref.providerCustomerId).toBe("cust_test123");
+      expect(ref.providerTokenId).toBe("token_test456");
+    });
+
+    it("has active status on creation", () => {
+      const ref = createValidRecurringReference();
+      expect(ref.status).toBe("active");
+    });
+
+    it("has INR currency and a ceiling in paise", () => {
+      const ref = createValidRecurringReference();
+      expect(ref.currency).toBe("INR");
+      expect(ref.ceilingPaise).toBe(500_000n);
+    });
+
+    it("is bound to the given wallet and principal", () => {
+      const ref = createValidRecurringReference();
+      expect(ref.walletId).toBe(TEST_WALLET_ID);
+      expect(ref.principalId).toBe(TEST_PRINCIPAL_ID);
+    });
+
+    it("lacks dangerous fields (no VPA, bank account, or card details)", () => {
+      const ref: RazorpayRecurringAuthorization = createValidRecurringReference();
+
+      const dangerousFields = [
+        "balance",
+        "top_up",
+        "raw_credential",
+        "pan",
+        "cvv",
+        "upi_pin",
+        "vpa",
+        "bank_credential",
+        "bank_account",
+        "provider_secret",
       ] as const;
 
       for (const field of dangerousFields) {
@@ -190,6 +260,16 @@ describe("PaymentAuthorizationReference", () => {
         eligibleOperations: ["purchase"],
       };
       expect(isTestEnvironmentOnly(productionRef, "production")).toBe(true);
+    });
+
+    it("rejects a razorpay_recurring reference in sandbox", () => {
+      const ref = createValidRecurringReference();
+      expect(isTestEnvironmentOnly(ref, "sandbox")).toBe(false);
+    });
+
+    it("accepts a razorpay_recurring reference in its own (pilot) environment", () => {
+      const ref = createValidRecurringReference();
+      expect(isTestEnvironmentOnly(ref, "pilot")).toBe(true);
     });
   });
 

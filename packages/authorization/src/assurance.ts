@@ -26,24 +26,29 @@ const supportAccessAssurances: readonly AuthenticationAssurance[] = Object.freez
 ]);
 const supportMutationAssurances: readonly AuthenticationAssurance[] = Object.freeze(["step_up"]);
 
-const permissionAssurances: Readonly<
-  Record<Permission, readonly AuthenticationAssurance[]>
-> = Object.freeze({
-  "identity.scope.read": authenticatedAssurances,
-  "identity.scope.manage": tenantMutationAssurances,
-  "identity.actor.read": authenticatedAssurances,
-  "identity.actor.manage": tenantMutationAssurances,
-  "identity.role.read": authenticatedAssurances,
-  "identity.role.assign": tenantMutationAssurances,
-  "identity.agent_key.read": authenticatedAssurances,
-  "identity.agent_key.manage": tenantMutationAssurances,
-  "identity.service_identity.read": authenticatedAssurances,
-  "identity.service_identity.manage": tenantMutationAssurances,
-  "identity.support_grant.read": supportAccessAssurances,
-  "identity.support_grant.issue": supportMutationAssurances,
-  "identity.support_grant.revoke": supportMutationAssurances,
-  "identity.support_grant.use": supportAccessAssurances,
-});
+const permissionAssurances: Readonly<Record<Permission, readonly AuthenticationAssurance[]>> =
+  Object.freeze({
+    "identity.scope.read": authenticatedAssurances,
+    "identity.scope.manage": tenantMutationAssurances,
+    "identity.actor.read": authenticatedAssurances,
+    "identity.actor.manage": tenantMutationAssurances,
+    "identity.role.read": authenticatedAssurances,
+    "identity.role.assign": tenantMutationAssurances,
+    "identity.agent_key.read": authenticatedAssurances,
+    "identity.agent_key.manage": tenantMutationAssurances,
+    "identity.service_identity.read": authenticatedAssurances,
+    "identity.service_identity.manage": tenantMutationAssurances,
+    "identity.support_grant.read": supportAccessAssurances,
+    "identity.support_grant.issue": supportMutationAssurances,
+    "identity.support_grant.revoke": supportMutationAssurances,
+    "identity.support_grant.use": supportAccessAssurances,
+    // Registering/revoking a recurring-payment mandate is a real standing
+    // payment authorization (RBI's e-mandate framework itself requires an
+    // Additional Factor of Authentication at registration) — held to the same
+    // bar as identity.agent_key.manage, not a plain session.
+    "payment.mandate.read": authenticatedAssurances,
+    "payment.mandate.manage": tenantMutationAssurances,
+  });
 
 export function isAuthenticationAssurance(value: unknown): value is AuthenticationAssurance {
   return typeof value === "string" && assuranceSet.has(value);

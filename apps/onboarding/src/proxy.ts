@@ -1,15 +1,15 @@
 /**
  * Real, enforced auth boundary for the Onboarding app (Next.js 16 proxy
  * convention). Unlike merchant-console/wallet-console's known pass-through
- * gap, this app's protected routes are actually gated here — /connect
- * requires a session; everything else (marketing pages, the SDK's own
- * /auth/* routes) is left alone.
+ * gap, this app's protected routes are actually gated here — /connect and
+ * /mandate require a session; everything else (marketing pages, the SDK's
+ * own /auth/* routes) is left alone.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth0 } from "./lib/auth0";
 
-const PROTECTED_PATHS = ["/connect"];
+const PROTECTED_PATHS = ["/connect", "/mandate"];
 
 export async function proxy(request: NextRequest) {
   const authResponse = await auth0.middleware(request);

@@ -21,9 +21,13 @@ import { createCounterId, parseCounterId } from "@counter/domain";
 import type { MerchantId } from "@counter/domain";
 import { InMemorySigner } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
-import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
+import {
+  createRealRazorpayProvider,
+  createRealRazorpayRecurringMandateProvider,
+} from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
 import { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger } from "@counter/data";
+import type { PostgresRecurringMandateReadStore } from "@counter/data";
 import { DEFAULT_SPEND_LIMIT_CONFIG } from "@counter/data";
 import type {
   AsyncStepLedger,
@@ -65,9 +69,7 @@ import type {
  */
 export function createDeterministicPaymentAuthorizationPort(): PaymentAuthorizationPort {
   return {
-    authorizeAndCapture(
-      request: PaymentAuthorizationRequest,
-    ): Promise<PaymentAuthorizationResult> {
+    authorizeAndCapture(request: PaymentAuthorizationRequest): Promise<PaymentAuthorizationResult> {
       return Promise.resolve(
         Object.freeze({
           status: "captured" as const,
@@ -104,6 +106,7 @@ export interface DurableStores {
   readonly stepLedger?: AsyncStepLedger | undefined;
   readonly killSwitchStore?: AsyncKillSwitchStore | undefined;
   readonly spendLedger?: PostgresSpendLedger | undefined;
+  readonly recurringMandateStore?: PostgresRecurringMandateReadStore | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -118,7 +121,10 @@ export interface DurableStores {
 export function selectPaymentAuthorizationPort(
   env: EnvironmentBag,
   overrides?: Partial<
-    Pick<RealLifecycleConfig, "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger" | "killSwitch">
+    Pick<
+      RealLifecycleConfig,
+      "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger" | "killSwitch"
+    >
   >,
   stores?: DurableStores,
 ): SelectedPaymentPort {
@@ -169,11 +175,24 @@ export function selectPaymentAuthorizationPort(
         }
       : undefined;
 
+  // Recurring payment mandates (UPI Autopay / e-mandate): reuses the SAME
+  // Razorpay credentials already resolved above (one Razorpay account,
+  // whether the charge is a one-shot order or a recurring draw). Both the
+  // policy gate and the actual charge call independently re-read the
+  // mandate's durable state — never trusting the job payload, and never
+  // sharing a single read between the two seams.
+  const recurringMandateLookup =
+    stores?.recurringMandateStore !== undefined
+      ? (referenceId: string) => stores.recurringMandateStore!.findByReferenceId(referenceId)
+      : undefined;
+  const recurringPayments = createRealRazorpayRecurringMandateProvider(razorpayCreds);
+
   const policy =
     overrides?.policy ??
     createProductionPolicy({
       operatingMerchantId: bundle.merchantId,
       ...(durableReserveSpend !== undefined ? { reserveSpend: durableReserveSpend } : {}),
+      ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
     });
 
   const config: RealLifecycleConfig = {
@@ -182,8 +201,14 @@ export function selectPaymentAuthorizationPort(
     payments: bundle.payments,
     merchantId: bundle.merchantId,
     policy,
-    ...(overrides?.variantResolver !== undefined ? { variantResolver: overrides.variantResolver } : {}),
-    ...(overrides?.actionTimeoutMs !== undefined ? { actionTimeoutMs: overrides.actionTimeoutMs } : {}),
+    recurringPayments,
+    ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
+    ...(overrides?.variantResolver !== undefined
+      ? { variantResolver: overrides.variantResolver }
+      : {}),
+    ...(overrides?.actionTimeoutMs !== undefined
+      ? { actionTimeoutMs: overrides.actionTimeoutMs }
+      : {}),
     ...(stepLedger !== undefined ? { stepLedger } : {}),
     ...(killSwitch !== undefined ? { killSwitch } : {}),
   };
@@ -444,7 +469,11 @@ export function createPostgresKillSwitchGatePort(
   }> = [
     { scope: "platform", entityId: undefined, key: "platform" },
     { scope: "merchant", entityId: merchantId, key: `merchant:${merchantId}` },
-    { scope: "connector", entityId: KILL_SWITCH_CONNECTOR_ID, key: `connector:${KILL_SWITCH_CONNECTOR_ID}` },
+    {
+      scope: "connector",
+      entityId: KILL_SWITCH_CONNECTOR_ID,
+      key: `connector:${KILL_SWITCH_CONNECTOR_ID}`,
+    },
     {
       scope: "payment_adapter",
       entityId: KILL_SWITCH_PAYMENT_ADAPTER_ID,

@@ -91,6 +91,16 @@ export interface PaymentAuthorizationRequest {
    * enforceTransactionLimits still always applies). Never carries secrets.
    */
   readonly authority?: AuthorityEnvelope | undefined;
+  /**
+   * Opaque id of a PaymentAuthorizationReference (packages/wallet-domain)
+   * the agent is drawing this charge against — e.g. a recurring payment
+   * mandate's referenceId. When present, the production policy looks it up
+   * and re-verifies it independently (active, unexpired, under its own
+   * ceiling, merchant-eligible) before any effect, and the payment step
+   * charges against it instead of creating a fresh one-shot order. Absent
+   * for an ordinary one-shot purchase.
+   */
+  readonly paymentReferenceId?: string | undefined;
 }
 
 /**
@@ -205,6 +215,8 @@ export interface TransactionLifecyclePayload {
    * seam. Absent fields skip their predicate. Never a secret.
    */
   readonly authority?: AuthorityEnvelope | undefined;
+  /** See PaymentAuthorizationRequest.paymentReferenceId's docs. */
+  readonly paymentReferenceId?: string | undefined;
 }
 
 // ─── Reconciliation + receipt output ─────────────────────────────────────────
@@ -294,7 +306,20 @@ function parsePayload(payload: unknown): TransactionLifecyclePayload {
   }
   const quantity = typeof quantityRaw === "number" ? quantityRaw : undefined;
   const authority = parseAuthority(record["authority"]);
-  return { transactionId, amountMinor, currency, variantId, quantity, authority };
+  const paymentReferenceIdRaw = record["paymentReferenceId"];
+  const paymentReferenceId =
+    typeof paymentReferenceIdRaw === "string" && paymentReferenceIdRaw.length > 0
+      ? paymentReferenceIdRaw
+      : undefined;
+  return {
+    transactionId,
+    amountMinor,
+    currency,
+    variantId,
+    quantity,
+    authority,
+    paymentReferenceId,
+  };
 }
 
 /**
@@ -410,6 +435,7 @@ export function createTransactionLifecycleHandler(
         variantId: payload.variantId,
         quantity: payload.quantity,
         authority: payload.authority,
+        paymentReferenceId: payload.paymentReferenceId,
       });
 
       if (providerResult.status === "declined") {

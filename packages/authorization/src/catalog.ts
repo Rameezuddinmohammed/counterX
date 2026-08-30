@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   "identity.support_grant.issue",
   "identity.support_grant.revoke",
   "identity.support_grant.use",
+  "payment.mandate.read",
+  "payment.mandate.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -76,7 +78,11 @@ export const ROLE_DEFINITIONS: Readonly<Record<RoleKey, RoleDefinition>> = Objec
   "merchant.operations": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
   "merchant.auditor": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
   "merchant.read_only": definition(["merchant_user"], ["merchant"], tenantReadPermissions),
-  "wallet.owner": definition(["wallet_user"], ["wallet"], tenantManagePermissions),
+  "wallet.owner": definition(
+    ["wallet_user"],
+    ["wallet"],
+    [...tenantManagePermissions, "payment.mandate.read", "payment.mandate.manage"],
+  ),
   "platform.operator": definition(
     ["operator"],
     ["platform"],

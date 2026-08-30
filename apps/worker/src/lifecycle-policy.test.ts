@@ -8,13 +8,11 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  DEFAULT_LIMIT_CONFIG,
-  InMemoryTransactionLedger,
-} from "@counter/payment-sdk";
+import { DEFAULT_LIMIT_CONFIG, InMemoryTransactionLedger } from "@counter/payment-sdk";
 import { type Instant } from "@counter/domain";
 
 import { createProductionPolicy, __testing } from "./lifecycle-policy.js";
+import type { RecurringMandateLookupResult } from "./lifecycle-policy.js";
 import type { AuthorityEnvelope } from "./transaction-lifecycle.js";
 import type { PaymentAuthorizationRequest } from "./transaction-lifecycle.js";
 
@@ -24,6 +22,7 @@ const NOW = 1_000_000_000_000;
 function req(
   amountMinor: number,
   authority?: AuthorityEnvelope,
+  paymentReferenceId?: string,
 ): PaymentAuthorizationRequest {
   return {
     transactionId: "ctr_txn_policy" as PaymentAuthorizationRequest["transactionId"],
@@ -32,6 +31,7 @@ function req(
     idempotencyKey: "policy-key",
     quantity: 1,
     ...(authority !== undefined ? { authority } : {}),
+    ...(paymentReferenceId !== undefined ? { paymentReferenceId } : {}),
   };
 }
 
@@ -103,5 +103,93 @@ describe("createProductionPolicy", () => {
     expect(await p.allow(req(100, { walletId: walletRef }))).toBe(false);
     // A DIFFERENT wallet is unaffected -> allowed (proves the check is real).
     expect(await p.allow(req(100, { walletId: "wallet-clean" }))).toBe(true);
+  });
+});
+
+describe("createProductionPolicy — recurring payment mandate re-verification", () => {
+  const REF = "ctr_payment-reference_abc";
+
+  function activeMandate(
+    overrides: Partial<RecurringMandateLookupResult> = {},
+  ): RecurringMandateLookupResult {
+    return {
+      status: "active",
+      validUntilMs: NOW + 60_000,
+      ceilingMinor: 500_000n,
+      eligibleMerchants: [],
+      providerCustomerId: "cust_test",
+      providerTokenId: "token_test",
+      ...overrides,
+    };
+  }
+
+  it("allows a request against an active, unexpired, under-ceiling, unscoped mandate", async () => {
+    const p = policy({ recurringMandateLookup: async () => activeMandate() });
+    expect(await p.allow(req(100, undefined, REF))).toBe(true);
+  });
+
+  it("denies when no paymentReferenceId is present but recurringMandateLookup is wired (unrelated one-shot purchase, unaffected)", async () => {
+    const p = policy({ recurringMandateLookup: async () => activeMandate() });
+    expect(await p.allow(req(100))).toBe(true);
+  });
+
+  it("fails closed when a paymentReferenceId is present but no lookup is configured at all", async () => {
+    const p = policy();
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("denies when the lookup finds no such mandate", async () => {
+    const p = policy({ recurringMandateLookup: async () => undefined });
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("denies a PENDING (not yet confirmed) mandate", async () => {
+    const p = policy({
+      recurringMandateLookup: async () => activeMandate({ status: "pending" }),
+    });
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("denies a REVOKED mandate", async () => {
+    const p = policy({
+      recurringMandateLookup: async () => activeMandate({ status: "revoked" }),
+    });
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("denies an EXPIRED mandate", async () => {
+    const p = policy({
+      recurringMandateLookup: async () => activeMandate({ validUntilMs: NOW - 1 }),
+    });
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("denies an amount OVER the mandate's own ceiling", async () => {
+    const p = policy({
+      recurringMandateLookup: async () => activeMandate({ ceilingMinor: 50n }),
+    });
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("denies when the operating merchant isn't in the mandate's eligible list", async () => {
+    const p = policy({
+      recurringMandateLookup: async () =>
+        activeMandate({ eligibleMerchants: ["ctr_merchant_someone_else"] }),
+    });
+    expect(await p.allow(req(100, undefined, REF))).toBe(false);
+  });
+
+  it("allows when the operating merchant IS in the mandate's eligible list", async () => {
+    const p = policy({
+      recurringMandateLookup: async () => activeMandate({ eligibleMerchants: [MERCHANT] }),
+    });
+    expect(await p.allow(req(100, undefined, REF))).toBe(true);
+  });
+
+  it("still enforces the other predicates (e.g. wrong merchant scope via authority) even with a valid mandate", async () => {
+    const p = policy({ recurringMandateLookup: async () => activeMandate() });
+    expect(await p.allow(req(100, { authorizedMerchantId: "ctr_merchant_other" }, REF))).toBe(
+      false,
+    );
   });
 });

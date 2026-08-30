@@ -16,10 +16,7 @@ export {
   isTerminalState,
 } from "./lifecycle.js";
 
-export type {
-  WalletLifecycleState,
-  TransitionValidationResult,
-} from "./lifecycle.js";
+export type { WalletLifecycleState, TransitionValidationResult } from "./lifecycle.js";
 
 export type {
   WalletAccount,
@@ -28,10 +25,7 @@ export type {
   WalletInvitationStatus,
 } from "./value-objects.js";
 
-export {
-  WALLET_INVITATION_STATUSES,
-  isWalletInvitationStatus,
-} from "./value-objects.js";
+export { WALLET_INVITATION_STATUSES, isWalletInvitationStatus } from "./value-objects.js";
 
 // Transition records
 export { validateAndRecordTransition } from "./transition-record.js";
@@ -50,11 +44,7 @@ export {
   createMutationRejection,
 } from "./repositories.js";
 
-export type {
-  WalletRepository,
-  InvitationRepository,
-  MutationRejection,
-} from "./repositories.js";
+export type { WalletRepository, InvitationRepository, MutationRejection } from "./repositories.js";
 
 // In-memory repository implementations
 export {
@@ -95,11 +85,7 @@ export type { BuyerPolicyRepository } from "./buyer-policy-store.js";
 export { InMemoryBuyerPolicyRepository } from "./buyer-policy-store.js";
 
 // Policy evaluator
-export type {
-  ProposedAction,
-  AccumulatedUsage,
-  PolicyDecision,
-} from "./policy-evaluator.js";
+export type { ProposedAction, AccumulatedUsage, PolicyDecision } from "./policy-evaluator.js";
 export { evaluatePolicy } from "./policy-evaluator.js";
 
 // Policy widening detection
@@ -119,6 +105,7 @@ export {
   PAYMENT_REFERENCE_STATUSES,
   isPaymentReferenceEnvironment,
   createCounterTestReference,
+  createRazorpayRecurringReference,
   isTestEnvironmentOnly,
   InMemoryPaymentReferenceRepository,
 } from "./payment-references.js";
@@ -129,5 +116,7 @@ export type {
   PaymentAuthorizationReference,
   CounterTestAuthorization,
   CreateCounterTestReferenceParams,
+  RazorpayRecurringAuthorization,
+  CreateRazorpayRecurringReferenceParams,
   PaymentReferenceRepository,
 } from "./payment-references.js";

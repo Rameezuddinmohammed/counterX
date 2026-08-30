@@ -76,12 +76,12 @@ export type { PolicyConfigEntry, PolicySetResult } from "./policy-store.js";
 
 export { PostgresQuoteStore } from "./quote-store.js";
 export type { QuoteRecord, StoredQuote } from "./quote-store.js";
+
+export { PostgresRecurringMandateReadStore } from "./recurring-mandate-read-store.js";
+export type { RecurringMandateReadResult } from "./recurring-mandate-read-store.js";
 export { policyConfigs } from "./policy-schema.js";
 
-export {
-  PostgresSpendLedger,
-  DEFAULT_SPEND_LIMIT_CONFIG,
-} from "./spend-ledger.js";
+export { PostgresSpendLedger, DEFAULT_SPEND_LIMIT_CONFIG } from "./spend-ledger.js";
 export type {
   SpendLimitConfig,
   ReserveSpendRequest,

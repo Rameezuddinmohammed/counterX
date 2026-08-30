@@ -29,6 +29,8 @@ import {
 } from "./transaction-routes.js";
 import { walletUserRoutesPlugin } from "./wallet-user-routes.js";
 import type { WalletUserProvisionerLike } from "./wallet-user-store.js";
+import { recurringMandateRoutesPlugin } from "./recurring-mandate-routes.js";
+import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -105,6 +107,11 @@ export interface CreateServerOptions {
    * of this app needs, unlike policy/transaction routes.
    */
   readonly walletUserProvisioner?: WalletUserProvisionerLike | undefined;
+  /**
+   * Only when present is /control/v1/wallets/*\/recurring-mandates
+   * registered — same optional-feature pattern as walletUserProvisioner.
+   */
+  readonly recurringMandateProvisioner?: RecurringMandateProvisionerLike | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -173,6 +180,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.walletUserProvisioner !== undefined) {
     void server.register(walletUserRoutesPlugin, {
       provisioner: options.walletUserProvisioner,
+    });
+  }
+
+  // Recurring payment mandate routes — only registered when a provisioner
+  // is wired (see CreateServerOptions.recurringMandateProvisioner).
+  if (options?.recurringMandateProvisioner !== undefined) {
+    void server.register(recurringMandateRoutesPlugin, {
+      provisioner: options.recurringMandateProvisioner,
     });
   }
 
