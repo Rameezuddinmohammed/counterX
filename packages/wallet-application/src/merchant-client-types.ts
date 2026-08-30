@@ -10,6 +10,7 @@ import type {
   ProductResponse,
   QuoteResponse,
   ReceiptResponse,
+  RefundResponse,
   SearchResponse,
   TransactionCreateResponse,
   TransactionStatusResponse,
@@ -132,8 +133,18 @@ export interface MerchantRuntimeClient {
   /**
    * Gets the signed receipt for a completed transaction.
    */
-  getReceipt(
+  getReceipt(merchantId: string, transactionId: string): Promise<ClientResult<ReceiptResponse>>;
+
+  /**
+   * Requests a refund on a completed transaction. This is a RELAY, not an
+   * immediate execution — the server records the request and its reason;
+   * the merchant decides (manually, or via their own configured
+   * auto-approve threshold) whether it actually happens. See
+   * RefundResponse's docs in @counter/merchant-contracts.
+   */
+  requestRefund(
     merchantId: string,
     transactionId: string,
-  ): Promise<ClientResult<ReceiptResponse>>;
+    reason: string,
+  ): Promise<ClientResult<RefundResponse>>;
 }

@@ -137,10 +137,7 @@ describe("write-tools: purchase.execute", () => {
     const server = createTestServer(deps);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const mcpClient = new Client({ name: "test-client", version: "0.1.0" });
-    await Promise.all([
-      server.connect(serverTransport),
-      mcpClient.connect(clientTransport),
-    ]);
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)]);
 
     const quoteExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const permissivePolicy = {
@@ -361,6 +358,67 @@ describe("write-tools: purchase.refund-request", () => {
       expect(result.value.status).toBe("pending");
       expect(result.value.status !== "completed").toBe(true);
     }
+  });
+
+  it("actually calls the merchant runtime's refund relay, not a fabricated local response", async () => {
+    const deps = createTestDeps();
+    const client = deps.merchantClient as InMemoryMerchantRuntimeClient;
+
+    client.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: ["purchase", "refund"],
+      healthStatus: "healthy",
+    });
+    client.setTransactionStatusResponse("merchant-1:tx-5", {
+      transactionId: "tx-5",
+      merchantId: "merchant-1",
+      status: "completed",
+      amount: { amount: "25000", currency: "INR" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: "1",
+    });
+    // The relay's real (server-issued) response — distinct from anything the
+    // tool could fabricate itself, so a passing test proves this value
+    // actually flowed through requestRefund().
+    client.setRefundResponse("merchant-1:tx-5", {
+      refundRequestId: "refund-request-real-1",
+      transactionId: "tx-5",
+      status: "pending",
+      requestedAt: "2025-06-01T00:00:00.000Z",
+      amount: { amount: "25000", currency: "INR" },
+      version: "1",
+    });
+
+    const server = createTestServer(deps);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const mcpClient = new Client({ name: "test-client", version: "0.1.0" });
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)]);
+
+    const result = await mcpClient.callTool({
+      name: "purchase.refund-request",
+      arguments: {
+        merchant_id: "merchant-1",
+        transaction_id: "tx-5",
+        reason: "item not as described",
+      },
+    });
+
+    const content = (result.content as Array<{ type: string; text: string }>)[0];
+    const parsed = JSON.parse(content?.text ?? "{}") as {
+      status: string;
+      refund_request_id: string;
+      requested_at: string;
+    };
+    expect(parsed.status).toBe("refund_requested");
+    expect(parsed.refund_request_id).toBe("refund-request-real-1");
+    expect(parsed.requested_at).toBe("2025-06-01T00:00:00.000Z");
+
+    await mcpClient.close();
   });
 });
 

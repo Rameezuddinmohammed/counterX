@@ -123,48 +123,53 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
       mandate_id: z.string().optional().describe("Active mandate ID, if any"),
       payment_reference_id: z.string().min(1).describe("Payment authorization reference ID"),
       category: z.string().optional().describe("Product category"),
-      policy: z.object({
-        merchant_allowlist: z.object({
-          allowed_merchant_ids: z.array(z.string()),
-          allowed_domains: z.array(z.string()),
-        }),
-        geography: z.object({
-          allowed_merchant_countries: z.array(z.string()),
-          allowed_delivery_countries: z.array(z.string()),
-        }),
-        category: z.object({
-          allowed_categories: z.array(z.string()),
-          allowed_skus: z.array(z.string()).optional(),
-        }),
-        currency: z.object({
-          allowed_currencies: z.array(z.string()),
-        }),
-        amount_limits: z.object({
-          per_transaction_max_paise: z.string(),
-          rolling_max_paise: z.string().optional(),
-          aggregate_max_paise: z.string().optional(),
-        }),
-        count_limits: z.object({
-          max_transactions: z.number().optional(),
-        }),
-        operations: z.object({
-          allowed_operations: z.array(z.string()),
-        }),
-        time_constraints: z.object({
-          expires_at: z.string().optional(),
-        }),
-        approval_threshold: z.object({
-          threshold_paise: z.string(),
-        }),
-        payment_references: z.object({
-          allowed_reference_ids: z.array(z.string()),
-        }),
-      }).describe("Policy constraints to evaluate against"),
-      accumulated_usage: z.object({
-        rolling_period_total_paise: z.string().default("0"),
-        aggregate_total_paise: z.string().default("0"),
-        transaction_count: z.number().default(0),
-      }).optional().describe("Accumulated usage for rolling/aggregate checks"),
+      policy: z
+        .object({
+          merchant_allowlist: z.object({
+            allowed_merchant_ids: z.array(z.string()),
+            allowed_domains: z.array(z.string()),
+          }),
+          geography: z.object({
+            allowed_merchant_countries: z.array(z.string()),
+            allowed_delivery_countries: z.array(z.string()),
+          }),
+          category: z.object({
+            allowed_categories: z.array(z.string()),
+            allowed_skus: z.array(z.string()).optional(),
+          }),
+          currency: z.object({
+            allowed_currencies: z.array(z.string()),
+          }),
+          amount_limits: z.object({
+            per_transaction_max_paise: z.string(),
+            rolling_max_paise: z.string().optional(),
+            aggregate_max_paise: z.string().optional(),
+          }),
+          count_limits: z.object({
+            max_transactions: z.number().optional(),
+          }),
+          operations: z.object({
+            allowed_operations: z.array(z.string()),
+          }),
+          time_constraints: z.object({
+            expires_at: z.string().optional(),
+          }),
+          approval_threshold: z.object({
+            threshold_paise: z.string(),
+          }),
+          payment_references: z.object({
+            allowed_reference_ids: z.array(z.string()),
+          }),
+        })
+        .describe("Policy constraints to evaluate against"),
+      accumulated_usage: z
+        .object({
+          rolling_period_total_paise: z.string().default("0"),
+          aggregate_total_paise: z.string().default("0"),
+          transaction_count: z.number().default(0),
+        })
+        .optional()
+        .describe("Accumulated usage for rolling/aggregate checks"),
     },
     async (args) => {
       try {
@@ -215,7 +220,9 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
           } as const;
 
           const accUsage = {
-            rollingPeriodTotalPaise: BigInt(args.accumulated_usage?.rolling_period_total_paise ?? "0"),
+            rollingPeriodTotalPaise: BigInt(
+              args.accumulated_usage?.rolling_period_total_paise ?? "0",
+            ),
             aggregateTotalPaise: BigInt(args.accumulated_usage?.aggregate_total_paise ?? "0"),
             transactionCount: args.accumulated_usage?.transaction_count ?? 0,
           };
@@ -278,7 +285,6 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
     },
   );
 
-
   // -------------------------------------------------------------------------
   // purchase.execute - Executes a purchase with an approved intent
   // -------------------------------------------------------------------------
@@ -303,48 +309,53 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
       payment_method: z.string().min(1).describe("Payment method (e.g. counter_test)"),
       idempotency_key: z.string().optional().describe("Client-supplied idempotency key"),
       policy_version_id: z.string().min(1).describe("Policy version ID to evaluate against"),
-      policy: z.object({
-        merchant_allowlist: z.object({
-          allowed_merchant_ids: z.array(z.string()),
-          allowed_domains: z.array(z.string()),
-        }),
-        geography: z.object({
-          allowed_merchant_countries: z.array(z.string()),
-          allowed_delivery_countries: z.array(z.string()),
-        }),
-        category: z.object({
-          allowed_categories: z.array(z.string()),
-          allowed_skus: z.array(z.string()).optional(),
-        }),
-        currency: z.object({
-          allowed_currencies: z.array(z.string()),
-        }),
-        amount_limits: z.object({
-          per_transaction_max_paise: z.string(),
-          rolling_max_paise: z.string().optional(),
-          aggregate_max_paise: z.string().optional(),
-        }),
-        count_limits: z.object({
-          max_transactions: z.number().optional(),
-        }),
-        operations: z.object({
-          allowed_operations: z.array(z.string()),
-        }),
-        time_constraints: z.object({
-          expires_at: z.string().optional(),
-        }),
-        approval_threshold: z.object({
-          threshold_paise: z.string(),
-        }),
-        payment_references: z.object({
-          allowed_reference_ids: z.array(z.string()),
-        }),
-      }).describe("Policy constraints to evaluate against"),
-      accumulated_usage: z.object({
-        rolling_period_total_paise: z.string().default("0"),
-        aggregate_total_paise: z.string().default("0"),
-        transaction_count: z.number().default(0),
-      }).optional().describe("Accumulated usage for rolling/aggregate checks"),
+      policy: z
+        .object({
+          merchant_allowlist: z.object({
+            allowed_merchant_ids: z.array(z.string()),
+            allowed_domains: z.array(z.string()),
+          }),
+          geography: z.object({
+            allowed_merchant_countries: z.array(z.string()),
+            allowed_delivery_countries: z.array(z.string()),
+          }),
+          category: z.object({
+            allowed_categories: z.array(z.string()),
+            allowed_skus: z.array(z.string()).optional(),
+          }),
+          currency: z.object({
+            allowed_currencies: z.array(z.string()),
+          }),
+          amount_limits: z.object({
+            per_transaction_max_paise: z.string(),
+            rolling_max_paise: z.string().optional(),
+            aggregate_max_paise: z.string().optional(),
+          }),
+          count_limits: z.object({
+            max_transactions: z.number().optional(),
+          }),
+          operations: z.object({
+            allowed_operations: z.array(z.string()),
+          }),
+          time_constraints: z.object({
+            expires_at: z.string().optional(),
+          }),
+          approval_threshold: z.object({
+            threshold_paise: z.string(),
+          }),
+          payment_references: z.object({
+            allowed_reference_ids: z.array(z.string()),
+          }),
+        })
+        .describe("Policy constraints to evaluate against"),
+      accumulated_usage: z
+        .object({
+          rolling_period_total_paise: z.string().default("0"),
+          aggregate_total_paise: z.string().default("0"),
+          transaction_count: z.number().default(0),
+        })
+        .optional()
+        .describe("Accumulated usage for rolling/aggregate checks"),
     },
     async (args) => {
       try {
@@ -411,7 +422,9 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
           } as const;
 
           const accUsage = {
-            rollingPeriodTotalPaise: BigInt(args.accumulated_usage?.rolling_period_total_paise ?? "0"),
+            rollingPeriodTotalPaise: BigInt(
+              args.accumulated_usage?.rolling_period_total_paise ?? "0",
+            ),
             aggregateTotalPaise: BigInt(args.accumulated_usage?.aggregate_total_paise ?? "0"),
             transactionCount: args.accumulated_usage?.transaction_count ?? 0,
           };
@@ -610,11 +623,38 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             });
           }
 
+          // Refunds are a relay, not an immediate execution: this records
+          // the request with the merchant for their approval — it does not
+          // move any money itself. See RefundResponse's docs in
+          // @counter/merchant-contracts for the full design.
+          const refundResult = await merchantClient.requestRefund(
+            args.merchant_id,
+            args.transaction_id,
+            args.reason,
+          );
+
+          if (!refundResult.ok) {
+            const errorKind = refundResult.error.kind;
+            if (errorKind === "timeout" || errorKind === "indeterminate") {
+              return jsonResponse({
+                status: "indeterminate",
+                transaction_id: args.transaction_id,
+                reason: `Refund request outcome is indeterminate: ${errorKind}`,
+              });
+            }
+            return jsonResponse({
+              status: "failed",
+              transaction_id: args.transaction_id,
+              reason: `Refund request failed: ${errorKind}`,
+            });
+          }
+
           return jsonResponse({
             status: "refund_requested",
             transaction_id: args.transaction_id,
             merchant_id: args.merchant_id,
-            requested_at: new Date().toISOString(),
+            refund_request_id: refundResult.value.refundRequestId,
+            requested_at: refundResult.value.requestedAt,
             reason: args.reason,
           });
         });
