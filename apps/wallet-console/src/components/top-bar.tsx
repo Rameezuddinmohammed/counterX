@@ -39,9 +39,7 @@ interface TopBarProps {
 export function TopBar({ onCommandPaletteOpen }: TopBarProps) {
   const pathname = usePathname();
 
-  const breadcrumbs: BreadcrumbItem[] = [
-    { label: "Wallet", href: "/" },
-  ];
+  const breadcrumbs: BreadcrumbItem[] = [{ label: "Wallet", href: "/" }];
 
   if (pathname !== "/") {
     const label = ROUTE_LABELS[pathname] ?? pathname.slice(1);
@@ -98,7 +96,7 @@ export function TopBar({ onCommandPaletteOpen }: TopBarProps) {
               </DropdownMenuItem>
             </Link>
             <DropdownMenuSeparator />
-            <a href="/api/auth/logout">
+            <a href="/auth/logout">
               <DropdownMenuItem>
                 <LogOut className="mr-2 h-4 w-4" />
                 Logout

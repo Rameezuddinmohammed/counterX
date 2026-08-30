@@ -112,6 +112,30 @@ export interface PolicySimulationResult {
 }
 
 // ---------------------------------------------------------------------------
+// Policy Configuration (matches the REAL backend shape returned by
+// GET /control/v1/merchants/:merchantId/policy — see
+// apps/control-plane-api/src/policy-routes.ts. This is distinct from
+// PolicySimulationResult above, which describes a policy *simulation* run
+// that has no backing route in control-plane-api today.)
+// ---------------------------------------------------------------------------
+
+export interface MerchantPolicyRule {
+  readonly ruleId: string;
+  readonly category: string;
+  readonly constraint: string;
+  readonly parameters: Record<string, unknown>;
+  readonly enabled: boolean;
+}
+
+export interface MerchantPolicyConfig {
+  readonly merchantId: string;
+  readonly policyVersion: string;
+  readonly rules: readonly MerchantPolicyRule[];
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Razorpay Status
 // ---------------------------------------------------------------------------
 
