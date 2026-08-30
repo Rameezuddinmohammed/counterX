@@ -304,10 +304,7 @@ describe("StepUpService", () => {
         expires_at: "2025-01-15T09:05:00.000Z",
         nonce: "nonce-expired",
       };
-      const result = service.validateSession(
-        expiredSession,
-        "2025-01-15T09:10:00.000Z",
-      );
+      const result = service.validateSession(expiredSession, "2025-01-15T09:10:00.000Z");
       expect(result.valid).toBe(false);
       expect(result.reason).toContain("expired");
     });
@@ -320,10 +317,7 @@ describe("StepUpService", () => {
         expires_at: "2025-01-15T10:00:00.000Z",
         nonce: "nonce-stale",
       };
-      const result = service.validateSession(
-        staleSession,
-        "2025-01-15T09:02:00.000Z",
-      );
+      const result = service.validateSession(staleSession, "2025-01-15T09:02:00.000Z");
       expect(result.valid).toBe(false);
       expect(result.reason).toContain("stale");
     });
@@ -588,9 +582,7 @@ describe("ConsentAttestationBuilder", () => {
       expect(agentAttempt.ok).toBe(true);
 
       if (legitimateResult.ok && agentAttempt.ok) {
-        expect(legitimateResult.value.payload_digest).not.toBe(
-          agentAttempt.value.payload_digest,
-        );
+        expect(legitimateResult.value.payload_digest).not.toBe(agentAttempt.value.payload_digest);
         const valid = builder.validateDigest(
           agentAttempt.value.payload_digest,
           legitimateResult.value.payload_digest,

@@ -7,11 +7,7 @@
  */
 
 import type { ExternalReference, Instant } from "@counter/domain";
-import type {
-  ActionInput,
-  ActionOutcome,
-  ActionPort,
-} from "@counter/connector-sdk";
+import type { ActionInput, ActionOutcome, ActionPort } from "@counter/connector-sdk";
 import { createConnectorError } from "@counter/connector-sdk";
 
 import { CONNECTOR_SOURCE } from "./catalog.js";

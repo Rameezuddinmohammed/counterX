@@ -5,7 +5,12 @@
 
 import type { Instant, Sha256Digest } from "@counter/domain";
 import { sha256Digest, sha256DigestsEqual } from "@counter/domain";
-import type { ImmutableQuote, MaterialChangeResult, PriceChange, InventoryChange } from "./quote-types.js";
+import type {
+  ImmutableQuote,
+  MaterialChangeResult,
+  PriceChange,
+  InventoryChange,
+} from "./quote-types.js";
 
 // ─── Canonical JSON for CTP Digest ───────────────────────────────────────────
 

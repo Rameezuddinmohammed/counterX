@@ -5,11 +5,7 @@
  * for configuring and querying merchant-specific policy rules.
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import {
-  getCorrelationId,
-  getActorContext,
-  registerRoutePermission,
-} from "@counter/http-api-kit";
+import { getCorrelationId, getActorContext, registerRoutePermission } from "@counter/http-api-kit";
 
 // ---------------------------------------------------------------------------
 // Control-plane policy types (API-layer representations)
@@ -58,7 +54,11 @@ export interface PolicyStore {
    * the write succeeds only if the current version matches. Returns the
    * outcome with the current version number.
    */
-  set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): Promise<{ readonly success: boolean; readonly currentVersion: number }>;
+  set(
+    merchantId: string,
+    config: MerchantPolicyConfig,
+    expectedVersion: number | undefined,
+  ): Promise<{ readonly success: boolean; readonly currentVersion: number }>;
 }
 
 export interface PolicyCompiler {
@@ -81,7 +81,11 @@ export function createInMemoryPolicyStore(): PolicyStore {
     async get(merchantId: string) {
       return policies.get(merchantId);
     },
-    async set(merchantId: string, config: MerchantPolicyConfig, expectedVersion: number | undefined): Promise<{ readonly success: boolean; readonly currentVersion: number }> {
+    async set(
+      merchantId: string,
+      config: MerchantPolicyConfig,
+      expectedVersion: number | undefined,
+    ): Promise<{ readonly success: boolean; readonly currentVersion: number }> {
       const existing = policies.get(merchantId);
       const currentVersion = existing?.version ?? 0;
 

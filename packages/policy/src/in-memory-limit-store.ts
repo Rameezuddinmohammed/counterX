@@ -97,10 +97,7 @@ export class InMemoryLimitStore implements LimitStore {
     return lock;
   }
 
-  private getActiveReservationsInternal(
-    bucketId: string,
-    now: Instant,
-  ): MutableReservation[] {
+  private getActiveReservationsInternal(bucketId: string, now: Instant): MutableReservation[] {
     const reservations = this.#reservations.get(bucketId);
     if (reservations === undefined) {
       return [];

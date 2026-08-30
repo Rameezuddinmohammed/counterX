@@ -40,20 +40,44 @@ export function CounterLogo({ size = 32, className, ...props }: LogoProps) {
       {/* Top row - 3 cubes forming top of C */}
       <rect x="16" y="6" width="10" height="10" rx="2.5" fill="url(#counter-grad-1)" />
       <rect x="28" y="6" width="10" height="10" rx="2.5" fill="url(#counter-grad-2)" />
-      <rect x="40" y="6" width="10" height="10" rx="2.5" fill="url(#counter-grad-1)" opacity="0.7" />
+      <rect
+        x="40"
+        y="6"
+        width="10"
+        height="10"
+        rx="2.5"
+        fill="url(#counter-grad-1)"
+        opacity="0.7"
+      />
 
       {/* Upper-left cube */}
       <rect x="6" y="18" width="10" height="10" rx="2.5" fill="url(#counter-grad-2)" />
 
       {/* Center-left cube with small accent */}
       <rect x="6" y="30" width="10" height="10" rx="2.5" fill="url(#counter-grad-3)" />
-      <rect x="18" y="33" width="5" height="5" rx="1.5" fill="url(#counter-grad-1)" opacity="0.35" />
+      <rect
+        x="18"
+        y="33"
+        width="5"
+        height="5"
+        rx="1.5"
+        fill="url(#counter-grad-1)"
+        opacity="0.35"
+      />
 
       {/* Lower-left cube */}
       <rect x="6" y="42" width="10" height="10" rx="2.5" fill="url(#counter-grad-2)" />
 
       {/* Bottom row - 3 cubes forming bottom of C */}
-      <rect x="16" y="54" width="10" height="10" rx="2.5" fill="url(#counter-grad-1)" opacity="0.7" />
+      <rect
+        x="16"
+        y="54"
+        width="10"
+        height="10"
+        rx="2.5"
+        fill="url(#counter-grad-1)"
+        opacity="0.7"
+      />
       <rect x="28" y="54" width="10" height="10" rx="2.5" fill="url(#counter-grad-2)" />
       <rect x="40" y="54" width="10" height="10" rx="2.5" fill="url(#counter-grad-1)" />
 
@@ -67,11 +91,7 @@ export function CounterLogo({ size = 32, className, ...props }: LogoProps) {
 /**
  * Counter Wordmark - Full logo with text
  */
-export function CounterWordmark({
-  size = 32,
-  className,
-  ...props
-}: LogoProps) {
+export function CounterWordmark({ size = 32, className, ...props }: LogoProps) {
   const width = size * 4.5;
   return (
     <svg

@@ -24,8 +24,8 @@ export function CTASection() {
             <span className="text-gradient-orange">AI commerce?</span>
           </h2>
           <p className="mx-auto max-w-xl text-lg text-[var(--foreground-secondary)] mb-10">
-            Join the early access program and be among the first to integrate
-            Counter into your AI agent infrastructure.
+            Join the early access program and be among the first to integrate Counter into your AI
+            agent infrastructure.
           </p>
         </motion.div>
 
@@ -37,10 +37,7 @@ export function CTASection() {
           transition={{ delay: 0.1 }}
           className="mx-auto max-w-md"
         >
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="flex flex-col sm:flex-row gap-3"
-          >
+          <form onSubmit={(e) => e.preventDefault()} className="flex flex-col sm:flex-row gap-3">
             <Input
               type="email"
               placeholder="Enter your email"

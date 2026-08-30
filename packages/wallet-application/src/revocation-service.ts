@@ -285,7 +285,10 @@ export class WalletRevocationService {
     };
   }
 
-  #buildEnvelope(record: RevocationRecord, input: RevocationInput): UnsignedCtpEnvelope<RevocationPayload> {
+  #buildEnvelope(
+    record: RevocationRecord,
+    input: RevocationInput,
+  ): UnsignedCtpEnvelope<RevocationPayload> {
     const payload = this.#buildPayload(record);
     const now = record.effectiveTime;
 

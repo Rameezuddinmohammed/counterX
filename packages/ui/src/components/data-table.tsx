@@ -53,10 +53,7 @@ export function DataTable<T extends Record<string, unknown>>({
 }: DataTableProps<T>) {
   return (
     <div
-      className={cn(
-        "overflow-hidden rounded-xl border border-[var(--border)]",
-        className
-      )}
+      className={cn("overflow-hidden rounded-xl border border-[var(--border)]", className)}
       {...props}
     >
       <div className="overflow-x-auto">
@@ -68,7 +65,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   key={column.key}
                   className={cn(
                     "px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--foreground-muted)]",
-                    column.className
+                    column.className,
                   )}
                 >
                   {column.header}
@@ -92,21 +89,16 @@ export function DataTable<T extends Record<string, unknown>>({
                   key={rowIndex}
                   className={cn(
                     "transition-colors hover:bg-[var(--surface-secondary)]",
-                    onRowClick && "cursor-pointer"
+                    onRowClick && "cursor-pointer",
                   )}
                   onClick={() => onRowClick?.(item)}
                 >
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={cn(
-                        "px-4 py-3 text-sm text-[var(--foreground)]",
-                        column.className
-                      )}
+                      className={cn("px-4 py-3 text-sm text-[var(--foreground)]", column.className)}
                     >
-                      {column.cell
-                        ? column.cell(item)
-                        : renderCellValue(item[column.key])}
+                      {column.cell ? column.cell(item) : renderCellValue(item[column.key])}
                     </td>
                   ))}
                 </tr>

@@ -167,7 +167,8 @@ export function createEventFixtures(): EventFixtures {
   return {
     duplicateEventId: "evt-duplicate-001",
     outOfOrderSequencePositions: [3, 1, 2, 5, 4],
-    verifiedWebhookDigest: "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2" as Sha256Digest,
+    verifiedWebhookDigest:
+      "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2" as Sha256Digest,
   };
 }
 

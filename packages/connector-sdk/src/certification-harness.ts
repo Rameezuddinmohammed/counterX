@@ -53,10 +53,7 @@ export interface CertificationOptions {
 
 // ─── Harness Implementation ───────────────────────────────────────────────────
 
-async function runTestCase(
-  name: string,
-  fn: () => Promise<void>,
-): Promise<TestCaseResult> {
+async function runTestCase(name: string, fn: () => Promise<void>): Promise<TestCaseResult> {
   const start = Date.now();
   try {
     await fn();
@@ -275,25 +272,18 @@ async function testTimeoutSemantics<T extends ConnectorManifest>(
         lastKnownState: "request_sent",
       };
       assert(outcome.status === "indeterminate", "after_effect timeout must be indeterminate");
-      assert(
-        outcome.correlationId === "timeout-corr",
-        "indeterminate must have correlationId",
-      );
+      assert(outcome.correlationId === "timeout-corr", "indeterminate must have correlationId");
     }),
   );
 
   for (const action of connector.manifest.actions) {
     tests.push(
-      await runTestCase(
-        `timeout: action '${action.name}' declares timeout semantics`,
-        async () => {
-          assert(
-            action.timeoutSemantics === "before_effect" ||
-              action.timeoutSemantics === "after_effect",
-            `action '${action.name}' must declare timeout semantics`,
-          );
-        },
-      ),
+      await runTestCase(`timeout: action '${action.name}' declares timeout semantics`, async () => {
+        assert(
+          action.timeoutSemantics === "before_effect" || action.timeoutSemantics === "after_effect",
+          `action '${action.name}' must declare timeout semantics`,
+        );
+      }),
     );
   }
 

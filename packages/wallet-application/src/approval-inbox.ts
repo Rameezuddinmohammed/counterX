@@ -101,9 +101,7 @@ export class InMemoryApprovalTaskStore implements ApprovalTaskStore {
   }
 
   findByWalletAndStatus(walletId: string, status: ApprovalTaskStatus): readonly ApprovalTask[] {
-    return [...this.#tasks.values()].filter(
-      (t) => t.walletId === walletId && t.status === status,
-    );
+    return [...this.#tasks.values()].filter((t) => t.walletId === walletId && t.status === status);
   }
 
   listAll(): readonly ApprovalTask[] {
@@ -121,11 +119,7 @@ export class ApprovalInbox {
   readonly #stepUpService: StepUpService;
   readonly #handoffBaseUrl: string;
 
-  constructor(
-    stepUpService: StepUpService,
-    store?: ApprovalTaskStore,
-    handoffBaseUrl?: string,
-  ) {
+  constructor(stepUpService: StepUpService, store?: ApprovalTaskStore, handoffBaseUrl?: string) {
     this.#stepUpService = stepUpService;
     this.#store = store ?? new InMemoryApprovalTaskStore();
     this.#handoffBaseUrl = handoffBaseUrl ?? "https://wallet.counter.dev/approve";

@@ -3,15 +3,17 @@ import type { CounterId, Instant } from "@counter/domain";
 import { AuditLog, computeEntriesDigest, createAuditEntry } from "./audit.js";
 import type { AuditEntry } from "./types.js";
 
-function makeAuditEntry(overrides: {
-  id?: string;
-  actorId?: string;
-  actorKind?: AuditEntry["actorKind"];
-  action?: AuditEntry["action"];
-  targetType?: string;
-  targetId?: string;
-  timestamp?: Instant;
-} = {}): AuditEntry {
+function makeAuditEntry(
+  overrides: {
+    id?: string;
+    actorId?: string;
+    actorKind?: AuditEntry["actorKind"];
+    action?: AuditEntry["action"];
+    targetType?: string;
+    targetId?: string;
+    timestamp?: Instant;
+  } = {},
+): AuditEntry {
   return createAuditEntry({
     id: overrides.id ?? "audit-1",
     actorId: overrides.actorId ?? "actor-1",

@@ -69,9 +69,7 @@ class SeededRandom {
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
-export function createFaultControls(
-  config: Partial<FaultControlsConfig> = {},
-): FaultControls {
+export function createFaultControls(config: Partial<FaultControlsConfig> = {}): FaultControls {
   const resolved: FaultControlsConfig = { ...DEFAULT_FAULT_CONFIG, ...config };
   const rng = new SeededRandom(resolved.seed);
 

@@ -49,8 +49,7 @@ export const MERCHANT_ADMIN_BLOCKING_CONDITIONS = [
   "principal_merchant_mismatch",
 ] as const;
 
-export type MerchantAdminBlockingCondition =
-  (typeof MERCHANT_ADMIN_BLOCKING_CONDITIONS)[number];
+export type MerchantAdminBlockingCondition = (typeof MERCHANT_ADMIN_BLOCKING_CONDITIONS)[number];
 
 // ─── Method 2: Domain Control or Development Store Limitation ────────────────
 
@@ -76,8 +75,7 @@ export const DOMAIN_CONTROL_BLOCKING_CONDITIONS = [
   "evidence_expired_without_revalidation",
 ] as const;
 
-export type DomainControlBlockingCondition =
-  (typeof DOMAIN_CONTROL_BLOCKING_CONDITIONS)[number];
+export type DomainControlBlockingCondition = (typeof DOMAIN_CONTROL_BLOCKING_CONDITIONS)[number];
 
 // ─── Method 3: Shopify Shop Identity ────────────────────────────────────────
 
@@ -111,8 +109,7 @@ export const SHOPIFY_SHOP_BLOCKING_CONDITIONS = [
   "shop_merchant_subject_mismatch",
 ] as const;
 
-export type ShopifyShopBlockingCondition =
-  (typeof SHOPIFY_SHOP_BLOCKING_CONDITIONS)[number];
+export type ShopifyShopBlockingCondition = (typeof SHOPIFY_SHOP_BLOCKING_CONDITIONS)[number];
 
 // ─── Method 4: Razorpay Test Account Ownership ──────────────────────────────
 
@@ -138,5 +135,4 @@ export const RAZORPAY_BLOCKING_CONDITIONS = [
   "evidence_expired_without_revalidation",
 ] as const;
 
-export type RazorpayBlockingCondition =
-  (typeof RAZORPAY_BLOCKING_CONDITIONS)[number];
+export type RazorpayBlockingCondition = (typeof RAZORPAY_BLOCKING_CONDITIONS)[number];

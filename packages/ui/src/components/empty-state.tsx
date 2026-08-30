@@ -20,7 +20,7 @@ export function EmptyState({
     <div
       className={cn(
         "flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] px-6 py-12 text-center",
-        className
+        className,
       )}
       {...props}
     >
@@ -29,13 +29,9 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <h3 className="text-base font-semibold text-[var(--foreground)]">
-        {title}
-      </h3>
+      <h3 className="text-base font-semibold text-[var(--foreground)]">{title}</h3>
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-[var(--foreground-secondary)]">
-          {description}
-        </p>
+        <p className="mt-1 max-w-sm text-sm text-[var(--foreground-secondary)]">{description}</p>
       )}
       {action && <div className="mt-4">{action}</div>}
     </div>

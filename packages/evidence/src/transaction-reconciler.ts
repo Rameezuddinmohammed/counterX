@@ -139,16 +139,17 @@ export class TransactionReconciler {
     const transactionId = firstRecord.transactionId;
 
     // Step 1: Run reconciliation to detect findings
-    const reconcileOptions: ReconcileOptions = this.#config.staleThresholdMs !== undefined
-      ? {
-          findingIdGenerator: this.#config.findingIdGenerator,
-          now,
-          staleThresholdMs: this.#config.staleThresholdMs,
-        }
-      : {
-          findingIdGenerator: this.#config.findingIdGenerator,
-          now,
-        };
+    const reconcileOptions: ReconcileOptions =
+      this.#config.staleThresholdMs !== undefined
+        ? {
+            findingIdGenerator: this.#config.findingIdGenerator,
+            now,
+            staleThresholdMs: this.#config.staleThresholdMs,
+          }
+        : {
+            findingIdGenerator: this.#config.findingIdGenerator,
+            now,
+          };
 
     const findings = reconcileTransaction(observations, reconcileOptions);
 
@@ -219,7 +220,10 @@ export class TransactionReconciler {
         return createRefundCommand(
           finding,
           moneyResult.value,
-          String((firstPayment.canonicalClaim.details["paymentId"] as string | undefined) ?? firstPayment.sourceId),
+          String(
+            (firstPayment.canonicalClaim.details["paymentId"] as string | undefined) ??
+              firstPayment.sourceId,
+          ),
           "Price mismatch detected during reconciliation",
           context,
         );
@@ -228,14 +232,16 @@ export class TransactionReconciler {
       case "orphaned_authorization": {
         const authRecord = observations.find(
           (r) =>
-            r.source === "payment_provider" &&
-            r.canonicalClaim.type === "authorization_created",
+            r.source === "payment_provider" && r.canonicalClaim.type === "authorization_created",
         );
         if (authRecord === undefined) return undefined;
 
         return createVoidCommand(
           finding,
-          String((authRecord.canonicalClaim.details["authorizationId"] as string | undefined) ?? authRecord.sourceId),
+          String(
+            (authRecord.canonicalClaim.details["authorizationId"] as string | undefined) ??
+              authRecord.sourceId,
+          ),
           "Orphaned authorization detected, no corresponding capture or void",
           context,
         );
@@ -245,27 +251,30 @@ export class TransactionReconciler {
         // If payment exists but no order, void the authorization
         const authRecord = observations.find(
           (r) =>
-            r.source === "payment_provider" &&
-            r.canonicalClaim.type === "authorization_created",
+            r.source === "payment_provider" && r.canonicalClaim.type === "authorization_created",
         );
         if (authRecord !== undefined) {
           return createVoidCommand(
             finding,
-            String((authRecord.canonicalClaim.details["authorizationId"] as string | undefined) ?? authRecord.sourceId),
+            String(
+              (authRecord.canonicalClaim.details["authorizationId"] as string | undefined) ??
+                authRecord.sourceId,
+            ),
             "Payment/order mismatch: payment exists without order commitment",
             context,
           );
         }
         // If order exists but no payment, cancel the order
         const orderRecord = observations.find(
-          (r) =>
-            r.source === "merchant_connector" &&
-            r.canonicalClaim.type === "order_committed",
+          (r) => r.source === "merchant_connector" && r.canonicalClaim.type === "order_committed",
         );
         if (orderRecord !== undefined) {
           return createCancelCommand(
             finding,
-            String((orderRecord.canonicalClaim.details["orderId"] as string | undefined) ?? orderRecord.sourceId),
+            String(
+              (orderRecord.canonicalClaim.details["orderId"] as string | undefined) ??
+                orderRecord.sourceId,
+            ),
             "Payment/order mismatch: order exists without payment confirmation",
             context,
           );
@@ -284,7 +293,10 @@ export class TransactionReconciler {
         if (orderRecord !== undefined) {
           return createCancelCommand(
             finding,
-            String((orderRecord.canonicalClaim.details["orderId"] as string | undefined) ?? orderRecord.sourceId),
+            String(
+              (orderRecord.canonicalClaim.details["orderId"] as string | undefined) ??
+                orderRecord.sourceId,
+            ),
             "Stale evidence detected, cancelling associated order",
             context,
           );

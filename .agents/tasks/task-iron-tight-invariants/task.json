@@ -2,11 +2,7 @@
   "task_id": "task-iron-tight-invariants",
   "task_description": "Prove CounterX's security and reliability invariants against the REAL path before real money/users. Close the durable-idempotency gap (persist Shopify-leg step outcomes so retries resume, not re-drive), wire runtime kill switches into the live execution path, add a periodic reconciliation job, and prove every invariant with creds/DB-gated adversarial + tenant-isolation + secret-leakage integration tests against real Postgres + real/boundary-mocked providers. All real-infra tests skip without creds and clean up (cancel real Shopify orders, delete test DB rows). Preserve explicit outcomes (post-effect timeout -> INDETERMINATE). Do not break the existing 2764 tests.",
   "status": "completed",
-  "feature_order": [
-    "FEAT-001",
-    "FEAT-002",
-    "FEAT-003"
-  ],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
   "blocked_reason": null,
   "verification": {
     "build": "pass",
@@ -18,9 +14,6 @@
   "review": {
     "v1": "NEEDS_CHANGES (6 issues: reconciliation key mismatch [blocking], allow-all production policy, under-verified concurrency draft, unbounded reconciliation re-record, simulated revocation/quote-tamper, secret scan gaps)",
     "v2": "APPROVED \u2014 all 6 issues confirmed fixed. Two non-blocking notes: rolling-24h ledger is per-process best-effort in a multi-worker deployment (per-txn ceiling + envelope predicates are hard); one cosmetic stale comment.",
-    "artifacts": [
-      "2026-08-27-145949-review.md",
-      "2026-08-27-153000-review.md"
-    ]
+    "artifacts": ["2026-08-27-145949-review.md", "2026-08-27-153000-review.md"]
   }
 }

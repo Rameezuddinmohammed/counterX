@@ -172,9 +172,7 @@ function checkMerchantAllowlist(
 
   // Check if merchant is in the allowlist
   if (allowedMerchantIds.length > 0 && !allowedMerchantIds.includes(action.merchantId)) {
-    reasons.push(
-      `Merchant '${action.merchantId}' is not in the allowed merchant list`,
-    );
+    reasons.push(`Merchant '${action.merchantId}' is not in the allowed merchant list`);
   }
 }
 
@@ -215,17 +213,13 @@ function checkCategory(
 
   if (action.category !== undefined && allowedCategories.length > 0) {
     if (!allowedCategories.includes(action.category)) {
-      reasons.push(
-        `Category '${action.category}' is not in the allowed categories`,
-      );
+      reasons.push(`Category '${action.category}' is not in the allowed categories`);
     }
   }
 
   if (action.sku !== undefined && allowedSkus !== undefined && allowedSkus.length > 0) {
     if (!allowedSkus.includes(action.sku)) {
-      reasons.push(
-        `SKU '${action.sku}' is not in the allowed SKUs`,
-      );
+      reasons.push(`SKU '${action.sku}' is not in the allowed SKUs`);
     }
   }
 }

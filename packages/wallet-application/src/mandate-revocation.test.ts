@@ -800,7 +800,9 @@ describe("policy widening and mandate reissuance", () => {
 
     expect(result2.ok).toBe(true);
     if (result2.ok) {
-      expect(result2.value.mandate.constraints.amountLimits.perTransactionMaxPaise).toBe(2_000_000n);
+      expect(result2.value.mandate.constraints.amountLimits.perTransactionMaxPaise).toBe(
+        2_000_000n,
+      );
     }
   });
 });

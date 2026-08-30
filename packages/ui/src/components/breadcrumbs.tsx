@@ -13,18 +13,9 @@ export interface BreadcrumbsProps extends React.HTMLAttributes<HTMLElement> {
   separator?: React.ReactNode;
 }
 
-export function Breadcrumbs({
-  items,
-  separator,
-  className,
-  ...props
-}: BreadcrumbsProps) {
+export function Breadcrumbs({ items, separator, className, ...props }: BreadcrumbsProps) {
   return (
-    <nav
-      aria-label="Breadcrumb"
-      className={cn("flex items-center", className)}
-      {...props}
-    >
+    <nav aria-label="Breadcrumb" className={cn("flex items-center", className)} {...props}>
       <ol className="flex items-center gap-1">
         {items.map((item, index) => (
           <li key={index} className="flex items-center gap-1">
@@ -46,7 +37,7 @@ export function Breadcrumbs({
                   "text-sm",
                   item.active
                     ? "font-medium text-[var(--foreground)]"
-                    : "text-[var(--foreground-secondary)]"
+                    : "text-[var(--foreground-secondary)]",
                 )}
               >
                 {item.label}

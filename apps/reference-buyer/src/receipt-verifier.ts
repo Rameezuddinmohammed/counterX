@@ -58,15 +58,20 @@ const DEFAULT_TRUSTED_KEYS: readonly TrustedPublicKey[] = Object.freeze([
 export async function verifyReceiptIndependent(
   options: IndependentVerificationOptions,
 ): Promise<IndependentVerificationResult> {
-  const trustedKeys = options.additionalTrustedKeys !== undefined
-    ? [...DEFAULT_TRUSTED_KEYS, ...options.additionalTrustedKeys]
-    : [...DEFAULT_TRUSTED_KEYS];
+  const trustedKeys =
+    options.additionalTrustedKeys !== undefined
+      ? [...DEFAULT_TRUSTED_KEYS, ...options.additionalTrustedKeys]
+      : [...DEFAULT_TRUSTED_KEYS];
 
   const verifyOptions: ReceiptVerifyOptions = {
     trustedKeys,
-    ...(options.expectedAudience !== undefined ? { expectedAudience: options.expectedAudience } : {}),
+    ...(options.expectedAudience !== undefined
+      ? { expectedAudience: options.expectedAudience }
+      : {}),
     ...(options.currentTime !== undefined ? { currentTime: options.currentTime } : {}),
-    ...(options.predecessorEnvelope !== undefined ? { predecessorEnvelope: options.predecessorEnvelope } : {}),
+    ...(options.predecessorEnvelope !== undefined
+      ? { predecessorEnvelope: options.predecessorEnvelope }
+      : {}),
   };
 
   const result = await verifyReceipt(options.envelope, verifyOptions);

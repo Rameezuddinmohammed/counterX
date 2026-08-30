@@ -207,7 +207,9 @@ export function compileMerchantPolicy(
   };
 
   // Default min/max amounts
-  const defaultCurrency = (allowedCurrencies.length > 0 ? allowedCurrencies[0] : "INR") as IsoCurrencyCode;
+  const defaultCurrency = (
+    allowedCurrencies.length > 0 ? allowedCurrencies[0] : "INR"
+  ) as IsoCurrencyCode;
   const defaultMinAmount: Money = {
     amountMinor: 0n,
     currency: defaultCurrency,
@@ -227,7 +229,9 @@ export function compileMerchantPolicy(
     maxAmount: defaultMaxAmount,
     allowedCurrencies: Object.freeze([...allowedCurrencies]) as readonly IsoCurrencyCode[],
     allowedDestinations: Object.freeze([...allowedDestinations]),
-    allowedPaymentPaths: Object.freeze([...allowedPaymentPaths]) as MerchantPolicyConstraints["allowedPaymentPaths"],
+    allowedPaymentPaths: Object.freeze([
+      ...allowedPaymentPaths,
+    ]) as MerchantPolicyConstraints["allowedPaymentPaths"],
     timeWindow: Object.freeze(timeWindow),
   });
 

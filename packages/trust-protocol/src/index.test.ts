@@ -91,16 +91,18 @@ async function createValidSignedEnvelope(
   return result.value;
 }
 
-function createDefaultVerifyOptions(overrides: {
-  keyRegistry?: VerifyOptions["keyRegistry"];
-  currentTime?: string;
-  expectedAudience?: string;
-  expectedEnvironment?: string;
-  expectedIssuer?: string;
-  expectedSubject?: string;
-  knownFields?: ReadonlySet<string>;
-  nonceStore?: VerifyOptions["nonceStore"];
-} = {}): VerifyOptions {
+function createDefaultVerifyOptions(
+  overrides: {
+    keyRegistry?: VerifyOptions["keyRegistry"];
+    currentTime?: string;
+    expectedAudience?: string;
+    expectedEnvironment?: string;
+    expectedIssuer?: string;
+    expectedSubject?: string;
+    knownFields?: ReadonlySet<string>;
+    nonceStore?: VerifyOptions["nonceStore"];
+  } = {},
+): VerifyOptions {
   const registry = new InMemoryKeyRegistry([TEST_KEY_RECORD_A, TEST_KEY_RECORD_B]);
   const base: VerifyOptions = {
     keyRegistry: overrides.keyRegistry ?? registry,
@@ -108,12 +110,18 @@ function createDefaultVerifyOptions(overrides: {
   };
   // Use Object.assign to conditionally add optional properties without assigning undefined
   const result = { ...base };
-  if (overrides.expectedAudience !== undefined) Object.assign(result, { expectedAudience: overrides.expectedAudience });
-  if (overrides.expectedEnvironment !== undefined) Object.assign(result, { expectedEnvironment: overrides.expectedEnvironment });
-  if (overrides.expectedIssuer !== undefined) Object.assign(result, { expectedIssuer: overrides.expectedIssuer });
-  if (overrides.expectedSubject !== undefined) Object.assign(result, { expectedSubject: overrides.expectedSubject });
-  if (overrides.knownFields !== undefined) Object.assign(result, { knownFields: overrides.knownFields });
-  if (overrides.nonceStore !== undefined) Object.assign(result, { nonceStore: overrides.nonceStore });
+  if (overrides.expectedAudience !== undefined)
+    Object.assign(result, { expectedAudience: overrides.expectedAudience });
+  if (overrides.expectedEnvironment !== undefined)
+    Object.assign(result, { expectedEnvironment: overrides.expectedEnvironment });
+  if (overrides.expectedIssuer !== undefined)
+    Object.assign(result, { expectedIssuer: overrides.expectedIssuer });
+  if (overrides.expectedSubject !== undefined)
+    Object.assign(result, { expectedSubject: overrides.expectedSubject });
+  if (overrides.knownFields !== undefined)
+    Object.assign(result, { knownFields: overrides.knownFields });
+  if (overrides.nonceStore !== undefined)
+    Object.assign(result, { nonceStore: overrides.nonceStore });
   return result;
 }
 
@@ -365,7 +373,8 @@ describe("Verification", () => {
       ...envelope,
       signature: {
         ...envelope.signature,
-        value: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" as SignatureValue,
+        value:
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" as SignatureValue,
       },
     };
     const options = createDefaultVerifyOptions();

@@ -16,10 +16,7 @@ import {
   type CtpEnvelope,
 } from "@counter/trust-protocol";
 
-import {
-  PilotCertification,
-  type ScenarioDefinition,
-} from "./pilot-certification.js";
+import { PilotCertification, type ScenarioDefinition } from "./pilot-certification.js";
 import {
   buildTraceabilityMatrix,
   validateTraceability,
@@ -309,14 +306,11 @@ describe("PilotCertification", () => {
 
       // Verify using trust-protocol verify
       const keyRegistry = new InMemoryKeyRegistry([TEST_KEY_RECORD_A]);
-      const verifyResult = await verifyEnvelope(
-        signedManifest.envelope as CtpEnvelope,
-        {
-          keyRegistry,
-          currentTime: new Date().toISOString(),
-          expectedAudience: "counter://pilot-verifier",
-        },
-      );
+      const verifyResult = await verifyEnvelope(signedManifest.envelope as CtpEnvelope, {
+        keyRegistry,
+        currentTime: new Date().toISOString(),
+        expectedAudience: "counter://pilot-verifier",
+      });
 
       expect(verifyResult.ok).toBe(true);
     });
@@ -444,12 +438,14 @@ describe("RequirementTraceability", () => {
     });
 
     it("calculates coverage percentage correctly", () => {
-      const results: CertificationScenarioResult[] = PILOT_REQUIREMENTS.slice(0, 7).map((req, i) => ({
-        scenarioId: `scenario-${i}`,
-        requirementIds: [req.id],
-        passed: true,
-        evidenceIds: [`evidence-${i}`],
-      }));
+      const results: CertificationScenarioResult[] = PILOT_REQUIREMENTS.slice(0, 7).map(
+        (req, i) => ({
+          scenarioId: `scenario-${i}`,
+          requirementIds: [req.id],
+          passed: true,
+          evidenceIds: [`evidence-${i}`],
+        }),
+      );
 
       const matrix = buildTraceabilityMatrix(results);
       const validation = validateTraceability(matrix);
@@ -606,14 +602,11 @@ describe("EvidenceBundle", () => {
 
       // Verify using trust-protocol verify
       const keyRegistry = new InMemoryKeyRegistry([TEST_KEY_RECORD_A]);
-      const verifyResult = await verifyEnvelope(
-        signed.envelope as CtpEnvelope,
-        {
-          keyRegistry,
-          currentTime: new Date().toISOString(),
-          expectedAudience: "counter://pilot-verifier",
-        },
-      );
+      const verifyResult = await verifyEnvelope(signed.envelope as CtpEnvelope, {
+        keyRegistry,
+        currentTime: new Date().toISOString(),
+        expectedAudience: "counter://pilot-verifier",
+      });
 
       expect(verifyResult.ok).toBe(true);
     });

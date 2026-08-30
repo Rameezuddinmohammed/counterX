@@ -138,9 +138,14 @@ export async function withRetryResult<T>(
     await sleep(delay);
   }
 
-  return lastResult ?? err(createCanonicalError({
-    category: "internal",
-    code: "INTERNAL",
-    message: "Retry exhausted with no result",
-  }));
+  return (
+    lastResult ??
+    err(
+      createCanonicalError({
+        category: "internal",
+        code: "INTERNAL",
+        message: "Retry exhausted with no result",
+      }),
+    )
+  );
 }

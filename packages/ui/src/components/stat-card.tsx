@@ -27,23 +27,17 @@ export function StatCard({
     <div
       className={cn(
         "rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 transition-all duration-200 hover:border-[var(--border-secondary)]",
-        className
+        className,
       )}
       {...props}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            {icon && (
-              <span className="text-[var(--foreground-muted)]">{icon}</span>
-            )}
-            <p className="text-sm font-medium text-[var(--foreground-secondary)]">
-              {label}
-            </p>
+            {icon && <span className="text-[var(--foreground-muted)]">{icon}</span>}
+            <p className="text-sm font-medium text-[var(--foreground-secondary)]">{label}</p>
           </div>
-          <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
-            {value}
-          </p>
+          <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">{value}</p>
         </div>
         {trend && (
           <div
@@ -51,7 +45,7 @@ export function StatCard({
               "flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
               trend.direction === "up"
                 ? "bg-emerald-500/10 text-emerald-500"
-                : "bg-red-500/10 text-red-500"
+                : "bg-red-500/10 text-red-500",
             )}
           >
             {trend.direction === "up" ? (
@@ -64,9 +58,7 @@ export function StatCard({
         )}
       </div>
       {(description ?? trend?.label) && (
-        <p className="mt-2 text-xs text-[var(--foreground-muted)]">
-          {description ?? trend?.label}
-        </p>
+        <p className="mt-2 text-xs text-[var(--foreground-muted)]">{description ?? trend?.label}</p>
       )}
     </div>
   );

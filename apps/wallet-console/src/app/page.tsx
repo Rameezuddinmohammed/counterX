@@ -14,9 +14,24 @@ import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
 
 const QUICK_ACTIONS = [
-  { label: "View Transactions", href: "/transactions", icon: ArrowLeftRight, description: "Browse recent activity" },
-  { label: "Manage Devices", href: "/devices", icon: Smartphone, description: "Pair or unpair devices" },
-  { label: "Review Approvals", href: "/approvals", icon: CheckCircle2, description: "Pending authorization requests" },
+  {
+    label: "View Transactions",
+    href: "/transactions",
+    icon: ArrowLeftRight,
+    description: "Browse recent activity",
+  },
+  {
+    label: "Manage Devices",
+    href: "/devices",
+    icon: Smartphone,
+    description: "Pair or unpair devices",
+  },
+  {
+    label: "Review Approvals",
+    href: "/approvals",
+    icon: CheckCircle2,
+    description: "Pending authorization requests",
+  },
   { label: "Export Data", href: "/export", icon: Download, description: "Download wallet records" },
 ];
 
@@ -26,9 +41,7 @@ export default function DashboardPage() {
       <div className="space-y-8">
         {/* Welcome Section */}
         <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">
-            Wallet Overview
-          </h1>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Wallet Overview</h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Monitor your wallet status, recent activity, and pending actions.
           </p>
@@ -43,7 +56,9 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-[var(--foreground-secondary)]">Wallet ID</p>
-                <p className="text-lg font-mono font-semibold text-[var(--foreground)]">wlt-pilot-001</p>
+                <p className="text-lg font-mono font-semibold text-[var(--foreground)]">
+                  wlt-pilot-001
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -101,7 +116,9 @@ export default function DashboardPage() {
                       </div>
                       <div>
                         <p className="font-medium text-[var(--foreground)]">{action.label}</p>
-                        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{action.description}</p>
+                        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                          {action.description}
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -118,10 +135,30 @@ export default function DashboardPage() {
             <CardContent className="p-0">
               <div className="divide-y divide-[var(--border)]">
                 {[
-                  { action: "Transaction approved", detail: "INR 2,500 to MerchantCo", time: "5 min ago", badge: "approved" },
-                  { action: "Device paired", detail: "iPhone 15 Pro added", time: "2 hours ago", badge: "paired" },
-                  { action: "Mandate created", detail: "Monthly subscription - StreamFlix", time: "1 day ago", badge: "active" },
-                  { action: "Security check passed", detail: "Biometric verification successful", time: "2 days ago", badge: "verified" },
+                  {
+                    action: "Transaction approved",
+                    detail: "INR 2,500 to MerchantCo",
+                    time: "5 min ago",
+                    badge: "approved",
+                  },
+                  {
+                    action: "Device paired",
+                    detail: "iPhone 15 Pro added",
+                    time: "2 hours ago",
+                    badge: "paired",
+                  },
+                  {
+                    action: "Mandate created",
+                    detail: "Monthly subscription - StreamFlix",
+                    time: "1 day ago",
+                    badge: "active",
+                  },
+                  {
+                    action: "Security check passed",
+                    detail: "Biometric verification successful",
+                    time: "2 days ago",
+                    badge: "verified",
+                  },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center justify-between px-5 py-3.5">
                     <div>

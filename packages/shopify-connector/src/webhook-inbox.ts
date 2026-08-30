@@ -127,10 +127,7 @@ export class WebhookInbox {
    * Receive a raw webhook payload. Verifies HMAC signature and
    * deduplicates by webhook ID before enqueuing.
    */
-  async receive(
-    rawBody: Uint8Array,
-    headers: WebhookHeaders,
-  ): Promise<Result<WebhookAcceptance>> {
+  async receive(rawBody: Uint8Array, headers: WebhookHeaders): Promise<Result<WebhookAcceptance>> {
     const webhookId = headers["x-shopify-webhook-id"];
     const hmac = headers["x-shopify-hmac-sha256"];
 
@@ -152,9 +149,7 @@ export class WebhookInbox {
     }
 
     // Also check pending queue for duplicates
-    const alreadyPending = this.pendingQueue.some(
-      (entry) => entry.event.webhookId === webhookId,
-    );
+    const alreadyPending = this.pendingQueue.some((entry) => entry.event.webhookId === webhookId);
     if (alreadyPending) {
       return ok({
         status: "already_processed" as const,
@@ -216,13 +211,15 @@ export class WebhookInbox {
     } catch (error: unknown) {
       if (entry.attempts >= this.maxRetries) {
         // Move to dead letter queue
-        this.deadLetters.push(Object.freeze({
-          webhookId: entry.event.webhookId,
-          event: entry.event,
-          attempts: entry.attempts,
-          lastError: error instanceof Error ? error.message : String(error),
-          failedAt: Date.now() as Instant,
-        }));
+        this.deadLetters.push(
+          Object.freeze({
+            webhookId: entry.event.webhookId,
+            event: entry.event,
+            attempts: entry.attempts,
+            lastError: error instanceof Error ? error.message : String(error),
+            failedAt: Date.now() as Instant,
+          }),
+        );
         this.pendingQueue.shift();
       }
       return false;

@@ -76,21 +76,16 @@ export function createMcpServer(writeDeps?: WriteToolDependencies): McpServer {
   }
 
   // Register wallet list tool
-  server.tool(
-    "wallet.list",
-    "List wallets accessible to the current principal.",
-    {},
-    async () => {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({ wallets: [], status: "not_implemented" }),
-          },
-        ],
-      };
-    },
-  );
+  server.tool("wallet.list", "List wallets accessible to the current principal.", {}, async () => {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({ wallets: [], status: "not_implemented" }),
+        },
+      ],
+    };
+  });
 
   return server;
 }

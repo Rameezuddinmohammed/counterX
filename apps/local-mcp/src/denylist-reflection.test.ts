@@ -8,11 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-  DENIED_TOOL_PATTERNS,
-  isDeniedTool,
-  createMcpServer,
-} from "./index.js";
+import { DENIED_TOOL_PATTERNS, isDeniedTool, createMcpServer } from "./index.js";
 
 // ---------------------------------------------------------------------------
 // Required Denied Patterns (from Task 14)

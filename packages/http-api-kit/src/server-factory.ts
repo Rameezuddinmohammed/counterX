@@ -86,9 +86,14 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     ...(options.scopeEnforcement ?? {}),
   });
 
-  const healthOpts: HealthPluginOptions = options.health?.readinessChecker !== undefined
-    ? { version: options.version, environment: options.environment, readinessChecker: options.health.readinessChecker }
-    : { version: options.version, environment: options.environment };
+  const healthOpts: HealthPluginOptions =
+    options.health?.readinessChecker !== undefined
+      ? {
+          version: options.version,
+          environment: options.environment,
+          readinessChecker: options.health.readinessChecker,
+        }
+      : { version: options.version, environment: options.environment };
   void server.register(healthPlugin, healthOpts);
 
   if (options.openApi !== undefined) {

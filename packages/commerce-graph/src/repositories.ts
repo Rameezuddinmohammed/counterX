@@ -72,5 +72,9 @@ export interface ConflictRepository {
   save(record: ConflictRecord): Result<ConflictRecord>;
   getById(id: string): Result<ConflictRecord | null>;
   getUnresolved(entityId: string): Result<readonly ConflictRecord[]>;
-  resolve(id: string, resolution: ResolutionStrategy, resolvedAt: number): Result<ConflictRecord | null>;
+  resolve(
+    id: string,
+    resolution: ResolutionStrategy,
+    resolvedAt: number,
+  ): Result<ConflictRecord | null>;
 }

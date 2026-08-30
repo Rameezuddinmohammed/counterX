@@ -19,11 +19,7 @@
 import { randomUUID } from "node:crypto";
 import { createHmac } from "node:crypto";
 
-import {
-  PostgresDatabase,
-  PostgresInboxRepository,
-  PostgresStepLedger,
-} from "@counter/data";
+import { PostgresDatabase, PostgresInboxRepository, PostgresStepLedger } from "@counter/data";
 import {
   createCounterId,
   instantFromEpochMilliseconds,
@@ -86,34 +82,34 @@ const INBOX_DDL = `
 
 const gatedDescribe = hasCreds ? describe : describe.skip;
 
-gatedDescribe("resilience — post-effect timeout is INDETERMINATE, never failed (creds+DB-gated)", () => {
-  const database = new PostgresDatabase(databaseUrl as string);
-  const bundle = realBundleOrNull();
-  const idempotencyKey = `resilience-timeout-${Date.now()}`;
+gatedDescribe(
+  "resilience — post-effect timeout is INDETERMINATE, never failed (creds+DB-gated)",
+  () => {
+    const database = new PostgresDatabase(databaseUrl as string);
+    const bundle = realBundleOrNull();
+    const idempotencyKey = `resilience-timeout-${Date.now()}`;
 
-  afterAll(async () => {
-    try {
-      const orderRow = (
-        await database.query<{ reference: string | null }>(
-          `SELECT reference FROM runtime.lifecycle_steps
+    afterAll(async () => {
+      try {
+        const orderRow = (
+          await database.query<{ reference: string | null }>(
+            `SELECT reference FROM runtime.lifecycle_steps
            WHERE idempotency_key = $1 AND step = 'shopify.draft'`,
-          [idempotencyKey],
-        )
-      ).rows[0];
-      // Draft may have created a draft order; finalize did not run (indeterminate),
-      // so there is no completed order to cancel — deleting rows is sufficient.
-      void orderRow;
-    } finally {
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        idempotencyKey,
-      ]);
-      await database.close();
-    }
-  });
+            [idempotencyKey],
+          )
+        ).rows[0];
+        // Draft may have created a draft order; finalize did not run (indeterminate),
+        // so there is no completed order to cancel — deleting rows is sufficient.
+        void orderRow;
+      } finally {
+        await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+          idempotencyKey,
+        ]);
+        await database.close();
+      }
+    });
 
-  it(
-    "surfaces INDETERMINATE (not failed) when finalize times out after a possible effect",
-    async () => {
+    it("surfaces INDETERMINATE (not failed) when finalize times out after a possible effect", async () => {
       await database.query(RUNTIME_DDL);
       await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
         idempotencyKey,
@@ -162,10 +158,9 @@ gatedDescribe("resilience — post-effect timeout is INDETERMINATE, never failed
         [idempotencyKey],
       );
       expect(finalizeRows.rowCount).toBe(0);
-    },
-    120_000,
-  );
-});
+    }, 120_000);
+  },
+);
 
 // ─── (b) duplicate / reordered webhook => one effect (DB-gated) ───────────────
 
@@ -188,84 +183,80 @@ dbGatedDescribe("resilience — duplicate/reordered webhook deduped to one effec
     }
   });
 
-  it(
-    "verifies the HMAC signature then dedups a duplicate + reordered delivery to a single inbox row",
-    async () => {
-      await database.query(INBOX_DDL);
-      await database.query(
-        `DELETE FROM runtime.inbox_events WHERE source = 'razorpay' AND source_event_id = $1`,
-        [sourceEventId],
-      );
+  it("verifies the HMAC signature then dedups a duplicate + reordered delivery to a single inbox row", async () => {
+    await database.query(INBOX_DDL);
+    await database.query(
+      `DELETE FROM runtime.inbox_events WHERE source = 'razorpay' AND source_event_id = $1`,
+      [sourceEventId],
+    );
 
-      const provider = new RazorpayTestProvider({
-        config: {
-          keyId: "rzp_test_dummy",
-          keySecret: "dummy_secret",
-          webhookSecret,
-          environment: "test",
-          baseUrl: "https://api.razorpay.com",
-        },
-        httpClient: new MockRazorpayHttp(),
-      });
+    const provider = new RazorpayTestProvider({
+      config: {
+        keyId: "rzp_test_dummy",
+        keySecret: "dummy_secret",
+        webhookSecret,
+        environment: "test",
+        baseUrl: "https://api.razorpay.com",
+      },
+      httpClient: new MockRazorpayHttp(),
+    });
 
-      const event = {
-        event: "payment.captured",
-        payload: { payment: { entity: { id: paymentId, status: "captured", amount: 100 } } },
-      };
-      const body = new TextEncoder().encode(JSON.stringify(event));
-      const signature = createHmac("sha256", webhookSecret)
-        .update(new TextDecoder().decode(body))
-        .digest("hex");
+    const event = {
+      event: "payment.captured",
+      payload: { payment: { entity: { id: paymentId, status: "captured", amount: 100 } } },
+    };
+    const body = new TextEncoder().encode(JSON.stringify(event));
+    const signature = createHmac("sha256", webhookSecret)
+      .update(new TextDecoder().decode(body))
+      .digest("hex");
 
-      // REAL HMAC verify authenticates the signed webhook.
-      const verified = await provider.verifyWebhook({
-        headers: { "x-razorpay-signature": signature },
+    // REAL HMAC verify authenticates the signed webhook.
+    const verified = await provider.verifyWebhook({
+      headers: { "x-razorpay-signature": signature },
+      body,
+      receivedAt: nowInstant(),
+    });
+    expect(verified.eventType).toBe("payment.captured");
+
+    // A tampered signature is rejected by the same independent verifier.
+    await expect(
+      provider.verifyWebhook({
+        headers: { "x-razorpay-signature": "deadbeef" },
         body,
         receivedAt: nowInstant(),
-      });
-      expect(verified.eventType).toBe("payment.captured");
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
 
-      // A tampered signature is rejected by the same independent verifier.
-      await expect(
-        provider.verifyWebhook({
-          headers: { "x-razorpay-signature": "deadbeef" },
-          body,
-          receivedAt: nowInstant(),
-        }),
-      ).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
-
-      // REAL Postgres inbox dedup: first delivery is new, duplicate + reordered
-      // re-deliveries of the SAME source event are deduped to one row.
-      const inbox = new PostgresInboxRepository(database, "local");
-      const receive = () =>
-        inbox.receive(
-          {
-            id: inboxEventId(sourceEventId),
-            source: "razorpay",
-            sourceEventId,
-            eventType: verified.eventType,
-            payload: { reference: verified.reference },
-            correlationId: undefined,
-          },
-          nowInstant(),
-        );
-
-      const first = await receive();
-      const duplicate = await receive();
-      const reordered = await receive();
-
-      expect(first.ok && first.value.outcome).toBe("new");
-      expect(duplicate.ok && duplicate.value.outcome).toBe("duplicate");
-      expect(reordered.ok && reordered.value.outcome).toBe("duplicate");
-
-      // Exactly ONE durable inbox row for the source event.
-      const rows = await database.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM runtime.inbox_events
-         WHERE source = 'razorpay' AND source_event_id = $1`,
-        [sourceEventId],
+    // REAL Postgres inbox dedup: first delivery is new, duplicate + reordered
+    // re-deliveries of the SAME source event are deduped to one row.
+    const inbox = new PostgresInboxRepository(database, "local");
+    const receive = () =>
+      inbox.receive(
+        {
+          id: inboxEventId(sourceEventId),
+          source: "razorpay",
+          sourceEventId,
+          eventType: verified.eventType,
+          payload: { reference: verified.reference },
+          correlationId: undefined,
+        },
+        nowInstant(),
       );
-      expect(rows.rows[0]?.count).toBe("1");
-    },
-    60_000,
-  );
+
+    const first = await receive();
+    const duplicate = await receive();
+    const reordered = await receive();
+
+    expect(first.ok && first.value.outcome).toBe("new");
+    expect(duplicate.ok && duplicate.value.outcome).toBe("duplicate");
+    expect(reordered.ok && reordered.value.outcome).toBe("duplicate");
+
+    // Exactly ONE durable inbox row for the source event.
+    const rows = await database.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM runtime.inbox_events
+         WHERE source = 'razorpay' AND source_event_id = $1`,
+      [sourceEventId],
+    );
+    expect(rows.rows[0]?.count).toBe("1");
+  }, 60_000);
 });

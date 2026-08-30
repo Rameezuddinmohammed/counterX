@@ -146,7 +146,9 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     // support_grant_authorizations / support_grant_authorization_permissions and
     // identity.require_support_grant_authorization_permission() are created by migration 4
     // and must not appear yet at version 3.
-    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelationsAtV4.length - 2);
+    await expect(forcedRlsRelations(database)).resolves.toHaveLength(
+      protectedRelationsAtV4.length - 2,
+    );
     await expect(identityFunctions(database)).resolves.toEqual(
       identityFunctionSignatures.filter(
         (signature) => signature !== "identity.require_support_grant_authorization_permission()",
@@ -166,7 +168,9 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     const restored = await runner.up();
     expect(restored.currentVersion).toBe(latest);
     expect(restored.applied.map((migration) => migration.version)).toEqual(allVersions);
-    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelationsAtLatest.length);
+    await expect(forcedRlsRelations(database)).resolves.toHaveLength(
+      protectedRelationsAtLatest.length,
+    );
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
   });
 

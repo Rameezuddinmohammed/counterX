@@ -95,9 +95,7 @@ function computeClaimDigest(claim: CanonicalClaim): Sha256Digest {
  * Creates a complete EvidenceRecord from normalized input, computing the
  * integrityDigest from the canonical JSON of the claim.
  */
-export function createEvidenceRecord(
-  params: CreateEvidenceRecordParams,
-): EvidenceRecord {
+export function createEvidenceRecord(params: CreateEvidenceRecordParams): EvidenceRecord {
   const integrityDigest = computeClaimDigest(params.canonicalClaim);
 
   return Object.freeze({

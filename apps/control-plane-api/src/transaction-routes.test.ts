@@ -55,7 +55,9 @@ async function createTokenForMerchant(merchantId: string): Promise<string> {
     .sign(privateKey);
 }
 
-function txn(overrides: Partial<Transaction> & { transactionId: string; merchantId: string }): Transaction {
+function txn(
+  overrides: Partial<Transaction> & { transactionId: string; merchantId: string },
+): Transaction {
   return {
     amount: 1500,
     currency: "INR",
@@ -70,9 +72,24 @@ function txn(overrides: Partial<Transaction> & { transactionId: string; merchant
 
 // Merchant A owns two transactions; merchant B owns one.
 const SEED: Transaction[] = [
-  txn({ transactionId: "txn-a-1", merchantId: MERCHANT_A, amount: 1500, createdAt: "2025-01-20T10:00:00.000Z" }),
-  txn({ transactionId: "txn-a-2", merchantId: MERCHANT_A, amount: 2499, createdAt: "2025-01-21T10:00:00.000Z" }),
-  txn({ transactionId: "txn-b-1", merchantId: MERCHANT_B, amount: 999, createdAt: "2025-01-19T10:00:00.000Z" }),
+  txn({
+    transactionId: "txn-a-1",
+    merchantId: MERCHANT_A,
+    amount: 1500,
+    createdAt: "2025-01-20T10:00:00.000Z",
+  }),
+  txn({
+    transactionId: "txn-a-2",
+    merchantId: MERCHANT_A,
+    amount: 2499,
+    createdAt: "2025-01-21T10:00:00.000Z",
+  }),
+  txn({
+    transactionId: "txn-b-1",
+    merchantId: MERCHANT_B,
+    amount: 999,
+    createdAt: "2025-01-19T10:00:00.000Z",
+  }),
 ];
 
 function serverWithSeed(jwks: ReturnType<typeof createLocalJWKSet>): FastifyInstance {

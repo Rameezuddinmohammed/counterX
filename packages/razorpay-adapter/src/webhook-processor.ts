@@ -54,11 +54,14 @@ export class WebhookDeduplicator {
       }
     }
 
-    this.#processed.set(eventId, Object.freeze({
+    this.#processed.set(
       eventId,
-      eventType,
-      processedAt,
-    }));
+      Object.freeze({
+        eventId,
+        eventType,
+        processedAt,
+      }),
+    );
   }
 
   /**
@@ -128,9 +131,7 @@ export function normalizeRefundEvidence(refund: RazorpayRefund): ProviderRefundE
 
   const status = statusMap[refund.status] ?? "pending";
 
-  const processedAt = status === "confirmed"
-    ? toInstant(refund.created_at)
-    : undefined;
+  const processedAt = status === "confirmed" ? toInstant(refund.created_at) : undefined;
 
   return Object.freeze({
     reference,

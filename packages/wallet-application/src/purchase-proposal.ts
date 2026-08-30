@@ -120,10 +120,7 @@ export class PurchaseProposalBuilder {
       idempotencyKey: proposal.idempotencyKey,
     });
 
-    const signatureBytes = await this.#keyStore.sign(
-      keyId,
-      new TextEncoder().encode(dataToSign),
-    );
+    const signatureBytes = await this.#keyStore.sign(keyId, new TextEncoder().encode(dataToSign));
 
     return {
       ...proposal,

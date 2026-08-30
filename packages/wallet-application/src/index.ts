@@ -67,15 +67,10 @@ export type {
   ConsentAttestationError,
 } from "./consent-attestation.js";
 
-export type {
-  ConsentAttestationResult as ConsentBuildResult,
-} from "./consent-attestation.js";
+export type { ConsentAttestationResult as ConsentBuildResult } from "./consent-attestation.js";
 
 // Device pairing
-export {
-  PAIRING_STATUSES,
-  PairingService,
-} from "./device-pairing.js";
+export { PAIRING_STATUSES, PairingService } from "./device-pairing.js";
 
 export type {
   PairingStatus,
@@ -86,9 +81,7 @@ export type {
 } from "./device-pairing.js";
 
 // Agent registration
-export {
-  AgentRegistrationService,
-} from "./agent-registration.js";
+export { AgentRegistrationService } from "./agent-registration.js";
 
 export type {
   AgentPublicKeyDescriptor,
@@ -98,9 +91,7 @@ export type {
 } from "./agent-registration.js";
 
 // Mandate service
-export {
-  MandateService,
-} from "./mandate-service.js";
+export { MandateService } from "./mandate-service.js";
 
 export type {
   MandateIssuanceParams,
@@ -112,16 +103,9 @@ export type {
 } from "./mandate-service.js";
 
 // Mandate sync
-export {
-  FRESHNESS_STATUSES,
-  MandateSyncService,
-} from "./mandate-sync.js";
+export { FRESHNESS_STATUSES, MandateSyncService } from "./mandate-sync.js";
 
-export type {
-  FreshnessStatus,
-  CachedMandate,
-  MandateSyncResult,
-} from "./mandate-sync.js";
+export type { FreshnessStatus, CachedMandate, MandateSyncResult } from "./mandate-sync.js";
 
 // Revocation service
 export {
@@ -169,10 +153,7 @@ export {
   createIndeterminateError,
 } from "./client-errors.js";
 
-export type {
-  ClientErrorKind,
-  MerchantClientError,
-} from "./client-errors.js";
+export type { ClientErrorKind, MerchantClientError } from "./client-errors.js";
 
 // Merchant client types
 export type {
@@ -189,39 +170,22 @@ export {
   InMemoryMerchantRuntimeClient,
 } from "./merchant-runtime-client.js";
 
-export type {
-  HttpClientOptions,
-  SimulatedFailure,
-} from "./merchant-runtime-client.js";
+export type { HttpClientOptions, SimulatedFailure } from "./merchant-runtime-client.js";
 
 // Policy precheck service
 export { PolicyPrecheckService } from "./policy-precheck.js";
 
-export type {
-  MerchantQuote,
-  PrecheckResult,
-} from "./policy-precheck.js";
+export type { MerchantQuote, PrecheckResult } from "./policy-precheck.js";
 
 // Purchase proposal builder
-export {
-  PurchaseProposalBuilder,
-  deriveProposalIdempotencyKey,
-} from "./purchase-proposal.js";
+export { PurchaseProposalBuilder, deriveProposalIdempotencyKey } from "./purchase-proposal.js";
 
-export type {
-  PurchaseProposal,
-} from "./purchase-proposal.js";
+export type { PurchaseProposal } from "./purchase-proposal.js";
 
 // Purchase intent builder
-export {
-  PurchaseIntentBuilder,
-  deriveIntentIdempotencyKey,
-} from "./purchase-intent.js";
+export { PurchaseIntentBuilder, deriveIntentIdempotencyKey } from "./purchase-intent.js";
 
-export type {
-  PurchaseIntent,
-  SignedPurchaseIntent,
-} from "./purchase-intent.js";
+export type { PurchaseIntent, SignedPurchaseIntent } from "./purchase-intent.js";
 
 // Approval inbox
 export {
@@ -257,9 +221,7 @@ export type {
 } from "./payment-action.js";
 
 // Time trigger scheduler
-export {
-  TimeTriggerScheduler,
-} from "./time-trigger.js";
+export { TimeTriggerScheduler } from "./time-trigger.js";
 
 export type {
   CronSchedule,
@@ -277,11 +239,7 @@ export type {
 } from "./time-trigger.js";
 
 // Claim ledger
-export {
-  CLAIM_SOURCE_TYPES,
-  isClaimSourceType,
-  ClaimLedger,
-} from "./claim-ledger.js";
+export { CLAIM_SOURCE_TYPES, isClaimSourceType, ClaimLedger } from "./claim-ledger.js";
 
 export type {
   ClaimSourceType,
@@ -305,10 +263,7 @@ export type {
 } from "./recovery-service.js";
 
 // Export service
-export {
-  ExportService,
-  InMemoryWalletDataStore,
-} from "./export-service.js";
+export { ExportService, InMemoryWalletDataStore } from "./export-service.js";
 
 export type {
   WalletExportData,
@@ -348,10 +303,7 @@ export type {
 } from "./operations-service.js";
 
 // Pilot evidence bundle
-export {
-  COVERAGE_TYPES,
-  PilotEvidenceBundle,
-} from "./pilot-evidence.js";
+export { COVERAGE_TYPES, PilotEvidenceBundle } from "./pilot-evidence.js";
 
 export type {
   ScenarioResult,

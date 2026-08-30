@@ -135,7 +135,8 @@ describe("DraftOrderCreateAction", () => {
 
     expect(client.callHistory.length).toBe(1);
     const call = client.callHistory[0]!;
-    const noteAttrs = (call.variables as { input: { customAttributes: unknown[] } }).input.customAttributes;
+    const noteAttrs = (call.variables as { input: { customAttributes: unknown[] } }).input
+      .customAttributes;
     expect(noteAttrs).toEqual([
       { key: "counter_correlation_id", value: "corr-id-001" },
       { key: "counter_idempotency_key", value: "idem-key-001" },
@@ -296,9 +297,7 @@ describe("DraftOrderQueryAction", () => {
           totalPrice: "100.00",
           currencyCode: "USD",
           createdAt: "2024-01-01T00:00:00Z",
-          customAttributes: [
-            { key: "counter_correlation_id", value: "corr-id-001" },
-          ],
+          customAttributes: [{ key: "counter_correlation_id", value: "corr-id-001" }],
         },
       },
       errors: undefined,
@@ -484,9 +483,7 @@ describe("OrderQueryAction", () => {
           cancelledAt: null,
           totalPriceSet: { shopMoney: { amount: "100.00", currencyCode: "USD" } },
           createdAt: "2024-01-01T00:00:00Z",
-          customAttributes: [
-            { key: "counter_correlation_id", value: "corr-id-004" },
-          ],
+          customAttributes: [{ key: "counter_correlation_id", value: "corr-id-004" }],
         },
       },
       errors: undefined,
@@ -529,9 +526,7 @@ describe("OrderQueryAction", () => {
           cancelledAt: null,
           totalPriceSet: { shopMoney: { amount: "100.00", currencyCode: "USD" } },
           createdAt: "2024-01-01T00:00:00Z",
-          customAttributes: [
-            { key: "counter_correlation_id", value: "corr-id-004" },
-          ],
+          customAttributes: [{ key: "counter_correlation_id", value: "corr-id-004" }],
         },
       },
       errors: undefined,
@@ -589,7 +584,11 @@ describe("OrderCancelAction", () => {
       data: {
         orderCancel: {
           orderCancelUserErrors: [
-            { field: ["orderId"], message: "Order is already cancelled", code: "ORDER_ALREADY_CANCELLED" },
+            {
+              field: ["orderId"],
+              message: "Order is already cancelled",
+              code: "ORDER_ALREADY_CANCELLED",
+            },
           ],
         },
       },
@@ -609,7 +608,9 @@ describe("OrderCancelAction", () => {
   it("returns indeterminate on timeout for cancel mutation", async () => {
     client.setFault({ kind: "timeout", durationMs: 200 });
 
-    const result = await action.execute(makeInput(payload, { idempotencyKey: "idem-key-005", timeoutMs: 50 }));
+    const result = await action.execute(
+      makeInput(payload, { idempotencyKey: "idem-key-005", timeoutMs: 50 }),
+    );
 
     expect(result.status).toBe("indeterminate");
     if (result.status === "indeterminate") {
@@ -631,9 +632,7 @@ describe("OrderCancelAction", () => {
           totalPrice: "100.00",
           currencyCode: "USD",
           createdAt: "2024-01-01T00:00:00Z",
-          customAttributes: [
-            { key: "counter_correlation_id", value: "corr-id-recovery" },
-          ],
+          customAttributes: [{ key: "counter_correlation_id", value: "corr-id-recovery" }],
         },
       },
       errors: undefined,
@@ -645,10 +644,12 @@ describe("OrderCancelAction", () => {
       metadata: { correlationId: "corr-id-recovery", idempotencyKey: "idem-recovery" },
     };
 
-    const result = await queryAction.execute(makeInput(queryPayload, {
-      correlationId: "corr-id-recovery",
-      idempotencyKey: "idem-recovery",
-    }));
+    const result = await queryAction.execute(
+      makeInput(queryPayload, {
+        correlationId: "corr-id-recovery",
+        idempotencyKey: "idem-recovery",
+      }),
+    );
 
     expect(result.status).toBe("succeeded");
     if (result.status === "succeeded") {
@@ -746,7 +747,9 @@ describe("OrderRefundAction", () => {
   it("returns indeterminate on timeout (timeout-after-effect)", async () => {
     client.setFault({ kind: "timeout", durationMs: 200 });
 
-    const result = await action.execute(makeInput(payload, { idempotencyKey: "idem-key-006", timeoutMs: 50 }));
+    const result = await action.execute(
+      makeInput(payload, { idempotencyKey: "idem-key-006", timeoutMs: 50 }),
+    );
 
     expect(result.status).toBe("indeterminate");
   });

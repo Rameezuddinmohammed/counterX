@@ -12,14 +12,15 @@ function makeFindingId(): CounterId<"finding"> {
   return `ctr_finding_${padded}` as CounterId<"finding">;
 }
 
-function computeClaimDigest(claim: { type: string; details: Record<string, unknown> }): Sha256Digest {
+function computeClaimDigest(claim: {
+  type: string;
+  details: Record<string, unknown>;
+}): Sha256Digest {
   const canonical = JSON.stringify({ type: claim.type, details: claim.details });
   return sha256Digest(new TextEncoder().encode(canonical));
 }
 
-function makeEvidenceRecord(
-  overrides: Partial<EvidenceRecord> = {},
-): EvidenceRecord {
+function makeEvidenceRecord(overrides: Partial<EvidenceRecord> = {}): EvidenceRecord {
   const canonicalClaim = overrides.canonicalClaim ?? {
     type: "payment_confirmed" as const,
     details: {},
@@ -69,17 +70,12 @@ describe("reconciliation", () => {
         canonicalClaim: { type: "payment_declined", details: { reason: "agent says failed" } },
       });
 
-      const findings = reconcileTransaction(
-        [providerRecord, agentRecord],
-        defaultOptions,
-      );
+      const findings = reconcileTransaction([providerRecord, agentRecord], defaultOptions);
 
       // Agent claims payment_declined but the actual claim type it searches for
       // authoritative source: payment_provider is authoritative for payment_declined.
       // Provider has payment_confirmed (different type), so mismatch is detected.
-      const authorityFindings = findings.filter(
-        (f) => f.type === "intent_authority_mismatch",
-      );
+      const authorityFindings = findings.filter((f) => f.type === "intent_authority_mismatch");
       expect(authorityFindings.length).toBeGreaterThan(0);
       expect(authorityFindings[0]?.severity).toBe("high");
     });
@@ -133,9 +129,7 @@ describe("reconciliation", () => {
       // Agent claim alone is not treated as authoritative payment confirmation.
       // There should be no payment_order_mismatch because hasPaymentConfirmed
       // only considers authoritative sources.
-      const paymentOrderFindings = findings.filter(
-        (f) => f.type === "payment_order_mismatch",
-      );
+      const paymentOrderFindings = findings.filter((f) => f.type === "payment_order_mismatch");
       expect(paymentOrderFindings).toHaveLength(0);
 
       // The agent is the only source, so there are no authority mismatches either
@@ -200,9 +194,7 @@ describe("reconciliation", () => {
 
       const findings = reconcileTransaction([record1, record2], defaultOptions);
 
-      const duplicateFindings = findings.filter(
-        (f) => f.type === "duplicate_effect",
-      );
+      const duplicateFindings = findings.filter((f) => f.type === "duplicate_effect");
       expect(duplicateFindings.length).toBeGreaterThan(0);
       expect(duplicateFindings[0]?.severity).toBe("medium");
     });
@@ -218,9 +210,7 @@ describe("reconciliation", () => {
 
       const findings = reconcileTransaction([paymentRecord], defaultOptions);
 
-      const mismatchFindings = findings.filter(
-        (f) => f.type === "payment_order_mismatch",
-      );
+      const mismatchFindings = findings.filter((f) => f.type === "payment_order_mismatch");
       expect(mismatchFindings.length).toBeGreaterThan(0);
       expect(mismatchFindings[0]?.missingEvidence).toContain("order_committed");
     });
@@ -236,9 +226,7 @@ describe("reconciliation", () => {
 
       const findings = reconcileTransaction([authRecord], defaultOptions);
 
-      const orphanedFindings = findings.filter(
-        (f) => f.type === "orphaned_authorization",
-      );
+      const orphanedFindings = findings.filter((f) => f.type === "orphaned_authorization");
       expect(orphanedFindings.length).toBeGreaterThan(0);
       expect(orphanedFindings[0]?.severity).toBe("medium");
     });
@@ -250,14 +238,13 @@ describe("reconciliation", () => {
         id: "ctr_evidence_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"evidence">,
         source: "payment_provider",
         canonicalClaim: { type: "payment_confirmed", details: { amount: 1000 } },
-        integrityDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000" as Sha256Digest,
+        integrityDigest:
+          "sha256:0000000000000000000000000000000000000000000000000000000000000000" as Sha256Digest,
       });
 
       const findings = reconcileTransaction([record], defaultOptions);
 
-      const integrityFindings = findings.filter(
-        (f) => f.type === "integrity_failure",
-      );
+      const integrityFindings = findings.filter((f) => f.type === "integrity_failure");
       expect(integrityFindings.length).toBeGreaterThan(0);
       expect(integrityFindings[0]?.severity).toBe("critical");
     });
@@ -274,9 +261,7 @@ describe("reconciliation", () => {
 
       const findings = reconcileTransaction([record], defaultOptions);
 
-      const integrityFindings = findings.filter(
-        (f) => f.type === "integrity_failure",
-      );
+      const integrityFindings = findings.filter((f) => f.type === "integrity_failure");
       expect(integrityFindings).toHaveLength(0);
     });
   });
@@ -293,9 +278,7 @@ describe("reconciliation", () => {
 
       // Agent claim alone should not be treated as authoritative payment confirmation
       // Therefore no payment_order_mismatch
-      const paymentOrderFindings = findings.filter(
-        (f) => f.type === "payment_order_mismatch",
-      );
+      const paymentOrderFindings = findings.filter((f) => f.type === "payment_order_mismatch");
       expect(paymentOrderFindings).toHaveLength(0);
     });
   });

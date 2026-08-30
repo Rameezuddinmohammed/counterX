@@ -91,8 +91,7 @@ export function resolveConflict(
     winnerPriority !== runnerUpPriority ? "source_priority" : "newer_wins";
 
   // Determine if we need to record a conflict
-  const hasValueMismatch =
-    JSON.stringify(winner.data) !== JSON.stringify(runnerUp.data);
+  const hasValueMismatch = JSON.stringify(winner.data) !== JSON.stringify(runnerUp.data);
 
   let conflict: ConflictRecord | null = null;
   if (hasValueMismatch && resolution === "newer_wins") {

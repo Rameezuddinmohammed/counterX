@@ -620,9 +620,7 @@ describe("@counter/merchant-application", () => {
     });
 
     it("VerificationRepository interface exists as a type", () => {
-      const check = (
-        _v: VerificationRepository,
-      ): boolean => true;
+      const check = (_v: VerificationRepository): boolean => true;
       expect(check).toBeDefined();
     });
   });

@@ -64,11 +64,7 @@ export interface CreateServerOptions {
  * (production/sandbox/pilot and any unknown value) is production-like and MUST
  * be given real handlers.
  */
-const MOCK_ELIGIBLE_ENVIRONMENTS: ReadonlySet<string> = new Set([
-  "local",
-  "test",
-  "development",
-]);
+const MOCK_ELIGIBLE_ENVIRONMENTS: ReadonlySet<string> = new Set(["local", "test", "development"]);
 
 function resolveMerchantHandlers(
   environment: string,
@@ -119,8 +115,7 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   const version = options?.version ?? DEFAULT_VERSION;
   const environment = options?.environment ?? DEFAULT_ENVIRONMENT;
 
-  const jwks: JWTVerifyGetKey | string =
-    options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
+  const jwks: JWTVerifyGetKey | string = options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
 
   const serverOptions: ServerFactoryOptions = {
     name: APP_NAME,

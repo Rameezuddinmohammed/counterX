@@ -6,7 +6,12 @@
  */
 
 import type { Instant } from "@counter/domain";
-import type { ConnectorHealthPort, HealthCheck, HealthCheckDetail, ConnectorHealthStatus } from "@counter/connector-sdk";
+import type {
+  ConnectorHealthPort,
+  HealthCheck,
+  HealthCheckDetail,
+  ConnectorHealthStatus,
+} from "@counter/connector-sdk";
 import type { ShopifyGraphQLPort } from "./graphql-client.js";
 import type { ShopifyAuthConfig } from "./auth.js";
 import { validateToken, checkScopes } from "./auth.js";

@@ -40,13 +40,15 @@ const TEST_AGENT_ID = "agent-e2e-001";
 const TEST_PAYMENT_REF = "payref-e2e-001";
 const TEST_POLICY_VERSION = "policy-v1";
 
-function createTestPolicy(overrides?: Partial<{
-  perTransactionMaxPaise: bigint;
-  thresholdPaise: bigint;
-  rollingMaxPaise: bigint;
-  aggregateMaxPaise: bigint;
-  maxTransactions: number;
-}>): BuyerPolicyConstraints {
+function createTestPolicy(
+  overrides?: Partial<{
+    perTransactionMaxPaise: bigint;
+    thresholdPaise: bigint;
+    rollingMaxPaise: bigint;
+    aggregateMaxPaise: bigint;
+    maxTransactions: number;
+  }>,
+): BuyerPolicyConstraints {
   return {
     merchantAllowlist: {
       allowedMerchantIds: [TEST_MERCHANT_ID],

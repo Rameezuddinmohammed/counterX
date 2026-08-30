@@ -476,7 +476,8 @@ describe("Commerce Graph", () => {
         id: "mv-1",
         merchantId: "m1",
         version: "1.0.0",
-        schemaHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
+        schemaHash:
+          "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
         transforms: [],
         status: "draft" as const,
         publishedAt: null,
@@ -499,7 +500,8 @@ describe("Commerce Graph", () => {
         id: "mv-1",
         merchantId: "m1",
         version: "1.0.0",
-        schemaHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
+        schemaHash:
+          "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
         transforms: [],
         status: "published" as const,
         publishedAt: 1704067300000 as Instant,
@@ -523,7 +525,8 @@ describe("Commerce Graph", () => {
           id: "mv-1",
           merchantId: "m1",
           version: "1.0.0",
-          schemaHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
+          schemaHash:
+            "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as Sha256Digest,
           transforms: [],
           status: "published" as const,
           publishedAt: 1704067300000 as Instant,

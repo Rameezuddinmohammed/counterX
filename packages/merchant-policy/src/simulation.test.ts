@@ -21,7 +21,9 @@ function makeMoney(amountMinor: bigint, currency: IsoCurrencyCode = INR): Money 
   return { amountMinor, currency };
 }
 
-function makeWalletAuthority(overrides: Partial<BuyerPolicyConstraints> = {}): BuyerPolicyConstraints {
+function makeWalletAuthority(
+  overrides: Partial<BuyerPolicyConstraints> = {},
+): BuyerPolicyConstraints {
   return {
     version: 1,
     source: "wallet:buyer_001",
@@ -126,9 +128,7 @@ describe("simulateWalletAuthority - DENY", () => {
   });
 
   it("denies when payment method is not in merchant allowlist", () => {
-    const policy = compiledPolicy([
-      { kind: "payment-path", allowedMethods: ["card"] },
-    ]);
+    const policy = compiledPolicy([{ kind: "payment-path", allowedMethods: ["card"] }]);
 
     const result = simulateWalletAuthority({
       compiledPolicy: policy,

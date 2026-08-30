@@ -274,7 +274,11 @@ export class InMemoryMappingVersionRepository implements MappingVersionRepositor
 
     // Revoke any previously published version for the same merchant
     for (const [recordId, record] of this.#records) {
-      if (record.merchantId === existing.merchantId && record.status === "published" && recordId !== id) {
+      if (
+        record.merchantId === existing.merchantId &&
+        record.status === "published" &&
+        recordId !== id
+      ) {
         const revoked: MappingVersionRecord = Object.freeze({
           ...record,
           status: "rolledBack" as const,

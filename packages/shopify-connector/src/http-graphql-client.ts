@@ -5,7 +5,11 @@
  * SSRF protection, authentication headers, and rate limit tracking.
  */
 
-import type { ShopifyGraphQLPort, ShopifyGraphQLResponse, ShopifyThrottleStatus } from "./graphql-client.js";
+import type {
+  ShopifyGraphQLPort,
+  ShopifyGraphQLResponse,
+  ShopifyThrottleStatus,
+} from "./graphql-client.js";
 import { validateShopDomainSsrf } from "./ssrf-validation.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────

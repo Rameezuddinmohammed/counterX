@@ -67,9 +67,10 @@ export function buildTestIntent(options: BuildIntentOptions): TestIntent {
   const currency = options.currency ?? DEFAULT_CURRENCY;
   const now = Date.now();
 
-  const validFromResult = options.validFrom !== undefined
-    ? { ok: true as const, value: options.validFrom }
-    : instantFromEpochMilliseconds(now);
+  const validFromResult =
+    options.validFrom !== undefined
+      ? { ok: true as const, value: options.validFrom }
+      : instantFromEpochMilliseconds(now);
 
   if (!validFromResult.ok) {
     throw new TypeError("Failed to compute validFrom instant");

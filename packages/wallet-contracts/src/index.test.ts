@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  PACKAGE_NAME,
-  WALLET_ENDPOINTS,
-  WALLET_ERROR_CODES,
-  isWalletErrorCode,
-} from "./index.js";
+import { PACKAGE_NAME, WALLET_ENDPOINTS, WALLET_ERROR_CODES, isWalletErrorCode } from "./index.js";
 import type {
   CreateWalletRequest,
   CreateWalletResponse,

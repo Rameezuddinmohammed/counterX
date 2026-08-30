@@ -5,9 +5,27 @@ import { ListOrdered, Play, Trash2 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 
 const MOCK_QUEUES = [
-  { name: "transactions", depth: 0, throughput: "142/s", deadLetters: 0, health: "healthy" as const },
-  { name: "reconciliation", depth: 0, throughput: "28/s", deadLetters: 0, health: "healthy" as const },
-  { name: "notifications", depth: 0, throughput: "85/s", deadLetters: 0, health: "healthy" as const },
+  {
+    name: "transactions",
+    depth: 0,
+    throughput: "142/s",
+    deadLetters: 0,
+    health: "healthy" as const,
+  },
+  {
+    name: "reconciliation",
+    depth: 0,
+    throughput: "28/s",
+    deadLetters: 0,
+    health: "healthy" as const,
+  },
+  {
+    name: "notifications",
+    depth: 0,
+    throughput: "85/s",
+    deadLetters: 0,
+    health: "healthy" as const,
+  },
   { name: "webhooks", depth: 0, throughput: "64/s", deadLetters: 0, health: "healthy" as const },
 ];
 
@@ -18,7 +36,9 @@ function QueueHealthBadge({ health }: { health: "healthy" | "degraded" | "critic
     critical: "bg-red-500/10 text-red-500 border-red-500/20",
   };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[health]}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[health]}`}
+    >
       {health}
     </span>
   );
@@ -38,7 +58,10 @@ export default function QueuesPage() {
         {/* Queue Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {MOCK_QUEUES.map((queue) => (
-            <Card key={queue.name} className="transition-all hover:border-[var(--border-secondary)]">
+            <Card
+              key={queue.name}
+              className="transition-all hover:border-[var(--border-secondary)]"
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -56,11 +79,15 @@ export default function QueuesPage() {
                   </div>
                   <div>
                     <p className="text-xs text-[var(--foreground-muted)]">Throughput</p>
-                    <p className="text-lg font-semibold text-[var(--foreground)]">{queue.throughput}</p>
+                    <p className="text-lg font-semibold text-[var(--foreground)]">
+                      {queue.throughput}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-[var(--foreground-muted)]">Dead Letters</p>
-                    <p className="text-lg font-semibold text-[var(--foreground)]">{queue.deadLetters}</p>
+                    <p className="text-lg font-semibold text-[var(--foreground)]">
+                      {queue.deadLetters}
+                    </p>
                   </div>
                 </div>
 

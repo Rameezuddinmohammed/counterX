@@ -88,7 +88,11 @@ export interface TelemetryPort {
 export function matchesForbiddenPattern(key: string): string | null {
   const normalizedKey = key.toLowerCase().replace(/[-.\s]/g, "_");
   for (const field of FORBIDDEN_CREDENTIAL_FIELDS) {
-    if (normalizedKey === field || normalizedKey.endsWith(`_${field}`) || normalizedKey.startsWith(`${field}_`)) {
+    if (
+      normalizedKey === field ||
+      normalizedKey.endsWith(`_${field}`) ||
+      normalizedKey.startsWith(`${field}_`)
+    ) {
       return field;
     }
   }
@@ -120,9 +124,7 @@ export function scanObjectForCredentials(
 
     // Recurse into nested objects
     if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      findings.push(
-        ...scanObjectForCredentials(value as Record<string, unknown>, currentPath),
-      );
+      findings.push(...scanObjectForCredentials(value as Record<string, unknown>, currentPath));
     }
 
     // Recurse into arrays

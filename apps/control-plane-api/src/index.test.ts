@@ -32,7 +32,10 @@ async function createTestToken(claims: Record<string, unknown> = {}): Promise<st
     sub: "ctr_merchant-user_AAAAAAAAAAAAAAAAAAAAAA",
     [`${CLAIMS_NAMESPACE}actor_kind`]: "merchant_user",
     [`${CLAIMS_NAMESPACE}environment`]: "test",
-    [`${CLAIMS_NAMESPACE}scope`]: { kind: "merchant", merchantId: "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA" },
+    [`${CLAIMS_NAMESPACE}scope`]: {
+      kind: "merchant",
+      merchantId: "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA",
+    },
     [`${CLAIMS_NAMESPACE}roles`]: ["merchant.owner"],
     [`${CLAIMS_NAMESPACE}assurance`]: "session",
     permissions: ["identity.scope.read"],
@@ -67,7 +70,11 @@ describe("@counter/control-plane-api", () => {
 
     const response = await server.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body) as { status: string; version: string; environment: string };
+    const body = JSON.parse(response.body) as {
+      status: string;
+      version: string;
+      environment: string;
+    };
     expect(body.status).toBe("healthy");
     expect(body.version).toBe("1.2.3");
     expect(body.environment).toBe("test");

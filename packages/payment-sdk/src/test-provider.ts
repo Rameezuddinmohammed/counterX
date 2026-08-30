@@ -11,7 +11,11 @@
 import { randomBytes } from "node:crypto";
 
 import type { Instant, IsoCurrencyCode, Money } from "@counter/domain";
-import { createCanonicalError, instantFromEpochMilliseconds, serializeInstant } from "@counter/domain";
+import {
+  createCanonicalError,
+  instantFromEpochMilliseconds,
+  serializeInstant,
+} from "@counter/domain";
 import type { CtpEnvelope, EvidencePayload, Signer } from "@counter/trust-protocol";
 import { buildUnsignedEnvelope, generateNonce, signEnvelope } from "@counter/trust-protocol";
 
@@ -149,7 +153,9 @@ export class CounterTestPaymentProvider implements PaymentProvider {
     });
   }
 
-  public async createInstruction(command: CreatePaymentInstruction): Promise<PaymentOperationResult> {
+  public async createInstruction(
+    command: CreatePaymentInstruction,
+  ): Promise<PaymentOperationResult> {
     const scenario = this.getScenario(command.idempotencyKey);
 
     // Idempotency: if we already have state for this key, return stored result
@@ -347,13 +353,24 @@ export class CounterTestPaymentProvider implements PaymentProvider {
         const evidenceInternal = await this.#generateEvidence(reference, "confirmed", now);
         const queryAfter = this.#futureInstant(5000);
         const result: PaymentOperationResult = { kind: "indeterminate", reference, queryAfter };
-        this.#state.set(command.idempotencyKey, { scenario, result, evidence: evidenceInternal, phase: "authorized", amount: command.amount });
+        this.#state.set(command.idempotencyKey, {
+          scenario,
+          result,
+          evidence: evidenceInternal,
+          phase: "authorized",
+          amount: command.amount,
+        });
         return result;
       }
 
       case "pending_then_success": {
         const result: PaymentOperationResult = { kind: "pending", reference };
-        this.#state.set(command.idempotencyKey, { scenario, result, phase: "authorized", amount: command.amount });
+        this.#state.set(command.idempotencyKey, {
+          scenario,
+          result,
+          phase: "authorized",
+          amount: command.amount,
+        });
         return result;
       }
 
@@ -367,7 +384,12 @@ export class CounterTestPaymentProvider implements PaymentProvider {
           }),
           expiresAt,
         };
-        this.#state.set(command.idempotencyKey, { scenario, result, phase: "authorized", amount: command.amount });
+        this.#state.set(command.idempotencyKey, {
+          scenario,
+          result,
+          phase: "authorized",
+          amount: command.amount,
+        });
         return result;
       }
 
@@ -375,7 +397,13 @@ export class CounterTestPaymentProvider implements PaymentProvider {
         // immediate_success and others
         const evidence = await this.#generateEvidence(reference, "confirmed", now);
         const result: PaymentOperationResult = { kind: "confirmed", evidence };
-        this.#state.set(command.idempotencyKey, { scenario, result, evidence, phase: "authorized", amount: command.amount });
+        this.#state.set(command.idempotencyKey, {
+          scenario,
+          result,
+          evidence,
+          phase: "authorized",
+          amount: command.amount,
+        });
         return result;
       }
     }
@@ -398,7 +426,12 @@ export class CounterTestPaymentProvider implements PaymentProvider {
     // No prior authorized state - generate fresh evidence
     const evidence = await this.#generateEvidence(reference, "confirmed", now);
     const result: PaymentOperationResult = { kind: "confirmed", evidence };
-    this.#state.set(command.idempotencyKey, { scenario: "immediate_success", result, evidence, phase: "captured" });
+    this.#state.set(command.idempotencyKey, {
+      scenario: "immediate_success",
+      result,
+      evidence,
+      phase: "captured",
+    });
     return result;
   }
 
@@ -414,7 +447,12 @@ export class CounterTestPaymentProvider implements PaymentProvider {
       const [key, state] = entry;
       this.#state.set(key, { ...state, result, evidence, phase: "voided" });
     } else {
-      this.#state.set(command.idempotencyKey, { scenario: "immediate_success", result, evidence, phase: "voided" });
+      this.#state.set(command.idempotencyKey, {
+        scenario: "immediate_success",
+        result,
+        evidence,
+        phase: "voided",
+      });
     }
 
     return result;
@@ -442,7 +480,11 @@ export class CounterTestPaymentProvider implements PaymentProvider {
           status: "pending" as const,
           amount: command.amount,
         });
-        this.#refundState.set(command.idempotencyKey, { scenario, result, evidence: refundEvidence });
+        this.#refundState.set(command.idempotencyKey, {
+          scenario,
+          result,
+          evidence: refundEvidence,
+        });
         return result;
       }
 
@@ -456,7 +498,11 @@ export class CounterTestPaymentProvider implements PaymentProvider {
           amount: command.amount,
           processedAt: now,
         });
-        this.#refundState.set(command.idempotencyKey, { scenario, result, evidence: refundEvidence });
+        this.#refundState.set(command.idempotencyKey, {
+          scenario,
+          result,
+          evidence: refundEvidence,
+        });
         return result;
       }
     }
@@ -504,7 +550,7 @@ export class CounterTestPaymentProvider implements PaymentProvider {
       });
     }
 
-    const reference = (parsed["reference"] as string ?? "test-webhook-ref") as ProviderReference;
+    const reference = ((parsed["reference"] as string) ?? "test-webhook-ref") as ProviderReference;
     const eventType = (parsed["eventType"] as string) ?? "payment.completed";
 
     const evidence: ProviderPaymentEvidence = Object.freeze({
@@ -574,9 +620,10 @@ export class CounterTestPaymentProvider implements PaymentProvider {
 
     const base = { reference, status } as const;
     const withConfirmed = status === "confirmed" ? { ...base, confirmedAt: now } : base;
-    const withData = envelope !== undefined
-      ? { ...withConfirmed, providerData: { envelope } as Record<string, unknown> }
-      : withConfirmed;
+    const withData =
+      envelope !== undefined
+        ? { ...withConfirmed, providerData: { envelope } as Record<string, unknown> }
+        : withConfirmed;
 
     return Object.freeze(withData);
   }

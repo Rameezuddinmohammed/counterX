@@ -19,11 +19,7 @@ import type {
   CtpEnvelope,
   CtpEnvironment,
 } from "@counter/trust-protocol";
-import {
-  buildUnsignedEnvelope,
-  generateNonce,
-  signEnvelope,
-} from "@counter/trust-protocol";
+import { buildUnsignedEnvelope, generateNonce, signEnvelope } from "@counter/trust-protocol";
 import type { SecureKeyStore } from "@counter/wallet-domain";
 import type { PurchaseProposal } from "./purchase-proposal.js";
 
@@ -115,7 +111,9 @@ export class PurchaseIntentBuilder {
     const issuedAt = timestamp;
 
     // Cap validity at 15 minutes or quote expiry, whichever is sooner
-    const maxExpiry = new Date(new Date(timestamp).getTime() + MAX_INTENT_VALIDITY_MS).toISOString();
+    const maxExpiry = new Date(
+      new Date(timestamp).getTime() + MAX_INTENT_VALIDITY_MS,
+    ).toISOString();
     const quoteExpiry = quoteExpiresAt;
     const expiresAt = maxExpiry < quoteExpiry ? maxExpiry : quoteExpiry;
 

@@ -4,16 +4,18 @@ import * as React from "react";
 import { Toaster as SonnerToaster, toast } from "sonner";
 
 export interface ToasterProps {
-  position?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "top-center" | "bottom-center";
+  position?:
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right"
+    | "top-center"
+    | "bottom-center";
   richColors?: boolean;
   expand?: boolean;
 }
 
-function Toaster({
-  position = "bottom-right",
-  richColors = true,
-  expand = false,
-}: ToasterProps) {
+function Toaster({ position = "bottom-right", richColors = true, expand = false }: ToasterProps) {
   return (
     <SonnerToaster
       position={position}
@@ -24,10 +26,8 @@ function Toaster({
           toast:
             "group border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-xl rounded-xl",
           description: "text-[var(--foreground-secondary)]",
-          actionButton:
-            "bg-[var(--brand-orange)] text-white hover:bg-[var(--brand-orange-dark)]",
-          cancelButton:
-            "bg-[var(--surface-secondary)] text-[var(--foreground-secondary)]",
+          actionButton: "bg-[var(--brand-orange)] text-white hover:bg-[var(--brand-orange-dark)]",
+          cancelButton: "bg-[var(--surface-secondary)] text-[var(--foreground-secondary)]",
         },
       }}
     />

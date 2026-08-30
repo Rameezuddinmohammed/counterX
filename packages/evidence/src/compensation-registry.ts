@@ -17,10 +17,7 @@ import { isAuthoritative } from "./source-authority.js";
 export class CompensationRegistry {
   readonly #registry: Map<FindingType, CompensationCommandRecord[]> = new Map();
 
-  public register(
-    findingType: FindingType,
-    commands: readonly CompensationCommandRecord[],
-  ): void {
+  public register(findingType: FindingType, commands: readonly CompensationCommandRecord[]): void {
     const existing = this.#registry.get(findingType);
     if (existing !== undefined) {
       existing.push(...commands);
@@ -29,9 +26,7 @@ export class CompensationRegistry {
     }
   }
 
-  public getEligibleCommands(
-    findingType: FindingType,
-  ): readonly CompensationCommandRecord[] {
+  public getEligibleCommands(findingType: FindingType): readonly CompensationCommandRecord[] {
     return this.#registry.get(findingType) ?? [];
   }
 
@@ -87,8 +82,7 @@ export class CompensationRegistry {
 /**
  * Default compensation registry with mappings for common finding types.
  */
-export const DEFAULT_COMPENSATION_REGISTRY: CompensationRegistry =
-  createDefaultRegistry();
+export const DEFAULT_COMPENSATION_REGISTRY: CompensationRegistry = createDefaultRegistry();
 
 function createDefaultRegistry(): CompensationRegistry {
   const registry = new CompensationRegistry();

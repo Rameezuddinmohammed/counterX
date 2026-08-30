@@ -22,7 +22,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import * as ed from "@noble/ed25519";
 import { createCounterId } from "@counter/domain";
-import type { SecureKeyStore, PublicKeyDescriptor, GeneratedKeyResult } from "./secure-key-store.js";
+import type {
+  SecureKeyStore,
+  PublicKeyDescriptor,
+  GeneratedKeyResult,
+} from "./secure-key-store.js";
 
 // ---------------------------------------------------------------------------
 // Internal key entry (private, never exposed)

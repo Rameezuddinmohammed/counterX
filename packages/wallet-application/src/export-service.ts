@@ -306,7 +306,9 @@ export class ExportService {
     kid: string,
   ): ExportResult<UnsignedCtpEnvelope<ClosureReceiptPayload>> {
     const now = this.#clock();
-    const farFuture = new Date(new Date(now).getTime() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
+    const farFuture = new Date(
+      new Date(now).getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     const payload: ClosureReceiptPayload = {
       wallet_id: walletId,

@@ -9,12 +9,7 @@ import type { Instant } from "@counter/domain";
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 
-export const CONNECTOR_HEALTH_STATUSES = [
-  "healthy",
-  "degraded",
-  "unhealthy",
-  "unknown",
-] as const;
+export const CONNECTOR_HEALTH_STATUSES = ["healthy", "degraded", "unhealthy", "unknown"] as const;
 export type ConnectorHealthStatus = (typeof CONNECTOR_HEALTH_STATUSES)[number];
 
 const healthStatusSet: ReadonlySet<string> = new Set(CONNECTOR_HEALTH_STATUSES);

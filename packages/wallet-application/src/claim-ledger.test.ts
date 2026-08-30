@@ -47,10 +47,7 @@ async function makeSignedEnvelope(options?: {
   return result.value;
 }
 
-async function makeSignedEnvelopeWithKeyB(options?: {
-  audience?: readonly string[];
-  id?: string;
-}) {
+async function makeSignedEnvelopeWithKeyB(options?: { audience?: readonly string[]; id?: string }) {
   const signer = createTestSignerB();
   const unsigned = createTestUnsignedEnvelope({
     audience: options?.audience ?? ["counter://wallet/test-wallet-001"],

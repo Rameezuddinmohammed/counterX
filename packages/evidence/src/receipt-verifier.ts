@@ -154,9 +154,7 @@ export async function verifyReceipt(
 // Internal Helpers
 // ---------------------------------------------------------------------------
 
-function validateEnvelopeStructure(
-  value: unknown,
-): ReceiptVerificationResult {
+function validateEnvelopeStructure(value: unknown): ReceiptVerificationResult {
   if (value === null || typeof value !== "object") {
     return { valid: false, error: "Envelope must be a non-null object" };
   }

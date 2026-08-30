@@ -16,7 +16,11 @@
  * - Use VirtualLock() to prevent key material from being paged to disk
  */
 
-import type { SecureKeyStore, PublicKeyDescriptor, GeneratedKeyResult } from "./secure-key-store.js";
+import type {
+  SecureKeyStore,
+  PublicKeyDescriptor,
+  GeneratedKeyResult,
+} from "./secure-key-store.js";
 import { InMemorySecureKeyStore } from "./in-memory-key-store.js";
 
 // ---------------------------------------------------------------------------

@@ -7,8 +7,19 @@
 
 import { type Result, ok, err, createCanonicalError } from "@counter/domain";
 import { computePayloadDigest } from "./canonicalize.js";
-import type { CtpEnvelope, CtpEnvironment, CtpObjectType, Nonce, UnsignedCtpEnvelope } from "./types.js";
-import { CTP_SIGNATURE_ALGORITHM, CTP_VERSION, isCtpEnvironment, isCtpObjectType } from "./types.js";
+import type {
+  CtpEnvelope,
+  CtpEnvironment,
+  CtpObjectType,
+  Nonce,
+  UnsignedCtpEnvelope,
+} from "./types.js";
+import {
+  CTP_SIGNATURE_ALGORITHM,
+  CTP_VERSION,
+  isCtpEnvironment,
+  isCtpObjectType,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Envelope Builder Input
@@ -66,12 +77,20 @@ export function buildUnsignedEnvelope<Payload>(
   }
 
   // Validate non-empty required strings
-  if (!input.id || !input.issuer || !input.subject || !input.nonce || !input.correlation_id || !input.kid) {
+  if (
+    !input.id ||
+    !input.issuer ||
+    !input.subject ||
+    !input.nonce ||
+    !input.correlation_id ||
+    !input.kid
+  ) {
     return err(
       createCanonicalError({
         category: "validation",
         code: "INVALID_FORMAT",
-        message: "Envelope id, issuer, subject, nonce, correlation_id, and kid must be non-empty strings",
+        message:
+          "Envelope id, issuer, subject, nonce, correlation_id, and kid must be non-empty strings",
       }),
     );
   }

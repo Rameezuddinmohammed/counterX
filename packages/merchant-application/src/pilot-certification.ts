@@ -155,10 +155,7 @@ export class PilotCertification {
    * Gathers test results, receipts, findings, and manifest snapshot into
    * an evidence bundle. Requires runCertificationSuite to have been called.
    */
-  public collectEvidenceBundle(
-    manifest: CapabilityManifest,
-    timestamp: Instant,
-  ): EvidenceBundle {
+  public collectEvidenceBundle(manifest: CapabilityManifest, timestamp: Instant): EvidenceBundle {
     if (this.#suiteResult === null) {
       throw new Error("Cannot collect evidence bundle before running certification suite");
     }
@@ -194,7 +191,10 @@ export class PilotCertification {
     for (const result of this.#suiteResult.results) {
       if (result.evidenceIds.length > 0) {
         const evidenceContent = new TextEncoder().encode(
-          JSON.stringify({ evidenceIds: [...result.evidenceIds].sort(), scenarioId: result.scenarioId }),
+          JSON.stringify({
+            evidenceIds: [...result.evidenceIds].sort(),
+            scenarioId: result.scenarioId,
+          }),
         );
         evidenceHashes.push(sha256Digest(evidenceContent));
       }
@@ -288,7 +288,12 @@ export class PilotCertification {
   }> {
     const suiteResult = await this.runCertificationSuite(scenarios, timestamp);
     const evidenceBundle = this.collectEvidenceBundle(manifest, timestamp);
-    const signedBundle = await signBundle(evidenceBundle, this.#signer, this.#kid, this.#environment);
+    const signedBundle = await signBundle(
+      evidenceBundle,
+      this.#signer,
+      this.#kid,
+      this.#environment,
+    );
     const signedManifest = await this.signCertificationManifest(manifest, timestamp);
 
     return Object.freeze({

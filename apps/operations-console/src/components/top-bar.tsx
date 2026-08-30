@@ -35,9 +35,7 @@ interface TopBarProps {
 export function TopBar({ onCommandPaletteOpen }: TopBarProps) {
   const pathname = usePathname();
 
-  const breadcrumbs: BreadcrumbItem[] = [
-    { label: "Operations", href: "/" },
-  ];
+  const breadcrumbs: BreadcrumbItem[] = [{ label: "Operations", href: "/" }];
 
   if (pathname !== "/") {
     const label = ROUTE_LABELS[pathname] ?? pathname.slice(1);

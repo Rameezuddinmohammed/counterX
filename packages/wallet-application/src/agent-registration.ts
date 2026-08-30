@@ -121,7 +121,10 @@ export class AgentRegistrationService {
     if (pairingProof.walletId !== walletId) {
       return {
         ok: false,
-        error: { kind: "registration_error", reason: "Wallet ID mismatch between registration and pairing" },
+        error: {
+          kind: "registration_error",
+          reason: "Wallet ID mismatch between registration and pairing",
+        },
       };
     }
 
@@ -130,7 +133,10 @@ export class AgentRegistrationService {
     if (!stepUpValidation.valid) {
       return {
         ok: false,
-        error: { kind: "registration_error", reason: `Step-up validation failed: ${stepUpValidation.reason}` },
+        error: {
+          kind: "registration_error",
+          reason: `Step-up validation failed: ${stepUpValidation.reason}`,
+        },
       };
     }
 
@@ -139,7 +145,10 @@ export class AgentRegistrationService {
     if (this.#keyIndex.has(publicKeyB64)) {
       return {
         ok: false,
-        error: { kind: "registration_error", reason: "Public key is already registered to another agent" },
+        error: {
+          kind: "registration_error",
+          reason: "Public key is already registered to another agent",
+        },
       };
     }
 
@@ -184,7 +193,10 @@ export class AgentRegistrationService {
     if (!envelopeResult.ok) {
       return {
         ok: false,
-        error: { kind: "registration_error", reason: `Envelope construction failed: ${envelopeResult.error.message}` },
+        error: {
+          kind: "registration_error",
+          reason: `Envelope construction failed: ${envelopeResult.error.message}`,
+        },
       };
     }
 

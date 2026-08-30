@@ -120,11 +120,14 @@ export function createIdempotencyStore<T>(options?: IdempotencyStoreOptions): Id
       while (entries.size >= maxSize) {
         evictOldest();
       }
-      entries.set(idempotencyKey, Object.freeze({
-        payloadHash,
-        outcome,
-        recordedAt: Date.now(),
-      }));
+      entries.set(
+        idempotencyKey,
+        Object.freeze({
+          payloadHash,
+          outcome,
+          recordedAt: Date.now(),
+        }),
+      );
     },
 
     clear(): void {

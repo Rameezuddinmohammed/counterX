@@ -54,11 +54,7 @@ export interface AnomalyAlert {
   readonly context: Record<string, unknown>;
 }
 
-export const ANOMALY_TYPES = [
-  "unusual_amount",
-  "frequency_spike",
-  "failed_policy_checks",
-] as const;
+export const ANOMALY_TYPES = ["unusual_amount", "frequency_spike", "failed_policy_checks"] as const;
 
 export type AnomalyType = (typeof ANOMALY_TYPES)[number];
 
@@ -273,8 +269,10 @@ export class OperationsService {
       transactionCount: existing.transactionCount + (event.eventType === "transaction" ? 1 : 0),
       approvalCount: existing.approvalCount + (event.eventType === "approval" ? 1 : 0),
       rejectionCount: existing.rejectionCount + (event.eventType === "rejection" ? 1 : 0),
-      triggerExecutionCount: existing.triggerExecutionCount + (event.eventType === "trigger_execution" ? 1 : 0),
-      failedPolicyCheckCount: existing.failedPolicyCheckCount + (event.eventType === "policy_check_failure" ? 1 : 0),
+      triggerExecutionCount:
+        existing.triggerExecutionCount + (event.eventType === "trigger_execution" ? 1 : 0),
+      failedPolicyCheckCount:
+        existing.failedPolicyCheckCount + (event.eventType === "policy_check_failure" ? 1 : 0),
       lastUpdated: event.timestamp,
     };
 
@@ -285,10 +283,16 @@ export class OperationsService {
     // Check unusual amount
     if (event.eventType === "transaction" && event.amount !== undefined) {
       if (event.amount > this.#config.unusualAmountThreshold) {
-        this.#raiseAlert(event.walletId, "unusual_amount", "high", `Transaction amount ${event.amount} exceeds threshold`, {
-          amount: event.amount.toString(),
-          threshold: this.#config.unusualAmountThreshold.toString(),
-        });
+        this.#raiseAlert(
+          event.walletId,
+          "unusual_amount",
+          "high",
+          `Transaction amount ${event.amount} exceeds threshold`,
+          {
+            amount: event.amount.toString(),
+            threshold: this.#config.unusualAmountThreshold.toString(),
+          },
+        );
       }
     }
 
@@ -303,10 +307,16 @@ export class OperationsService {
       ).length;
 
       if (recentCount > this.#config.frequencyMaxCount) {
-        this.#raiseAlert(event.walletId, "frequency_spike", "medium", `${recentCount} transactions in time window exceeds limit of ${this.#config.frequencyMaxCount}`, {
-          count: recentCount,
-          limit: this.#config.frequencyMaxCount,
-        });
+        this.#raiseAlert(
+          event.walletId,
+          "frequency_spike",
+          "medium",
+          `${recentCount} transactions in time window exceeds limit of ${this.#config.frequencyMaxCount}`,
+          {
+            count: recentCount,
+            limit: this.#config.frequencyMaxCount,
+          },
+        );
       }
     }
 
@@ -314,10 +324,16 @@ export class OperationsService {
     if (event.eventType === "policy_check_failure") {
       const metrics = this.#metrics.get(event.walletId);
       if (metrics && metrics.failedPolicyCheckCount >= this.#config.failedPolicyCheckThreshold) {
-        this.#raiseAlert(event.walletId, "failed_policy_checks", "high", `${metrics.failedPolicyCheckCount} failed policy checks reached threshold`, {
-          count: metrics.failedPolicyCheckCount,
-          threshold: this.#config.failedPolicyCheckThreshold,
-        });
+        this.#raiseAlert(
+          event.walletId,
+          "failed_policy_checks",
+          "high",
+          `${metrics.failedPolicyCheckCount} failed policy checks reached threshold`,
+          {
+            count: metrics.failedPolicyCheckCount,
+            threshold: this.#config.failedPolicyCheckThreshold,
+          },
+        );
       }
     }
   }

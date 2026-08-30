@@ -181,10 +181,7 @@ export function validateShopDomain(domain: string): Result<string> {
 
 // ─── Credential Redaction ─────────────────────────────────────────────────────
 
-const CREDENTIAL_PATTERNS: readonly RegExp[] = [
-  /shpat_[a-zA-Z0-9_-]+/gu,
-  /shpss_[a-zA-Z0-9_-]+/gu,
-];
+const CREDENTIAL_PATTERNS: readonly RegExp[] = [/shpat_[a-zA-Z0-9_-]+/gu, /shpss_[a-zA-Z0-9_-]+/gu];
 
 export function redactCredentials(text: string): string {
   let result = text;

@@ -49,7 +49,8 @@ export interface Runbook {
 export const OUTAGE_RUNBOOK: Runbook = Object.freeze({
   id: "runbook-outage-001",
   name: "Provider/System Outage",
-  description: "Step-by-step procedure for detecting, isolating, and recovering from provider or system outages",
+  description:
+    "Step-by-step procedure for detecting, isolating, and recovering from provider or system outages",
   severity: "critical" as const,
   triggerConditions: Object.freeze([
     "Provider response time exceeds 10s for 5 consecutive minutes",
@@ -62,15 +63,18 @@ export const OUTAGE_RUNBOOK: Runbook = Object.freeze({
     Object.freeze({
       order: 1,
       title: "Detection and Assessment",
-      description: "Confirm the outage scope by checking provider health metrics, transaction failure rates, and error patterns",
+      description:
+        "Confirm the outage scope by checking provider health metrics, transaction failure rates, and error patterns",
       automated: true,
       commandRef: "telemetry_dashboard.provider_response_time",
-      verificationCriteria: "Outage scope identified: affected provider(s), merchant(s), transaction types",
+      verificationCriteria:
+        "Outage scope identified: affected provider(s), merchant(s), transaction types",
     }),
     Object.freeze({
       order: 2,
       title: "Activate Kill Switch",
-      description: "Immediately activate kill switch for affected provider/scope to prevent new transaction attempts",
+      description:
+        "Immediately activate kill switch for affected provider/scope to prevent new transaction attempts",
       automated: false,
       commandRef: "kill_switch.activate",
       verificationCriteria: "Kill switch active, no new transactions routed to affected provider",
@@ -79,14 +83,16 @@ export const OUTAGE_RUNBOOK: Runbook = Object.freeze({
     Object.freeze({
       order: 3,
       title: "Notify Stakeholders",
-      description: "Send alerts to on-call team, affected merchant contacts, and management if severity warrants",
+      description:
+        "Send alerts to on-call team, affected merchant contacts, and management if severity warrants",
       automated: true,
       verificationCriteria: "All required parties notified with incident reference",
     }),
     Object.freeze({
       order: 4,
       title: "Isolate Affected Transactions",
-      description: "Move in-flight transactions to a holding state; drain affected queues using move_to_dlq strategy",
+      description:
+        "Move in-flight transactions to a holding state; drain affected queues using move_to_dlq strategy",
       automated: false,
       commandRef: "drain_queue",
       verificationCriteria: "All in-flight transactions safely parked, no data loss",
@@ -97,12 +103,14 @@ export const OUTAGE_RUNBOOK: Runbook = Object.freeze({
       description: "Poll provider health endpoint and internal metrics for signs of recovery",
       automated: true,
       commandRef: "telemetry_dashboard.provider_response_time",
-      verificationCriteria: "Provider responding within normal parameters for 5 consecutive minutes",
+      verificationCriteria:
+        "Provider responding within normal parameters for 5 consecutive minutes",
     }),
     Object.freeze({
       order: 6,
       title: "Replay Failed Transactions",
-      description: "Once provider is healthy, replay affected transactions from dead letter queue using dry-run first",
+      description:
+        "Once provider is healthy, replay affected transactions from dead letter queue using dry-run first",
       automated: false,
       commandRef: "replay",
       verificationCriteria: "All replayed transactions resolve (success or permanent failure)",
@@ -119,17 +127,14 @@ export const OUTAGE_RUNBOOK: Runbook = Object.freeze({
     Object.freeze({
       order: 8,
       title: "Post-Incident Review",
-      description: "Document timeline, root cause, and action items. Export audit log for affected period",
+      description:
+        "Document timeline, root cause, and action items. Export audit log for affected period",
       automated: false,
       commandRef: "export_audit_log",
       verificationCriteria: "Incident report filed with root cause and prevention measures",
     }),
   ]),
-  escalationPath: Object.freeze([
-    "On-call engineer",
-    "Platform lead",
-    "VP Engineering",
-  ]),
+  escalationPath: Object.freeze(["On-call engineer", "Platform lead", "VP Engineering"]),
   tags: Object.freeze(["outage", "provider", "kill-switch", "recovery"]),
 });
 
@@ -162,7 +167,8 @@ export const QUEUE_BACKLOG_RUNBOOK: Runbook = Object.freeze({
     Object.freeze({
       order: 2,
       title: "Identify Root Cause",
-      description: "Determine if backlog is from burst traffic, consumer failure, or downstream dependency issue",
+      description:
+        "Determine if backlog is from burst traffic, consumer failure, or downstream dependency issue",
       automated: false,
       verificationCriteria: "Root cause identified (burst/consumer/dependency)",
     }),
@@ -185,7 +191,8 @@ export const QUEUE_BACKLOG_RUNBOOK: Runbook = Object.freeze({
     Object.freeze({
       order: 5,
       title: "Replay Dead Letters",
-      description: "After root cause is resolved, replay dead letter entries from the backlog period",
+      description:
+        "After root cause is resolved, replay dead letter entries from the backlog period",
       automated: false,
       commandRef: "replay",
       verificationCriteria: "All replayable jobs processed successfully",
@@ -199,10 +206,7 @@ export const QUEUE_BACKLOG_RUNBOOK: Runbook = Object.freeze({
       verificationCriteria: "Queue depth below threshold for 15 minutes",
     }),
   ]),
-  escalationPath: Object.freeze([
-    "On-call engineer",
-    "Platform lead",
-  ]),
+  escalationPath: Object.freeze(["On-call engineer", "Platform lead"]),
   tags: Object.freeze(["queue", "backlog", "drain", "replay"]),
 });
 
@@ -215,7 +219,8 @@ export const QUEUE_BACKLOG_RUNBOOK: Runbook = Object.freeze({
 export const CRASH_RECOVERY_RUNBOOK: Runbook = Object.freeze({
   id: "runbook-crash-recovery-001",
   name: "Crash Recovery",
-  description: "Procedure for recovering from unexpected process/system crashes with state verification",
+  description:
+    "Procedure for recovering from unexpected process/system crashes with state verification",
   severity: "critical" as const,
   triggerConditions: Object.freeze([
     "Process crash detected by health monitor",
@@ -297,7 +302,8 @@ export const CRASH_RECOVERY_RUNBOOK: Runbook = Object.freeze({
 export const OFFBOARDING_RUNBOOK: Runbook = Object.freeze({
   id: "runbook-offboarding-001",
   name: "Merchant Offboarding",
-  description: "Complete procedure for safely offboarding a merchant including data export and cleanup",
+  description:
+    "Complete procedure for safely offboarding a merchant including data export and cleanup",
   severity: "medium" as const,
   triggerConditions: Object.freeze([
     "Merchant requests account closure",
@@ -363,7 +369,8 @@ export const OFFBOARDING_RUNBOOK: Runbook = Object.freeze({
     Object.freeze({
       order: 8,
       title: "Verify Offboarding",
-      description: "Confirm merchant cannot transact, all data exported, and no orphaned references",
+      description:
+        "Confirm merchant cannot transact, all data exported, and no orphaned references",
       automated: true,
       verificationCriteria: "Full offboarding checklist verified, status set to offboarded",
     }),
@@ -437,7 +444,8 @@ export const ROTATION_RUNBOOK: Runbook = Object.freeze({
       title: "Revoke Old Credentials",
       description: "Deactivate and remove old credentials after grace period",
       automated: false,
-      verificationCriteria: "Old credentials revoked, system operating normally on new credentials only",
+      verificationCriteria:
+        "Old credentials revoked, system operating normally on new credentials only",
     }),
     Object.freeze({
       order: 7,
@@ -448,10 +456,7 @@ export const ROTATION_RUNBOOK: Runbook = Object.freeze({
       verificationCriteria: "No traces of old credentials in storage or telemetry",
     }),
   ]),
-  escalationPath: Object.freeze([
-    "Security engineer",
-    "Platform lead",
-  ]),
+  escalationPath: Object.freeze(["Security engineer", "Platform lead"]),
   tags: Object.freeze(["rotation", "credentials", "security", "zero-downtime"]),
 });
 

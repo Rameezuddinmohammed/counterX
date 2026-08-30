@@ -46,7 +46,10 @@ function createFullConstraints(overrides?: {
   operations?: { allowedOperations: readonly string[] };
 }) {
   return {
-    merchantAllowlist: overrides?.merchantAllowlist ?? { allowedMerchantIds: ["merchant-a", "merchant-b"], allowedDomains: [] },
+    merchantAllowlist: overrides?.merchantAllowlist ?? {
+      allowedMerchantIds: ["merchant-a", "merchant-b"],
+      allowedDomains: [],
+    },
     geography: { allowedMerchantCountries: ["IN"], allowedDeliveryCountries: ["IN"] },
     category: { allowedCategories: ["*"] },
     currency: { allowedCurrencies: ["INR"] },
@@ -227,11 +230,7 @@ describe("PaymentReferenceService", () => {
         expires_at: new Date(Date.now() - 1000).toISOString(),
       });
 
-      const result = service.update(
-        "ref-001",
-        { eligibleMerchants: [] },
-        expiredSession,
-      );
+      const result = service.update("ref-001", { eligibleMerchants: [] }, expiredSession);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {

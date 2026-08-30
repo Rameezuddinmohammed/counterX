@@ -54,9 +54,10 @@ export function buildTestApproval(options: BuildApprovalOptions): TestApproval {
 
   const now = Date.now();
 
-  const approvedAtResult = options.approvedAt !== undefined
-    ? { ok: true as const, value: options.approvedAt }
-    : instantFromEpochMilliseconds(now);
+  const approvedAtResult =
+    options.approvedAt !== undefined
+      ? { ok: true as const, value: options.approvedAt }
+      : instantFromEpochMilliseconds(now);
 
   if (!approvedAtResult.ok) {
     throw new TypeError("Failed to compute approvedAt instant");

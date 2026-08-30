@@ -8,7 +8,11 @@ import {
   type Sha256Digest,
 } from "@counter/domain";
 import { evaluateHealth } from "./health-evaluator.js";
-import { generateManifest, type CapabilityManifest, type PilotCapability } from "./capability-manifest.js";
+import {
+  generateManifest,
+  type CapabilityManifest,
+  type PilotCapability,
+} from "./capability-manifest.js";
 import type { ReadinessCheckResult, ReadinessResult } from "./readiness-types.js";
 
 // ─── Test Helpers ───────────────────────────────────────────────────────────
@@ -128,7 +132,12 @@ describe("HealthEvaluator", () => {
         isReady: true,
         checkResults: [
           { checkKind: "connector_health", status: "Advisory", reason: "OK", timeToExpiryMs: null },
-          { checkKind: "mapping_freshness", status: "Advisory", reason: "OK", timeToExpiryMs: null },
+          {
+            checkKind: "mapping_freshness",
+            status: "Advisory",
+            reason: "OK",
+            timeToExpiryMs: null,
+          },
           { checkKind: "policy_compiled", status: "Advisory", reason: "OK", timeToExpiryMs: null },
         ],
       });

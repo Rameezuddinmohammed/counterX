@@ -93,10 +93,7 @@ export function CommandPaletteProvider({
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Navigation">
             {NAV_COMMANDS.map((cmd) => (
-              <CommandItem
-                key={cmd.href}
-                onSelect={() => handleNavigate(cmd.href)}
-              >
+              <CommandItem key={cmd.href} onSelect={() => handleNavigate(cmd.href)}>
                 <cmd.icon className="mr-2 h-4 w-4" />
                 <span>{cmd.label}</span>
               </CommandItem>

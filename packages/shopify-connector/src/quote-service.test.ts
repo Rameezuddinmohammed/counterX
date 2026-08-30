@@ -132,12 +132,19 @@ class MockClock implements ClockPort {
   }
 }
 
-function createTestService(options: {
-  products?: readonly Product[];
-  prices?: readonly PriceSnapshot[];
-  inventory?: readonly InventorySnapshot[];
-  now?: Instant;
-} = {}): { service: QuoteService; pricePort: MockPricePort; inventoryPort: MockInventoryPort; clock: MockClock } {
+function createTestService(
+  options: {
+    products?: readonly Product[];
+    prices?: readonly PriceSnapshot[];
+    inventory?: readonly InventorySnapshot[];
+    now?: Instant;
+  } = {},
+): {
+  service: QuoteService;
+  pricePort: MockPricePort;
+  inventoryPort: MockInventoryPort;
+  clock: MockClock;
+} {
   const productIndex = new ProductIndex();
   if (options.products) {
     productIndex.indexProducts(options.products);
@@ -189,10 +196,7 @@ describe("QuoteService", () => {
           makePriceSnapshot("v1", 10000n), // 100.00 INR
           makePriceSnapshot("v2", 25000n), // 250.00 INR
         ],
-        inventory: [
-          makeInventorySnapshot("v1", 10),
-          makeInventorySnapshot("v2", 5),
-        ],
+        inventory: [makeInventorySnapshot("v1", 10), makeInventorySnapshot("v2", 5)],
       });
 
       const result = service.createQuote({

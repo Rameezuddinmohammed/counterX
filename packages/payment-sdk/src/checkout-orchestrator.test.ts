@@ -18,7 +18,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { AgentId, Environment, Instant, IsoCurrencyCode, MerchantId, WalletId } from "@counter/domain";
+import type {
+  AgentId,
+  Environment,
+  Instant,
+  IsoCurrencyCode,
+  MerchantId,
+  WalletId,
+} from "@counter/domain";
 import { CryptoIdGenerator } from "@counter/domain";
 import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
 
@@ -204,11 +211,20 @@ function createConfig(overrides?: Partial<CheckoutOrchestratorConfig>): {
     clock: overrides?.clock ?? fixedClock,
   };
 
-  const config: CheckoutOrchestratorConfig = overrides?.limitConfig !== undefined
-    ? { ...baseConfig, limitConfig: overrides.limitConfig }
-    : baseConfig;
+  const config: CheckoutOrchestratorConfig =
+    overrides?.limitConfig !== undefined
+      ? { ...baseConfig, limitConfig: overrides.limitConfig }
+      : baseConfig;
 
-  return { config, policyPort, draftOrderPort, killSwitchStore, reconciliationPort, receiptPort, ledger };
+  return {
+    config,
+    policyPort,
+    draftOrderPort,
+    killSwitchStore,
+    reconciliationPort,
+    receiptPort,
+    ledger,
+  };
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -217,7 +233,9 @@ describe("CheckoutOrchestrator", () => {
   describe("environment enforcement", () => {
     it("throws ENVIRONMENT_MISMATCH for production environment", () => {
       const { config } = createConfig();
-      expect(() => new CheckoutOrchestrator({ ...config, environment: "production" as Environment })).toThrow();
+      expect(
+        () => new CheckoutOrchestrator({ ...config, environment: "production" as Environment }),
+      ).toThrow();
       try {
         new CheckoutOrchestrator({ ...config, environment: "production" as Environment });
       } catch (error: unknown) {
@@ -228,17 +246,23 @@ describe("CheckoutOrchestrator", () => {
 
     it("throws ENVIRONMENT_MISMATCH for sandbox environment", () => {
       const { config } = createConfig();
-      expect(() => new CheckoutOrchestrator({ ...config, environment: "sandbox" as Environment })).toThrow();
+      expect(
+        () => new CheckoutOrchestrator({ ...config, environment: "sandbox" as Environment }),
+      ).toThrow();
     });
 
     it("throws ENVIRONMENT_MISMATCH for pilot environment", () => {
       const { config } = createConfig();
-      expect(() => new CheckoutOrchestrator({ ...config, environment: "pilot" as Environment })).toThrow();
+      expect(
+        () => new CheckoutOrchestrator({ ...config, environment: "pilot" as Environment }),
+      ).toThrow();
     });
 
     it("accepts test environment", () => {
       const { config } = createConfig();
-      expect(() => new CheckoutOrchestrator({ ...config, environment: "test" as Environment })).not.toThrow();
+      expect(
+        () => new CheckoutOrchestrator({ ...config, environment: "test" as Environment }),
+      ).not.toThrow();
     });
 
     it("accepts local environment", () => {
@@ -250,7 +274,9 @@ describe("CheckoutOrchestrator", () => {
         clock: fixedClock,
       });
       const { config } = createConfig({ provider });
-      expect(() => new CheckoutOrchestrator({ ...config, environment: "local" as Environment })).not.toThrow();
+      expect(
+        () => new CheckoutOrchestrator({ ...config, environment: "local" as Environment }),
+      ).not.toThrow();
     });
   });
 

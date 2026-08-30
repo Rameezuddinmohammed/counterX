@@ -89,7 +89,9 @@ describe("PurchaseIntentBuilder", () => {
     });
 
     // Should be capped at 15 minutes from issuance
-    const expectedMaxExpiry = new Date(new Date(timestamp).getTime() + 15 * 60 * 1000).toISOString();
+    const expectedMaxExpiry = new Date(
+      new Date(timestamp).getTime() + 15 * 60 * 1000,
+    ).toISOString();
     expect(intent.expiresAt).toBe(expectedMaxExpiry);
   });
 

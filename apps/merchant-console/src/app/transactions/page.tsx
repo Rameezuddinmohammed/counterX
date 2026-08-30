@@ -21,22 +21,57 @@ const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "ctr_merchant_BwcH
 
 function getStatusVariant(state: TransactionState) {
   switch (state) {
-    case "settled": return "success" as const;
+    case "settled":
+      return "success" as const;
     case "captured":
-    case "authorized": return "info" as const;
-    case "refunded": return "warning" as const;
+    case "authorized":
+      return "info" as const;
+    case "refunded":
+      return "warning" as const;
     case "failed":
-    case "disputed": return "error" as const;
-    default: return "secondary" as const;
+    case "disputed":
+      return "error" as const;
+    default:
+      return "secondary" as const;
   }
 }
 
 const columns: DataTableColumn<Transaction>[] = [
-  { key: "transactionId", header: "ID", cell: (item: Transaction) => <span className="font-mono text-xs">{item.transactionId}</span> },
-  { key: "amount", header: "Amount", cell: (item: Transaction) => <span className="font-semibold">{item.currency} {item.amount.toLocaleString()}</span> },
-  { key: "currentState", header: "Status", cell: (item: Transaction) => <Badge variant={getStatusVariant(item.currentState)}>{item.currentState}</Badge> },
-  { key: "createdAt", header: "Date", cell: (item: Transaction) => <span className="text-[var(--foreground-secondary)]">{new Date(item.createdAt).toLocaleDateString()}</span> },
-  { key: "method", header: "Method", cell: (item: Transaction) => <span className="capitalize">{item.method}</span> },
+  {
+    key: "transactionId",
+    header: "ID",
+    cell: (item: Transaction) => <span className="font-mono text-xs">{item.transactionId}</span>,
+  },
+  {
+    key: "amount",
+    header: "Amount",
+    cell: (item: Transaction) => (
+      <span className="font-semibold">
+        {item.currency} {item.amount.toLocaleString()}
+      </span>
+    ),
+  },
+  {
+    key: "currentState",
+    header: "Status",
+    cell: (item: Transaction) => (
+      <Badge variant={getStatusVariant(item.currentState)}>{item.currentState}</Badge>
+    ),
+  },
+  {
+    key: "createdAt",
+    header: "Date",
+    cell: (item: Transaction) => (
+      <span className="text-[var(--foreground-secondary)]">
+        {new Date(item.createdAt).toLocaleDateString()}
+      </span>
+    ),
+  },
+  {
+    key: "method",
+    header: "Method",
+    cell: (item: Transaction) => <span className="capitalize">{item.method}</span>,
+  },
 ];
 
 export default function TransactionsPage() {
@@ -50,7 +85,9 @@ export default function TransactionsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Transactions</h1>
-          <p className="mt-1 text-[var(--foreground-secondary)]">View and monitor all transaction activity.</p>
+          <p className="mt-1 text-[var(--foreground-secondary)]">
+            View and monitor all transaction activity.
+          </p>
         </div>
         {loading ? (
           <div className="space-y-3">

@@ -16,12 +16,7 @@
  * partitions every key under that single logical scope; keep this in mind when
  * broadening to per-merchant/per-operation scoping later.
  */
-import {
-  type CanonicalError,
-  type Instant,
-  type Result,
-  type Sha256Digest,
-} from "@counter/domain";
+import { type CanonicalError, type Instant, type Result, type Sha256Digest } from "@counter/domain";
 import { InMemoryIdempotencyStore, type IdempotencyAcquireResult } from "@counter/workflow";
 
 export interface RuntimeIdempotencyStore {

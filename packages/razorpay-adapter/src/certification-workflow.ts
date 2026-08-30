@@ -16,9 +16,7 @@
 import type { Instant, IsoCurrencyCode, MerchantId, Money } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
 
-import type {
-  ProviderReference,
-} from "@counter/payment-sdk";
+import type { ProviderReference } from "@counter/payment-sdk";
 
 import type { RazorpayTestProvider } from "./razorpay-provider.js";
 import {
@@ -122,9 +120,7 @@ export interface CertificationStartCommand {
   readonly metadata?: Readonly<Record<string, string>>;
 }
 
-export type CertificationStartResult =
-  | CertificationActionRequired
-  | CertificationDeclined;
+export type CertificationStartResult = CertificationActionRequired | CertificationDeclined;
 
 export interface CertificationActionRequired {
   readonly kind: "payment_action_required";

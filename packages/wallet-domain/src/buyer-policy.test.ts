@@ -583,9 +583,7 @@ describe("simulatePolicy", () => {
 
   it("should use provided accumulated usage", () => {
     const policy = createTestPolicy();
-    const actions: ProposedAction[] = [
-      createTestAction({ amountPaise: 100_000n }),
-    ];
+    const actions: ProposedAction[] = [createTestAction({ amountPaise: 100_000n })];
     const usage: AccumulatedUsage = {
       rollingPeriodTotalPaise: 4_950_000n, // Close to rolling limit
       aggregateTotalPaise: 0n,

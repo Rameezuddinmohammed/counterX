@@ -96,9 +96,11 @@ describe("ApprovalInbox", () => {
       const stepUp = new StepUpService();
       const inbox = new ApprovalInbox(stepUp);
 
-      const task = inbox.createTask(createTaskParams({
-        expiresAt: "2020-01-01T00:30:00.000Z",
-      }));
+      const task = inbox.createTask(
+        createTaskParams({
+          expiresAt: "2020-01-01T00:30:00.000Z",
+        }),
+      );
 
       const result = inbox.approve(
         task.taskId,
@@ -265,9 +267,11 @@ describe("ApprovalInbox", () => {
       const stepUp = new StepUpService();
       const inbox = new ApprovalInbox(stepUp);
 
-      const task = inbox.createTask(createTaskParams({
-        expiresAt: "2020-01-01T00:30:00.000Z",
-      }));
+      const task = inbox.createTask(
+        createTaskParams({
+          expiresAt: "2020-01-01T00:30:00.000Z",
+        }),
+      );
 
       const result = inbox.deny(task.taskId, "principal-001", "2020-01-01T00:45:00.000Z");
 
@@ -282,10 +286,12 @@ describe("ApprovalInbox", () => {
       const inbox = new ApprovalInbox(stepUp);
 
       inbox.createTask(createTaskParams());
-      inbox.createTask(createTaskParams({
-        intentRef: "intent-002",
-        quoteDigest: "digest-other",
-      }));
+      inbox.createTask(
+        createTaskParams({
+          intentRef: "intent-002",
+          quoteDigest: "digest-other",
+        }),
+      );
 
       const pending = inbox.getPendingTasks("wlt-test-001");
       expect(pending).toHaveLength(2);
@@ -296,10 +302,12 @@ describe("ApprovalInbox", () => {
       const inbox = new ApprovalInbox(stepUp);
 
       const task1 = inbox.createTask(createTaskParams());
-      inbox.createTask(createTaskParams({
-        intentRef: "intent-002",
-        quoteDigest: "digest-other",
-      }));
+      inbox.createTask(
+        createTaskParams({
+          intentRef: "intent-002",
+          quoteDigest: "digest-other",
+        }),
+      );
       inbox.deny(task1.taskId, "principal-001", new Date().toISOString());
 
       const pending = inbox.getPendingTasks("wlt-test-001");

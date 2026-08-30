@@ -2,11 +2,7 @@
   "task_id": "task-codebase-sanity-cleanup",
   "task_description": "Full sanity check / cleanup pass: prune dead code and useless info, resolve bugs, fix errors, improve structure. AUDIT-FIRST: findings report categorizes everything; drive only SAFE, behavior-preserving fixes in small reviewable slices; flag risky/contract-touching items for human decision. Baseline: 2811 tests passing, build green, depcruise clean, lint 963 errors/1 warning (nearly all from untracked apps/landing/out minified JS - a config problem, not source bugs).",
   "status": "completed",
-  "feature_order": [
-    "FEAT-001",
-    "FEAT-002",
-    "FEAT-003"
-  ],
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
   "blocked_reason": null,
   "verification": {
     "build": "pass",

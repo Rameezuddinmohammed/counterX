@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  PACKAGE_NAME,
-  RAZORPAY_CONFIG_KEYS,
-} from "./index.js";
+import { PACKAGE_NAME, RAZORPAY_CONFIG_KEYS } from "./index.js";
 import type {
   RazorpayTestAdapterConfig,
   RazorpayOrderParams,

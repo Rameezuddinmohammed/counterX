@@ -12,12 +12,7 @@ import type { HealthCheck } from "./health.js";
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 
-export const CAPABILITY_STATUSES = [
-  "available",
-  "degraded",
-  "suspended",
-  "unavailable",
-] as const;
+export const CAPABILITY_STATUSES = ["available", "degraded", "suspended", "unavailable"] as const;
 export type CapabilityStatus = (typeof CAPABILITY_STATUSES)[number];
 
 const capabilityStatusSet: ReadonlySet<string> = new Set(CAPABILITY_STATUSES);

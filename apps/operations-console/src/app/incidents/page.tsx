@@ -32,7 +32,9 @@ function SeverityBadge({ severity }: { severity: "critical" | "warning" | "info"
     info: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[severity]}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[severity]}`}
+    >
       {severity}
     </span>
   );
@@ -45,7 +47,9 @@ function StatusBadge({ status }: { status: "active" | "investigating" | "resolve
     resolved: "bg-green-500/10 text-green-500 border-green-500/20",
   };
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[status]}`}>
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[status]}`}
+    >
       {status}
     </span>
   );
@@ -85,7 +89,10 @@ export default function IncidentsPage() {
           <h2 className="mb-4 text-lg font-semibold text-[var(--foreground)]">Recent History</h2>
           <div className="space-y-3">
             {MOCK_INCIDENTS.map((incident) => (
-              <Card key={incident.id} className="transition-all hover:border-[var(--border-secondary)]">
+              <Card
+                key={incident.id}
+                className="transition-all hover:border-[var(--border-secondary)]"
+              >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
@@ -95,7 +102,8 @@ export default function IncidentsPage() {
                       <div>
                         <p className="font-medium text-[var(--foreground)]">{incident.title}</p>
                         <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-                          {incident.id} &middot; Scope: {incident.scope} &middot; Started: {new Date(incident.startedAt).toLocaleString()}
+                          {incident.id} &middot; Scope: {incident.scope} &middot; Started:{" "}
+                          {new Date(incident.startedAt).toLocaleString()}
                         </p>
                       </div>
                     </div>

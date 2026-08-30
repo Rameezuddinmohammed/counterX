@@ -237,7 +237,5 @@ export function recordAttempt(
   timestamp: Instant,
   idempotencyKey: string,
 ): void {
-  ledger.recordAttempt(
-    Object.freeze({ walletId, amountMinor, timestamp, idempotencyKey }),
-  );
+  ledger.recordAttempt(Object.freeze({ walletId, amountMinor, timestamp, idempotencyKey }));
 }

@@ -16,12 +16,7 @@ export {
   throwCanonicalError,
   type HttpErrorResponse,
 } from "./error-handler.js";
-export {
-  authPlugin,
-  getJwtPayload,
-  type AuthPluginOptions,
-  type JwtPayload,
-} from "./auth.js";
+export { authPlugin, getJwtPayload, type AuthPluginOptions, type JwtPayload } from "./auth.js";
 export {
   actorExtractionPlugin,
   getActorContext,
@@ -48,11 +43,7 @@ export {
   type WebhookHandler,
   type WebhookIngressOptions,
 } from "./webhook-ingress.js";
-export {
-  openApiPlugin,
-  type OpenApiInfo,
-  type OpenApiPluginOptions,
-} from "./openapi.js";
+export { openApiPlugin, type OpenApiInfo, type OpenApiPluginOptions } from "./openapi.js";
 export {
   createHttpServer,
   attachGracefulShutdown,

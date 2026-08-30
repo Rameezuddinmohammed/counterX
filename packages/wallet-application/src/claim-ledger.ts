@@ -7,7 +7,11 @@
  * canonical digest, supersession chain).
  */
 
-import type { ReceiptVerifyOptions, ReceiptVerificationResult, TrustedPublicKey } from "@counter/evidence";
+import type {
+  ReceiptVerifyOptions,
+  ReceiptVerificationResult,
+  TrustedPublicKey,
+} from "@counter/evidence";
 import { verifyReceipt } from "@counter/evidence";
 
 // ---------------------------------------------------------------------------
@@ -190,7 +194,14 @@ export class ClaimLedger {
    * - Timestamp validity (if currentTime provided)
    */
   async consumeReceipt(params: ConsumeReceiptParams): Promise<ReceiptConsumptionResult> {
-    const { claimId, receiptEnvelope, expectedAudience, trustedKeys, currentTime, predecessorEnvelope } = params;
+    const {
+      claimId,
+      receiptEnvelope,
+      expectedAudience,
+      trustedKeys,
+      currentTime,
+      predecessorEnvelope,
+    } = params;
 
     // Build verification options
     const verifyOptions: ReceiptVerifyOptions = {

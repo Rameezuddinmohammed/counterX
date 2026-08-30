@@ -77,7 +77,11 @@ export interface LimitStore {
   /**
    * Get current usage within the specified window.
    */
-  getCurrentUsage(bucketId: string, windowStart: Instant, windowEnd: Instant): Promise<Result<CurrentUsage>>;
+  getCurrentUsage(
+    bucketId: string,
+    windowStart: Instant,
+    windowEnd: Instant,
+  ): Promise<Result<CurrentUsage>>;
 
   /**
    * Get all active (non-expired, non-released) reservations for a bucket.

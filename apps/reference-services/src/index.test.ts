@@ -42,7 +42,12 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/products" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json() as { items: unknown[]; totalCount: number; hasMore: boolean; nextCursor: string | null };
+      const body = response.json() as {
+        items: unknown[];
+        totalCount: number;
+        hasMore: boolean;
+        nextCursor: string | null;
+      };
       expect(body.items).toBeInstanceOf(Array);
       expect(body.items.length).toBeGreaterThan(0);
       expect(body.totalCount).toBeTypeOf("number");
@@ -128,7 +133,10 @@ describe("@counter/reference-services", () => {
       });
       expect(response.statusCode).toBe(201);
 
-      const body = response.json() as { status: string; result: { quoteId: string; variantId: string; quantity: number } };
+      const body = response.json() as {
+        status: string;
+        result: { quoteId: string; variantId: string; quantity: number };
+      };
       expect(body.status).toBe("succeeded");
       expect(body.result.quoteId).toBeDefined();
       expect(body.result.variantId).toBe("var-001");
@@ -151,7 +159,10 @@ describe("@counter/reference-services", () => {
       });
       expect(response.statusCode).toBe(201);
 
-      const body = response.json() as { status: string; result: { orderId: string; status: string } };
+      const body = response.json() as {
+        status: string;
+        result: { orderId: string; status: string };
+      };
       expect(body.status).toBe("succeeded");
       expect(body.result.orderId).toBeDefined();
       expect(body.result.status).toBe("draft");
@@ -195,7 +206,10 @@ describe("@counter/reference-services", () => {
       });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json() as { status: string; config: { delayMs: number; conflictErrorRate: number; seed: number } };
+      const body = response.json() as {
+        status: string;
+        config: { delayMs: number; conflictErrorRate: number; seed: number };
+      };
       expect(body.status).toBe("updated");
       expect(body.config.delayMs).toBe(100);
       expect(body.config.conflictErrorRate).toBe(0.5);
@@ -210,7 +224,13 @@ describe("@counter/reference-services", () => {
       const response = await app.inject({ method: "GET", url: "/manifest" });
       expect(response.statusCode).toBe(200);
 
-      const body = response.json() as { connectorId: string; platform: string; version: string; resources: unknown[]; actions: unknown[] };
+      const body = response.json() as {
+        connectorId: string;
+        platform: string;
+        version: string;
+        resources: unknown[];
+        actions: unknown[];
+      };
       expect(body.connectorId).toBeDefined();
       expect(body.platform).toBeDefined();
       expect(body.version).toBeDefined();

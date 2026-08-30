@@ -221,9 +221,7 @@ const FAKE_SIGNER_SEED = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI";
 describe("resolveCounterTestPaymentSigner", () => {
   it("returns null when either variable is absent", () => {
     expect(resolveCounterTestPaymentSigner({})).toBeNull();
-    expect(
-      resolveCounterTestPaymentSigner({ COUNTER_TEST_PAYMENT_SIGNER_KID: "k1" }),
-    ).toBeNull();
+    expect(resolveCounterTestPaymentSigner({ COUNTER_TEST_PAYMENT_SIGNER_KID: "k1" })).toBeNull();
   });
 
   it("returns null when the seed does not decode to 32 bytes", () => {

@@ -43,9 +43,9 @@ afterEach(() => {
 
 describe("createRazorpayHttpClient", () => {
   it("sends Basic auth derived from keyId:keySecret", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -56,9 +56,9 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("targets baseUrl + path with the given method", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "pay_1" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: "pay_1" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -70,9 +70,9 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("serializes POST body as JSON and sets Content-Type", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -88,9 +88,9 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("sends X-Razorpay-Idempotency header when idempotencyKey provided", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -106,9 +106,9 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("omits idempotency header when no idempotencyKey provided", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -119,9 +119,11 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("returns { status, body } for a successful response", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "order_abc", amount: 100 }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ id: "order_abc", amount: 100 }), { status: 200 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -136,9 +138,11 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("returns a 400 response as-is without throwing", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR" } }), { status: 400 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: "BAD_REQUEST_ERROR" } }), { status: 400 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -149,9 +153,9 @@ describe("createRazorpayHttpClient", () => {
   });
 
   it("returns a 500 response as-is without throwing", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "server" }), { status: 500 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ error: "server" }), { status: 500 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -205,9 +209,9 @@ describe("createRazorpayHttpClient", () => {
 
   it("sends the identical idempotency header across two retries with the same key", async () => {
     // Return a FRESH Response per call: a Response body can only be read once.
-    const fetchMock = vi.fn().mockImplementation(
-      () => new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => new Response(JSON.stringify({ id: "order_abc" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const client = createRazorpayHttpClient(CONFIG);
@@ -243,7 +247,10 @@ describe("createRazorpayHttpClient", () => {
 
 describe("redactAuthorization", () => {
   it("redacts the Authorization header and never leaks the secret", () => {
-    const redacted = redactAuthorization({ Authorization: EXPECTED_AUTH, Accept: "application/json" });
+    const redacted = redactAuthorization({
+      Authorization: EXPECTED_AUTH,
+      Accept: "application/json",
+    });
     expect(redacted["Authorization"]).toBe("Basic [REDACTED]");
     expect(redacted["Authorization"]).not.toContain("rzp_test_secret456");
     expect(redacted["Accept"]).toBe("application/json");

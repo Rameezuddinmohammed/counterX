@@ -236,5 +236,8 @@ function runConformanceSuite(
 // Run conformance suite against both implementations
 // ---------------------------------------------------------------------------
 
-runConformanceSuite("InMemorySecureKeyStore", () => new InMemorySecureKeyStore("default-credential"));
+runConformanceSuite(
+  "InMemorySecureKeyStore",
+  () => new InMemorySecureKeyStore("default-credential"),
+);
 runConformanceSuite("WindowsSecureKeyStore", () => new WindowsSecureKeyStore("default-credential"));

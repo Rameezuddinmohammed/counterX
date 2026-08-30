@@ -1,6 +1,15 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, Avatar, AvatarFallback, Badge, Separator } from "@counter/ui";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Avatar,
+  AvatarFallback,
+  Badge,
+  Separator,
+} from "@counter/ui";
 import { User, Mail, Shield, Clock, Globe } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 
@@ -54,7 +63,9 @@ export default function ProfilePage() {
               <Mail className="h-4 w-4 text-[var(--foreground-muted)]" />
               <div className="flex-1">
                 <p className="text-sm text-[var(--foreground-secondary)]">Email</p>
-                <p className="text-sm font-medium text-[var(--foreground)]">admin@merchant-pilot.com</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  admin@merchant-pilot.com
+                </p>
               </div>
             </div>
             <Separator />
@@ -97,7 +108,9 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-[var(--foreground)]">Shopify</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">store-pilot.myshopify.com</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">
+                    store-pilot.myshopify.com
+                  </p>
                 </div>
               </div>
               <Badge variant="success">Connected</Badge>

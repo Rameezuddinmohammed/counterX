@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
-import {
-  AUTHORITY_MAP,
-  getAuthoritativeSource,
-  isAuthoritative,
-} from "./source-authority.js";
-import {
-  CANONICAL_CLAIM_TYPES,
-  EVIDENCE_SOURCES,
-} from "./types.js";
+import { AUTHORITY_MAP, getAuthoritativeSource, isAuthoritative } from "./source-authority.js";
+import { CANONICAL_CLAIM_TYPES, EVIDENCE_SOURCES } from "./types.js";
 import type { CanonicalClaimType, EvidenceSource } from "./types.js";
 
 describe("source-authority", () => {
@@ -86,26 +79,20 @@ describe("source-authority", () => {
 
     it("property: for each claim type with an authoritative source, at most one source is authoritative", () => {
       fc.assert(
-        fc.property(
-          fc.constantFrom(...CANONICAL_CLAIM_TYPES),
-          (claimType: CanonicalClaimType) => {
-            const authoritativeSources = EVIDENCE_SOURCES.filter(
-              (source: EvidenceSource) => isAuthoritative(source, claimType),
-            );
-            expect(authoritativeSources.length).toBeLessThanOrEqual(1);
-          },
-        ),
+        fc.property(fc.constantFrom(...CANONICAL_CLAIM_TYPES), (claimType: CanonicalClaimType) => {
+          const authoritativeSources = EVIDENCE_SOURCES.filter((source: EvidenceSource) =>
+            isAuthoritative(source, claimType),
+          );
+          expect(authoritativeSources.length).toBeLessThanOrEqual(1);
+        }),
       );
     });
 
     it("property: agent_claim is never authoritative for any claim", () => {
       fc.assert(
-        fc.property(
-          fc.constantFrom(...CANONICAL_CLAIM_TYPES),
-          (claimType: CanonicalClaimType) => {
-            expect(isAuthoritative("agent_claim", claimType)).toBe(false);
-          },
-        ),
+        fc.property(fc.constantFrom(...CANONICAL_CLAIM_TYPES), (claimType: CanonicalClaimType) => {
+          expect(isAuthoritative("agent_claim", claimType)).toBe(false);
+        }),
       );
     });
   });

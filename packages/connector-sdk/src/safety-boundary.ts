@@ -86,6 +86,5 @@ export interface ConnectorContract<TManifest extends ConnectorManifest> {
  * Verifies at the type level that an ActionPort only produces observations.
  * ActionOutcome is always a description of what happened, never a mutation.
  */
-export type ActionProducesObservation<T> = T extends ActionPort<infer _I, infer R>
-  ? ActionOutcome<R>
-  : never;
+export type ActionProducesObservation<T> =
+  T extends ActionPort<infer _I, infer R> ? ActionOutcome<R> : never;

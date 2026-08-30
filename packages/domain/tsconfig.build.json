@@ -3,9 +3,6 @@
   "compilerOptions": {
     "tsBuildInfoFile": "tsconfig.build.tsbuildinfo"
   },
-  "exclude": [
-    "**/*.test.ts",
-    "**/*.integration.test.ts"
-  ],
+  "exclude": ["**/*.test.ts", "**/*.integration.test.ts"],
   "references": []
 }

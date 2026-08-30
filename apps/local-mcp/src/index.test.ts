@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { APP_NAME, isDeniedTool, DENIED_TOOL_PATTERNS, createMcpServer, registerReadTools } from "./index.js";
+import {
+  APP_NAME,
+  isDeniedTool,
+  DENIED_TOOL_PATTERNS,
+  createMcpServer,
+  registerReadTools,
+} from "./index.js";
 
 describe("@counter/local-mcp", () => {
   it("exposes its app identity", () => {

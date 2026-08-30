@@ -192,13 +192,7 @@ export interface IntegrityCheckpoint {
 // Finding Severity
 // ---------------------------------------------------------------------------
 
-export const FINDING_SEVERITIES = [
-  "critical",
-  "high",
-  "medium",
-  "low",
-  "advisory",
-] as const;
+export const FINDING_SEVERITIES = ["critical", "high", "medium", "low", "advisory"] as const;
 
 export type FindingSeverity = (typeof FINDING_SEVERITIES)[number];
 
@@ -323,6 +317,4 @@ export interface CompensationResult {
 // Source Authority Mapping
 // ---------------------------------------------------------------------------
 
-export type SourceAuthorityMap = Readonly<
-  Record<EvidenceSource, readonly CanonicalClaimType[]>
->;
+export type SourceAuthorityMap = Readonly<Record<EvidenceSource, readonly CanonicalClaimType[]>>;

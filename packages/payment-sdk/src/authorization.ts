@@ -1,4 +1,11 @@
-import type { AgentId, Environment, Instant, IsoCurrencyCode, MerchantId, WalletId } from "@counter/domain";
+import type {
+  AgentId,
+  Environment,
+  Instant,
+  IsoCurrencyCode,
+  MerchantId,
+  WalletId,
+} from "@counter/domain";
 import { createCanonicalError } from "@counter/domain";
 
 export interface PaymentAuthorization {

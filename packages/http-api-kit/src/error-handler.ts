@@ -53,36 +53,37 @@ export function buildErrorResponse(error: CanonicalError): HttpErrorResponse {
 
 export const errorHandlerPlugin = fp(
   async (fastify: FastifyInstance): Promise<void> => {
-    fastify.setErrorHandler(
-      (error: Error, _request: FastifyRequest, reply: FastifyReply) => {
-        // If it is a Fastify validation error (from JSON Schema validation)
-        if ("validation" in error && Array.isArray((error as { validation: unknown }).validation)) {
-          void reply.status(400).send({
-            error: {
-              code: "INVALID_FORMAT",
-              message: "Request validation failed",
-            },
-          });
-          return;
-        }
-
-        // If the error has a CanonicalError attached (e.g., CanonicalHttpError)
-        if ("canonicalError" in error && isCanonicalError((error as { canonicalError: unknown }).canonicalError)) {
-          const canonical = (error as { canonicalError: CanonicalError }).canonicalError;
-          const status = mapCanonicalErrorToStatus(canonical.category);
-          void reply.status(status).send(buildErrorResponse(canonical));
-          return;
-        }
-
-        // Unhandled internal error - never expose internals
-        void reply.status(500).send({
+    fastify.setErrorHandler((error: Error, _request: FastifyRequest, reply: FastifyReply) => {
+      // If it is a Fastify validation error (from JSON Schema validation)
+      if ("validation" in error && Array.isArray((error as { validation: unknown }).validation)) {
+        void reply.status(400).send({
           error: {
-            code: "INTERNAL",
-            message: "An internal error occurred",
+            code: "INVALID_FORMAT",
+            message: "Request validation failed",
           },
         });
-      },
-    );
+        return;
+      }
+
+      // If the error has a CanonicalError attached (e.g., CanonicalHttpError)
+      if (
+        "canonicalError" in error &&
+        isCanonicalError((error as { canonicalError: unknown }).canonicalError)
+      ) {
+        const canonical = (error as { canonicalError: CanonicalError }).canonicalError;
+        const status = mapCanonicalErrorToStatus(canonical.category);
+        void reply.status(status).send(buildErrorResponse(canonical));
+        return;
+      }
+
+      // Unhandled internal error - never expose internals
+      void reply.status(500).send({
+        error: {
+          code: "INTERNAL",
+          message: "An internal error occurred",
+        },
+      });
+    });
   },
   { name: "counter-error-handler" },
 );

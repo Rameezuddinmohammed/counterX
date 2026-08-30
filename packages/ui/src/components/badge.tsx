@@ -7,26 +7,20 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-[var(--brand-orange)] text-white",
+        default: "border-transparent bg-[var(--brand-orange)] text-white",
         secondary:
           "border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--foreground-secondary)]",
-        success:
-          "border-transparent bg-emerald-500/15 text-emerald-500",
-        warning:
-          "border-transparent bg-amber-500/15 text-amber-600",
-        error:
-          "border-transparent bg-red-500/15 text-red-600",
-        info:
-          "border-transparent bg-blue-500/15 text-blue-600",
-        outline:
-          "border-[var(--border)] text-[var(--foreground-secondary)]",
+        success: "border-transparent bg-emerald-500/15 text-emerald-500",
+        warning: "border-transparent bg-amber-500/15 text-amber-600",
+        error: "border-transparent bg-red-500/15 text-red-600",
+        info: "border-transparent bg-blue-500/15 text-blue-600",
+        outline: "border-[var(--border)] text-[var(--foreground-secondary)]",
       },
     },
     defaultVariants: {
       variant: "default",
     },
-  }
+  },
 );
 
 export interface BadgeProps
@@ -34,9 +28,7 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  );
+  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
 export { Badge, badgeVariants };

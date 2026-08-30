@@ -210,9 +210,5 @@ export async function listActiveGrants(
   const grants = await store.findByMerchant(merchantId);
   const now = new Date();
 
-  return Object.freeze(
-    grants.filter(
-      (g) => g.status === "active" && new Date(g.expiresAt) > now,
-    ),
-  );
+  return Object.freeze(grants.filter((g) => g.status === "active" && new Date(g.expiresAt) > now));
 }

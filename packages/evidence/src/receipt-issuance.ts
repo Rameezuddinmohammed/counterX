@@ -12,16 +12,8 @@
 import { randomBytes } from "node:crypto";
 import type { CounterId, Instant, Result, Sha256Digest } from "@counter/domain";
 import { ok } from "@counter/domain";
-import type {
-  CtpEnvironment,
-  Signer,
-  TransactionReceiptPayload,
-} from "@counter/trust-protocol";
-import {
-  buildUnsignedEnvelope,
-  generateNonce,
-  signEnvelope,
-} from "@counter/trust-protocol";
+import type { CtpEnvironment, Signer, TransactionReceiptPayload } from "@counter/trust-protocol";
+import { buildUnsignedEnvelope, generateNonce, signEnvelope } from "@counter/trust-protocol";
 import { buildReceiptCommitment, computeCommitmentDigest } from "./receipt-commitment.js";
 import type {
   MerchantReceiptView,
@@ -72,20 +64,12 @@ export async function issueReceipt(
   const commitmentDigest = computeCommitmentDigest(commitment);
 
   // 2. Determine supersession (predecessor)
-  const predecessor = store.getLatestByTransactionAndAudience(
-    input.transactionId,
-    audience,
-  );
+  const predecessor = store.getLatestByTransactionAndAudience(input.transactionId, audience);
   const version = predecessor !== undefined ? predecessor.version + 1 : 1;
   const predecessorReceiptId = predecessor?.id;
 
   // 3. Build the receipt payload
-  const payload = buildReceiptPayload(
-    input,
-    receiptId,
-    commitmentDigest,
-    predecessorReceiptId,
-  );
+  const payload = buildReceiptPayload(input, receiptId, commitmentDigest, predecessorReceiptId);
 
   // 4. Build the audience subject
   const subject =
@@ -230,9 +214,7 @@ function buildReceiptPayload(
   return { ...base, ...optional } as TransactionReceiptPayload;
 }
 
-function buildStateVector(
-  input: ReceiptIssuanceInput,
-): Record<string, string> {
+function buildStateVector(input: ReceiptIssuanceInput): Record<string, string> {
   const vector: Record<string, string> = {
     orchestration: input.orchestrationPhase,
   };

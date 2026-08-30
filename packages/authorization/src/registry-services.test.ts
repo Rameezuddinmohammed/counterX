@@ -140,7 +140,7 @@ async function createMandateEnvelope(
     issued_at: "2025-01-15T10:00:00.000Z",
     not_before: options.notBefore ?? "2025-01-15T10:00:00.000Z",
     expires_at: options.expiresAt ?? "2025-01-15T11:00:00.000Z",
-    nonce: (options.nonce ?? generateNonce((len) => randomBytes(len))),
+    nonce: options.nonce ?? generateNonce((len) => randomBytes(len)),
     correlation_id: "ctr_correlation_mandate-001",
     payload,
     kid,

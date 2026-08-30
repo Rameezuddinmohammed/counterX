@@ -21,10 +21,7 @@
  * present. SAFETY: touches only its own runtime.lifecycle_steps rows (unique
  * key) and never drops/migrates the schema. SECURITY: creds from env only.
  */
-import {
-  DEFAULT_LIMIT_CONFIG,
-  InMemoryTransactionLedger,
-} from "@counter/payment-sdk";
+import { DEFAULT_LIMIT_CONFIG, InMemoryTransactionLedger } from "@counter/payment-sdk";
 import { PostgresDatabase, PostgresStepLedger } from "@counter/data";
 import { afterAll, describe, expect, it } from "vitest";
 

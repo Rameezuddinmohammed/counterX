@@ -10,12 +10,7 @@ interface AnimatedCounterProps {
   duration?: number;
 }
 
-function AnimatedCounter({
-  end,
-  suffix = "",
-  prefix = "",
-  duration = 2,
-}: AnimatedCounterProps) {
+function AnimatedCounter({ end, suffix = "", prefix = "", duration = 2 }: AnimatedCounterProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true });
   const [count, setCount] = useState(0);
@@ -73,8 +68,8 @@ export function Stats() {
             Built for production scale
           </h2>
           <p className="text-[var(--foreground-secondary)] text-lg max-w-xl mx-auto">
-            Counter is engineered from day one for reliability, performance, and
-            auditability at scale.
+            Counter is engineered from day one for reliability, performance, and auditability at
+            scale.
           </p>
         </motion.div>
 
@@ -89,15 +84,9 @@ export function Stats() {
               className="text-center"
             >
               <div className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gradient-orange mb-2">
-                <AnimatedCounter
-                  end={stat.value}
-                  suffix={stat.suffix}
-                  prefix={stat.prefix}
-                />
+                <AnimatedCounter end={stat.value} suffix={stat.suffix} prefix={stat.prefix} />
               </div>
-              <p className="text-sm text-[var(--foreground-secondary)]">
-                {stat.label}
-              </p>
+              <p className="text-sm text-[var(--foreground-secondary)]">{stat.label}</p>
             </motion.div>
           ))}
         </div>

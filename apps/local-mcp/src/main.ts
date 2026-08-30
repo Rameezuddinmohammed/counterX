@@ -13,7 +13,10 @@
  * Run: node apps/local-mcp/dist/main.js  (stdio transport)
  */
 import { InMemorySecureKeyStore } from "@counter/wallet-domain";
-import { InMemoryMerchantRuntimeClient, InMemoryRevocationStore } from "@counter/wallet-application";
+import {
+  InMemoryMerchantRuntimeClient,
+  InMemoryRevocationStore,
+} from "@counter/wallet-application";
 import { createMcpServer, createStdioTransport } from "./index.js";
 
 async function main(): Promise<void> {

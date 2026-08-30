@@ -20,7 +20,6 @@ import {
 import {
   type CtpEnvironment,
   InMemoryKeyRegistry,
-
   verifyEnvelope,
   type CtpEnvelope,
   type AgentRegistrationPayload,

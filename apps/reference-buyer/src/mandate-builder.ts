@@ -74,9 +74,10 @@ export function buildTestMandate(options: BuildMandateOptions): TestMandate {
   const amountCeilingMinor = options.amountCeilingMinor ?? DEFAULT_AMOUNT_CEILING_MINOR;
 
   const now = Date.now();
-  const validFromResult = options.validFrom !== undefined
-    ? { ok: true as const, value: options.validFrom }
-    : instantFromEpochMilliseconds(now);
+  const validFromResult =
+    options.validFrom !== undefined
+      ? { ok: true as const, value: options.validFrom }
+      : instantFromEpochMilliseconds(now);
 
   if (!validFromResult.ok) {
     throw new TypeError("Failed to compute validFrom instant");

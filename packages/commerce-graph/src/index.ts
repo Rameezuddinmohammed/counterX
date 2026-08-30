@@ -67,7 +67,4 @@ export {
 export { TransformRegistry, applyTransform, previewTransform } from "./transforms.js";
 export type { TransformContext } from "./transforms.js";
 
-export {
-  resolveConflict,
-  detectStaleOverride,
-} from "./source-priority.js";
+export { resolveConflict, detectStaleOverride } from "./source-priority.js";

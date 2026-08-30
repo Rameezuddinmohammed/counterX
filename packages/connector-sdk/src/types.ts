@@ -107,12 +107,7 @@ export interface ActionDeclaration {
 
 // ─── Data Classification ──────────────────────────────────────────────────────
 
-export const DATA_CLASSIFICATIONS = [
-  "public",
-  "internal",
-  "confidential",
-  "restricted",
-] as const;
+export const DATA_CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"] as const;
 export type DataClassification = (typeof DATA_CLASSIFICATIONS)[number];
 
 // ─── Sandbox Behavior ─────────────────────────────────────────────────────────

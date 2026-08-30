@@ -148,22 +148,12 @@ describe("@counter/merchant-console identity module", () => {
     });
 
     it("returns null for invalid email", () => {
-      const identity = createMerchantIdentity(
-        "merchant-001",
-        "Acme Corp",
-        "not-an-email",
-        "pilot",
-      );
+      const identity = createMerchantIdentity("merchant-001", "Acme Corp", "not-an-email", "pilot");
       expect(identity).toBeNull();
     });
 
     it("returns null for empty merchant name", () => {
-      const identity = createMerchantIdentity(
-        "merchant-001",
-        "   ",
-        "admin@acme.com",
-        "pilot",
-      );
+      const identity = createMerchantIdentity("merchant-001", "   ", "admin@acme.com", "pilot");
       expect(identity).toBeNull();
     });
 

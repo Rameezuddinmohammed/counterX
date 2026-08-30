@@ -9,10 +9,7 @@ import type { IsoCurrencyCode, Money } from "@counter/domain";
 import type { Signer } from "@counter/trust-protocol";
 
 import type { PaymentProvider } from "./provider.js";
-import type {
-  ProviderContext,
-  ProviderRefundReference,
-} from "./types.js";
+import type { ProviderContext, ProviderRefundReference } from "./types.js";
 
 // ─── Harness Types ───────────────────────────────────────────────────────────
 
@@ -212,7 +209,10 @@ async function runTimeoutBeforeEffect(
     // Query should show nothing happened (declined)
     const evidence = await provider.query(result.reference);
     if (evidence.status !== "declined") {
-      return fail(name, `Expected query status "declined" (nothing happened), got "${evidence.status}"`);
+      return fail(
+        name,
+        `Expected query status "declined" (nothing happened), got "${evidence.status}"`,
+      );
     }
     return pass(name, "indeterminate with reference and queryAfter, query resolves to declined");
   } catch (error: unknown) {
@@ -242,7 +242,10 @@ async function runTimeoutAfterEffect(
     // Query should show the effect happened (confirmed)
     const evidence = await provider.query(result.reference);
     if (evidence.status !== "confirmed") {
-      return fail(name, `Expected query status "confirmed" (effect happened), got "${evidence.status}"`);
+      return fail(
+        name,
+        `Expected query status "confirmed" (effect happened), got "${evidence.status}"`,
+      );
     }
     return pass(name, "indeterminate then query resolves to confirmed");
   } catch (error: unknown) {
@@ -320,7 +323,11 @@ async function runCaptureVoid(
       return pass(name, "Provider does not support authorize_capture lifecycle, skipped");
     }
 
-    if (provider.authorize === undefined || provider.capture === undefined || provider.void === undefined) {
+    if (
+      provider.authorize === undefined ||
+      provider.capture === undefined ||
+      provider.void === undefined
+    ) {
       return pass(name, "Provider does not implement authorize/capture/void methods, skipped");
     }
 
@@ -408,7 +415,10 @@ async function runRefund(
     if (!validKinds.includes(refundResult.kind)) {
       return fail(name, `Refund returned unexpected kind "${refundResult.kind}"`);
     }
-    return pass(name, `Refund returned valid PaymentOperationResult with kind "${refundResult.kind}"`);
+    return pass(
+      name,
+      `Refund returned valid PaymentOperationResult with kind "${refundResult.kind}"`,
+    );
   } catch (error: unknown) {
     return fail(name, `Threw: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -453,7 +463,10 @@ async function runQueryRefund(
     if (refundEvidence.amount === undefined) {
       return fail(name, "queryRefund evidence missing amount");
     }
-    return pass(name, `queryRefund returned evidence with status "${refundEvidence.status}" and amount`);
+    return pass(
+      name,
+      `queryRefund returned evidence with status "${refundEvidence.status}" and amount`,
+    );
   } catch (error: unknown) {
     return fail(name, `Threw: ${error instanceof Error ? error.message : String(error)}`);
   }

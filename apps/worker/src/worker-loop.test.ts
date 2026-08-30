@@ -100,7 +100,11 @@ function makeConfig(handler: JobHandler): TickConfig {
   };
 }
 
-function enqueue(repo: AsyncInMemoryJobRepository, id: number, maxAttempts: number): CounterId<"job"> {
+function enqueue(
+  repo: AsyncInMemoryJobRepository,
+  id: number,
+  maxAttempts: number,
+): CounterId<"job"> {
   const jobId = counterId("job", id);
   repo.inner.enqueue(
     {
@@ -142,8 +146,7 @@ describe("runTick", () => {
     const repo = new AsyncInMemoryJobRepository();
     const jobId = enqueue(repo, 2, 3);
     const handler: JobHandler = {
-      execute: (): Promise<void> =>
-        Promise.reject(new HandlerError("transient", "boom", true)),
+      execute: (): Promise<void> => Promise.reject(new HandlerError("transient", "boom", true)),
     };
 
     const result = await runTick(repo, makeConfig(handler), undefined, () => instant(2_000));
@@ -161,8 +164,7 @@ describe("runTick", () => {
     const repo = new AsyncInMemoryJobRepository();
     const jobId = enqueue(repo, 3, 1);
     const handler: JobHandler = {
-      execute: (): Promise<void> =>
-        Promise.reject(new HandlerError("transient", "boom", true)),
+      execute: (): Promise<void> => Promise.reject(new HandlerError("transient", "boom", true)),
     };
 
     const result = await runTick(repo, makeConfig(handler), undefined, () => instant(2_000));

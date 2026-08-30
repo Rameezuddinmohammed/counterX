@@ -13,11 +13,7 @@
     "Helper returns null (mock fallback) when creds absent in local/test; throws named error when absent in prod-like env.",
     "No secret value ever logged."
   ],
-  "verification": [
-    "pnpm build",
-    "pnpm test (>= 2711)",
-    "pnpm depcruise"
-  ],
+  "verification": ["pnpm build", "pnpm test (>= 2711)", "pnpm depcruise"],
   "blocked_reason": null,
   "findings": "DONE (commit 3e0f75d). Added apps/worker/src/connector-env.ts (resolveShopifyCredentials, resolveRazorpayCredentials, isProdLike, requireShopifyCredentials, requireRazorpayCredentials) + 20 unit tests in connector-env.test.ts. Placed under apps/worker/src (app may import packages; only worker + scripts consume it) to keep depcruise green (2038 modules, no violations). Helpers take an injected env bag rather than reading process.env globally. Verified: build passes, pnpm test 2731 passing (2711 + 20), depcruise clean. IMPORTANT ENV NOTE for later features: in this sandbox, fs_write/read_file operate on a per-turn snapshot overlay while bash/git/pnpm/vitest operate on the real /root/counterX disk. Source files created via fs_write must be copied onto the real disk (bash cp) before the toolchain sees them; prefer writing source files with bash heredoc or ensure copy-to-disk. Task-state .agents files must be written to the real disk via bash."
 }

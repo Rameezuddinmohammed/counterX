@@ -109,10 +109,7 @@ export const SHOPIFY_CONNECTOR_MANIFEST: ConnectorManifest = {
       "read_inventory",
     ],
     tokenRotation: true,
-    secretReferences: [
-      "SHOPIFY_ACCESS_TOKEN",
-      "SHOPIFY_WEBHOOK_SECRET",
-    ],
+    secretReferences: ["SHOPIFY_ACCESS_TOKEN", "SHOPIFY_WEBHOOK_SECRET"],
   },
 
   rateLimits: {

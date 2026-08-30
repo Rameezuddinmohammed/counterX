@@ -57,7 +57,9 @@ function makeTransactionId(): CounterId<"transaction"> {
   return "ctr_transaction_AAAAAAAAAAAAAAAAAAAAAA" as CounterId<"transaction">;
 }
 
-function makePlatformConstraints(overrides?: Partial<PlatformSafetyConstraints>): PlatformSafetyConstraints {
+function makePlatformConstraints(
+  overrides?: Partial<PlatformSafetyConstraints>,
+): PlatformSafetyConstraints {
   return Object.freeze({
     version: 1 as const,
     source: "platform_v1",
@@ -98,7 +100,9 @@ function makeBuyerConstraints(overrides?: Partial<BuyerPolicyConstraints>): Buye
   });
 }
 
-function makeMerchantConstraints(overrides?: Partial<MerchantPolicyConstraints>): MerchantPolicyConstraints {
+function makeMerchantConstraints(
+  overrides?: Partial<MerchantPolicyConstraints>,
+): MerchantPolicyConstraints {
   return Object.freeze({
     version: 1 as const,
     source: "merchant_v1",
@@ -118,7 +122,9 @@ function makeMerchantConstraints(overrides?: Partial<MerchantPolicyConstraints>)
   });
 }
 
-function makeConnectorConstraints(overrides?: Partial<ConnectorCapabilityConstraints>): ConnectorCapabilityConstraints {
+function makeConnectorConstraints(
+  overrides?: Partial<ConnectorCapabilityConstraints>,
+): ConnectorCapabilityConstraints {
   return Object.freeze({
     version: 1 as const,
     source: "connector_v1",
@@ -155,7 +161,9 @@ function makeRiskConstraints(overrides?: Partial<RiskResultConstraints>): RiskRe
   });
 }
 
-function makeTransactionStateConstraints(overrides?: Partial<TransactionStateConstraints>): TransactionStateConstraints {
+function makeTransactionStateConstraints(
+  overrides?: Partial<TransactionStateConstraints>,
+): TransactionStateConstraints {
   return Object.freeze({
     version: 1 as const,
     source: "txn_state_v1",
@@ -201,7 +209,8 @@ const amountArb = fc.bigInt(1n, 9_999_99n);
 
 const moneyArb = amountArb.map((a) => makeMoney(a));
 
-const instantArb = fc.integer({ min: TEST_NOW - 500_000, max: TEST_NOW + 500_000 })
+const instantArb = fc
+  .integer({ min: TEST_NOW - 500_000, max: TEST_NOW + 500_000 })
   .map((v) => v as Instant);
 
 const operationArb: fc.Arbitrary<OperationType> = fc.constantFrom(
@@ -216,33 +225,35 @@ const paymentMethodArb: fc.Arbitrary<PaymentMethod> = fc.constantFrom(
   "netbanking" as PaymentMethod,
 );
 
-const validInputArb: fc.Arbitrary<PolicyEvaluationInput> = fc.record({
-  amount: moneyArb,
-  requestedAt: instantArb,
-  operation: operationArb,
-  method: paymentMethodArb,
-}).map(({ amount, requestedAt, operation, method }) =>
-  makeValidInput({
-    requestedAmount: amount,
-    requestedAt,
-    operationType: operation,
-    paymentMethod: method,
-    buyer: makeBuyerConstraints({
-      allowedOperations: [operation],
+const validInputArb: fc.Arbitrary<PolicyEvaluationInput> = fc
+  .record({
+    amount: moneyArb,
+    requestedAt: instantArb,
+    operation: operationArb,
+    method: paymentMethodArb,
+  })
+  .map(({ amount, requestedAt, operation, method }) =>
+    makeValidInput({
+      requestedAmount: amount,
+      requestedAt,
+      operationType: operation,
+      paymentMethod: method,
+      buyer: makeBuyerConstraints({
+        allowedOperations: [operation],
+      }),
+      merchant: makeMerchantConstraints({
+        allowedPaymentPaths: [method],
+      }),
+      connector: makeConnectorConstraints({
+        supportedOperations: [operation],
+        supportedMethods: [method],
+        lastRefreshedAt: (requestedAt - 5_000) as Instant,
+      }),
+      provider: makeProviderConstraints({
+        supportedMethods: [method],
+      }),
     }),
-    merchant: makeMerchantConstraints({
-      allowedPaymentPaths: [method],
-    }),
-    connector: makeConnectorConstraints({
-      supportedOperations: [operation],
-      supportedMethods: [method],
-      lastRefreshedAt: (requestedAt - 5_000) as Instant,
-    }),
-    provider: makeProviderConstraints({
-      supportedMethods: [method],
-    }),
-  }),
-);
+  );
 
 // ---------------------------------------------------------------------------
 // 1. REPLAY DETERMINISM
@@ -385,56 +396,50 @@ describe("precedence", () => {
 describe("boundary conditions", () => {
   it("amount exactly at per-transaction limit produces ALLOW", () => {
     fc.assert(
-      fc.property(
-        fc.bigInt(1n, 100_000n),
-        (limit) => {
-          const input = makeValidInput({
-            requestedAmount: makeMoney(limit),
-            buyer: makeBuyerConstraints({
-              perTransactionLimit: { maxAmount: makeMoney(limit) },
-            }),
-            platform: makePlatformConstraints({
-              maxTransactionAmount: makeMoney(limit + 1n),
-            }),
-            merchant: makeMerchantConstraints({
-              maxAmount: makeMoney(limit + 1n),
-            }),
-            provider: makeProviderConstraints({
-              maxAmount: makeMoney(limit + 1n),
-            }),
-          });
+      fc.property(fc.bigInt(1n, 100_000n), (limit) => {
+        const input = makeValidInput({
+          requestedAmount: makeMoney(limit),
+          buyer: makeBuyerConstraints({
+            perTransactionLimit: { maxAmount: makeMoney(limit) },
+          }),
+          platform: makePlatformConstraints({
+            maxTransactionAmount: makeMoney(limit + 1n),
+          }),
+          merchant: makeMerchantConstraints({
+            maxAmount: makeMoney(limit + 1n),
+          }),
+          provider: makeProviderConstraints({
+            maxAmount: makeMoney(limit + 1n),
+          }),
+        });
 
-          const results = evaluateAllRules(input);
-          const decision = reduceToDecision(results, input);
+        const results = evaluateAllRules(input);
+        const decision = reduceToDecision(results, input);
 
-          expect(decision.outcome).toBe("ALLOW");
-        },
-      ),
+        expect(decision.outcome).toBe("ALLOW");
+      }),
       { numRuns: 100 },
     );
   });
 
   it("amount one unit over per-transaction limit produces DENY", () => {
     fc.assert(
-      fc.property(
-        fc.bigInt(1n, 100_000n),
-        (limit) => {
-          const input = makeValidInput({
-            requestedAmount: makeMoney(limit + 1n),
-            buyer: makeBuyerConstraints({
-              perTransactionLimit: { maxAmount: makeMoney(limit) },
-            }),
-          });
+      fc.property(fc.bigInt(1n, 100_000n), (limit) => {
+        const input = makeValidInput({
+          requestedAmount: makeMoney(limit + 1n),
+          buyer: makeBuyerConstraints({
+            perTransactionLimit: { maxAmount: makeMoney(limit) },
+          }),
+        });
 
-          const results = evaluateAllRules(input);
-          const decision = reduceToDecision(results, input);
+        const results = evaluateAllRules(input);
+        const decision = reduceToDecision(results, input);
 
-          expect(decision.outcome).toBe("DENY");
-          if (decision.outcome === "DENY") {
-            expect(decision.ruleIds).toContain("buyer_amount_limit");
-          }
-        },
-      ),
+        expect(decision.outcome).toBe("DENY");
+        if (decision.outcome === "DENY") {
+          expect(decision.ruleIds).toContain("buyer_amount_limit");
+        }
+      }),
       { numRuns: 100 },
     );
   });
@@ -471,7 +476,7 @@ describe("boundary conditions", () => {
         timeWindow: { allowedFrom: windowStart, allowedUntil: windowEnd },
       }),
       connector: makeConnectorConstraints({
-        lastRefreshedAt: (((windowStart as number) - 1) - 5_000) as Instant,
+        lastRefreshedAt: ((windowStart as number) - 1 - 5_000) as Instant,
       }),
     });
 
@@ -540,7 +545,11 @@ describe("missing evidence", () => {
     { name: "connector", override: { connector: undefined }, expectedRuleId: "missing_connector" },
     { name: "provider", override: { provider: undefined }, expectedRuleId: "missing_provider" },
     { name: "risk", override: { risk: undefined }, expectedRuleId: "missing_risk" },
-    { name: "transactionState", override: { transactionState: undefined }, expectedRuleId: "missing_transactionState" },
+    {
+      name: "transactionState",
+      override: { transactionState: undefined },
+      expectedRuleId: "missing_transactionState",
+    },
   ];
 
   for (const { name, override, expectedRuleId } of requiredSources) {
@@ -573,19 +582,16 @@ describe("missing evidence", () => {
     ] as const;
 
     fc.assert(
-      fc.property(
-        fc.constantFrom(...sourceKeys),
-        (sourceToRemove) => {
-          const override: Record<string, undefined> = {};
-          override[sourceToRemove] = undefined;
-          const input = makeValidInput(override as Partial<PolicyEvaluationInput>);
+      fc.property(fc.constantFrom(...sourceKeys), (sourceToRemove) => {
+        const override: Record<string, undefined> = {};
+        override[sourceToRemove] = undefined;
+        const input = makeValidInput(override as Partial<PolicyEvaluationInput>);
 
-          const results = evaluateAllRules(input);
-          const hasAnyDeny = results.some((r) => r.outcome === "deny");
+        const results = evaluateAllRules(input);
+        const hasAnyDeny = results.some((r) => r.outcome === "deny");
 
-          expect(hasAnyDeny).toBe(true);
-        },
-      ),
+        expect(hasAnyDeny).toBe(true);
+      }),
       { numRuns: 50 },
     );
   });
@@ -902,7 +908,11 @@ describe("engine integration with limit store", () => {
     const releaseResult = await engine.releaseDecision(input.transactionId);
     expect(releaseResult.ok).toBe(true);
 
-    const usage = await store.getCurrentUsage(bucketId, TEST_NOW, (TEST_NOW + 86_400_000) as Instant);
+    const usage = await store.getCurrentUsage(
+      bucketId,
+      TEST_NOW,
+      (TEST_NOW + 86_400_000) as Instant,
+    );
     expect(usage.ok).toBe(true);
     if (usage.ok) {
       expect(usage.value.reserved).toBe(0n);

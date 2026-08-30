@@ -40,7 +40,7 @@ const databaseDescribe = testDatabaseUrl === undefined ? describe.skip : describ
 const hookTimeout = 45_000;
 
 // Unique per-run ids so the seed never collides with real data or other runs.
-const runSalt = Math.abs(hashString(`${process.pid}-${randomUUID()}`)) % 200 + 50;
+const runSalt = (Math.abs(hashString(`${process.pid}-${randomUUID()}`)) % 200) + 50;
 const ids = Object.freeze({
   merchantA: counterId("merchant", runSalt),
   merchantB: counterId("merchant", runSalt + 1),
@@ -98,9 +98,7 @@ databaseDescribe("PostgreSQL RLS tenant isolation (non-destructive, live-DB-safe
       rolcreaterole: boolean;
       rolsuper: boolean;
       rolbypassrls: boolean;
-    }>(
-      `SELECT rolcreaterole, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`,
-    );
+    }>(`SELECT rolcreaterole, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`);
     const p = posture.rows[0];
     if (p === undefined || !p.rolcreaterole || (!p.rolsuper && !p.rolbypassrls)) {
       skipReason =
@@ -175,9 +173,7 @@ databaseDescribe("PostgreSQL RLS tenant isolation (non-destructive, live-DB-safe
     }
     await attempt(async () => admin.close());
     if (errors.length > 0) {
-      const detail = errors
-        .map((e) => (e instanceof Error ? e.message : String(e)))
-        .join(" | ");
+      const detail = errors.map((e) => (e instanceof Error ? e.message : String(e))).join(" | ");
       throw new AggregateError(errors, `tenant-isolation cleanup failed: ${detail}`);
     }
   }, hookTimeout);
@@ -230,7 +226,11 @@ databaseDescribe("PostgreSQL RLS tenant isolation (non-destructive, live-DB-safe
     const database = requireDb(appDatabase);
     // The sandbox owner is invisible to a test-environment claim for the same merchant.
     await expect(
-      environmentsFor(database, merchantClaims(ids.merchantA, ids.ownerA, "test"), ids.sandboxOwnerA),
+      environmentsFor(
+        database,
+        merchantClaims(ids.merchantA, ids.ownerA, "test"),
+        ids.sandboxOwnerA,
+      ),
     ).resolves.toEqual([]);
     // And visible to its own sandbox claim.
     await expect(
@@ -390,12 +390,8 @@ async function revokeReadPrivileges(database: PostgresDatabase, roleName: string
   await database.query(
     `REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA platform, identity, merchant, wallet FROM ${quoted}`,
   );
-  await database.query(
-    `REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA identity FROM ${quoted}`,
-  );
-  await database.query(
-    `REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA identity FROM ${quoted}`,
-  );
+  await database.query(`REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA identity FROM ${quoted}`);
+  await database.query(`REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA identity FROM ${quoted}`);
   await database.query(`REVOKE USAGE ON TYPE platform.counter_environment FROM ${quoted}`);
   await database.query(
     `REVOKE ALL PRIVILEGES ON SCHEMA platform, identity, merchant, wallet FROM ${quoted}`,

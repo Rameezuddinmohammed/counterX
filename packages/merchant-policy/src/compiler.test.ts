@@ -80,7 +80,9 @@ describe("compileMerchantPolicy - valid configs", () => {
     const windowStart = (now + 1000) as Instant;
     const windowEnd = (now + 50_000_000) as Instant;
     const result = compileMerchantPolicy(
-      makeRuleSet([{ kind: "operating-window", allowedFrom: windowStart, allowedUntil: windowEnd }]),
+      makeRuleSet([
+        { kind: "operating-window", allowedFrom: windowStart, allowedUntil: windowEnd },
+      ]),
       now,
     );
     expect(result.ok).toBe(true);
@@ -101,10 +103,12 @@ describe("compileMerchantPolicy - valid configs", () => {
 
   it("compiles review-threshold rule", () => {
     const result = compileMerchantPolicy(
-      makeRuleSet([{
-        kind: "review-threshold",
-        thresholdAmount: { amountMinor: 500_000n, currency: INR },
-      }]),
+      makeRuleSet([
+        {
+          kind: "review-threshold",
+          thresholdAmount: { amountMinor: 500_000n, currency: INR },
+        },
+      ]),
       now,
     );
     expect(result.ok).toBe(true);
@@ -114,7 +118,9 @@ describe("compileMerchantPolicy - valid configs", () => {
 
   it("compiles cancellation-policy rule", () => {
     const result = compileMerchantPolicy(
-      makeRuleSet([{ kind: "cancellation-policy", allowedWithinMs: 7200_000, refundPercentage: 80 }]),
+      makeRuleSet([
+        { kind: "cancellation-policy", allowedWithinMs: 7200_000, refundPercentage: 80 },
+      ]),
       now,
     );
     expect(result.ok).toBe(true);
@@ -125,7 +131,9 @@ describe("compileMerchantPolicy - valid configs", () => {
 
   it("compiles refund-policy rule", () => {
     const result = compileMerchantPolicy(
-      makeRuleSet([{ kind: "refund-policy", maxRefundWindowMs: 604_800_000, partialRefundAllowed: true }]),
+      makeRuleSet([
+        { kind: "refund-policy", maxRefundWindowMs: 604_800_000, partialRefundAllowed: true },
+      ]),
       now,
     );
     expect(result.ok).toBe(true);
@@ -259,7 +267,13 @@ describe("compileMerchantPolicy - invalid rule sets", () => {
 
   it("rejects invalid version", () => {
     const result = compileMerchantPolicy(
-      { version: 0, merchantId: "m1", rules: [{ kind: "inr-only" }], effectiveFrom: now, effectiveUntil: later },
+      {
+        version: 0,
+        merchantId: "m1",
+        rules: [{ kind: "inr-only" }],
+        effectiveFrom: now,
+        effectiveUntil: later,
+      },
       now,
     );
     expect(result.ok).toBe(false);
@@ -269,7 +283,13 @@ describe("compileMerchantPolicy - invalid rule sets", () => {
 
   it("rejects empty merchantId", () => {
     const result = compileMerchantPolicy(
-      { version: 1, merchantId: "", rules: [{ kind: "inr-only" }], effectiveFrom: now, effectiveUntil: later },
+      {
+        version: 1,
+        merchantId: "",
+        rules: [{ kind: "inr-only" }],
+        effectiveFrom: now,
+        effectiveUntil: later,
+      },
       now,
     );
     expect(result.ok).toBe(false);

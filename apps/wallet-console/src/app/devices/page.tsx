@@ -15,9 +15,30 @@ interface Device {
 }
 
 const MOCK_DEVICES: Device[] = [
-  { id: "dev-001", name: "iPhone 15 Pro", type: "phone", lastActive: "Just now", status: "active", model: "iOS 18.2" },
-  { id: "dev-002", name: "MacBook Pro", type: "laptop", lastActive: "2 hours ago", status: "active", model: "macOS Sequoia" },
-  { id: "dev-003", name: "iPad Air", type: "tablet", lastActive: "3 days ago", status: "inactive", model: "iPadOS 18" },
+  {
+    id: "dev-001",
+    name: "iPhone 15 Pro",
+    type: "phone",
+    lastActive: "Just now",
+    status: "active",
+    model: "iOS 18.2",
+  },
+  {
+    id: "dev-002",
+    name: "MacBook Pro",
+    type: "laptop",
+    lastActive: "2 hours ago",
+    status: "active",
+    model: "macOS Sequoia",
+  },
+  {
+    id: "dev-003",
+    name: "iPad Air",
+    type: "tablet",
+    lastActive: "3 days ago",
+    status: "inactive",
+    model: "iPadOS 18",
+  },
 ];
 
 const DEVICE_ICONS = { phone: Smartphone, laptop: Laptop, tablet: Tablet };
@@ -47,7 +68,10 @@ export default function DevicesPage() {
           {MOCK_DEVICES.map((device) => {
             const Icon = DEVICE_ICONS[device.type];
             return (
-              <Card key={device.id} className="transition-all hover:border-[var(--brand-orange)]/20">
+              <Card
+                key={device.id}
+                className="transition-all hover:border-[var(--brand-orange)]/20"
+              >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -64,7 +88,9 @@ export default function DevicesPage() {
                     </Badge>
                   </div>
                   <div className="mt-4 flex items-center justify-between">
-                    <p className="text-xs text-[var(--foreground-muted)]">Last active: {device.lastActive}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">
+                      Last active: {device.lastActive}
+                    </p>
                     <Button variant="outline" size="sm" onClick={() => handleUnpair(device.name)}>
                       <Trash2 className="mr-1 h-3 w-3" />
                       Unpair

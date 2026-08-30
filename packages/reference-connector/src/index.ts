@@ -6,7 +6,12 @@
  * be used for testing and as a template for new connectors.
  */
 
-import type { ConnectorContract, ConnectorManifest, ResourceReadPort, ActionPort } from "@counter/connector-sdk";
+import type {
+  ConnectorContract,
+  ConnectorManifest,
+  ResourceReadPort,
+  ActionPort,
+} from "@counter/connector-sdk";
 
 import {
   createQuoteAction,
@@ -100,9 +105,22 @@ export function createReferenceConnector(
 
   const actions: Readonly<Record<string, ActionPort<unknown, unknown>>> = {
     create_quote: createQuoteAction(eventStream, faultControls) as ActionPort<unknown, unknown>,
-    create_draft_order: createDraftOrderAction(eventStream, inventory, faultControls) as ActionPort<unknown, unknown>,
-    complete_order: createCompleteOrderAction(eventStream, inventory, faultControls, orderRegistry) as ActionPort<unknown, unknown>,
-    cancel_order: createCancelOrderAction(eventStream, inventory, faultControls, orderRegistry) as ActionPort<unknown, unknown>,
+    create_draft_order: createDraftOrderAction(eventStream, inventory, faultControls) as ActionPort<
+      unknown,
+      unknown
+    >,
+    complete_order: createCompleteOrderAction(
+      eventStream,
+      inventory,
+      faultControls,
+      orderRegistry,
+    ) as ActionPort<unknown, unknown>,
+    cancel_order: createCancelOrderAction(
+      eventStream,
+      inventory,
+      faultControls,
+      orderRegistry,
+    ) as ActionPort<unknown, unknown>,
     create_refund: createRefundAction(eventStream, faultControls) as ActionPort<unknown, unknown>,
   };
 

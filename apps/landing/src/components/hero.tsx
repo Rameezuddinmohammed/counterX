@@ -115,9 +115,9 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="mx-auto max-w-2xl text-lg sm:text-xl text-[var(--foreground-secondary)] mb-10"
         >
-          Counter provides the infrastructure for AI agents to discover products,
-          execute transactions, and manage commerce autonomously with built-in
-          trust, policy controls, and real-time settlement.
+          Counter provides the infrastructure for AI agents to discover products, execute
+          transactions, and manage commerce autonomously with built-in trust, policy controls, and
+          real-time settlement.
         </motion.p>
 
         <motion.div

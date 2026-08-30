@@ -7,9 +7,19 @@ import { PageWrapper } from "@/components/page-wrapper";
 
 const QUICK_ACTIONS = [
   { label: "Fleet Health", href: "/fleet", icon: Server, description: "Check dependency status" },
-  { label: "Incidents", href: "/incidents", icon: AlertTriangle, description: "Manage active incidents" },
+  {
+    label: "Incidents",
+    href: "/incidents",
+    icon: AlertTriangle,
+    description: "Manage active incidents",
+  },
   { label: "Queues", href: "/queues", icon: ListOrdered, description: "Monitor job queues" },
-  { label: "Kill Switches", href: "/kill-switches", icon: Power, description: "Toggle feature flags" },
+  {
+    label: "Kill Switches",
+    href: "/kill-switches",
+    icon: Power,
+    description: "Toggle feature flags",
+  },
   { label: "Support", href: "/support", icon: Headphones, description: "Active support sessions" },
   { label: "Adapters", href: "/adapters", icon: Plug, description: "Adapter deployment status" },
 ];
@@ -20,9 +30,7 @@ export default function OperationsDashboard() {
       <div className="space-y-8">
         {/* Welcome Section */}
         <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">
-            Operations Center
-          </h1>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">Operations Center</h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Platform health overview and system monitoring dashboard.
           </p>
@@ -37,8 +45,12 @@ export default function OperationsDashboard() {
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
               </span>
               <div>
-                <p className="text-sm font-medium text-[var(--foreground)]">All Systems Operational</p>
-                <p className="text-xs text-[var(--foreground-muted)]">Uptime: 99.97% | Success Rate: 99.8%</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  All Systems Operational
+                </p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Uptime: 99.97% | Success Rate: 99.8%
+                </p>
               </div>
             </div>
           </CardContent>
@@ -86,7 +98,9 @@ export default function OperationsDashboard() {
                       </div>
                       <div>
                         <p className="font-medium text-[var(--foreground)]">{action.label}</p>
-                        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">{action.description}</p>
+                        <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                          {action.description}
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -103,10 +117,30 @@ export default function OperationsDashboard() {
             <CardContent className="p-0">
               <div className="divide-y divide-[var(--border)]">
                 {[
-                  { action: "Fleet health check passed", detail: "All dependencies healthy", time: "2 min ago", badge: "healthy" },
-                  { action: "Queue drain completed", detail: "transactions queue at 0", time: "15 min ago", badge: "completed" },
-                  { action: "Adapter deployed", detail: "razorpay-adapter v2.1.0", time: "1 hour ago", badge: "deployed" },
-                  { action: "Support session expired", detail: "Grant for merchant m-42", time: "3 hours ago", badge: "expired" },
+                  {
+                    action: "Fleet health check passed",
+                    detail: "All dependencies healthy",
+                    time: "2 min ago",
+                    badge: "healthy",
+                  },
+                  {
+                    action: "Queue drain completed",
+                    detail: "transactions queue at 0",
+                    time: "15 min ago",
+                    badge: "completed",
+                  },
+                  {
+                    action: "Adapter deployed",
+                    detail: "razorpay-adapter v2.1.0",
+                    time: "1 hour ago",
+                    badge: "deployed",
+                  },
+                  {
+                    action: "Support session expired",
+                    detail: "Grant for merchant m-42",
+                    time: "3 hours ago",
+                    badge: "expired",
+                  },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center justify-between px-5 py-3.5">
                     <div>

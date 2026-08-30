@@ -1,5 +1,13 @@
 import type { Brand } from "@counter/domain";
-import type { Environment, Instant, IsoCurrencyCode, MerchantId, Money, WalletId, AgentId } from "@counter/domain";
+import type {
+  Environment,
+  Instant,
+  IsoCurrencyCode,
+  MerchantId,
+  Money,
+  WalletId,
+  AgentId,
+} from "@counter/domain";
 
 // ─── Branded References ──────────────────────────────────────────────────────
 
@@ -79,9 +87,7 @@ export interface RawClientReturn {
  * A browser return is correlation evidence only -- never captured/paid truth
  * without authoritative provider evidence.
  */
-export type UntrustedOrVerifiedReturn =
-  | UntrustedReturn
-  | VerifiedReturn;
+export type UntrustedOrVerifiedReturn = UntrustedReturn | VerifiedReturn;
 
 /**
  * A browser return is correlation evidence only -- never captured/paid truth

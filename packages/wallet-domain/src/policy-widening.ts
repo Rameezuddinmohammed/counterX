@@ -31,18 +31,38 @@ export function isWidening(
   newPolicy: BuyerPolicyConstraints,
 ): boolean {
   // Check merchant allowlist widening
-  if (isArrayWidened(oldPolicy.merchantAllowlist.allowedMerchantIds, newPolicy.merchantAllowlist.allowedMerchantIds)) {
+  if (
+    isArrayWidened(
+      oldPolicy.merchantAllowlist.allowedMerchantIds,
+      newPolicy.merchantAllowlist.allowedMerchantIds,
+    )
+  ) {
     return true;
   }
-  if (isArrayWidened(oldPolicy.merchantAllowlist.allowedDomains, newPolicy.merchantAllowlist.allowedDomains)) {
+  if (
+    isArrayWidened(
+      oldPolicy.merchantAllowlist.allowedDomains,
+      newPolicy.merchantAllowlist.allowedDomains,
+    )
+  ) {
     return true;
   }
 
   // Check geography widening
-  if (isArrayWidened(oldPolicy.geography.allowedMerchantCountries, newPolicy.geography.allowedMerchantCountries)) {
+  if (
+    isArrayWidened(
+      oldPolicy.geography.allowedMerchantCountries,
+      newPolicy.geography.allowedMerchantCountries,
+    )
+  ) {
     return true;
   }
-  if (isArrayWidened(oldPolicy.geography.allowedDeliveryCountries, newPolicy.geography.allowedDeliveryCountries)) {
+  if (
+    isArrayWidened(
+      oldPolicy.geography.allowedDeliveryCountries,
+      newPolicy.geography.allowedDeliveryCountries,
+    )
+  ) {
     return true;
   }
 
@@ -60,26 +80,50 @@ export function isWidening(
   }
 
   // Check amount limits widening (higher limits = wider)
-  if (newPolicy.amountLimits.perTransactionMaxPaise > oldPolicy.amountLimits.perTransactionMaxPaise) {
+  if (
+    newPolicy.amountLimits.perTransactionMaxPaise > oldPolicy.amountLimits.perTransactionMaxPaise
+  ) {
     return true;
   }
-  if (isBigintLimitWidened(oldPolicy.amountLimits.rollingMaxPaise, newPolicy.amountLimits.rollingMaxPaise)) {
+  if (
+    isBigintLimitWidened(
+      oldPolicy.amountLimits.rollingMaxPaise,
+      newPolicy.amountLimits.rollingMaxPaise,
+    )
+  ) {
     return true;
   }
-  if (isBigintLimitWidened(oldPolicy.amountLimits.aggregateMaxPaise, newPolicy.amountLimits.aggregateMaxPaise)) {
+  if (
+    isBigintLimitWidened(
+      oldPolicy.amountLimits.aggregateMaxPaise,
+      newPolicy.amountLimits.aggregateMaxPaise,
+    )
+  ) {
     return true;
   }
 
   // Check count limits widening (higher counts = wider)
-  if (isNumberLimitWidened(oldPolicy.countLimits.maxTransactions, newPolicy.countLimits.maxTransactions)) {
+  if (
+    isNumberLimitWidened(
+      oldPolicy.countLimits.maxTransactions,
+      newPolicy.countLimits.maxTransactions,
+    )
+  ) {
     return true;
   }
-  if (isNumberLimitWidened(oldPolicy.countLimits.maxQuantityPerTransaction, newPolicy.countLimits.maxQuantityPerTransaction)) {
+  if (
+    isNumberLimitWidened(
+      oldPolicy.countLimits.maxQuantityPerTransaction,
+      newPolicy.countLimits.maxQuantityPerTransaction,
+    )
+  ) {
     return true;
   }
 
   // Check operations widening
-  if (isArrayWidened(oldPolicy.operations.allowedOperations, newPolicy.operations.allowedOperations)) {
+  if (
+    isArrayWidened(oldPolicy.operations.allowedOperations, newPolicy.operations.allowedOperations)
+  ) {
     return true;
   }
 
@@ -89,7 +133,12 @@ export function isWidening(
   }
 
   // Check payment references widening
-  if (isArrayWidened(oldPolicy.paymentReferences.allowedReferenceIds, newPolicy.paymentReferences.allowedReferenceIds)) {
+  if (
+    isArrayWidened(
+      oldPolicy.paymentReferences.allowedReferenceIds,
+      newPolicy.paymentReferences.allowedReferenceIds,
+    )
+  ) {
     return true;
   }
 
@@ -104,10 +153,7 @@ export function isWidening(
 /**
  * Checks if a readonly string array has been widened (new elements added).
  */
-function isArrayWidened(
-  oldArr: readonly string[],
-  newArr: readonly string[],
-): boolean {
+function isArrayWidened(oldArr: readonly string[], newArr: readonly string[]): boolean {
   const oldSet = new Set(oldArr);
   for (const item of newArr) {
     if (!oldSet.has(item)) {
@@ -142,10 +188,7 @@ function isOptionalArrayWidened(
  * Removing a limit (defined -> undefined) = widening.
  * Increasing a limit = widening.
  */
-function isBigintLimitWidened(
-  oldLimit: bigint | undefined,
-  newLimit: bigint | undefined,
-): boolean {
+function isBigintLimitWidened(oldLimit: bigint | undefined, newLimit: bigint | undefined): boolean {
   // Removing a limit entirely is widening
   if (oldLimit !== undefined && newLimit === undefined) {
     return true;
@@ -162,10 +205,7 @@ function isBigintLimitWidened(
  * Removing a limit (defined -> undefined) = widening.
  * Increasing a limit = widening.
  */
-function isNumberLimitWidened(
-  oldLimit: number | undefined,
-  newLimit: number | undefined,
-): boolean {
+function isNumberLimitWidened(oldLimit: number | undefined, newLimit: number | undefined): boolean {
   // Removing a limit entirely is widening
   if (oldLimit !== undefined && newLimit === undefined) {
     return true;

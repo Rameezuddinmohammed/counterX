@@ -107,7 +107,9 @@ gatedDescribe("kill switch blocks a real checkout (creds+DB-gated, live network)
 
   const shopifyCreds = hasCreds ? requireShopifyCredentials(process.env)! : null!;
   const razorpayCreds = hasCreds ? requireRazorpayCredentials(process.env)! : null!;
-  const bundle = hasCreds ? buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env) : null!;
+  const bundle = hasCreds
+    ? buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env)
+    : null!;
 
   afterAll(async () => {
     try {
@@ -127,63 +129,59 @@ gatedDescribe("kill switch blocks a real checkout (creds+DB-gated, live network)
     }
   });
 
-  it(
-    "returns a blocked outcome and creates NO Shopify or Razorpay order when a merchant kill switch is active",
-    async () => {
-      await database.query(KILL_SWITCHES_DDL);
-      await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
-        idempotencyKey,
-      ]);
+  it("returns a blocked outcome and creates NO Shopify or Razorpay order when a merchant kill switch is active", async () => {
+    await database.query(KILL_SWITCHES_DDL);
+    await database.query(`DELETE FROM runtime.lifecycle_steps WHERE idempotency_key = $1`, [
+      idempotencyKey,
+    ]);
 
-      const killSwitchStore = new PostgresKillSwitchStore(database, "local");
-      // Activate a durable merchant kill switch for the pilot merchant.
-      const activated = await killSwitchStore.recordActivate(
-        {
-          scope: "merchant",
-          entityId: bundle.merchantId,
-          reason: "integration-test: block a real checkout",
-          activatedBy: "kill-switch-blocks-checkout.integration.test",
-        },
-        nowInstant(),
-      );
-      expect(activated.ok).toBe(true);
+    const killSwitchStore = new PostgresKillSwitchStore(database, "local");
+    // Activate a durable merchant kill switch for the pilot merchant.
+    const activated = await killSwitchStore.recordActivate(
+      {
+        scope: "merchant",
+        entityId: bundle.merchantId,
+        reason: "integration-test: block a real checkout",
+        activatedBy: "kill-switch-blocks-checkout.integration.test",
+      },
+      nowInstant(),
+    );
+    expect(activated.ok).toBe(true);
 
-      const durableLedger = createPostgresStepLedgerPort(new PostgresStepLedger(database, "local"));
-      const gate = createPostgresKillSwitchGatePort(killSwitchStore, bundle.merchantId);
+    const durableLedger = createPostgresStepLedgerPort(new PostgresStepLedger(database, "local"));
+    const gate = createPostgresKillSwitchGatePort(killSwitchStore, bundle.merchantId);
 
-      const port = createRealPaymentAuthorizationPort({
-        shopify: bundle.shopify,
-        razorpay: bundle.razorpay,
-        payments: bundle.payments,
-        merchantId: bundle.merchantId,
-        stepLedger: durableLedger,
-        killSwitch: gate,
-      });
+    const port = createRealPaymentAuthorizationPort({
+      shopify: bundle.shopify,
+      razorpay: bundle.razorpay,
+      payments: bundle.payments,
+      merchantId: bundle.merchantId,
+      stepLedger: durableLedger,
+      killSwitch: gate,
+    });
 
-      const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
-      const request: PaymentAuthorizationRequest = {
-        transactionId: "ctr_txn_killsw" as PaymentAuthorizationRequest["transactionId"],
-        amountMinor: 100,
-        currency: "INR",
-        idempotencyKey,
-        ...(variantId !== undefined ? { variantId } : {}),
-        quantity: 1,
-      };
+    const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
+    const request: PaymentAuthorizationRequest = {
+      transactionId: "ctr_txn_killsw" as PaymentAuthorizationRequest["transactionId"],
+      amountMinor: 100,
+      currency: "INR",
+      idempotencyKey,
+      ...(variantId !== undefined ? { variantId } : {}),
+      quantity: 1,
+    };
 
-      const result = await port.authorizeAndCapture(request);
+    const result = await port.authorizeAndCapture(request);
 
-      // Blocked BEFORE any external effect.
-      expect(result.status).toBe("declined");
-      expect(result.providerReference.startsWith("kill-switch-blocked:")).toBe(true);
+    // Blocked BEFORE any external effect.
+    expect(result.status).toBe("declined");
+    expect(result.providerReference.startsWith("kill-switch-blocked:")).toBe(true);
 
-      // ZERO external effect: the durable step ledger has NO rows for this key
-      // (no draft, no finalize, no mark-paid were ever attempted).
-      const ledgerRows = await database.query<{ count: string }>(
-        `SELECT count(*)::text AS count FROM runtime.lifecycle_steps WHERE idempotency_key = $1`,
-        [idempotencyKey],
-      );
-      expect(ledgerRows.rows[0]?.count).toBe("0");
-    },
-    120_000,
-  );
+    // ZERO external effect: the durable step ledger has NO rows for this key
+    // (no draft, no finalize, no mark-paid were ever attempted).
+    const ledgerRows = await database.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM runtime.lifecycle_steps WHERE idempotency_key = $1`,
+      [idempotencyKey],
+    );
+    expect(ledgerRows.rows[0]?.count).toBe("0");
+  }, 120_000);
 });

@@ -77,10 +77,7 @@ export interface RevocationStore {
   /**
    * Returns the effective revocation time for a scope, if revoked.
    */
-  getRevocationTime(
-    scopeType: RevocationScopeType,
-    scopeId: string,
-  ): Promise<Instant | undefined>;
+  getRevocationTime(scopeType: RevocationScopeType, scopeId: string): Promise<Instant | undefined>;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,12 +123,6 @@ export class InMemoryRevocationStore implements RevocationStore {
           ...(reasonValue !== undefined ? { reason: reasonValue } : {}),
         });
 
-
-
-
-
-
-
         this.#entries.set(key, updated);
       }
       // Idempotent: already revoked
@@ -148,12 +139,6 @@ export class InMemoryRevocationStore implements RevocationStore {
       recordedAt: scope.effectiveTime,
       ...(scope.reason !== undefined ? { reason: scope.reason } : {}),
     });
-
-
-
-
-
-
 
     this.#entries.set(key, entry);
     this.#pending.delete(key);

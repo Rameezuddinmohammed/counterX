@@ -187,7 +187,10 @@ export class PairingService {
     if (request.mutableStatus === "consumed") {
       return {
         ok: false,
-        error: { kind: "pairing_error", reason: "Pairing request already consumed (replay rejected)" },
+        error: {
+          kind: "pairing_error",
+          reason: "Pairing request already consumed (replay rejected)",
+        },
       };
     }
 
@@ -215,7 +218,10 @@ export class PairingService {
     if (!valid) {
       return {
         ok: false,
-        error: { kind: "pairing_error", reason: "Invalid proof-of-possession (signature verification failed)" },
+        error: {
+          kind: "pairing_error",
+          reason: "Invalid proof-of-possession (signature verification failed)",
+        },
       };
     }
 
@@ -250,7 +256,10 @@ export class PairingService {
     if (request.mutableStatus !== "pending") {
       return {
         ok: false,
-        error: { kind: "pairing_error", reason: `Cannot cancel pairing in status '${request.mutableStatus}'` },
+        error: {
+          kind: "pairing_error",
+          reason: `Cannot cancel pairing in status '${request.mutableStatus}'`,
+        },
       };
     }
 

@@ -15,9 +15,6 @@
 
 import { type Result, ok, err, type Instant } from "@counter/domain";
 import {
-
-
-
   type NonceStore,
   type KeyRegistry,
   type KeyRecord,
@@ -61,10 +58,17 @@ export class CTPAuthorityVerifier implements AuthorityVerifier {
     this.#expectedAudience = deps.expectedAudience;
   }
 
-  public async verify(
-    input: AuthorityInput,
-  ): Promise<Result<VerifiedAuthority, AuthorityFailure>> {
-    const { envelope, agentId, kid, merchantId, environment, currentTime, nonce, requiredAssurance } = input;
+  public async verify(input: AuthorityInput): Promise<Result<VerifiedAuthority, AuthorityFailure>> {
+    const {
+      envelope,
+      agentId,
+      kid,
+      merchantId,
+      environment,
+      currentTime,
+      nonce,
+      requiredAssurance,
+    } = input;
 
     // Step 1: Resolve agent
     const agent = await this.#agentRegistry.resolve(agentId, environment);
@@ -115,7 +119,9 @@ export class CTPAuthorityVerifier implements AuthorityVerifier {
       if (errorMessage.includes("expired") || errorMessage.includes("not yet valid")) {
         return err(this.#failure("validity_window", "Envelope is outside its validity window"));
       }
-      return err(this.#failure("signature_invalid", `Envelope verification failed: ${errorMessage}`));
+      return err(
+        this.#failure("signature_invalid", `Envelope verification failed: ${errorMessage}`),
+      );
     }
 
     // Step 4: Check nonce/replay
@@ -145,18 +151,12 @@ export class CTPAuthorityVerifier implements AuthorityVerifier {
     // The issuer should correspond to the agent
     if (envelope.subject !== agentId && envelope.issuer !== agentId) {
       return err(
-        this.#failure(
-          "binding_mismatch",
-          "Envelope issuer/subject does not match agent identity",
-        ),
+        this.#failure("binding_mismatch", "Envelope issuer/subject does not match agent identity"),
       );
     }
 
     // Validate merchant is in allowed merchants
-    if (
-      payload.allowed_merchants.length > 0 &&
-      !payload.allowed_merchants.includes(merchantId)
-    ) {
+    if (payload.allowed_merchants.length > 0 && !payload.allowed_merchants.includes(merchantId)) {
       return err(
         this.#failure("audience_mismatch", "Merchant is not in mandate allowed merchants"),
       );

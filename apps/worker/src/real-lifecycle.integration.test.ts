@@ -42,36 +42,32 @@ class RecordingSink implements ReceiptSink {
 }
 
 credDescribe("real connector lifecycle (creds-gated, live network)", () => {
-  it(
-    "completes one real transaction lifecycle end to end",
-    async () => {
-      const selection = selectPaymentAuthorizationPort(process.env);
-      expect(selection.mode).toBe("real");
+  it("completes one real transaction lifecycle end to end", async () => {
+    const selection = selectPaymentAuthorizationPort(process.env);
+    expect(selection.mode).toBe("real");
 
-      const sink = new RecordingSink();
-      const handler = createTransactionLifecycleHandler(selection.port, sink);
+    const sink = new RecordingSink();
+    const handler = createTransactionLifecycleHandler(selection.port, sink);
 
-      const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
-      const job: HandledJob = {
-        id: "ctr_job_live" as HandledJob["id"],
-        type: "transaction.lifecycle",
-        payload: {
-          transactionId: `order-live-${Date.now()}`,
-          amountMinor: 100,
-          currency: "INR",
-          ...(variantId !== undefined ? { variantId } : {}),
-          quantity: 1,
-        },
-      };
+    const variantId = process.env["SHOPIFY_TEST_VARIANT_GID"];
+    const job: HandledJob = {
+      id: "ctr_job_live" as HandledJob["id"],
+      type: "transaction.lifecycle",
+      payload: {
+        transactionId: `order-live-${Date.now()}`,
+        amountMinor: 100,
+        currency: "INR",
+        ...(variantId !== undefined ? { variantId } : {}),
+        quantity: 1,
+      },
+    };
 
-      await handler.execute(job, instant(Date.now()));
+    await handler.execute(job, instant(Date.now()));
 
-      expect(sink.receipts).toHaveLength(1);
-      const receipt = sink.receipts[0]!;
-      expect(receipt.finalState.phase).toBe("CLOSED");
-      expect(receipt.providerReference).toContain("shopify_order:");
-      expect(receipt.providerReference).toContain("razorpay_order:");
-    },
-    60_000,
-  );
+    expect(sink.receipts).toHaveLength(1);
+    const receipt = sink.receipts[0]!;
+    expect(receipt.finalState.phase).toBe("CLOSED");
+    expect(receipt.providerReference).toContain("shopify_order:");
+    expect(receipt.providerReference).toContain("razorpay_order:");
+  }, 60_000);
 });
