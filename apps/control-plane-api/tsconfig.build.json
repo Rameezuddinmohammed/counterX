@@ -21,6 +21,12 @@
       "path": "../../packages/merchant-application/tsconfig.build.json"
     },
     {
+      "path": "../../packages/payment-sdk/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/razorpay-adapter/tsconfig.build.json"
+    },
+    {
       "path": "../../packages/trust-protocol/tsconfig.build.json"
     }
   ]
