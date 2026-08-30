@@ -147,6 +147,8 @@ describe("authentication assurance policy", () => {
       "identity.support_grant.use": supportAccessAssurances,
       "payment.mandate.read": AUTHENTICATION_ASSURANCES,
       "payment.mandate.manage": tenantMutationAssurances,
+      "payment.refund.read": AUTHENTICATION_ASSURANCES,
+      "payment.refund.manage": tenantMutationAssurances,
     };
 
     for (const permission of PERMISSIONS) {

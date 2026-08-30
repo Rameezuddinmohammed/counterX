@@ -81,10 +81,12 @@ export interface CapabilityHandler {
 export interface SearchInput {
   readonly query: string;
   readonly filters: Record<string, unknown> | undefined;
-  readonly pagination: {
-    readonly limit: number;
-    readonly cursor?: string | undefined;
-  } | undefined;
+  readonly pagination:
+    | {
+        readonly limit: number;
+        readonly cursor?: string | undefined;
+      }
+    | undefined;
 }
 
 export interface SearchResultItem {
@@ -158,13 +160,15 @@ export interface QuoteHandler {
 export interface TransactionCreateInput {
   readonly quoteId: string;
   readonly paymentMethod: string;
-  readonly billingAddress: {
-    readonly line1: string;
-    readonly city: string;
-    readonly region?: string | undefined;
-    readonly postalCode: string;
-    readonly country: string;
-  } | undefined;
+  readonly billingAddress:
+    | {
+        readonly line1: string;
+        readonly city: string;
+        readonly region?: string | undefined;
+        readonly postalCode: string;
+        readonly country: string;
+      }
+    | undefined;
   /**
    * Optional CTP-signed purchase-intent envelope from a real buyer agent
    * (see PurchaseIntentBuilder.sign() in @counter/wallet-application). When
@@ -187,7 +191,10 @@ export interface TransactionCreateResult {
 }
 
 export interface TransactionCreateHandler {
-  handle(ctx: HandlerContext, input: TransactionCreateInput): Promise<Result<TransactionCreateResult, HandlerError>>;
+  handle(
+    ctx: HandlerContext,
+    input: TransactionCreateInput,
+  ): Promise<Result<TransactionCreateResult, HandlerError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,7 +212,10 @@ export interface TransactionStatusResult {
 }
 
 export interface TransactionStatusHandler {
-  handle(ctx: HandlerContext, transactionId: string): Promise<Result<TransactionStatusResult, HandlerError>>;
+  handle(
+    ctx: HandlerContext,
+    transactionId: string,
+  ): Promise<Result<TransactionStatusResult, HandlerError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +236,11 @@ export interface PaymentActionResult {
 }
 
 export interface PaymentActionResultHandler {
-  handle(ctx: HandlerContext, transactionId: string, input: PaymentActionInput): Promise<Result<PaymentActionResult, HandlerError>>;
+  handle(
+    ctx: HandlerContext,
+    transactionId: string,
+    input: PaymentActionInput,
+  ): Promise<Result<PaymentActionResult, HandlerError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +259,11 @@ export interface CancelResult {
 }
 
 export interface CancelHandler {
-  handle(ctx: HandlerContext, transactionId: string, input: CancelInput): Promise<Result<CancelResult, HandlerError>>;
+  handle(
+    ctx: HandlerContext,
+    transactionId: string,
+    input: CancelInput,
+  ): Promise<Result<CancelResult, HandlerError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,17 +274,33 @@ export interface RefundInput {
   readonly reason: string;
 }
 
+/**
+ * Refund is a RELAY, not an immediate execution: this handler records the
+ * request (see runtime.refund_requests, migration 0014) and returns
+ * "pending" — it never calls Razorpay itself. The merchant decides
+ * (manually, or via their own configured auto-approve threshold) whether
+ * the refund actually happens, via apps/control-plane-api/src/
+ * refund-request-routes.ts's approve/deny routes, which perform the actual
+ * provider call. See real-handlers.ts's createRefundHandler for why: a
+ * merchant on their own separate payment gateway (not yet built) gives
+ * CounterX no ability to reverse a charge it never processed, so relay is
+ * the only workflow that works for every merchant.
+ */
 export interface RefundResult {
-  readonly refundId: string;
+  readonly refundRequestId: string;
   readonly transactionId: string;
-  readonly status: "refunded";
-  readonly refundedAt: string;
+  readonly status: "pending";
+  readonly requestedAt: string;
   readonly amount: { readonly amount: string; readonly currency: string };
   readonly version: string;
 }
 
 export interface RefundHandler {
-  handle(ctx: HandlerContext, transactionId: string, input: RefundInput): Promise<Result<RefundResult, HandlerError>>;
+  handle(
+    ctx: HandlerContext,
+    transactionId: string,
+    input: RefundInput,
+  ): Promise<Result<RefundResult, HandlerError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -391,12 +425,14 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
         if (behavior === "indeterminate") return errResult(makeIndeterminate(ctx.correlationId));
         return okResult({
           merchantId: ctx.merchantId,
-          results: [{
-            variantId: "var_001",
-            title: "Test Product",
-            price: { amount: "10.00", currency: "USD" },
-            available: true,
-          }] as readonly SearchResultItem[],
+          results: [
+            {
+              variantId: "var_001",
+              title: "Test Product",
+              price: { amount: "10.00", currency: "USD" },
+              available: true,
+            },
+          ] as readonly SearchResultItem[],
           nextCursor: null,
           totalCount: 1,
         });
@@ -477,7 +513,12 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
         const cached = checkIdempotency(ctx);
         if (cached !== undefined) return cached as Result<PaymentActionResult, HandlerError>;
         if (behavior === "indeterminate") return errResult(makeIndeterminate(ctx.correlationId));
-        const status: "confirmed" | "failed" | "pending" = input.outcome === "success" ? "confirmed" : input.outcome === "failure" ? "failed" : "pending";
+        const status: "confirmed" | "failed" | "pending" =
+          input.outcome === "success"
+            ? "confirmed"
+            : input.outcome === "failure"
+              ? "failed"
+              : "pending";
         const result = okResult({
           transactionId,
           status,
@@ -511,12 +552,12 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
         if (behavior === "stale") return errResult(makeStale());
         if (behavior === "indeterminate") return errResult(makeIndeterminate(ctx.correlationId));
         const result = okResult({
-          refundId: "ref_test_001",
+          refundRequestId: "refreq_test_001",
           transactionId,
-          status: "refunded" as const,
-          refundedAt: new Date().toISOString(),
+          status: "pending" as const,
+          requestedAt: new Date().toISOString(),
           amount: { amount: "100.00", currency: "USD" },
-          version: "v2",
+          version: "v3",
         });
         cacheResult(ctx, result);
         return result;
@@ -530,13 +571,15 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
           transactionId,
           merchantId: ctx.merchantId,
           issuedAt: new Date().toISOString(),
-          items: [{
-            variantId: "var_001",
-            title: "Test Product",
-            quantity: 1,
-            unitPrice: "10.00",
-            total: "10.00",
-          }] as readonly ReceiptItem[],
+          items: [
+            {
+              variantId: "var_001",
+              title: "Test Product",
+              quantity: 1,
+              unitPrice: "10.00",
+              total: "10.00",
+            },
+          ] as readonly ReceiptItem[],
           total: { amount: "10.00", currency: "USD" },
           signature: "sig_receipt_test_001",
         });

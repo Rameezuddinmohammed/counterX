@@ -19,6 +19,7 @@ export const COUNTER_ID_KINDS = [
   "key",
   "mandate",
   "payment-reference",
+  "refund-request",
   "quote",
   "transaction",
   "policy-decision",

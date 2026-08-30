@@ -14,8 +14,12 @@ import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
 import { createPostgresTransactionStore } from "./transaction-store-postgres.js";
 import { WalletUserProvisioner, type RuntimeCredentialConfig } from "./wallet-user-store.js";
-import { createRealRazorpayRecurringMandateProvider } from "@counter/razorpay-adapter";
+import {
+  createRealRazorpayProvider,
+  createRealRazorpayRecurringMandateProvider,
+} from "@counter/razorpay-adapter";
 import { RecurringMandateProvisioner } from "./recurring-mandate-store.js";
+import { RefundRequestStore } from "./refund-request-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -93,6 +97,21 @@ const razorpayRecurringProvider =
       })
     : undefined;
 
+// Optional: approving a refund request (the merchant-facing relay decision)
+// needs the SAME Razorpay credentials — reusing razorpayKeyId/razorpayKeySecret
+// above rather than a third credential set. Missing them degrades
+// gracefully: the refund-request routes simply aren't registered, matching
+// the recurring-mandate optional-provisioner pattern.
+const razorpayRefundProvider =
+  database !== undefined && razorpayKeyId !== undefined && razorpayKeySecret !== undefined
+    ? createRealRazorpayProvider({
+        keyId: razorpayKeyId,
+        keySecret: razorpayKeySecret,
+        webhookSecret: process.env["RAZORPAY_WEBHOOK_SECRET"] || "",
+        baseUrl: process.env["RAZORPAY_BASE_URL"] || "https://api.razorpay.com",
+      })
+    : undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -112,6 +131,15 @@ const serverOptions: CreateServerOptions = {
                 database,
                 runtimeEnvironment,
                 razorpayRecurringProvider,
+              ),
+            }
+          : {}),
+        ...(razorpayRefundProvider !== undefined
+          ? {
+              refundRequestStore: new RefundRequestStore(
+                database,
+                runtimeEnvironment,
+                razorpayRefundProvider,
               ),
             }
           : {}),

@@ -8,18 +8,21 @@
  * used unless DATABASE_URL is provided.
  *
  * Real merchant handlers (search/quote/transaction/cancel/refund/receipt) are
- * wired from real Shopify + Razorpay credentials when present, via
- * real-handlers.ts. Razorpay is optional: without it every handler except
- * refund still works (refund throws at call time, naming what's missing).
- * Without EITHER credential set, mock handlers are used and ONLY permitted in
- * local/test/development — see index.ts's resolveMerchantHandlers.
+ * wired from real Shopify credentials when present, via real-handlers.ts.
+ * Without a database + Shopify credentials, mock handlers are used and ONLY
+ * permitted in local/test/development — see index.ts's resolveMerchantHandlers.
+ *
+ * Razorpay credentials are NOT read here: refund is a relay, not an
+ * immediate execution (see real-handlers.ts's createRefundHandler), so this
+ * app has no code path that calls Razorpay anymore. The actual refund
+ * execution happens in control-plane-api once a merchant approves a
+ * request (apps/control-plane-api/src/refund-request-store.ts).
  */
 import { resolveCounterEnvironment, type Environment } from "@counter/domain";
 import { PostgresDatabase, PostgresIdempotencyStore, PostgresJobRepository } from "@counter/data";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
-import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
-import { requireShopifyCredentials, requireRazorpayCredentials } from "./connector-env.js";
+import { requireShopifyCredentials } from "./connector-env.js";
 import { createRealHandlers } from "./real-handlers.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
@@ -65,38 +68,24 @@ if (hasDatabaseUrl) {
 
 // Real handlers require both a database (to enqueue jobs / read the
 // transaction spine / store quotes) and Shopify credentials (to serve real
-// catalog data). Razorpay is resolved separately and passed through as
-// possibly-undefined — only the refund handler needs it.
+// catalog data). Razorpay credentials are not needed here — see this file's
+// header for why.
 let merchantHandlers: CreateServerOptions["merchantHandlers"];
 if (database !== undefined) {
   const shopifyCreds = requireShopifyCredentials(process.env, !isNonProduction);
   if (shopifyCreds !== null) {
-    const razorpayCreds = requireRazorpayCredentials(process.env, !isNonProduction);
     const shopify = createShopifyConnectorFromConfig({
       shopDomain: shopifyCreds.shopDomain,
       accessToken: shopifyCreds.accessToken,
       apiVersion: shopifyCreds.apiVersion,
     });
-    const razorpay =
-      razorpayCreds === null
-        ? undefined
-        : createRealRazorpayProvider({
-            keyId: razorpayCreds.keyId,
-            keySecret: razorpayCreds.keySecret,
-            webhookSecret: razorpayCreds.webhookSecret,
-            baseUrl: razorpayCreds.baseUrl,
-          });
     merchantHandlers = createRealHandlers({
       database,
       environment: runtimeEnvironment,
       shopify,
       jobRepository: new PostgresJobRepository(database, runtimeEnvironment),
-      razorpay,
     });
-    console.log(`[${APP_NAME}] real merchant handlers wired`, {
-      shopify: true,
-      razorpay: razorpay !== undefined,
-    });
+    console.log(`[${APP_NAME}] real merchant handlers wired`, { shopify: true });
   }
 }
 

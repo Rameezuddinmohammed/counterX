@@ -48,6 +48,11 @@ const permissionAssurances: Readonly<Record<Permission, readonly AuthenticationA
     // bar as identity.agent_key.manage, not a plain session.
     "payment.mandate.read": authenticatedAssurances,
     "payment.mandate.manage": tenantMutationAssurances,
+    // Approving/denying a refund request moves real money (or explicitly
+    // refuses to) — held to the same bar as payment.mandate.manage, not a
+    // plain session.
+    "payment.refund.read": authenticatedAssurances,
+    "payment.refund.manage": tenantMutationAssurances,
   });
 
 export function isAuthenticationAssurance(value: unknown): value is AuthenticationAssurance {
