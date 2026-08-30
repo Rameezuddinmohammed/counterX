@@ -14,15 +14,9 @@
  * webhook management, no sync — those belong to the separate, later
  * merchant-console UI work.
  *
- * KNOWN LIMITATION, disclosed rather than papered over: the authorize route
- * requires a Bearer JWT (same as every other control-plane-api route this
- * console calls), but merchant-console's own Auth0 session integration is
- * currently a stub (see src/app/api/auth/[auth0]/route.ts) — the SAME
- * pre-existing gap every other screen in this app already has via
- * useApi/getApiClient's token provider (hooks/use-api.ts's
- * createBrowserTokenProvider expects a working /api/auth/me). Wiring a real
- * session here is explicitly out of scope for this task; this page is
- * wired correctly for the day that gap is closed.
+ * merchantId is the real, signed-in merchant's id (useCurrentMerchantId,
+ * decoded from the access token control-plane-api already verifies on
+ * every request) — not a hardcoded placeholder.
  */
 
 import { useEffect, useState } from "react";
@@ -39,12 +33,8 @@ import {
 } from "@counter/ui";
 import { ShoppingBag, CheckCircle } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { useApi } from "@/hooks/use-api";
-
-// See transactions/page.tsx for why this env var + fallback pattern is used
-// to select the merchant path (the merchant scope itself is still enforced
-// server-side from the authenticated token).
-const MERCHANT_ID = process.env["NEXT_PUBLIC_MERCHANT_ID"] ?? "ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw";
+import { useApi, useCurrentMerchantId } from "@/hooks/use-api";
+import type { ShopifyConnectionStatus } from "@/lib/types";
 
 const CONTROL_PLANE_BASE_URL =
   process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "https://counter-control-plane-api.fly.dev/control/v1";
@@ -60,10 +50,24 @@ function shopifyAuthorizeUrl(merchantId: string, shopDomain: string): string {
 }
 
 export default function ShopifyPage() {
-  const { data, loading, error, refetch } = useApi(
-    (client) => client.getShopifyConnectionStatus(MERCHANT_ID),
-    [MERCHANT_ID],
+  const { merchantId, loading: merchantLoading, error: merchantError } = useCurrentMerchantId();
+  const {
+    data,
+    loading: connectionLoading,
+    error: connectionError,
+    refetch,
+  } = useApi(
+    (client) =>
+      merchantId
+        ? client.getShopifyConnectionStatus(merchantId)
+        : Promise.resolve({
+            ok: true as const,
+            data: { connected: false } satisfies ShopifyConnectionStatus,
+          }),
+    [merchantId],
   );
+  const loading = merchantLoading || connectionLoading;
+  const error = merchantError ?? connectionError;
   const [shopDomain, setShopDomain] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [callbackNotice, setCallbackNotice] = useState<"connected" | "error" | null>(null);
@@ -84,12 +88,16 @@ export default function ShopifyPage() {
 
   function handleConnect() {
     setValidationError(null);
+    if (!merchantId) {
+      setValidationError("Still determining your merchant account — try again in a moment.");
+      return;
+    }
     const trimmed = shopDomain.trim();
     if (!SHOP_DOMAIN_PATTERN.test(trimmed)) {
       setValidationError("Enter your store's *.myshopify.com domain, e.g. my-store.myshopify.com");
       return;
     }
-    window.location.href = shopifyAuthorizeUrl(MERCHANT_ID, trimmed);
+    window.location.href = shopifyAuthorizeUrl(merchantId, trimmed);
   }
 
   return (

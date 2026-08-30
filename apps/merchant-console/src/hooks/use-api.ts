@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "@/lib/api-client";
 import { createApiClient } from "@/lib/api-client";
+import { decodeAccessTokenClaims } from "@/lib/access-token-claims";
 
 // ---------------------------------------------------------------------------
 // Token provider (uses Auth0 session in production)
@@ -75,6 +76,58 @@ export function getApiClient(): MerchantApiClient {
     });
   }
   return apiClientInstance;
+}
+
+// ---------------------------------------------------------------------------
+// useCurrentMerchantId hook
+// ---------------------------------------------------------------------------
+
+/**
+ * The real merchant id for the signed-in session, decoded from the same
+ * access token every other API call already sends as its Authorization
+ * header — not a hardcoded placeholder. control-plane-api still enforces
+ * the real boundary server-side on every request (this is only for the
+ * browser to know which merchant path to ask about); a mismatched or
+ * absent merchant scope surfaces as `error` rather than silently falling
+ * back to someone else's data.
+ */
+export interface CurrentMerchant {
+  readonly merchantId: string | undefined;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
+
+export function useCurrentMerchantId(): CurrentMerchant {
+  const [merchantId, setMerchantId] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getTokenProvider().getToken();
+        const claims = decodeAccessTokenClaims(token);
+        if (cancelled) return;
+        if (claims?.scope?.kind === "merchant" && claims.scope.merchantId) {
+          setMerchantId(claims.scope.merchantId);
+        } else {
+          setError("Your session isn't scoped to a merchant account.");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not determine merchant account.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { merchantId, loading, error };
 }
 
 // ---------------------------------------------------------------------------
