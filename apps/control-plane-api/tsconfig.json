@@ -4,9 +4,7 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": [
-    "src"
-  ],
+  "include": ["src"],
   "references": [
     {
       "path": "../../packages/authorization"
@@ -19,6 +17,12 @@
     },
     {
       "path": "../../packages/http-api-kit"
+    },
+    {
+      "path": "../../packages/merchant-application"
+    },
+    {
+      "path": "../../packages/trust-protocol"
     }
   ]
 }

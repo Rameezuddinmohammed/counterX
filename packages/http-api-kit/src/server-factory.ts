@@ -29,6 +29,28 @@ export interface ServerFactoryOptions {
   };
   readonly openApi?: OpenApiInfo;
   readonly skipAuthRoutes?: readonly string[];
+  /**
+   * Routes where a valid Bearer JWT is still required (authPlugin runs
+   * normally — a request with no session at all is still rejected with 401)
+   * but actor-extraction's hard requirement for Counter's OWN custom claims
+   * (actor_kind/environment/scope, normally stamped by a Post-Login Action)
+   * is relaxed, so getActorContext() is simply undefined on these routes
+   * rather than the request being auto-401'd before the handler runs.
+   *
+   * Exists for apps/control-plane-api/src/merchant-application-routes.ts's
+   * self-serve provision route: a brand-new Auth0 user has a real, valid
+   * session but no Counter custom claims yet, because no Post-Login Action
+   * exists for merchant onboarding (that Auth0-side wiring is out of scope
+   * for the pass that added this). The route itself reads the verified raw
+   * JWT payload (getJwtPayload) to decide what a claims-less-but-genuinely-
+   * authenticated caller may do — see that file's header for the full
+   * reasoning.
+   *
+   * Distinct from skipAuthRoutes, which skips ALL THREE plugins (auth
+   * included) and is for requests that carry no JWT/session at all (e.g.
+   * the wallet-user agent-keys route, or an external OAuth callback).
+   */
+  readonly skipActorClaimsRoutes?: readonly string[];
   readonly scopeEnforcement?: ScopeEnforcementOptions;
   readonly logger?: boolean;
 }
@@ -41,6 +63,7 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     "/webhooks/v1",
     ...(options.skipAuthRoutes ?? []),
   ];
+  const actorSkipRoutes = [...skipRoutes, ...(options.skipActorClaimsRoutes ?? [])];
 
   const server = Fastify({
     logger: options.logger ?? false,
@@ -57,9 +80,9 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     jwks: options.auth.jwks,
     skipRoutes,
   });
-  void server.register(actorExtractionPlugin, { skipRoutes });
+  void server.register(actorExtractionPlugin, { skipRoutes: actorSkipRoutes });
   void server.register(scopeEnforcementPlugin, {
-    skipRoutes,
+    skipRoutes: actorSkipRoutes,
     ...(options.scopeEnforcement ?? {}),
   });
 

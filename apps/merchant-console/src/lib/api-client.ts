@@ -9,19 +9,28 @@
 
 import type {
   AuditEntry,
+  BusinessBasicsRequest,
   Finding,
   InvitationStatus,
   KillSwitchState,
   ManifestStatus,
+  ManualCatalogItem,
+  ManualCatalogItemRequest,
   MappingPreview,
+  MerchantApplicationStatus,
   MerchantPolicyConfig,
   PolicySimulationResult,
+  ProvisionMerchantApplicationResponse,
+  RazorpayConnectRequest,
   RazorpayStatus,
   ReadinessStatus,
   ShopifyConnectionStatus,
   ShopifySetupStatus,
   SuspensionStatus,
   Transaction,
+  WizardManifest,
+  WizardPaymentConnectionStatus,
+  WizardReadinessSummary,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -127,6 +136,37 @@ export interface MerchantApiClient {
   // Invitation & Lifecycle
   getInvitation(merchantId: string): Promise<ApiResult<InvitationStatus>>;
   acceptInvitation(req: AcceptInvitationRequest): Promise<ApiResult<InvitationStatus>>;
+
+  // Merchant Application (REAL self-serve onboarding wizard, Steps 0-2)
+  /** POST /merchant-applications/provision — idempotent, self-authorizing (see the route's own header). */
+  provisionMerchantApplication(): Promise<ApiResult<ProvisionMerchantApplicationResponse>>;
+  getMerchantApplication(merchantId: string): Promise<ApiResult<MerchantApplicationStatus>>;
+  updateBusinessBasics(
+    merchantId: string,
+    req: BusinessBasicsRequest,
+  ): Promise<ApiResult<MerchantApplicationStatus>>;
+  listManualCatalogItems(merchantId: string): Promise<ApiResult<readonly ManualCatalogItem[]>>;
+  addManualCatalogItem(
+    merchantId: string,
+    req: ManualCatalogItemRequest,
+  ): Promise<ApiResult<ManualCatalogItem>>;
+  markCatalogConnected(merchantId: string): Promise<ApiResult<MerchantApplicationStatus>>;
+  /** Step 3: catalog review confirmation (MAPPING -> VERIFYING). See merchant-application-store.ts's confirmCatalog docs. */
+  confirmCatalog(merchantId: string): Promise<ApiResult<MerchantApplicationStatus>>;
+
+  // Step 4: own-gateway Razorpay payment connect. See merchant-payment-connection-store.ts's scope disclosure.
+  connectRazorpay(
+    merchantId: string,
+    req: RazorpayConnectRequest,
+  ): Promise<ApiResult<WizardPaymentConnectionStatus>>;
+  getRazorpayConnection(merchantId: string): Promise<ApiResult<WizardPaymentConnectionStatus>>;
+
+  // Step 5: readiness check (auto-transitions VERIFYING -> SANDBOX_READY when ready).
+  getWizardReadiness(merchantId: string): Promise<ApiResult<WizardReadinessSummary>>;
+
+  // Step 6: manifest confirmation.
+  confirmWizardManifest(merchantId: string): Promise<ApiResult<WizardManifest>>;
+  getWizardManifest(merchantId: string): Promise<ApiResult<WizardManifest>>;
 
   // Shopify Setup
   getShopifyStatus(merchantId: string): Promise<ApiResult<ShopifySetupStatus>>;
@@ -269,6 +309,57 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       request<InvitationStatus>("GET", `/merchants/${merchantId}/invitation`),
     acceptInvitation: (req) =>
       request<InvitationStatus>("POST", `/merchants/${req.merchantId}/invitation/accept`, req),
+    provisionMerchantApplication: () =>
+      request<ProvisionMerchantApplicationResponse>("POST", `/merchant-applications/provision`),
+    getMerchantApplication: (merchantId) =>
+      request<MerchantApplicationStatus>("GET", `/merchant-applications/${merchantId}`),
+    updateBusinessBasics: (merchantId, req) =>
+      request<MerchantApplicationStatus>(
+        "PATCH",
+        `/merchant-applications/${merchantId}/business-basics`,
+        req,
+      ),
+    listManualCatalogItems: async (merchantId) => {
+      const result = await request<{ readonly items: readonly ManualCatalogItem[] }>(
+        "GET",
+        `/merchant-applications/${merchantId}/manual-catalog-items`,
+      );
+      if (!result.ok) return result;
+      return { ok: true, data: result.data.items };
+    },
+    addManualCatalogItem: (merchantId, req) =>
+      request<ManualCatalogItem>(
+        "POST",
+        `/merchant-applications/${merchantId}/manual-catalog-items`,
+        req,
+      ),
+    markCatalogConnected: (merchantId) =>
+      request<MerchantApplicationStatus>(
+        "POST",
+        `/merchant-applications/${merchantId}/catalog-connected`,
+      ),
+    confirmCatalog: (merchantId) =>
+      request<MerchantApplicationStatus>(
+        "POST",
+        `/merchant-applications/${merchantId}/catalog/confirm`,
+      ),
+    connectRazorpay: (merchantId, req) =>
+      request<WizardPaymentConnectionStatus>(
+        "POST",
+        `/merchant-applications/${merchantId}/payment-connection`,
+        req,
+      ),
+    getRazorpayConnection: (merchantId) =>
+      request<WizardPaymentConnectionStatus>(
+        "GET",
+        `/merchant-applications/${merchantId}/payment-connection`,
+      ),
+    getWizardReadiness: (merchantId) =>
+      request<WizardReadinessSummary>("GET", `/merchant-applications/${merchantId}/readiness`),
+    confirmWizardManifest: (merchantId) =>
+      request<WizardManifest>("POST", `/merchant-applications/${merchantId}/manifest`),
+    getWizardManifest: (merchantId) =>
+      request<WizardManifest>("GET", `/merchant-applications/${merchantId}/manifest`),
     getShopifyStatus: (merchantId) =>
       request<ShopifySetupStatus>("GET", `/merchants/${merchantId}/shopify`),
     getShopifyConnectionStatus: (merchantId) =>
