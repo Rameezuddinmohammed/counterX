@@ -31,8 +31,19 @@ import { walletUserRoutesPlugin } from "./wallet-user-routes.js";
 import type { WalletUserProvisionerLike } from "./wallet-user-store.js";
 import { recurringMandateRoutesPlugin } from "./recurring-mandate-routes.js";
 import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
+import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
+import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
 
 export const APP_NAME = "@counter/control-plane-api";
+
+/**
+ * Shopify's own redirect back from the OAuth consent screen carries no
+ * Counter session at all, and its path includes a dynamic :merchantId
+ * segment, so it can't be listed as a literal skip-auth path. See
+ * @counter/http-api-kit's auth.ts isSkipped, which matches this against
+ * the request's resolved route PATTERN, not the literal URL.
+ */
+const SHOPIFY_CALLBACK_ROUTE_PATTERN = "/control/v1/merchants/:merchantId/shopify/callback";
 
 const DEFAULT_VERSION = "0.1.0";
 const DEFAULT_ENVIRONMENT = "local";
@@ -112,6 +123,12 @@ export interface CreateServerOptions {
    * registered — same optional-feature pattern as walletUserProvisioner.
    */
   readonly recurringMandateProvisioner?: RecurringMandateProvisionerLike | undefined;
+  /**
+   * Only when present is /control/v1/merchants/:merchantId/shopify/*
+   * registered — a new, optional feature (self-serve Shopify OAuth), not
+   * one every deployment of this app needs.
+   */
+  readonly shopifyConnectionProvisioner?: ShopifyConnectionProvisionerLike | undefined;
 }
 
 export function createServer(options?: CreateServerOptions): FastifyInstance {
@@ -135,7 +152,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     // A fresh local setup script has no browser session or JWT at all — the
     // setup token itself (single-use, 15-minute expiry) is the entire proof
     // of identity for this one route. See wallet-user-routes.ts's header.
-    skipAuthRoutes: ["/control/v1/wallet-users/agent-keys"],
+    // Shopify's OAuth callback also carries no Counter session — see the
+    // SHOPIFY_CALLBACK_ROUTE_PATTERN comment above.
+    skipAuthRoutes: [
+      "/control/v1/wallet-users/agent-keys",
+      ...(options?.shopifyConnectionProvisioner !== undefined
+        ? [SHOPIFY_CALLBACK_ROUTE_PATTERN]
+        : []),
+    ],
     logger: options?.logger ?? false,
   };
 
@@ -188,6 +212,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.recurringMandateProvisioner !== undefined) {
     void server.register(recurringMandateRoutesPlugin, {
       provisioner: options.recurringMandateProvisioner,
+    });
+  }
+
+  // Self-serve Shopify OAuth routes — only registered when a provisioner is
+  // wired (see CreateServerOptions.shopifyConnectionProvisioner).
+  if (options?.shopifyConnectionProvisioner !== undefined) {
+    void server.register(shopifyConnectRoutesPlugin, {
+      provisioner: options.shopifyConnectionProvisioner,
     });
   }
 

@@ -43,9 +43,23 @@ function resolveJwks(jwks: JWTVerifyGetKey | string): JWTVerifyGetKey {
   return jwks;
 }
 
-function isSkipped(path: string, skipRoutes: readonly string[]): boolean {
+/**
+ * Matches a skip-route entry against either the literal request path (for
+ * static routes, e.g. the wallet-user agent-keys route) or the request's
+ * matched route PATTERN (request.routeOptions.url, e.g.
+ * "/control/v1/merchants/:merchantId/shopify/callback") for routes whose
+ * path has a dynamic segment that can't be listed literally. The pattern
+ * check only ever matches a route Fastify has already resolved to an
+ * explicitly-registered path, so this can't be used to bypass auth on an
+ * arbitrary URL an attacker constructs — it's an exact match against the
+ * server's own declared route table, same trust level as the literal-path
+ * check already used here.
+ */
+function isSkipped(request: FastifyRequest, skipRoutes: readonly string[]): boolean {
+  const path = request.url;
+  const routePattern = request.routeOptions?.url;
   for (const route of skipRoutes) {
-    if (path === route || path.startsWith(route + "/")) {
+    if (path === route || path.startsWith(route + "/") || routePattern === route) {
       return true;
     }
   }
@@ -59,7 +73,7 @@ export const authPlugin = fp(
     const skipRoutes = options.skipRoutes ?? [];
 
     fastify.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
-      if (isSkipped(request.url, skipRoutes)) {
+      if (isSkipped(request, skipRoutes)) {
         return;
       }
 

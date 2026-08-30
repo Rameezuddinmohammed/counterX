@@ -18,6 +18,7 @@ import type {
   PolicySimulationResult,
   RazorpayStatus,
   ReadinessStatus,
+  ShopifyConnectionStatus,
   ShopifySetupStatus,
   SuspensionStatus,
   Transaction,
@@ -129,6 +130,8 @@ export interface MerchantApiClient {
 
   // Shopify Setup
   getShopifyStatus(merchantId: string): Promise<ApiResult<ShopifySetupStatus>>;
+  /** The REAL self-serve OAuth connection status — see ShopifyConnectionStatus's docs. */
+  getShopifyConnectionStatus(merchantId: string): Promise<ApiResult<ShopifyConnectionStatus>>;
 
   // Mapping
   getMappingPreview(merchantId: string): Promise<ApiResult<MappingPreview>>;
@@ -268,6 +271,8 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       request<InvitationStatus>("POST", `/merchants/${req.merchantId}/invitation/accept`, req),
     getShopifyStatus: (merchantId) =>
       request<ShopifySetupStatus>("GET", `/merchants/${merchantId}/shopify`),
+    getShopifyConnectionStatus: (merchantId) =>
+      request<ShopifyConnectionStatus>("GET", `/merchants/${merchantId}/shopify/connection`),
     getMappingPreview: (merchantId) =>
       request<MappingPreview>("GET", `/merchants/${merchantId}/mapping`),
     runPolicySimulation: (req) =>

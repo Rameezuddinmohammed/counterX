@@ -16,6 +16,10 @@ import { createPostgresTransactionStore } from "./transaction-store-postgres.js"
 import { WalletUserProvisioner, type RuntimeCredentialConfig } from "./wallet-user-store.js";
 import { createRealRazorpayRecurringMandateProvider } from "@counter/razorpay-adapter";
 import { RecurringMandateProvisioner } from "./recurring-mandate-store.js";
+import {
+  ShopifyConnectionProvisioner,
+  type ShopifyOAuthConfig,
+} from "./shopify-connection-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -93,6 +97,37 @@ const razorpayRecurringProvider =
       })
     : undefined;
 
+/**
+ * Self-serve Shopify OAuth needs a real Shopify Partner app (API key +
+ * secret) to exist. This deployment does not currently have one — unlike
+ * DATABASE_URL, this is never treated as a fail-loud requirement in
+ * production, because that would take the ENTIRE control-plane-api down
+ * (policy/transaction routes included) over one still-optional feature.
+ * Absent config simply means /control/v1/merchants/:merchantId/shopify/*
+ * is not registered at all (see index.ts's shopifyConnectionProvisioner
+ * option) — the same graceful-absence shape as walletUserProvisioner.
+ */
+const DEFAULT_SHOPIFY_OAUTH_SCOPES = "read_products,read_orders,write_orders";
+
+function resolveShopifyOAuthConfig(): ShopifyOAuthConfig | undefined {
+  const clientId = process.env["SHOPIFY_OAUTH_CLIENT_ID"]?.trim();
+  const clientSecret = process.env["SHOPIFY_OAUTH_CLIENT_SECRET"]?.trim();
+  const redirectUri = process.env["SHOPIFY_OAUTH_REDIRECT_URI"]?.trim();
+  const scopes = process.env["SHOPIFY_OAUTH_SCOPES"]?.trim() || DEFAULT_SHOPIFY_OAUTH_SCOPES;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    console.log(
+      `[${APP_NAME}] Shopify OAuth app credentials not configured ` +
+        `(SHOPIFY_OAUTH_CLIENT_ID/SHOPIFY_OAUTH_CLIENT_SECRET/SHOPIFY_OAUTH_REDIRECT_URI) — ` +
+        `self-serve Shopify connect routes are not registered.`,
+    );
+    return undefined;
+  }
+  return { clientId, clientSecret, redirectUri, scopes };
+}
+
+const shopifyOAuthConfig = resolveShopifyOAuthConfig();
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -112,6 +147,15 @@ const serverOptions: CreateServerOptions = {
                 database,
                 runtimeEnvironment,
                 razorpayRecurringProvider,
+              ),
+            }
+          : {}),
+        ...(shopifyOAuthConfig !== undefined
+          ? {
+              shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(
+                database,
+                runtimeEnvironment,
+                shopifyOAuthConfig,
               ),
             }
           : {}),
