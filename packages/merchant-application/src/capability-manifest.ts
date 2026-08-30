@@ -21,6 +21,34 @@ export const PILOT_CAPABILITIES = [
 
 export type PilotCapability = (typeof PILOT_CAPABILITIES)[number];
 
+// ─── Fulfillment Capabilities ───────────────────────────────────────────────
+
+/**
+ * How a merchant actually gets goods/services to the buyer once a purchase
+ * completes — orthogonal to PILOT_CAPABILITIES above (which describe the
+ * transaction protocol steps, not what's being fulfilled). Added for the
+ * self-serve onboarding wizard (Step 1's goods-type multi-select) so the
+ * wizard fits far more than physical-vs-digital retail. Additive: does not
+ * replace or narrow PILOT_CAPABILITIES.
+ */
+export const FULFILLMENT_CAPABILITIES = [
+  "fulfillment.physical.ship", // ships to an address
+  "fulfillment.digital.deliver", // instant electronic delivery, no address
+  "fulfillment.access.grant", // subscription/membership/paywall access, nothing shipped
+  "fulfillment.booking.schedule", // appointment/time-slot, may require physical presence
+  "fulfillment.event.ticket", // fixed-inventory, time-bound entry credential (tickets, reservations)
+  "fulfillment.rental.temporary", // temporary possession + return/deposit logic
+  "fulfillment.quote.custom", // no fixed catalog price — needs a human quote before any transaction
+] as const;
+
+export type FulfillmentCapability = (typeof FULFILLMENT_CAPABILITIES)[number];
+
+const fulfillmentCapabilitySet: ReadonlySet<string> = new Set(FULFILLMENT_CAPABILITIES);
+
+export function isFulfillmentCapability(value: unknown): value is FulfillmentCapability {
+  return typeof value === "string" && fulfillmentCapabilitySet.has(value);
+}
+
 // ─── Version Bindings ───────────────────────────────────────────────────────
 
 export interface VersionBindings {
@@ -37,6 +65,8 @@ export interface CapabilityManifest {
   readonly merchantId: CounterId<"merchant">;
   readonly manifestVersion: string;
   readonly capabilities: readonly PilotCapability[];
+  /** Optional/additive — empty array is valid. See FULFILLMENT_CAPABILITIES. */
+  readonly fulfillmentCapabilities?: readonly FulfillmentCapability[];
   readonly versionBindings: VersionBindings;
   readonly generatedAt: Instant;
   readonly signatureDigest: Sha256Digest;
@@ -48,6 +78,8 @@ export interface GenerateManifestInput {
   readonly merchantId: CounterId<"merchant">;
   readonly manifestVersion: string;
   readonly capabilities: readonly PilotCapability[];
+  /** Optional/additive — empty array is valid. See FULFILLMENT_CAPABILITIES. */
+  readonly fulfillmentCapabilities?: readonly FulfillmentCapability[];
   readonly versionBindings: VersionBindings;
   readonly generatedAt: Instant;
 }
@@ -62,6 +94,7 @@ function toCanonicalJson(input: GenerateManifestInput): string {
   // Deterministic serialization: sorted keys, no extra whitespace
   const canonical = {
     capabilities: [...input.capabilities].sort(),
+    fulfillmentCapabilities: [...(input.fulfillmentCapabilities ?? [])].sort(),
     generatedAt: input.generatedAt,
     manifestVersion: input.manifestVersion,
     merchantId: input.merchantId,
@@ -122,6 +155,9 @@ export function generateManifest(input: GenerateManifestInput): Result<Capabilit
     merchantId: input.merchantId,
     manifestVersion: input.manifestVersion,
     capabilities: Object.freeze([...input.capabilities]),
+    ...(input.fulfillmentCapabilities !== undefined
+      ? { fulfillmentCapabilities: Object.freeze([...input.fulfillmentCapabilities]) }
+      : {}),
     versionBindings: Object.freeze({ ...input.versionBindings }),
     generatedAt: input.generatedAt,
     signatureDigest,
