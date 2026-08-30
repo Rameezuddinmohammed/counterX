@@ -6,6 +6,7 @@
  */
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
+import { decodeIdTokenClaims } from "@/lib/id-token-claims";
 
 const CONTROL_PLANE_URL =
   process.env["CONTROL_PLANE_URL"] ?? "https://counter-control-plane-api.fly.dev";
@@ -20,7 +21,8 @@ export async function POST() {
     );
   }
 
-  const scope = session.user[`${NAMESPACE}scope`] as { walletId?: string } | undefined;
+  const claims = decodeIdTokenClaims(session.tokenSet.idToken);
+  const scope = claims[`${NAMESPACE}scope`] as { walletId?: string } | undefined;
   const walletId = scope?.walletId;
   if (walletId === undefined) {
     return NextResponse.json(

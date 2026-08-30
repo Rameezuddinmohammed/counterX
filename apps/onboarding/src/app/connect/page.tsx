@@ -1,4 +1,5 @@
 import { auth0 } from "@/lib/auth0";
+import { decodeIdTokenClaims } from "@/lib/id-token-claims";
 import { ConnectPanel } from "./connect-panel";
 
 const NAMESPACE = "https://counter.dev/";
@@ -11,9 +12,8 @@ export default async function ConnectPage() {
     return null;
   }
 
-  const scope = session.user[`${NAMESPACE}scope`] as
-    | { kind?: string; walletId?: string }
-    | undefined;
+  const claims = decodeIdTokenClaims(session.tokenSet.idToken);
+  const scope = claims[`${NAMESPACE}scope`] as { kind?: string; walletId?: string } | undefined;
   const walletId = scope?.walletId;
 
   return (
