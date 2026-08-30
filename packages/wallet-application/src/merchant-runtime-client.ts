@@ -14,10 +14,12 @@ import type {
   ProductResponse,
   QuoteResponse,
   ReceiptResponse,
+  RefundResponse,
   SearchResponse,
   TransactionCreateResponse,
   TransactionStatusResponse,
 } from "@counter/merchant-contracts";
+import type { CtpEnvelope, PurchaseIntentPayload } from "@counter/trust-protocol";
 import {
   createIndeterminateError,
   createMalformedResponseError,
@@ -173,10 +175,7 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     return { ok: true, value: response.value as SearchResponse };
   }
 
-  async getProduct(
-    merchantId: string,
-    variantId: string,
-  ): Promise<ClientResult<ProductResponse>> {
+  async getProduct(merchantId: string, variantId: string): Promise<ClientResult<ProductResponse>> {
     const manifestCheck = await this.#ensureManifestVerified(merchantId);
     if (!manifestCheck.ok) {
       return manifestCheck;
@@ -220,6 +219,7 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     merchantId: string,
     quoteId: string,
     paymentMethod: string,
+    signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
   ): Promise<ClientResult<TransactionCreateResponse>> {
     const manifestCheck = await this.#ensureManifestVerified(merchantId);
     if (!manifestCheck.ok) {
@@ -229,7 +229,11 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     const url = `${this.#baseUrl}/runtime/v1/merchants/${encodeURIComponent(merchantId)}/transactions`;
     const response = await this.#safeFetch(url, {
       method: "POST",
-      body: JSON.stringify({ quoteId, paymentMethod }),
+      body: JSON.stringify({
+        quoteId,
+        paymentMethod,
+        ...(signedEnvelope !== undefined ? { ctpEnvelope: signedEnvelope } : {}),
+      }),
     });
 
     if (!response.ok) {
@@ -277,6 +281,29 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     return { ok: true, value: response.value as ReceiptResponse };
   }
 
+  async requestRefund(
+    merchantId: string,
+    transactionId: string,
+    reason: string,
+  ): Promise<ClientResult<RefundResponse>> {
+    const manifestCheck = await this.#ensureManifestVerified(merchantId);
+    if (!manifestCheck.ok) {
+      return manifestCheck;
+    }
+
+    const url = `${this.#baseUrl}/runtime/v1/merchants/${encodeURIComponent(merchantId)}/transactions/${encodeURIComponent(transactionId)}/refund`;
+    const response = await this.#safeFetch(url, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+
+    if (!response.ok) {
+      return response;
+    }
+
+    return { ok: true, value: response.value as RefundResponse };
+  }
+
   // ---------------------------------------------------------------------------
   // Private Helpers
   // ---------------------------------------------------------------------------
@@ -312,7 +339,9 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
   ): Promise<ClientResult<unknown>> {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => { controller.abort(); }, this.#timeoutMs);
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, this.#timeoutMs);
 
       const response = await fetch(url, {
         method: init?.method ?? "GET",
@@ -388,6 +417,13 @@ export type SimulatedFailure =
  * In-memory test implementation of MerchantRuntimeClient.
  * Supports configurable responses and simulated failures.
  */
+interface RecordedCreateTransactionCall {
+  readonly merchantId: string;
+  readonly quoteId: string;
+  readonly paymentMethod: string;
+  readonly signedEnvelope: CtpEnvelope<PurchaseIntentPayload> | undefined;
+}
+
 export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
   #manifests = new Map<string, ManifestVerificationResult>();
   #searchResponses = new Map<string, SearchResponse>();
@@ -396,11 +432,18 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
   #transactionCreateResponses = new Map<string, TransactionCreateResponse>();
   #transactionStatusResponses = new Map<string, TransactionStatusResponse>();
   #receiptResponses = new Map<string, ReceiptResponse>();
+  #refundResponses = new Map<string, RefundResponse>();
   #simulatedFailure: SimulatedFailure | undefined;
   #environment: string;
+  #lastCreateTransactionCall: RecordedCreateTransactionCall | undefined;
 
   constructor(environment = "sandbox") {
     this.#environment = environment;
+  }
+
+  /** Records every createTransaction() call so tests can assert what was sent, e.g. that a signed envelope was actually included. */
+  get lastCreateTransactionCall(): RecordedCreateTransactionCall | undefined {
+    return this.#lastCreateTransactionCall;
   }
 
   // ---------------------------------------------------------------------------
@@ -433,6 +476,10 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
 
   setReceiptResponse(key: string, response: ReceiptResponse): void {
     this.#receiptResponses.set(key, response);
+  }
+
+  setRefundResponse(key: string, response: RefundResponse): void {
+    this.#refundResponses.set(key, response);
   }
 
   simulateFailure(failure: SimulatedFailure | undefined): void {
@@ -512,10 +559,7 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
     return { ok: true, value: response };
   }
 
-  async getProduct(
-    merchantId: string,
-    variantId: string,
-  ): Promise<ClientResult<ProductResponse>> {
+  async getProduct(merchantId: string, variantId: string): Promise<ClientResult<ProductResponse>> {
     const failure = this.#checkSimulatedFailure();
     if (failure) {
       return failure;
@@ -561,9 +605,11 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
 
   async createTransaction(
     merchantId: string,
-    _quoteId: string,
-    _paymentMethod: string,
+    quoteId: string,
+    paymentMethod: string,
+    signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
   ): Promise<ClientResult<TransactionCreateResponse>> {
+    this.#lastCreateTransactionCall = { merchantId, quoteId, paymentMethod, signedEnvelope };
     const failure = this.#checkSimulatedFailure();
     if (failure) {
       return failure;
@@ -621,6 +667,30 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
 
     const key = `${merchantId}:${transactionId}`;
     const response = this.#receiptResponses.get(key);
+    if (!response) {
+      return { ok: false, error: createMalformedResponseError() };
+    }
+
+    return { ok: true, value: response };
+  }
+
+  async requestRefund(
+    merchantId: string,
+    transactionId: string,
+    _reason: string,
+  ): Promise<ClientResult<RefundResponse>> {
+    const failure = this.#checkSimulatedFailure();
+    if (failure) {
+      return failure;
+    }
+
+    const manifestCheck = await this.#ensureManifestValid(merchantId);
+    if (!manifestCheck.ok) {
+      return manifestCheck;
+    }
+
+    const key = `${merchantId}:${transactionId}`;
+    const response = this.#refundResponses.get(key);
     if (!response) {
       return { ok: false, error: createMalformedResponseError() };
     }

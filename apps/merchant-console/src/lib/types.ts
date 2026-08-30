@@ -64,6 +64,21 @@ export interface ShopifySetupStatus {
   readonly errorMessage: string | null;
 }
 
+/**
+ * The REAL Shopify OAuth connection status — mirrors
+ * apps/control-plane-api/src/shopify-connection-store.ts's
+ * ShopifyConnectionStatus response shape exactly (GET
+ * /control/v1/merchants/:merchantId/shopify/connection). Deliberately
+ * narrower than ShopifySetupStatus above (no webhook/sync/product-count
+ * fields) — this only reports whether a real access token has been
+ * obtained via the authorization-code grant, not sync state.
+ */
+export interface ShopifyConnectionStatus {
+  readonly connected: boolean;
+  readonly shopDomain?: string;
+  readonly connectedAt?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Mapping Preview
 // ---------------------------------------------------------------------------
@@ -109,6 +124,30 @@ export interface PolicySimulationResult {
   readonly walletAuthorityLimit: number;
   readonly currency: "INR";
   readonly executedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Policy Configuration (matches the REAL backend shape returned by
+// GET /control/v1/merchants/:merchantId/policy — see
+// apps/control-plane-api/src/policy-routes.ts. This is distinct from
+// PolicySimulationResult above, which describes a policy *simulation* run
+// that has no backing route in control-plane-api today.)
+// ---------------------------------------------------------------------------
+
+export interface MerchantPolicyRule {
+  readonly ruleId: string;
+  readonly category: string;
+  readonly constraint: string;
+  readonly parameters: Record<string, unknown>;
+  readonly enabled: boolean;
+}
+
+export interface MerchantPolicyConfig {
+  readonly merchantId: string;
+  readonly policyVersion: string;
+  readonly rules: readonly MerchantPolicyRule[];
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
 }
 
 // ---------------------------------------------------------------------------

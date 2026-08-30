@@ -46,6 +46,29 @@ import {
 import type { LifecyclePolicyPort } from "./real-lifecycle.js";
 import type { PaymentAuthorizationRequest } from "./transaction-lifecycle.js";
 
+// ─── Recurring payment mandate re-verification ────────────────────────────────
+
+/**
+ * Durable state of a recurring payment mandate (wallet.recurring_payment_
+ * mandates), as read independently by the worker — never trusted from the
+ * job payload itself. Mirrors RecurringMandateSummary's shape from
+ * apps/control-plane-api/src/recurring-mandate-store.ts.
+ */
+export interface RecurringMandateLookupResult {
+  readonly status: "pending" | "active" | "revoked" | "cancelled";
+  readonly validUntilMs: number;
+  readonly ceilingMinor: bigint;
+  readonly eligibleMerchants: readonly string[];
+  /**
+   * Razorpay's own opaque customer/token ids — needed by real-lifecycle.ts's
+   * payment step to actually charge against this mandate. Never a raw
+   * credential. providerTokenId is null until a pending registration is
+   * confirmed (status would not be "active" yet in that case anyway).
+   */
+  readonly providerCustomerId: string;
+  readonly providerTokenId: string | null;
+}
+
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 export interface ProductionPolicyConfig {
@@ -76,6 +99,18 @@ export interface ProductionPolicyConfig {
     | undefined;
   /** Clock, injectable for deterministic tests. */
   readonly now?: (() => Instant) | undefined;
+  /**
+   * Durable, independent read of a recurring payment mandate's current
+   * state, keyed by PaymentAuthorizationRequest.paymentReferenceId. When a
+   * request carries a paymentReferenceId and this is wired, the worker
+   * denies BEFORE any external effect unless the mandate is active,
+   * unexpired, under its own ceiling, and (if scoped) eligible for this
+   * merchant — never trusting what the caller claims. Absent + a
+   * paymentReferenceId present is itself a deny (fail closed, not skip).
+   */
+  readonly recurringMandateLookup?:
+    | ((referenceId: string) => Promise<RecurringMandateLookupResult | undefined>)
+    | undefined;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,26 +156,54 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
   const clock = config.now ?? nowInstant;
 
   return {
-    allow(request: PaymentAuthorizationRequest): Promise<boolean> {
+    async allow(request: PaymentAuthorizationRequest): Promise<boolean> {
       const authority = request.authority;
       const nowMs = Number(clock());
+
+      // 0. Recurring payment mandate re-verification — an independent, durable
+      //    read, never trusting what the caller claims. Fails closed: a
+      //    paymentReferenceId with no way to verify it is a deny, not a skip.
+      if (request.paymentReferenceId !== undefined) {
+        if (config.recurringMandateLookup === undefined) {
+          return false;
+        }
+        const mandate = await config.recurringMandateLookup(request.paymentReferenceId);
+        if (mandate === undefined) {
+          return false;
+        }
+        if (mandate.status !== "active") {
+          return false;
+        }
+        if (nowMs > mandate.validUntilMs) {
+          return false;
+        }
+        if (BigInt(request.amountMinor) > mandate.ceilingMinor) {
+          return false;
+        }
+        if (
+          mandate.eligibleMerchants.length > 0 &&
+          !mandate.eligibleMerchants.includes(config.operatingMerchantId)
+        ) {
+          return false;
+        }
+      }
 
       // 1. Quote tamper: the requested amount MUST equal the quoted amount.
       if (
         authority?.quotedAmountMinor !== undefined &&
         request.amountMinor !== authority.quotedAmountMinor
       ) {
-        return Promise.resolve(false);
+        return false;
       }
 
       // 2. Revocation: a mandate revoked at-or-before now blocks.
       if (authority?.revokedAtMs !== undefined && authority.revokedAtMs <= nowMs) {
-        return Promise.resolve(false);
+        return false;
       }
 
       // 3. Mandate expiry.
       if (authority?.mandateExpiresAtMs !== undefined && nowMs > authority.mandateExpiresAtMs) {
-        return Promise.resolve(false);
+        return false;
       }
 
       // 4. Authorization expiry.
@@ -148,7 +211,7 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
         authority?.authorizationExpiresAtMs !== undefined &&
         nowMs > authority.authorizationExpiresAtMs
       ) {
-        return Promise.resolve(false);
+        return false;
       }
 
       // 5. Wrong merchant scope.
@@ -156,7 +219,7 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
         authority?.authorizedMerchantId !== undefined &&
         authority.authorizedMerchantId !== config.operatingMerchantId
       ) {
-        return Promise.resolve(false);
+        return false;
       }
 
       // 6. Limits (per-transaction ceiling always; rolling window when a wallet
@@ -167,13 +230,14 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
       if (config.reserveSpend !== undefined) {
         // The durable reserve is atomic check-and-record: a rejection means a
         // ceiling would be breached; no external effect has happened yet.
-        return config.reserveSpend({
+        const reserved = await config.reserveSpend({
           walletId: deriveWalletId(walletRef),
           reference: request.idempotencyKey,
           amountMinor: BigInt(request.amountMinor),
           currency: request.currency,
           nowMs: Number(clock()),
-        }).then((r) => r.allowed);
+        });
+        return reserved.allowed;
       }
       const decision = enforceTransactionLimits(
         money(request.amountMinor, request.currency),
@@ -182,11 +246,7 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
         ledger,
         limitConfig,
       );
-      if (!decision.allowed) {
-        return Promise.resolve(false);
-      }
-
-      return Promise.resolve(true);
+      return decision.allowed;
     },
   };
 }

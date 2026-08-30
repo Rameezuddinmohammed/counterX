@@ -91,7 +91,7 @@ gatedDescribe("durable step-ledger crash-resume (creds+DB-gated, live network)",
       ).rows[0];
       const orderId = orderRow?.reference ?? undefined;
       if (orderId !== undefined && orderId.length > 0) {
-        const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+        const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
         await bundle.shopify.orderCancel.execute({
           payload: {
             orderId,
@@ -138,7 +138,7 @@ gatedDescribe("durable step-ledger crash-resume (creds+DB-gated, live network)",
 
       // ── Attempt A: REAL connectors, but finalize is forced to throw AFTER the
       //    real draft runs (a crash between draft and finalize). ──
-      const bundleA = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+      const bundleA = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
       const crashingShopify = {
         ...bundleA.shopify,
         orderFinalize: {
@@ -176,7 +176,7 @@ gatedDescribe("durable step-ledger crash-resume (creds+DB-gated, live network)",
       //    left in PENDING (unpaid) — this keeps the proof focused on the
       //    draft/finalize resume AND lets the connector cancel it cleanly in
       //    afterAll (Shopify refuses a no-refund cancel on a PAID order). ──
-      const bundleB = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+      const bundleB = buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
       const nonPayingShopify = {
         ...bundleB.shopify,
         paymentRecord: {

@@ -7,16 +7,12 @@
  * NEVER exposes key_secret in client-facing payloads.
  */
 
-import type {
-  RazorpayOrder,
-  RazorpayPayment,
-  RazorpayRefund,
-} from "./types.js";
+import type { RazorpayOrder, RazorpayPayment, RazorpayRefund } from "./types.js";
 
 // ─── HTTP Port Interface ─────────────────────────────────────────────────────
 
 export interface RazorpayHttpRequest {
-  readonly method: "GET" | "POST";
+  readonly method: "GET" | "POST" | "DELETE";
   readonly path: string;
   readonly body?: unknown;
   readonly idempotencyKey?: string;

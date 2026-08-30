@@ -13,7 +13,12 @@ import {
   registerRoutePermission,
 } from "@counter/http-api-kit";
 import { sha256Digest, type Instant } from "@counter/domain";
-import type { MerchantHandlers, HandlerContext, HandlerError } from "./merchant-handlers.js";
+import type {
+  MerchantHandlers,
+  HandlerContext,
+  HandlerError,
+  TransactionCreateInput,
+} from "./merchant-handlers.js";
 import type { RuntimeIdempotencyStore } from "./idempotency-store.js";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +104,14 @@ function sendHandlerError(reply: FastifyReply, error: HandlerError, correlationI
       // distinguishes "exists but not yours" from "does not exist".
       void reply.status(404).send({
         error: { code: "NOT_FOUND", message: "The requested resource was not found" },
+      });
+      break;
+    case "unauthorized":
+      // A CTP-signed envelope was present but failed verification (bad
+      // signature, unknown/revoked key, or didn't match this request).
+      // Never echoes the reason's internal detail beyond a stable message.
+      void reply.status(401).send({
+        error: { code: "UNAUTHORIZED", message: "The signed authorization could not be verified" },
       });
       break;
   }
@@ -422,12 +435,18 @@ export async function merchantRoutesPlugin(
       sendValidationError(reply, validationError, field);
       return;
     }
-    const typedBody = body as { quoteId: string; paymentMethod: string; billingAddress?: { line1: string; city: string; region?: string; postalCode: string; country: string } };
+    const typedBody = body as {
+      quoteId: string;
+      paymentMethod: string;
+      billingAddress?: { line1: string; city: string; region?: string; postalCode: string; country: string };
+      ctpEnvelope?: unknown;
+    };
     await runWithIdempotency(ctx, request, reply, async () => {
       const result = await handlers.transactionCreate.handle(ctx, {
       quoteId: typedBody.quoteId,
       paymentMethod: typedBody.paymentMethod,
       billingAddress: typedBody.billingAddress,
+      ctpEnvelope: typedBody.ctpEnvelope as TransactionCreateInput["ctpEnvelope"],
     });
       if (!result.ok) {
         sendHandlerError(reply, result.error, ctx.correlationId);

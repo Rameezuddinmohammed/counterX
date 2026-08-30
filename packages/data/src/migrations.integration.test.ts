@@ -7,7 +7,15 @@ const testDatabaseUrl = process.env["TEST_DATABASE_URL"]?.trim() || undefined;
 const databaseDescribe = testDatabaseUrl === undefined ? describe.skip : describe;
 const migrationsDirectory = fileURLToPath(new URL("../migrations", import.meta.url));
 const testSeedPath = fileURLToPath(new URL("../seeds/test.sql", import.meta.url));
-const protectedRelations = [
+// The full set as of migration 4 (identity-tenancy-scope + support-grant-
+// authorizations). This exact set held unchanged all the way through
+// migration 10 (nothing after 4 added a new RLS-protected table), so a
+// single shared constant used to double as "the v4 set" AND "the latest
+// set" below — until migration 11 (wallet-user-onboarding) added two more.
+// Kept split into two constants now so a future migration that adds another
+// RLS table only needs to update protectedRelationsAtLatest, not silently
+// desync the v3/v4 assertions above it.
+const protectedRelationsAtV4 = [
   ["identity", "scope_registry"],
   ["merchant", "scopes"],
   ["wallet", "scopes"],
@@ -20,6 +28,12 @@ const protectedRelations = [
   ["identity", "support_grant_events"],
   ["identity", "support_grant_authorizations"],
   ["identity", "support_grant_authorization_permissions"],
+] as const;
+
+const protectedRelationsAtLatest = [
+  ...protectedRelationsAtV4,
+  ["identity", "wallet_setup_tokens"],
+  ["identity", "wallet_users"],
 ] as const;
 
 const identityFunctionSignatures = [
@@ -99,7 +113,7 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     await expect(schemaExists(database, "merchant")).resolves.toBe(true);
     await expect(schemaExists(database, "wallet")).resolves.toBe(true);
     await expect(forcedRlsRelations(database)).resolves.toEqual(
-      protectedRelations.map(([schema, table]) => `${schema}.${table}`).sort(),
+      protectedRelationsAtV4.map(([schema, table]) => `${schema}.${table}`).sort(),
     );
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
 
@@ -132,7 +146,7 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     // support_grant_authorizations / support_grant_authorization_permissions and
     // identity.require_support_grant_authorization_permission() are created by migration 4
     // and must not appear yet at version 3.
-    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length - 2);
+    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelationsAtV4.length - 2);
     await expect(identityFunctions(database)).resolves.toEqual(
       identityFunctionSignatures.filter(
         (signature) => signature !== "identity.require_support_grant_authorization_permission()",
@@ -152,7 +166,7 @@ databaseDescribe("PostgreSQL migration lifecycle", () => {
     const restored = await runner.up();
     expect(restored.currentVersion).toBe(latest);
     expect(restored.applied.map((migration) => migration.version)).toEqual(allVersions);
-    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelations.length);
+    await expect(forcedRlsRelations(database)).resolves.toHaveLength(protectedRelationsAtLatest.length);
     await expect(identityFunctions(database)).resolves.toEqual([...identityFunctionSignatures]);
   });
 

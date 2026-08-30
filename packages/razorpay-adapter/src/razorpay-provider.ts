@@ -12,8 +12,6 @@
  * All objects returned are immutable (Object.freeze).
  */
 
-import { createHmac } from "node:crypto";
-
 import type { Instant, IsoCurrencyCode } from "@counter/domain";
 import { createCanonicalError, instantFromEpochMilliseconds } from "@counter/domain";
 
@@ -46,6 +44,7 @@ import type {
 } from "./types.js";
 import { amountToPaise, paiseToAmount } from "./types.js";
 import type { RazorpayTestAdapterConfig } from "./adapter-config.js";
+import { hmacSha256, timingSafeEquals } from "./signing.js";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -68,13 +67,6 @@ function futureInstant(clock: () => number, offsetMs: number): Instant {
     throw new TypeError("Clock produced invalid future instant");
   }
   return result.value;
-}
-
-/**
- * Computes HMAC_SHA256 hex signature.
- */
-function hmacSha256(data: string, secret: string): string {
-  return createHmac("sha256", secret).update(data).digest("hex");
 }
 
 /**
@@ -481,23 +473,4 @@ export class RazorpayTestProvider implements PaymentProvider {
       message: "Razorpay Standard Checkout uses direct_capture lifecycle; void is not supported",
     });
   }
-}
-
-// ─── Timing-Safe Comparison ──────────────────────────────────────────────────
-
-/**
- * Constant-time string comparison to prevent timing attacks on signature verification.
- */
-function timingSafeEquals(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  // Use XOR-based comparison
-  let result = 0;
-  for (let i = 0; i < bufA.length; i++) {
-    result |= bufA[i]! ^ bufB[i]!;
-  }
-  return result === 0;
 }

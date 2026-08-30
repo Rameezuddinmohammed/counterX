@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "counterx-wallet": {
-      "command": "node",
-      "args": ["apps/local-mcp/dist/main.js"],
-      "description": "CounterX local wallet MCP server (stdio). Read tools return static data; write tools (purchase.propose/execute/cancel/refund-request) run against in-memory test doubles — no real infrastructure, no real signing keys, no live merchant backend. Run `pnpm --filter @counter/local-mcp build` first if apps/local-mcp/dist is missing."
-    }
-  }
-}

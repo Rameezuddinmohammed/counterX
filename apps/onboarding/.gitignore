@@ -1,0 +1,10 @@
+# Auth0 credentials
+.env.local
+
+.auth0-mcp-state.json
+
+.auth0-mcp-writes.log
+
+# Auto-written by `next dev` (Next.js 16 "agent rules" feature) on every run
+AGENTS.md
+CLAUDE.md

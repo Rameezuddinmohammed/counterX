@@ -32,7 +32,7 @@ export function realBundleOrNull(): ReturnType<typeof buildRealConnectorBundle> 
   }
   const shopifyCreds = requireShopifyCredentials(process.env)!;
   const razorpayCreds = requireRazorpayCredentials(process.env)!;
-  return buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+  return buildRealConnectorBundle(shopifyCreds, razorpayCreds, process.env);
 }
 
 /** Idempotent DDL for the durable runtime tables the tests exercise. */

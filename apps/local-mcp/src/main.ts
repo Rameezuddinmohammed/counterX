@@ -6,9 +6,9 @@
  * InMemoryRevocationStore) so the MCP surface is launchable and exercisable in
  * local dev/testing without any real wallet infrastructure, real signing keys,
  * or a live merchant backend. This is intentionally NOT wired to real
- * infrastructure — see COUNTERX-ARCHITECTURE.md for what a production wiring
- * (real SecureKeyStore, real HttpMerchantRuntimeClient, durable revocation
- * store) would require.
+ * infrastructure — see main-real.ts for the real wiring (a persistent
+ * on-disk signing key, and an HTTP client that talks to the actual deployed
+ * agent-runtime API).
  *
  * Run: node apps/local-mcp/dist/main.js  (stdio transport)
  */

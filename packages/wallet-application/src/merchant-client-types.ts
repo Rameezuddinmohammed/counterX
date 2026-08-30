@@ -10,10 +10,12 @@ import type {
   ProductResponse,
   QuoteResponse,
   ReceiptResponse,
+  RefundResponse,
   SearchResponse,
   TransactionCreateResponse,
   TransactionStatusResponse,
 } from "@counter/merchant-contracts";
+import type { CtpEnvelope, PurchaseIntentPayload } from "@counter/trust-protocol";
 import type { MerchantClientError } from "./client-errors.js";
 
 // ---------------------------------------------------------------------------
@@ -107,12 +109,17 @@ export interface MerchantRuntimeClient {
   ): Promise<ClientResult<QuoteResponse>>;
 
   /**
-   * Creates a transaction from a confirmed quote.
+   * Creates a transaction from a confirmed quote. `signedEnvelope`, when
+   * present, is a CTP-signed purchase-intent envelope the server verifies
+   * against the buyer's registered agent key before proceeding — see
+   * PurchaseIntentBuilder.sign(). Omit it for merchant-only/test flows that
+   * don't carry a buyer-signed authorization.
    */
   createTransaction(
     merchantId: string,
     quoteId: string,
     paymentMethod: string,
+    signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
   ): Promise<ClientResult<TransactionCreateResponse>>;
 
   /**
@@ -126,8 +133,18 @@ export interface MerchantRuntimeClient {
   /**
    * Gets the signed receipt for a completed transaction.
    */
-  getReceipt(
+  getReceipt(merchantId: string, transactionId: string): Promise<ClientResult<ReceiptResponse>>;
+
+  /**
+   * Requests a refund on a completed transaction. This is a RELAY, not an
+   * immediate execution — the server records the request and its reason;
+   * the merchant decides (manually, or via their own configured
+   * auto-approve threshold) whether it actually happens. See
+   * RefundResponse's docs in @counter/merchant-contracts.
+   */
+  requestRefund(
     merchantId: string,
     transactionId: string,
-  ): Promise<ClientResult<ReceiptResponse>>;
+    reason: string,
+  ): Promise<ClientResult<RefundResponse>>;
 }

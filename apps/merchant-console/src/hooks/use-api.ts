@@ -28,19 +28,21 @@ function createBrowserTokenProvider(): AuthTokenProvider {
     async getToken(): Promise<string> {
       if (cachedToken) return cachedToken;
 
-      const res = await fetch("/api/auth/me");
+      // /auth/access-token is the real @auth0/nextjs-auth0 v4 SDK endpoint
+      // (enabled by default, mounted by proxy.ts's auth0.middleware call —
+      // see apps/merchant-console/src/proxy.ts). It returns { token, ... }
+      // for the signed-in user's session, or 401 with no session.
+      const res = await fetch("/auth/access-token");
       if (res.ok) {
-        const data = await res.json() as Record<string, unknown>;
-        const token = data["accessToken"];
+        const data = (await res.json()) as Record<string, unknown>;
+        const token = data["token"];
         if (typeof token === "string" && token.length > 0) {
           cachedToken = token;
           return cachedToken;
         }
       }
 
-      throw new AuthError(
-        "Unable to obtain authentication token. Please sign in again.",
-      );
+      throw new AuthError("Unable to obtain authentication token. Please sign in again.");
     },
     invalidate() {
       cachedToken = null;

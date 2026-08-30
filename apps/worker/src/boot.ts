@@ -19,18 +19,30 @@
 
 import { createCounterId, parseCounterId } from "@counter/domain";
 import type { MerchantId } from "@counter/domain";
-import { createTestSignerA, TEST_KID_A } from "@counter/trust-protocol";
+import { InMemorySigner } from "@counter/trust-protocol";
 import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
-import { createRealRazorpayProvider } from "@counter/razorpay-adapter";
+import {
+  createRealRazorpayProvider,
+  createRealRazorpayRecurringMandateProvider,
+} from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
 import { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger } from "@counter/data";
-import type { AsyncStepLedger, AsyncKillSwitchStore, KillSwitchScope } from "@counter/data";
+import type { PostgresRecurringMandateReadStore } from "@counter/data";
+import { DEFAULT_SPEND_LIMIT_CONFIG } from "@counter/data";
+import type {
+  AsyncStepLedger,
+  AsyncKillSwitchStore,
+  KillSwitchScope,
+  SpendLimitConfig,
+  PolicyConfigEntry,
+} from "@counter/data";
 import type { Instant } from "@counter/domain";
 import { instantFromEpochMilliseconds } from "@counter/domain";
 
 import {
   requireShopifyCredentials,
   requireRazorpayCredentials,
+  requireCounterTestPaymentSigner,
   type EnvironmentBag,
 } from "./connector-env.js";
 import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
@@ -57,9 +69,7 @@ import type {
  */
 export function createDeterministicPaymentAuthorizationPort(): PaymentAuthorizationPort {
   return {
-    authorizeAndCapture(
-      request: PaymentAuthorizationRequest,
-    ): Promise<PaymentAuthorizationResult> {
+    authorizeAndCapture(request: PaymentAuthorizationRequest): Promise<PaymentAuthorizationResult> {
       return Promise.resolve(
         Object.freeze({
           status: "captured" as const,
@@ -96,6 +106,7 @@ export interface DurableStores {
   readonly stepLedger?: AsyncStepLedger | undefined;
   readonly killSwitchStore?: AsyncKillSwitchStore | undefined;
   readonly spendLedger?: PostgresSpendLedger | undefined;
+  readonly recurringMandateStore?: PostgresRecurringMandateReadStore | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -110,7 +121,10 @@ export interface DurableStores {
 export function selectPaymentAuthorizationPort(
   env: EnvironmentBag,
   overrides?: Partial<
-    Pick<RealLifecycleConfig, "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger" | "killSwitch">
+    Pick<
+      RealLifecycleConfig,
+      "variantResolver" | "policy" | "actionTimeoutMs" | "stepLedger" | "killSwitch"
+    >
   >,
   stores?: DurableStores,
 ): SelectedPaymentPort {
@@ -123,7 +137,7 @@ export function selectPaymentAuthorizationPort(
     return { mode: "deterministic", port: createDeterministicPaymentAuthorizationPort() };
   }
 
-  const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds);
+  const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds, env);
 
   // Durable stores (Postgres-backed) resolved at the deployment entrypoint are
   // preferred over any explicit override. An explicit override still wins over
@@ -161,11 +175,24 @@ export function selectPaymentAuthorizationPort(
         }
       : undefined;
 
+  // Recurring payment mandates (UPI Autopay / e-mandate): reuses the SAME
+  // Razorpay credentials already resolved above (one Razorpay account,
+  // whether the charge is a one-shot order or a recurring draw). Both the
+  // policy gate and the actual charge call independently re-read the
+  // mandate's durable state — never trusting the job payload, and never
+  // sharing a single read between the two seams.
+  const recurringMandateLookup =
+    stores?.recurringMandateStore !== undefined
+      ? (referenceId: string) => stores.recurringMandateStore!.findByReferenceId(referenceId)
+      : undefined;
+  const recurringPayments = createRealRazorpayRecurringMandateProvider(razorpayCreds);
+
   const policy =
     overrides?.policy ??
     createProductionPolicy({
       operatingMerchantId: bundle.merchantId,
       ...(durableReserveSpend !== undefined ? { reserveSpend: durableReserveSpend } : {}),
+      ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
     });
 
   const config: RealLifecycleConfig = {
@@ -174,8 +201,14 @@ export function selectPaymentAuthorizationPort(
     payments: bundle.payments,
     merchantId: bundle.merchantId,
     policy,
-    ...(overrides?.variantResolver !== undefined ? { variantResolver: overrides.variantResolver } : {}),
-    ...(overrides?.actionTimeoutMs !== undefined ? { actionTimeoutMs: overrides.actionTimeoutMs } : {}),
+    recurringPayments,
+    ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
+    ...(overrides?.variantResolver !== undefined
+      ? { variantResolver: overrides.variantResolver }
+      : {}),
+    ...(overrides?.actionTimeoutMs !== undefined
+      ? { actionTimeoutMs: overrides.actionTimeoutMs }
+      : {}),
     ...(stepLedger !== undefined ? { stepLedger } : {}),
     ...(killSwitch !== undefined ? { killSwitch } : {}),
   };
@@ -206,6 +239,7 @@ export interface RealConnectorBundle {
 export function buildRealConnectorBundle(
   shopifyCreds: NonNullable<ReturnType<typeof requireShopifyCredentials>>,
   razorpayCreds: NonNullable<ReturnType<typeof requireRazorpayCredentials>>,
+  env: EnvironmentBag,
 ): RealConnectorBundle {
   const shopify = createShopifyConnectorFromConfig({
     shopDomain: shopifyCreds.shopDomain,
@@ -220,11 +254,17 @@ export function buildRealConnectorBundle(
     baseUrl: razorpayCreds.baseUrl,
   });
 
-  // Unattended, CTP-signed provider for the authorize/capture evidence.
+  // Unattended, CTP-signed provider for the authorize/capture evidence. The
+  // signing key is a real, deployment-specific secret when configured
+  // (COUNTER_TEST_PAYMENT_SIGNER_KID/_SEED); only in a mock-eligible
+  // environment without those set does this fall back to the named public
+  // fixture — see requireCounterTestPaymentSigner for why a prod-like
+  // deployment fails loud instead of silently using that fixture.
+  const testPaymentSigner = requireCounterTestPaymentSigner(env);
   const payments = new CounterTestPaymentProvider({
     environment: "test",
-    signer: createTestSignerA(),
-    kid: TEST_KID_A,
+    signer: new InMemorySigner(testPaymentSigner.kid, testPaymentSigner.seed),
+    kid: testPaymentSigner.kid,
   });
 
   return { shopify, razorpay, payments, merchantId: pilotMerchantId() };
@@ -247,7 +287,7 @@ export function buildRealConnectorBundle(
  * this derivation, update that file's comment/fallback too, or set
  * `PILOT_MERCHANT_ID` explicitly on both sides instead.
  */
-function pilotMerchantId(): MerchantId {
+export function pilotMerchantId(): MerchantId {
   const configured = process.env["PILOT_MERCHANT_ID"];
   if (configured !== undefined && configured.trim().length > 0) {
     const parsed = parseCounterId(configured.trim(), "merchant");
@@ -262,6 +302,73 @@ function pilotMerchantId(): MerchantId {
     throw new Error("Failed to derive pilot merchant id");
   }
   return result.value;
+}
+
+/**
+ * Shape a merchant's policy config may carry to override the durable spend
+ * ledger's default ceilings. Stored as a sibling key alongside the existing
+ * `policyVersion`/`rules`/`effectiveFrom` shape written via the console's
+ * policy route (see apps/control-plane-api/src/policy-routes.ts) — the store
+ * itself treats `config` as opaque JSON, so this does not conflict with the
+ * rule-compiler's own fields. Amounts are strings in JSON (bigint-safe).
+ */
+interface SpendLimitsJson {
+  readonly maxTransactionAmountMinor: string;
+  readonly maxRolling24hTotalMinor: string;
+  readonly maxAttemptsPerWindow: number;
+  readonly windowMs: number;
+  readonly currency: string;
+}
+
+function isSpendLimitsJson(value: unknown): value is SpendLimitsJson {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v["maxTransactionAmountMinor"] === "string" &&
+    typeof v["maxRolling24hTotalMinor"] === "string" &&
+    typeof v["maxAttemptsPerWindow"] === "number" &&
+    typeof v["windowMs"] === "number" &&
+    typeof v["currency"] === "string"
+  );
+}
+
+/**
+ * Resolves the spend-limit ceilings the durable ledger enforces. Reads an
+ * optional `spendLimits` field from the merchant's policy config (set via the
+ * console's policy API) so an operator can change limits without a code
+ * deploy — only a worker restart, since the ledger reads this once at boot.
+ * Falls back to {@link DEFAULT_SPEND_LIMIT_CONFIG} whenever the config is
+ * absent OR malformed: this is a money-safety gate, so a bad/missing config
+ * must fail closed to the known-safe default, never open to unlimited spend.
+ */
+export function resolveSpendLimitConfig(
+  policyEntry: PolicyConfigEntry | undefined,
+): SpendLimitConfig {
+  if (policyEntry === undefined) {
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
+  const config = policyEntry.config;
+  if (config === null || typeof config !== "object") {
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
+  const candidate = (config as Record<string, unknown>)["spendLimits"];
+  if (!isSpendLimitsJson(candidate)) {
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
+  try {
+    return Object.freeze({
+      maxTransactionAmountMinor: BigInt(candidate.maxTransactionAmountMinor),
+      maxRolling24hTotalMinor: BigInt(candidate.maxRolling24hTotalMinor),
+      maxAttemptsPerWindow: candidate.maxAttemptsPerWindow,
+      windowMs: candidate.windowMs,
+      currency: candidate.currency,
+    });
+  } catch {
+    // BigInt() throws on a non-numeric string; fail closed to the default.
+    return DEFAULT_SPEND_LIMIT_CONFIG;
+  }
 }
 
 // ─── Durable step ledger adapter ─────────────────────────────────────────────
@@ -362,7 +469,11 @@ export function createPostgresKillSwitchGatePort(
   }> = [
     { scope: "platform", entityId: undefined, key: "platform" },
     { scope: "merchant", entityId: merchantId, key: `merchant:${merchantId}` },
-    { scope: "connector", entityId: KILL_SWITCH_CONNECTOR_ID, key: `connector:${KILL_SWITCH_CONNECTOR_ID}` },
+    {
+      scope: "connector",
+      entityId: KILL_SWITCH_CONNECTOR_ID,
+      key: `connector:${KILL_SWITCH_CONNECTOR_ID}`,
+    },
     {
       scope: "payment_adapter",
       entityId: KILL_SWITCH_PAYMENT_ADAPTER_ID,

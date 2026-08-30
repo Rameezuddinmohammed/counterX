@@ -2,10 +2,17 @@
  * Real (non-mock) implementations of the ten merchant runtime handler ports.
  *
  * Scope, deliberately: this wires the actual Shopify catalog, the actual
- * durable job queue the worker polls, the actual transaction read model, and
- * the actual Razorpay refund API — no hardcoded sample data. It does NOT
- * stand up the separate catalog-sync/webhook pipeline or the evidence ledger
- * that also exist in this codebase (see shopify-catalog.ts's header for why).
+ * durable job queue the worker polls, and the actual transaction read model —
+ * no hardcoded sample data. It does NOT stand up the separate
+ * catalog-sync/webhook pipeline or the evidence ledger that also exist in
+ * this codebase (see shopify-catalog.ts's header for why).
+ *
+ * REFUND IS A RELAY, NOT AN IMMEDIATE EXECUTION: createRefundHandler below
+ * only records a pending runtime.refund_requests row (migration 0014) — it
+ * does NOT call Razorpay. The actual provider call happens only once the
+ * merchant approves, in apps/control-plane-api/src/refund-request-store.ts.
+ * This app therefore no longer needs Razorpay credentials for anything (see
+ * main.ts).
  *
  * transactionCreate is the keystone: it is the first thing in this codebase
  * that actually calls JobRepository.enqueue() for a transaction.lifecycle
@@ -16,22 +23,18 @@
  * SECURITY: never handles PAN, CVV, UPI PIN, or provider secrets — only
  * scope ids, opaque references, and minor-unit amounts.
  */
-import type { Environment, Instant, IsoCurrencyCode } from "@counter/domain";
+import type { Environment, Instant } from "@counter/domain";
 import { createCounterId } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
 import { PostgresOutboxRepository, PostgresQuoteStore, PostgresStepLedger } from "@counter/data";
 import type { AsyncJobRepository } from "@counter/data";
 import type { ShopifyGraphQLPort } from "@counter/shopify-connector";
 import type { ShopifyConnector } from "@counter/shopify-connector";
-import type { RazorpayTestProvider } from "@counter/razorpay-adapter";
+import { isCtpEnvelope, verifyEnvelope } from "@counter/trust-protocol";
 import { getCatalogVariant, searchCatalog } from "./shopify-catalog.js";
 import { buildQuote } from "./quote-builder.js";
-import {
-  TransactionReadModel,
-  STEP_CANCEL,
-  STEP_MARK_PAID,
-  STEP_REFUND,
-} from "./transaction-read-model.js";
+import { PostgresCtpKeyRegistry } from "./ctp-key-registry.js";
+import { TransactionReadModel, STEP_CANCEL, STEP_MARK_PAID } from "./transaction-read-model.js";
 import type {
   CancelHandler,
   CapabilityHandler,
@@ -51,8 +54,6 @@ export interface RealHandlerDeps {
   readonly environment: Environment;
   readonly shopify: ShopifyConnector;
   readonly jobRepository: AsyncJobRepository;
-  /** Present only when Razorpay credentials are configured; gates the refund handler. */
-  readonly razorpay: RazorpayTestProvider | undefined;
 }
 
 // ─── Shared formatting helpers ────────────────────────────────────────────────
@@ -207,6 +208,10 @@ function createQuoteHandler(
         unitPrice: { amount: minorToDecimalString(variant.priceMinor), currency: variant.currency },
         totalPrice: { amount: minorToDecimalString(quote.totalPaise), currency: quote.currency },
         expiresAt: new Date(quote.validUntil as unknown as number).toISOString(),
+        // A real buyer's signed purchase intent must bind to this exact
+        // value (payload.quote_digest) — without it in the response, a
+        // caller has no way to construct a matching signature at all.
+        quoteDigest: quote.ctpDigest,
         version: "v1",
       });
     },
@@ -217,12 +222,16 @@ function createQuoteHandler(
 
 const TRANSACTION_LIFECYCLE_JOB_TYPE = "transaction.lifecycle";
 
+/** CTP protocol environment for verifying buyer-signed envelopes (a separate vocabulary from the platform Environment — see @counter/trust-protocol's CtpEnvironment). */
+const CTP_VERIFICATION_ENVIRONMENT = "sandbox";
+
 function createTransactionCreateHandler(
   database: TransactionalDatabase,
   environment: Environment,
   jobRepository: AsyncJobRepository,
 ): TransactionCreateHandler {
   const quoteStore = new PostgresQuoteStore(database, environment);
+  const ctpKeyRegistry = new PostgresCtpKeyRegistry(database, environment);
 
   return {
     async handle(ctx, input) {
@@ -249,6 +258,38 @@ function createTransactionCreateHandler(
           currentVersion: "expired",
           requestedVersion: input.quoteId,
         });
+      }
+
+      // When the caller attached a CTP-signed purchase-intent envelope (a
+      // real buyer agent, not a merchant-only/test flow), verify it BEFORE
+      // consuming the quote: a failed/tampered signature must not burn the
+      // quote and deny the legitimate buyer a chance to retry.
+      let buyerWalletId: string | undefined;
+      if (input.ctpEnvelope !== undefined) {
+        if (!isCtpEnvelope(input.ctpEnvelope)) {
+          return errResult({ kind: "unauthorized" as const, reason: "Malformed signed envelope" });
+        }
+        const verifyResult = await verifyEnvelope(input.ctpEnvelope, {
+          keyRegistry: ctpKeyRegistry,
+          currentTime: new Date(now).toISOString(),
+          expectedAudience: ctx.merchantId,
+          expectedEnvironment: CTP_VERIFICATION_ENVIRONMENT,
+        });
+        if (!verifyResult.ok) {
+          return errResult({ kind: "unauthorized" as const, reason: verifyResult.error.message });
+        }
+        const payload = input.ctpEnvelope.payload;
+        // Binds the signature to THIS specific quote — closes the door on a
+        // validly-signed envelope for a different purchase being replayed
+        // against this one.
+        if (payload.quote_id !== input.quoteId || payload.quote_digest !== quote.ctpDigest) {
+          return errResult({
+            kind: "stale" as const,
+            currentVersion: quote.ctpDigest,
+            requestedVersion: payload.quote_digest,
+          });
+        }
+        buyerWalletId = payload.wallet_id;
       }
 
       const consumeResult = await quoteStore.markConsumed(input.quoteId);
@@ -288,6 +329,13 @@ function createTransactionCreateHandler(
               quotedAmountMinor: Number(quote.totalPriceMinor),
               authorizationExpiresAtMs: quote.expiresAt.getTime(),
               authorizedMerchantId: ctx.merchantId,
+              // A real buyer's wallet id (from their verified signed intent)
+              // when present, so the worker's rolling 24h spend ledger
+              // enforces THEIR limit — otherwise a stable per-merchant wallet
+              // id so it still accumulates across that merchant's
+              // transactions instead of each one getting its own one-shot
+              // bucket (which would make the rolling-total ceiling a no-op).
+              walletId: buyerWalletId ?? ctx.merchantId,
             },
           },
           correlationId: undefined,
@@ -472,15 +520,23 @@ function createCancelHandler(
   };
 }
 
-// ─── Refund ──────────────────────────────────────────────────────────────────
+// ─── Refund (a RELAY — records the request; never calls Razorpay itself) ──────
+
+/** Postgres unique_violation — used to detect an already-pending refund request. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
 
 function createRefundHandler(
   database: TransactionalDatabase,
   environment: Environment,
-  razorpay: RazorpayTestProvider | undefined,
 ): RefundHandler {
   const readModel = new TransactionReadModel(database, environment);
-  const stepLedger = new PostgresStepLedger(database, environment);
   const outbox = new PostgresOutboxRepository(database, environment);
 
   return {
@@ -489,10 +545,10 @@ function createRefundHandler(
       if (record === undefined) {
         return errResult({ kind: "not_found" as const });
       }
-      if (razorpay === undefined) {
-        throw new Error("Refund requires Razorpay credentials, which are not configured");
-      }
 
+      // A refund request only makes sense against a transaction that was
+      // actually captured — reuses the same receipt lookup the (now
+      // superseded) immediate-refund path used, so this check is unchanged.
       const receipt = await outbox.findByIdempotencyKey(transactionId, "transaction.receipt.v1");
       if (!receipt.ok) {
         throw new Error(`Failed to load receipt: ${receipt.error.message}`);
@@ -512,49 +568,53 @@ function createRefundHandler(
         });
       }
 
-      const outcome = await razorpay.refund({
-        reference: providerReference as unknown as Parameters<
-          typeof razorpay.refund
-        >[0]["reference"],
-        amount: {
-          amountMinor: BigInt(record.amountMinor),
-          currency: record.currency as IsoCurrencyCode,
-        },
-        reason: input.reason,
-        idempotencyKey: `${transactionId}:refund`,
-      });
-
-      if (outcome.kind === "indeterminate") {
-        return errResult({ kind: "indeterminate" as const, correlationId: ctx.correlationId });
-      }
-      if (outcome.kind === "declined") {
-        throw new Error(`Razorpay refund declined: ${outcome.reason.reason}`);
-      }
-
-      const now = Date.now() as Instant;
-      const refundReference =
-        outcome.kind === "confirmed" ? outcome.evidence.reference : providerReference;
-      const recorded = await stepLedger.record(
-        transactionId,
-        {
-          step: STEP_REFUND,
-          status: "completed",
-          reference: String(refundReference),
-          snapshot: { reason: input.reason },
-        },
-        now,
+      const idResult = createCounterId(
+        "refund-request",
+        crypto.getRandomValues(new Uint8Array(16)),
       );
-      if (!recorded.ok) {
-        throw new Error(`Failed to record refund: ${recorded.error.message}`);
+      if (!idResult.ok) {
+        throw new Error("Failed to derive a refund-request id");
+      }
+      const refundRequestId = idResult.value as unknown as string;
+      const now = new Date().toISOString();
+
+      try {
+        await database.query(
+          `INSERT INTO runtime.refund_requests (
+             id, environment, transaction_id, merchant_id, requested_amount_minor,
+             currency, reason, status, requested_at, created_at, updated_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $8, $8)`,
+          [
+            refundRequestId,
+            environment,
+            transactionId,
+            ctx.merchantId,
+            record.amountMinor,
+            record.currency,
+            input.reason,
+            now,
+          ],
+        );
+      } catch (error) {
+        if (isUniqueViolation(error)) {
+          // A pending refund request already exists for this transaction —
+          // the merchant has not yet decided on it.
+          return errResult({
+            kind: "stale" as const,
+            currentVersion: "refund_already_pending",
+            requestedVersion: transactionId,
+          });
+        }
+        throw error;
       }
 
       return okResult({
-        refundId: String(refundReference),
+        refundRequestId,
         transactionId,
-        status: "refunded" as const,
-        refundedAt: new Date(now as unknown as number).toISOString(),
+        status: "pending" as const,
+        requestedAt: now,
         amount: { amount: minorToDecimalString(record.amountMinor), currency: record.currency },
-        version: "v2",
+        version: "v3",
       });
     },
   };
@@ -636,7 +696,7 @@ export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
     ),
     paymentActionResult: createPaymentActionResultHandler(deps.database, deps.environment),
     cancel: createCancelHandler(deps.database, deps.environment, deps.shopify),
-    refund: createRefundHandler(deps.database, deps.environment, deps.razorpay),
+    refund: createRefundHandler(deps.database, deps.environment),
     receipt: createReceiptHandler(deps.database, deps.environment),
   };
 }
