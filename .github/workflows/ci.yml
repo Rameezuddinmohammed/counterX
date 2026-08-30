@@ -106,5 +106,15 @@ jobs:
           chmod +x gitleaks
           ./gitleaks version
 
+      # .gitleaks-baseline.json holds 14 pre-existing findings, each
+      # individually reviewed by hand against the exact commit content
+      # (`git show <commit>:<file>`) before being accepted: idempotency-key
+      # test fixtures ("idem-charge-001" etc.) that gitleaks' generic-api-key
+      # heuristic misreads because the field name contains "key", a fake
+      # Shopify token format ("shpat_abcdef...") used to test token
+      # validation/redaction, and — the clearest case — logger.test.ts /
+      # redaction.test.ts deliberately passing fake "apiKey"/"password"
+      # values to test the codebase's OWN credential-redaction logic. None
+      # are real secrets. New findings not in the baseline still fail CI.
       - name: Run gitleaks
-        run: ./gitleaks detect --source=. --config=.gitleaks.toml --redact --no-banner
+        run: ./gitleaks detect --source=. --config=.gitleaks.toml --baseline-path=.gitleaks-baseline.json --redact --no-banner
