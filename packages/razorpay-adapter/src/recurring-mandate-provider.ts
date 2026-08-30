@@ -151,9 +151,16 @@ export class RazorpayRecurringMandateProvider {
   }
 
   /**
-   * Creates (or reuses, if Razorpay reports one already exists for this
-   * contact) a Razorpay customer to register a recurring-payment token
-   * against.
+   * Creates a Razorpay customer to register a recurring-payment token
+   * against. Does NOT attempt to detect/reuse an existing duplicate here:
+   * verified live 2026-08-30 that Razorpay's "Customer already exists"
+   * error carries no id or other identifying metadata to recover it from
+   * (confirmed against a real test-mode account, not assumed from docs).
+   * Reuse across repeat registrations for the same wallet is therefore the
+   * CALLER's responsibility — control-plane-api's RecurringMandateProvisioner
+   * looks up a wallet's own previously-stored provider_customer_id before
+   * ever calling this method, rather than relying on Razorpay to report a
+   * duplicate.
    */
   public async createCustomer(params: CreateCustomerParams): Promise<string> {
     const response = await this.#http.request<RazorpayCustomer>({
@@ -164,16 +171,6 @@ export class RazorpayRecurringMandateProvider {
 
     if (response.status === 200) {
       return response.body.id;
-    }
-
-    // Razorpay reports a duplicate customer (same contact+email) as a 400
-    // whose error metadata carries the existing customer's id — reuse it
-    // rather than fail. (Field name per documented behavior — confirm
-    // against a live account before relying on this in production.)
-    const existingId = (response.body as { error?: { metadata?: { customer_id?: string } } })?.error
-      ?.metadata?.customer_id;
-    if (typeof existingId === "string" && existingId.length > 0) {
-      return existingId;
     }
 
     throw createCanonicalError({
@@ -211,6 +208,14 @@ export class RazorpayRecurringMandateProvider {
         token: {
           max_amount: params.ceilingPaise,
           expire_at: params.validUntilEpochSeconds,
+          // "as_presented" (underscore — verified live 2026-08-30 against
+          // Razorpay's real test-mode API; the hyphenated "as-presented"
+          // is silently NOT a recognized value and falls through to a
+          // validation path demanding a recurring_value/day-of-month,
+          // returning 400) is the correct frequency for "the merchant
+          // debits whenever it decides to," not a fixed schedule — the
+          // right fit for an agent deciding when to charge.
+          frequency: "as_presented",
         },
       },
       idempotencyKey: params.idempotencyKey,

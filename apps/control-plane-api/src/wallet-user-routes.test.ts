@@ -242,7 +242,13 @@ describe("wallet-user routes", () => {
       });
       await server.ready();
 
-      const token = await createWalletOwnerToken(OTHER_WALLET_ID);
+      // identity.agent_key.manage requires step-up assurance (scope-enforcement
+      // now actually checks this, not just role-derived permission) — the
+      // route's own existence-hiding logic is only reached once that gate
+      // passes.
+      const token = await createWalletOwnerToken(OTHER_WALLET_ID, {
+        [`${CLAIMS_NAMESPACE}assurance`]: "step_up",
+      });
       const response = await server.inject({
         method: "POST",
         url: `/control/v1/wallet-users/${TEST_WALLET_ID}/setup-tokens`,
@@ -262,7 +268,9 @@ describe("wallet-user routes", () => {
       });
       await server.ready();
 
-      const token = await createWalletOwnerToken(TEST_WALLET_ID);
+      const token = await createWalletOwnerToken(TEST_WALLET_ID, {
+        [`${CLAIMS_NAMESPACE}assurance`]: "step_up",
+      });
       const response = await server.inject({
         method: "POST",
         url: `/control/v1/wallet-users/${TEST_WALLET_ID}/setup-tokens`,

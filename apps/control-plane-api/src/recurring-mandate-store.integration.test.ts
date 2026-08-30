@@ -30,8 +30,10 @@ const RUN_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 class FakeRazorpayRecurringMandateProvider implements RazorpayRecurringMandateProviderLike {
   cancelledTokens: Array<{ customerId: string; tokenId: string }> = [];
+  createCustomerCalls = 0;
 
   async createCustomer(): Promise<string> {
+    this.createCustomerCalls += 1;
     return `cust_fake_${RUN_ID}`;
   }
 
@@ -131,11 +133,33 @@ gatedDescribe("RecurringMandateProvisioner (real Supabase)", () => {
 
     expect(result.referenceId).toMatch(/^ctr_payment-reference_/);
     expect(result.checkout.razorpayOrderId).toBe(`order_fake_${RUN_ID}`);
+    expect(razorpay.createCustomerCalls).toBe(1);
 
     const list = await provisioner.list(walletId);
     expect(list).toHaveLength(1);
     expect(list[0]?.status).toBe("pending");
   });
+
+  vitestIt(
+    "reuses the wallet's existing Razorpay customer id on a second registration, never calling createCustomer again",
+    async () => {
+      const callsBefore = razorpay.createCustomerCalls;
+      const result = await provisioner.beginRegistration({
+        walletId,
+        principalId,
+        contactName: "Integration Test",
+        contactEmail: "integration@example.com",
+        contactPhone: "+911234567890",
+        ceilingMinor: 300_000n,
+        validUntil: "2027-01-01T00:00:00Z",
+        eligibleMerchants: [],
+        eligibleOperations: [],
+      });
+
+      expect(result.checkout.razorpayCustomerId).toBe(`cust_fake_${RUN_ID}`);
+      expect(razorpay.createCustomerCalls).toBe(callsBefore);
+    },
+  );
 
   vitestIt("confirms registration, activating the row with the verified token id", async () => {
     const begin = await provisioner.beginRegistration({

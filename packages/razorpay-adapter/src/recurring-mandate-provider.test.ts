@@ -102,24 +102,33 @@ describe("RazorpayRecurringMandateProvider", () => {
       expect(customerId).toBe("cust_new001");
     });
 
-    it("reuses the existing customer id when Razorpay reports a duplicate", async () => {
+    // Verified live 2026-08-30 against a real Razorpay test-mode account:
+    // "Customer already exists for the merchant" carries no id/metadata to
+    // recover — throwing here (not silently swallowing) is the honest
+    // behavior. Reuse is handled by the caller (control-plane-api), which
+    // looks up its own previously-stored provider_customer_id per wallet.
+    it("throws when Razorpay reports a duplicate customer (no reusable id in the error)", async () => {
       const http = new MockRazorpayHttp();
       http.onPath("/v1/customers", () => ({
         status: 400,
-        body: { error: { metadata: { customer_id: "cust_existing001" } } },
+        body: {
+          error: {
+            code: "BAD_REQUEST_ERROR",
+            description: "Customer already exists for the merchant",
+            step: "NA",
+            reason: "NA",
+            source: "NA",
+          },
+        },
       }));
       const provider = createProvider(http);
 
-      const customerId = await provider.createCustomer({
-        name: "A",
-        contact: "+911234567890",
-        email: "a@example.com",
-      });
-
-      expect(customerId).toBe("cust_existing001");
+      await expect(
+        provider.createCustomer({ name: "A", contact: "+911234567890", email: "a@example.com" }),
+      ).rejects.toThrow();
     });
 
-    it("throws when Razorpay fails with no reusable customer id", async () => {
+    it("throws when Razorpay fails for any other reason", async () => {
       const http = new MockRazorpayHttp();
       http.onPath("/v1/customers", () => ({ status: 500, body: {} }));
       const provider = createProvider(http);

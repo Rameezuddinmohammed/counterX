@@ -152,11 +152,24 @@ export class RecurringMandateProvisioner implements RecurringMandateProvisionerL
     }
     const referenceId = referenceIdResult.value as unknown as string;
 
-    const customerId = await this.razorpay.createCustomer({
-      name: params.contactName,
-      contact: params.contactPhone,
-      email: params.contactEmail,
-    });
+    // Reuse a prior Razorpay customer for this wallet rather than creating a
+    // fresh one every time — verified live against a real Razorpay test-mode
+    // account that its "Customer already exists" error carries no id to
+    // recover, so detecting/reusing a duplicate customer is CounterX's own
+    // responsibility, not something the Razorpay API hands back.
+    const priorCustomer = await this.database.query<{ provider_customer_id: string }>(
+      `SELECT provider_customer_id FROM wallet.recurring_payment_mandates
+        WHERE environment = $1 AND wallet_id = $2
+        ORDER BY created_at DESC LIMIT 1`,
+      [this.environment, params.walletId],
+    );
+    const customerId =
+      priorCustomer.rows[0]?.provider_customer_id ??
+      (await this.razorpay.createCustomer({
+        name: params.contactName,
+        contact: params.contactPhone,
+        email: params.contactEmail,
+      }));
 
     const ceilingPaise = Number(params.ceilingMinor);
     const validUntilEpochSeconds = Math.floor(new Date(params.validUntil).getTime() / 1000);

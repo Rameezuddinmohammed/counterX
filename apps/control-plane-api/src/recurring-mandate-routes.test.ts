@@ -181,19 +181,12 @@ describe("recurring-mandate routes", () => {
       expect(response.statusCode).toBe(404);
     });
 
-    // NOTE: payment.mandate.manage is declared to require step-up assurance
-    // in packages/authorization/src/assurance.ts (tenantMutationAssurances),
-    // and packages/authorization/src/authorize.ts's authorize() correctly
-    // enforces that. But this app's actual HTTP permission gate
-    // (packages/http-api-kit/src/scope-enforcement.ts) only checks
-    // actorContext.permissions.includes(permission) — it never calls
-    // authorize()/assurancePermits at all, for ANY route in this app, not
-    // just this one. So a plain-session token currently succeeds here too.
-    // This is a real, pre-existing gap (flagged to the founder when found,
-    // not silently worked around) — out of scope to fix as part of adding
-    // one new route; the catalog/assurance declaration above is still the
-    // right foundation for when scope-enforcement.ts is wired to use it.
-    it("a plain-session wallet-owner token currently still succeeds (documents the assurance-enforcement gap, not desired behavior)", async () => {
+    // payment.mandate.manage requires step-up assurance (assurance.ts's
+    // tenantMutationAssurances). scope-enforcement.ts now actually checks
+    // this (fixed alongside this feature — see its own header comment for
+    // the full story: it previously only checked role-derived permission
+    // membership, for every route in the app, not just this one).
+    it("a plain-session wallet-owner token is denied (registering a mandate requires step-up assurance)", async () => {
       const { jwks } = await getTestKeys();
       server = createServer({
         jwks,
@@ -211,7 +204,7 @@ describe("recurring-mandate routes", () => {
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         payload: VALID_BODY,
       });
-      expect(response.statusCode).toBe(201);
+      expect(response.statusCode).toBe(403);
     });
 
     it("a step-up wallet-owner token successfully begins registration", async () => {
