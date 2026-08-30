@@ -43,31 +43,10 @@ import {
   type WalletId,
 } from "@counter/domain";
 
-import type { LifecyclePolicyPort } from "./real-lifecycle.js";
+import type { LifecyclePolicyPort, RecurringMandateLookupResult } from "./lifecycle-types.js";
 import type { PaymentAuthorizationRequest } from "./transaction-lifecycle.js";
 
-// ─── Recurring payment mandate re-verification ────────────────────────────────
-
-/**
- * Durable state of a recurring payment mandate (wallet.recurring_payment_
- * mandates), as read independently by the worker — never trusted from the
- * job payload itself. Mirrors RecurringMandateSummary's shape from
- * apps/control-plane-api/src/recurring-mandate-store.ts.
- */
-export interface RecurringMandateLookupResult {
-  readonly status: "pending" | "active" | "revoked" | "cancelled";
-  readonly validUntilMs: number;
-  readonly ceilingMinor: bigint;
-  readonly eligibleMerchants: readonly string[];
-  /**
-   * Razorpay's own opaque customer/token ids — needed by real-lifecycle.ts's
-   * payment step to actually charge against this mandate. Never a raw
-   * credential. providerTokenId is null until a pending registration is
-   * confirmed (status would not be "active" yet in that case anyway).
-   */
-  readonly providerCustomerId: string;
-  readonly providerTokenId: string | null;
-}
+export type { RecurringMandateLookupResult } from "./lifecycle-types.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

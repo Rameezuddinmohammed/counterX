@@ -60,7 +60,7 @@ import type {
   ProviderPaymentEvidence,
 } from "@counter/payment-sdk";
 import type { ChargeRecurringParams } from "@counter/razorpay-adapter";
-import type { RecurringMandateLookupResult } from "./lifecycle-policy.js";
+import type { LifecyclePolicyPort, RecurringMandateLookupResult } from "./lifecycle-types.js";
 
 import type {
   PaymentAuthorizationPort,
@@ -68,17 +68,9 @@ import type {
   PaymentAuthorizationResult,
 } from "./transaction-lifecycle.js";
 
-// ─── Policy gate ─────────────────────────────────────────────────────────────
+export type { LifecyclePolicyPort } from "./lifecycle-types.js";
 
-/**
- * Minimal policy decision seam. The full policy engine is not reachable from
- * the worker without violating dependency-cruiser (worker -> workflow only),
- * so the decision is kept as an explicit allow step here. A production wiring
- * can inject a real port implementing this shape.
- */
-export interface LifecyclePolicyPort {
-  allow(request: PaymentAuthorizationRequest): Promise<boolean>;
-}
+// ─── Policy gate ─────────────────────────────────────────────────────────────
 
 const ALLOW_ALL_POLICY: LifecyclePolicyPort = {
   allow: (): Promise<boolean> => Promise.resolve(true),
