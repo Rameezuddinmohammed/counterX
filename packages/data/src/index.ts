@@ -83,6 +83,15 @@ export { policyConfigs } from "./policy-schema.js";
 
 export { PostgresReceiptStore } from "./receipt-store.js";
 
+export { PostgresCursorStore } from "./catalog-cursor-store.js";
+
+export {
+  PostgresProductRepository,
+  PostgresVariantRepository,
+  PostgresPriceRepository,
+  PostgresInventoryRepository,
+} from "./catalog-repositories.js";
+
 export { PostgresSpendLedger, DEFAULT_SPEND_LIMIT_CONFIG } from "./spend-ledger.js";
 export type {
   SpendLimitConfig,

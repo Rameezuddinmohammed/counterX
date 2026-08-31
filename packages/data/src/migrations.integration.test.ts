@@ -36,11 +36,20 @@ const protectedRelationsAtV4 = [
 // trust boundary as wallet_setup_tokens/wallet_users below — verified against
 // each migration's .up.sql (ENABLE + FORCE ROW LEVEL SECURITY, no
 // CREATE POLICY) before adding here, not just padding the count to match CI.
+// Migration 18 (catalog-sync-storage) added 5 more, same pattern, same
+// verification discipline. runtime.receipts (migration 17) is deliberately
+// NOT here - it lives in the runtime schema, which this RLS check doesn't
+// query, and (matching every other runtime.* table) doesn't use RLS at all.
 const protectedRelationsAtLatest = [
   ...protectedRelationsAtV4,
   ["identity", "wallet_setup_tokens"],
   ["identity", "wallet_users"],
   ["merchant", "capability_manifests"],
+  ["merchant", "catalog_inventory"],
+  ["merchant", "catalog_prices"],
+  ["merchant", "catalog_products"],
+  ["merchant", "catalog_sync_cursors"],
+  ["merchant", "catalog_variants"],
   ["merchant", "manual_catalog_items"],
   ["merchant", "onboarding_applications"],
   ["merchant", "payment_connections"],

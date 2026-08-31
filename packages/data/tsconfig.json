@@ -10,10 +10,16 @@
       "path": "../authorization"
     },
     {
+      "path": "../commerce-graph"
+    },
+    {
       "path": "../domain"
     },
     {
       "path": "../evidence"
+    },
+    {
+      "path": "../shopify-connector"
     },
     {
       "path": "../trust-protocol"

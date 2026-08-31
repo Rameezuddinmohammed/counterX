@@ -27,8 +27,10 @@
   },
   "dependencies": {
     "@counter/authorization": "workspace:0.1.0",
+    "@counter/commerce-graph": "workspace:0.1.0",
     "@counter/domain": "workspace:0.1.0",
     "@counter/evidence": "workspace:0.1.0",
+    "@counter/shopify-connector": "workspace:0.1.0",
     "@counter/trust-protocol": "workspace:0.1.0",
     "@counter/workflow": "workspace:0.1.0",
     "drizzle-orm": "0.39.3",

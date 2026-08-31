@@ -9,10 +9,16 @@
       "path": "../authorization/tsconfig.build.json"
     },
     {
+      "path": "../commerce-graph/tsconfig.build.json"
+    },
+    {
       "path": "../domain/tsconfig.build.json"
     },
     {
       "path": "../evidence/tsconfig.build.json"
+    },
+    {
+      "path": "../shopify-connector/tsconfig.build.json"
     },
     {
       "path": "../trust-protocol/tsconfig.build.json"
