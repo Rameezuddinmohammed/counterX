@@ -246,10 +246,18 @@ export class CatalogSyncService {
   /**
    * Process a single product webhook event (create/update/delete).
    * Returns the processed product or undefined for tombstones.
+   *
+   * `merchantId` is the caller's own resolved Counter merchant id (e.g. via
+   * a shop-domain lookup against merchant.shopify_connections), NOT
+   * event.shopDomain - backfillProducts() already takes a real merchantId
+   * as an explicit parameter, and this method previously derived a
+   * DIFFERENT merchantId internally from the webhook's shop domain, which
+   * would have split the same merchant's products across two inconsistent
+   * merchantId values depending on whether they arrived via backfill or
+   * webhook. Fixed before this method had any real caller.
    */
-  syncIncrementalFromWebhook(event: WebhookEvent): Product {
+  syncIncrementalFromWebhook(merchantId: string, event: WebhookEvent): Product {
     const fetchedAt = event.receivedAt;
-    const merchantId = event.shopDomain;
     const gid = `gid://shopify/Product/${String(event.payload.id)}`;
 
     // Check if we have a newer version already
