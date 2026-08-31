@@ -11,24 +11,24 @@ import type { Result } from "@counter/domain";
 import type { ReceiptAudience, ReceiptRecord } from "./receipt-types.js";
 
 export interface ReceiptStore {
-  append(record: ReceiptRecord): Result<ReceiptRecord>;
-  getById(id: CounterId<"receipt">): ReceiptRecord | undefined;
-  getByTransaction(transactionId: CounterId<"transaction">): readonly ReceiptRecord[];
+  append(record: ReceiptRecord): Promise<Result<ReceiptRecord>>;
+  getById(id: CounterId<"receipt">): Promise<ReceiptRecord | undefined>;
+  getByTransaction(transactionId: CounterId<"transaction">): Promise<readonly ReceiptRecord[]>;
   getByTransactionAndAudience(
     transactionId: CounterId<"transaction">,
     audience: ReceiptAudience,
-  ): readonly ReceiptRecord[];
+  ): Promise<readonly ReceiptRecord[]>;
   getLatestByTransactionAndAudience(
     transactionId: CounterId<"transaction">,
     audience: ReceiptAudience,
-  ): ReceiptRecord | undefined;
+  ): Promise<ReceiptRecord | undefined>;
 }
 
 export class InMemoryReceiptStore implements ReceiptStore {
   readonly #records: Map<CounterId<"receipt">, ReceiptRecord> = new Map();
   readonly #byTransaction: Map<CounterId<"transaction">, ReceiptRecord[]> = new Map();
 
-  public append(record: ReceiptRecord): Result<ReceiptRecord> {
+  public async append(record: ReceiptRecord): Promise<Result<ReceiptRecord>> {
     if (this.#records.has(record.id)) {
       return err(
         createCanonicalError({
@@ -52,27 +52,29 @@ export class InMemoryReceiptStore implements ReceiptStore {
     return ok(frozen);
   }
 
-  public getById(id: CounterId<"receipt">): ReceiptRecord | undefined {
+  public async getById(id: CounterId<"receipt">): Promise<ReceiptRecord | undefined> {
     return this.#records.get(id);
   }
 
-  public getByTransaction(transactionId: CounterId<"transaction">): readonly ReceiptRecord[] {
+  public async getByTransaction(
+    transactionId: CounterId<"transaction">,
+  ): Promise<readonly ReceiptRecord[]> {
     return this.#byTransaction.get(transactionId) ?? [];
   }
 
-  public getByTransactionAndAudience(
+  public async getByTransactionAndAudience(
     transactionId: CounterId<"transaction">,
     audience: ReceiptAudience,
-  ): readonly ReceiptRecord[] {
-    const all = this.getByTransaction(transactionId);
+  ): Promise<readonly ReceiptRecord[]> {
+    const all = await this.getByTransaction(transactionId);
     return all.filter((r) => r.audience === audience);
   }
 
-  public getLatestByTransactionAndAudience(
+  public async getLatestByTransactionAndAudience(
     transactionId: CounterId<"transaction">,
     audience: ReceiptAudience,
-  ): ReceiptRecord | undefined {
-    const records = this.getByTransactionAndAudience(transactionId, audience);
+  ): Promise<ReceiptRecord | undefined> {
+    const records = await this.getByTransactionAndAudience(transactionId, audience);
     if (records.length === 0) {
       return undefined;
     }

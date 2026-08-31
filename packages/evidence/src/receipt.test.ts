@@ -298,7 +298,7 @@ describe("Receipt issuance", () => {
 
     await issueReceipt(input, "merchant", TEST_RECEIPT_ID_1, signer, store, TEST_CONFIG, TEST_NOW);
 
-    const stored = store.getById(TEST_RECEIPT_ID_1);
+    const stored = await store.getById(TEST_RECEIPT_ID_1);
     expect(stored).toBeDefined();
     expect(stored?.id).toBe(TEST_RECEIPT_ID_1);
   });
@@ -713,7 +713,7 @@ describe("InMemoryReceiptStore", () => {
     await issueReceipt(input, "merchant", TEST_RECEIPT_ID_1, signer, store, TEST_CONFIG, TEST_NOW);
     await issueReceipt(input, "wallet", TEST_RECEIPT_ID_2, signer, store, TEST_CONFIG, TEST_NOW);
 
-    const records = store.getByTransaction(TEST_TRANSACTION_ID);
+    const records = await store.getByTransaction(TEST_TRANSACTION_ID);
     expect(records).toHaveLength(2);
   });
 
@@ -725,11 +725,14 @@ describe("InMemoryReceiptStore", () => {
     await issueReceipt(input, "merchant", TEST_RECEIPT_ID_1, signer, store, TEST_CONFIG, TEST_NOW);
     await issueReceipt(input, "wallet", TEST_RECEIPT_ID_2, signer, store, TEST_CONFIG, TEST_NOW);
 
-    const merchantRecords = store.getByTransactionAndAudience(TEST_TRANSACTION_ID, "merchant");
+    const merchantRecords = await store.getByTransactionAndAudience(
+      TEST_TRANSACTION_ID,
+      "merchant",
+    );
     expect(merchantRecords).toHaveLength(1);
     expect(merchantRecords[0]?.audience).toBe("merchant");
 
-    const walletRecords = store.getByTransactionAndAudience(TEST_TRANSACTION_ID, "wallet");
+    const walletRecords = await store.getByTransactionAndAudience(TEST_TRANSACTION_ID, "wallet");
     expect(walletRecords).toHaveLength(1);
     expect(walletRecords[0]?.audience).toBe("wallet");
   });
