@@ -95,9 +95,31 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
 
   const writtenMerchantIds: string[] = [];
 
+  /**
+   * catalog_products/catalog_sync_cursors both FK to merchant.scopes(environment,
+   * merchant_id) — a real tenant-isolation constraint, not incidental. Every
+   * fresh merchant id this suite writes through must have a real scope row
+   * first, matching the FK chain merchant.scopes itself requires
+   * (identity.scope_registry -> merchant.scopes).
+   */
+  async function seedMerchantScope(merchantId: string): Promise<void> {
+    const now = new Date().toISOString();
+    await database.query(
+      `INSERT INTO identity.scope_registry (environment, scope_kind, scope_id, created_at)
+       VALUES ('local', 'merchant', $1, $2)`,
+      [merchantId, now],
+    );
+    await database.query(
+      `INSERT INTO merchant.scopes (environment, merchant_id, created_at) VALUES ('local', $1, $2)`,
+      [merchantId, now],
+    );
+  }
+
   afterAll(async () => {
     try {
       for (const merchantId of writtenMerchantIds) {
+        // Children first (they FK to merchant.scopes), then the scope rows
+        // themselves, then the scope_registry row scopes FKs to.
         await database.query(
           `DELETE FROM merchant.catalog_prices WHERE variant_id IN (
              SELECT id FROM merchant.catalog_variants WHERE merchant_id = $1
@@ -119,6 +141,14 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
         await database.query(`DELETE FROM merchant.catalog_sync_cursors WHERE merchant_id = $1`, [
           merchantId,
         ]);
+        await database.query(
+          `DELETE FROM merchant.scopes WHERE environment = 'local' AND merchant_id = $1`,
+          [merchantId],
+        );
+        await database.query(
+          `DELETE FROM identity.scope_registry WHERE environment = 'local' AND scope_id = $1`,
+          [merchantId],
+        );
       }
     } finally {
       await database.close();
@@ -130,6 +160,7 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
     async () => {
       const merchantId = freshMerchantId();
       writtenMerchantIds.push(merchantId);
+      await seedMerchantScope(merchantId);
 
       const client = createMockGraphQLClient();
       client.setResponse(
@@ -199,6 +230,8 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
       const merchantId = freshMerchantId();
       const otherMerchantId = freshMerchantId();
       writtenMerchantIds.push(merchantId, otherMerchantId);
+      await seedMerchantScope(merchantId);
+      await seedMerchantScope(otherMerchantId);
 
       const client = createMockGraphQLClient();
       client.setResponse(
