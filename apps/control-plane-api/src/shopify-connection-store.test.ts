@@ -295,6 +295,62 @@ describe("ShopifyConnectionProvisioner", () => {
       );
     });
 
+    it("calls onConnected with the real access token once the connection is stored", async () => {
+      const { database } = createFakeDatabase();
+      const onConnected = vi.fn();
+      const provisioner = new ShopifyConnectionProvisioner(
+        database,
+        ENVIRONMENT,
+        TEST_CONFIG,
+        onConnected,
+      );
+      const state = await beginAndGetState(provisioner);
+
+      stubFetchOnce({
+        ok: true,
+        body: { access_token: "shpat_real_token_value", scope: TEST_CONFIG.scopes },
+      });
+
+      const base: Record<string, string> = {
+        code: "real-code",
+        shop: TEST_SHOP_DOMAIN,
+        state,
+        timestamp: "1700000000",
+      };
+      const query = { ...base, hmac: computeHmac(TEST_CONFIG.clientSecret, base) };
+
+      await provisioner.completeAuthorization(query);
+
+      expect(onConnected).toHaveBeenCalledTimes(1);
+      expect(onConnected).toHaveBeenCalledWith({
+        merchantId: TEST_MERCHANT_ID,
+        shopDomain: TEST_SHOP_DOMAIN,
+        accessToken: "shpat_real_token_value",
+      });
+    });
+
+    it("does not call onConnected when the callback is rejected before the connection is stored", async () => {
+      const { database } = createFakeDatabase();
+      const onConnected = vi.fn();
+      const provisioner = new ShopifyConnectionProvisioner(
+        database,
+        ENVIRONMENT,
+        TEST_CONFIG,
+        onConnected,
+      );
+
+      const base: Record<string, string> = {
+        code: "real-code",
+        shop: TEST_SHOP_DOMAIN,
+        state: "never-minted-state",
+        timestamp: "1700000000",
+      };
+      const query = { ...base, hmac: computeHmac(TEST_CONFIG.clientSecret, base) };
+
+      await expect(provisioner.completeAuthorization(query)).rejects.toThrow(ShopifyOAuthError);
+      expect(onConnected).not.toHaveBeenCalled();
+    });
+
     it("surfaces a non-2xx token-exchange response as a plain (non-ShopifyOAuthError) failure", async () => {
       const { database } = createFakeDatabase();
       const provisioner = new ShopifyConnectionProvisioner(database, ENVIRONMENT, TEST_CONFIG);

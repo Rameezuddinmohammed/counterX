@@ -32,18 +32,21 @@ import type {
 export class InMemoryProductRepository implements ProductRepository {
   readonly #products = new Map<string, Product>();
 
-  public save(product: Product): Result<Product> {
+  public async save(product: Product): Promise<Result<Product>> {
     const frozen = Object.freeze({ ...product });
     this.#products.set(product.id, frozen);
     return ok(frozen);
   }
 
-  public getById(id: string): Result<Product | null> {
+  public async getById(id: string): Promise<Result<Product | null>> {
     const product = this.#products.get(id);
     return ok(product ?? null);
   }
 
-  public getByExternalId(platform: string, externalId: string): Result<Product | null> {
+  public async getByExternalId(
+    platform: string,
+    externalId: string,
+  ): Promise<Result<Product | null>> {
     for (const product of this.#products.values()) {
       for (const ref of product.sourceReferences) {
         if (ref.platform === platform && ref.externalId === externalId) {
@@ -54,7 +57,7 @@ export class InMemoryProductRepository implements ProductRepository {
     return ok(null);
   }
 
-  public listByMerchant(merchantId: string): Result<readonly Product[]> {
+  public async listByMerchant(merchantId: string): Promise<Result<readonly Product[]>> {
     const results: Product[] = [];
     for (const product of this.#products.values()) {
       if (product.merchantId === merchantId && product.status !== "tombstoned") {
@@ -64,7 +67,10 @@ export class InMemoryProductRepository implements ProductRepository {
     return ok(Object.freeze(results));
   }
 
-  public listByStatus(merchantId: string, status: ProductStatus): Result<readonly Product[]> {
+  public async listByStatus(
+    merchantId: string,
+    status: ProductStatus,
+  ): Promise<Result<readonly Product[]>> {
     const results: Product[] = [];
     for (const product of this.#products.values()) {
       if (product.merchantId === merchantId && product.status === status) {
@@ -74,7 +80,7 @@ export class InMemoryProductRepository implements ProductRepository {
     return ok(Object.freeze(results));
   }
 
-  public tombstone(id: string, tombstonedAt: number): Result<Product | null> {
+  public async tombstone(id: string, tombstonedAt: number): Promise<Result<Product | null>> {
     const existing = this.#products.get(id);
     if (existing === undefined) {
       return ok(null);
@@ -95,18 +101,18 @@ export class InMemoryProductRepository implements ProductRepository {
 export class InMemoryVariantRepository implements VariantRepository {
   readonly #variants = new Map<string, Variant>();
 
-  public save(variant: Variant): Result<Variant> {
+  public async save(variant: Variant): Promise<Result<Variant>> {
     const frozen = Object.freeze({ ...variant });
     this.#variants.set(variant.id, frozen);
     return ok(frozen);
   }
 
-  public getById(id: string): Result<Variant | null> {
+  public async getById(id: string): Promise<Result<Variant | null>> {
     const variant = this.#variants.get(id);
     return ok(variant ?? null);
   }
 
-  public getByProductId(productId: string): Result<readonly Variant[]> {
+  public async getByProductId(productId: string): Promise<Result<readonly Variant[]>> {
     const results: Variant[] = [];
     for (const variant of this.#variants.values()) {
       if (variant.productId === productId) {
@@ -116,7 +122,10 @@ export class InMemoryVariantRepository implements VariantRepository {
     return ok(Object.freeze(results));
   }
 
-  public getBySkuAndMerchant(sku: string, merchantId: string): Result<Variant | null> {
+  public async getBySkuAndMerchant(
+    sku: string,
+    merchantId: string,
+  ): Promise<Result<Variant | null>> {
     for (const variant of this.#variants.values()) {
       if (variant.sku === sku && variant.merchantId === merchantId) {
         return ok(variant);
@@ -131,7 +140,7 @@ export class InMemoryVariantRepository implements VariantRepository {
 export class InMemoryPriceRepository implements PriceRepository {
   readonly #snapshots: PriceSnapshot[] = [];
 
-  public save(snapshot: PriceSnapshot): Result<PriceSnapshot> {
+  public async save(snapshot: PriceSnapshot): Promise<Result<PriceSnapshot>> {
     // Out-of-order handling: check if existing observation for same variant+source is newer
     const existingIdx = this.#snapshots.findIndex(
       (s) => s.variantId === snapshot.variantId && s.source.platform === snapshot.source.platform,
@@ -150,7 +159,7 @@ export class InMemoryPriceRepository implements PriceRepository {
     return ok(frozen);
   }
 
-  public getLatest(variantId: string): Result<PriceSnapshot | null> {
+  public async getLatest(variantId: string): Promise<Result<PriceSnapshot | null>> {
     let latest: PriceSnapshot | null = null;
     for (const snapshot of this.#snapshots) {
       if (snapshot.variantId === variantId) {
@@ -162,14 +171,17 @@ export class InMemoryPriceRepository implements PriceRepository {
     return ok(latest);
   }
 
-  public getHistory(variantId: string): Result<readonly PriceSnapshot[]> {
+  public async getHistory(variantId: string): Promise<Result<readonly PriceSnapshot[]>> {
     const results = this.#snapshots
       .filter((s) => s.variantId === variantId)
       .sort((a, b) => (b.observedAt as number) - (a.observedAt as number));
     return ok(Object.freeze(results));
   }
 
-  public getByVariantAndSource(variantId: string, platform: string): Result<PriceSnapshot | null> {
+  public async getByVariantAndSource(
+    variantId: string,
+    platform: string,
+  ): Promise<Result<PriceSnapshot | null>> {
     let latest: PriceSnapshot | null = null;
     for (const snapshot of this.#snapshots) {
       if (snapshot.variantId === variantId && snapshot.source.platform === platform) {
@@ -187,7 +199,7 @@ export class InMemoryPriceRepository implements PriceRepository {
 export class InMemoryInventoryRepository implements InventoryRepository {
   readonly #snapshots: InventorySnapshot[] = [];
 
-  public save(snapshot: InventorySnapshot): Result<InventorySnapshot> {
+  public async save(snapshot: InventorySnapshot): Promise<Result<InventorySnapshot>> {
     // Out-of-order handling: check if existing observation for same variant+source is newer
     const existingIdx = this.#snapshots.findIndex(
       (s) => s.variantId === snapshot.variantId && s.source.platform === snapshot.source.platform,
@@ -206,7 +218,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     return ok(frozen);
   }
 
-  public getLatest(variantId: string): Result<InventorySnapshot | null> {
+  public async getLatest(variantId: string): Promise<Result<InventorySnapshot | null>> {
     let latest: InventorySnapshot | null = null;
     for (const snapshot of this.#snapshots) {
       if (snapshot.variantId === variantId) {
@@ -218,17 +230,17 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     return ok(latest);
   }
 
-  public getHistory(variantId: string): Result<readonly InventorySnapshot[]> {
+  public async getHistory(variantId: string): Promise<Result<readonly InventorySnapshot[]>> {
     const results = this.#snapshots
       .filter((s) => s.variantId === variantId)
       .sort((a, b) => (b.observedAt as number) - (a.observedAt as number));
     return ok(Object.freeze(results));
   }
 
-  public getByVariantAndSource(
+  public async getByVariantAndSource(
     variantId: string,
     platform: string,
-  ): Result<InventorySnapshot | null> {
+  ): Promise<Result<InventorySnapshot | null>> {
     let latest: InventorySnapshot | null = null;
     for (const snapshot of this.#snapshots) {
       if (snapshot.variantId === variantId && snapshot.source.platform === platform) {

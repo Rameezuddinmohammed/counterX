@@ -567,12 +567,18 @@ importers:
       '@counter/authorization':
         specifier: workspace:0.1.0
         version: link:../authorization
+      '@counter/commerce-graph':
+        specifier: workspace:0.1.0
+        version: link:../commerce-graph
       '@counter/domain':
         specifier: workspace:0.1.0
         version: link:../domain
       '@counter/evidence':
         specifier: workspace:0.1.0
         version: link:../evidence
+      '@counter/shopify-connector':
+        specifier: workspace:0.1.0
+        version: link:../shopify-connector
       '@counter/trust-protocol':
         specifier: workspace:0.1.0
         version: link:../trust-protocol

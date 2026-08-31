@@ -189,7 +189,7 @@ describe("CatalogSyncService", () => {
       expect(result.costConsumed).toBe(10);
 
       // Verify cursor was saved
-      const cursor = cursorStore.getCursor("merchant-1", "products");
+      const cursor = await cursorStore.getCursor("merchant-1", "products");
       expect(cursor).toBeDefined();
       expect(cursor!.cursor).toBe("cursor_page1");
       expect(cursor!.syncState).toBe("in_progress");
@@ -198,7 +198,7 @@ describe("CatalogSyncService", () => {
 
     it("resumes from cursor and continues where left off", async () => {
       // Pre-set a cursor as if page 1 was already fetched
-      cursorStore.saveCursor({
+      await cursorStore.saveCursor({
         merchantId: "merchant-1",
         resource: "products",
         cursor: "cursor_page1",
@@ -259,7 +259,7 @@ describe("CatalogSyncService", () => {
 
       expect(result.products).toHaveLength(0);
       // Cursor should be saved with failed state
-      const cursor = cursorStore.getCursor("merchant-1", "products");
+      const cursor = await cursorStore.getCursor("merchant-1", "products");
       expect(cursor).toBeDefined();
       expect(cursor!.syncState).toBe("failed");
     });
@@ -323,7 +323,7 @@ describe("CatalogSyncService", () => {
   describe("syncIncrementalFromWebhook", () => {
     it("processes product update webhook", () => {
       const event = makeWebhookEvent(1, "products/update", "2024-06-15T00:00:00.000Z");
-      const product = service.syncIncrementalFromWebhook(event);
+      const product = service.syncIncrementalFromWebhook("merchant-1", event);
 
       expect(product.title).toBe("Product 1");
       expect(product.status).toBe("active");
@@ -333,7 +333,7 @@ describe("CatalogSyncService", () => {
 
     it("product deletion webhook creates tombstone", () => {
       const event = makeWebhookEvent(1, "products/delete", "2024-06-15T00:00:00.000Z");
-      const product = service.syncIncrementalFromWebhook(event);
+      const product = service.syncIncrementalFromWebhook("merchant-1", event);
 
       expect(product.status).toBe("tombstoned");
       expect(product.tombstonedAt).toBeDefined();
@@ -343,11 +343,11 @@ describe("CatalogSyncService", () => {
     it("newer version updates existing product", () => {
       // First event at time T1
       const event1 = makeWebhookEvent(1, "products/update", "2024-06-10T00:00:00.000Z");
-      service.syncIncrementalFromWebhook(event1);
+      service.syncIncrementalFromWebhook("merchant-1", event1);
 
       // Second event at time T2 > T1
       const event2 = makeWebhookEvent(1, "products/update", "2024-06-15T00:00:00.000Z");
-      const product = service.syncIncrementalFromWebhook(event2);
+      const product = service.syncIncrementalFromWebhook("merchant-1", event2);
 
       expect(product.updatedAt).toBe(Date.parse("2024-06-15T00:00:00.000Z"));
     });
@@ -355,11 +355,11 @@ describe("CatalogSyncService", () => {
     it("stale webhook (older updatedAt) is ignored", () => {
       // First event at time T2 (newer)
       const event1 = makeWebhookEvent(1, "products/update", "2024-06-15T00:00:00.000Z");
-      service.syncIncrementalFromWebhook(event1);
+      service.syncIncrementalFromWebhook("merchant-1", event1);
 
       // Second event at time T1 (older) - should be ignored
       const event2 = makeWebhookEvent(1, "products/update", "2024-06-10T00:00:00.000Z");
-      const product = service.syncIncrementalFromWebhook(event2);
+      const product = service.syncIncrementalFromWebhook("merchant-1", event2);
 
       // Should return the existing (newer) product unchanged
       expect(product.updatedAt).toBe(Date.parse("2024-06-15T00:00:00.000Z"));
@@ -402,7 +402,7 @@ describe("CatalogSyncService", () => {
 
       // Webhook updates product 1 with newer data
       const event = makeWebhookEvent(1, "products/update", "2024-06-15T00:00:00.000Z");
-      const updatedProduct = service.syncIncrementalFromWebhook(event);
+      const updatedProduct = service.syncIncrementalFromWebhook("merchant-1", event);
 
       // Final state should reflect the webhook update
       const state = service.getProductState();
