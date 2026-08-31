@@ -114,6 +114,9 @@ importers:
       '@counter/razorpay-adapter':
         specifier: workspace:0.1.0
         version: link:../../packages/razorpay-adapter
+      '@counter/shopify-connector':
+        specifier: workspace:0.1.0
+        version: link:../../packages/shopify-connector
       '@counter/trust-protocol':
         specifier: workspace:0.1.0
         version: link:../../packages/trust-protocol

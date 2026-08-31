@@ -213,6 +213,63 @@ describe("requireRazorpayCredentials", () => {
     expect(message).toContain("RAZORPAY_KEY_SECRET");
     expect(message).not.toContain(FAKE_RAZORPAY_SECRET);
   });
+
+  it("refuses a TEST-mode key in a prod-like environment", () => {
+    expect(() =>
+      requireRazorpayCredentials(
+        prodEnv({
+          RAZORPAY_KEY_ID: "rzp_test_abc123",
+          RAZORPAY_KEY_SECRET: FAKE_RAZORPAY_SECRET,
+          RAZORPAY_WEBHOOK_SECRET: FAKE_RAZORPAY_WEBHOOK_SECRET,
+        }),
+      ),
+    ).toThrow(/TEST-mode key/);
+  });
+
+  it("refuses a LIVE-mode key in a non-production environment", () => {
+    expect(() =>
+      requireRazorpayCredentials(
+        localEnv({
+          RAZORPAY_KEY_ID: "rzp_live_abc123",
+          RAZORPAY_KEY_SECRET: FAKE_RAZORPAY_SECRET,
+          RAZORPAY_WEBHOOK_SECRET: FAKE_RAZORPAY_WEBHOOK_SECRET,
+        }),
+      ),
+    ).toThrow(/LIVE-mode key/);
+  });
+
+  it("allows a TEST-mode key in a non-production environment", () => {
+    const result = requireRazorpayCredentials(
+      localEnv({
+        RAZORPAY_KEY_ID: "rzp_test_abc123",
+        RAZORPAY_KEY_SECRET: FAKE_RAZORPAY_SECRET,
+        RAZORPAY_WEBHOOK_SECRET: FAKE_RAZORPAY_WEBHOOK_SECRET,
+      }),
+    );
+    expect(result?.keyId).toBe("rzp_test_abc123");
+  });
+
+  it("allows a LIVE-mode key in a prod-like environment", () => {
+    const result = requireRazorpayCredentials(
+      prodEnv({
+        RAZORPAY_KEY_ID: "rzp_live_abc123",
+        RAZORPAY_KEY_SECRET: FAKE_RAZORPAY_SECRET,
+        RAZORPAY_WEBHOOK_SECRET: FAKE_RAZORPAY_WEBHOOK_SECRET,
+      }),
+    );
+    expect(result?.keyId).toBe("rzp_live_abc123");
+  });
+
+  it("does not reject a key with an unrecognized shape (left to Razorpay's own API)", () => {
+    const result = requireRazorpayCredentials(
+      prodEnv({
+        RAZORPAY_KEY_ID: "not_a_recognized_prefix",
+        RAZORPAY_KEY_SECRET: FAKE_RAZORPAY_SECRET,
+        RAZORPAY_WEBHOOK_SECRET: FAKE_RAZORPAY_WEBHOOK_SECRET,
+      }),
+    );
+    expect(result?.keyId).toBe("not_a_recognized_prefix");
+  });
 });
 
 // A synthetic 32-byte Ed25519 seed used only inside these tests. NOT a real key.

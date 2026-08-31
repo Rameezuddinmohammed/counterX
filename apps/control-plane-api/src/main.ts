@@ -166,6 +166,41 @@ const readinessService =
     ? new MerchantReadinessService(database, runtimeEnvironment, policyStore, policyCompiler)
     : undefined;
 
+// Reused for both the recurring-mandate routes and the webhook route's
+// server-side mandate-confirmation fallback, rather than constructing a
+// second instance.
+const recurringMandateProvisioner =
+  database !== undefined && razorpayRecurringProvider !== undefined
+    ? new RecurringMandateProvisioner(database, runtimeEnvironment, razorpayRecurringProvider)
+    : undefined;
+
+// Real webhook ingress (Shopify + Razorpay) — registered only when BOTH real
+// secrets are configured, fail-closed rather than registering one adapter
+// with an insecure empty-string secret. Shopify signs webhooks with the
+// SAME client secret used for the OAuth token exchange (no separate
+// "webhook secret" concept for OAuth apps, per Shopify's own convention) —
+// reusing shopifyOAuthConfig.clientSecret rather than inventing a second env
+// var. Missing config degrades gracefully, same as every other optional
+// feature in this file.
+const razorpayWebhookSecret = process.env["RAZORPAY_WEBHOOK_SECRET"]?.trim();
+const webhookRoutesOptions =
+  shopifyOAuthConfig !== undefined &&
+  razorpayWebhookSecret !== undefined &&
+  razorpayWebhookSecret.length > 0
+    ? {
+        shopifyWebhookSecret: shopifyOAuthConfig.clientSecret,
+        razorpayWebhookSecret,
+        ...(recurringMandateProvisioner !== undefined ? { recurringMandateProvisioner } : {}),
+      }
+    : undefined;
+
+if (webhookRoutesOptions === undefined) {
+  console.log(
+    `[${APP_NAME}] Shopify OAuth config and/or RAZORPAY_WEBHOOK_SECRET not configured — ` +
+      `real webhook ingress routes are not registered.`,
+  );
+}
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -202,15 +237,7 @@ const serverOptions: CreateServerOptions = {
               ),
             }
           : {}),
-        ...(razorpayRecurringProvider !== undefined
-          ? {
-              recurringMandateProvisioner: new RecurringMandateProvisioner(
-                database,
-                runtimeEnvironment,
-                razorpayRecurringProvider,
-              ),
-            }
-          : {}),
+        ...(recurringMandateProvisioner !== undefined ? { recurringMandateProvisioner } : {}),
         ...(shopifyOAuthConfig !== undefined
           ? {
               shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(
@@ -231,6 +258,7 @@ const serverOptions: CreateServerOptions = {
           : {}),
       }
     : {}),
+  ...(webhookRoutesOptions !== undefined ? { webhookRoutes: webhookRoutesOptions } : {}),
 };
 
 const server = createServer(serverOptions);
