@@ -7,6 +7,7 @@
  */
 
 import type {
+  CancelResponse,
   ProductResponse,
   QuoteResponse,
   ReceiptResponse,
@@ -129,6 +130,17 @@ export interface MerchantRuntimeClient {
     merchantId: string,
     transactionId: string,
   ): Promise<ClientResult<TransactionStatusResponse>>;
+
+  /**
+   * Cancels a pending transaction. Only transactions in a cancellable state
+   * (server-enforced, not assumed client-side) succeed — the server is the
+   * source of truth for whether cancellation is still possible.
+   */
+  cancelTransaction(
+    merchantId: string,
+    transactionId: string,
+    reason: string,
+  ): Promise<ClientResult<CancelResponse>>;
 
   /**
    * Gets the signed receipt for a completed transaction.

@@ -67,8 +67,13 @@ export function createMcpServer(writeDeps?: WriteToolDependencies): McpServer {
     version: "0.1.0",
   });
 
-  // Register all read-only tools
-  registerReadTools(server);
+  // Register all read-only tools. Reuses writeDeps' merchantClient when
+  // present (same client, same auth) rather than requiring a second one -
+  // read tools stay honestly stubbed when no client is configured at all.
+  registerReadTools(
+    server,
+    writeDeps !== undefined ? { merchantClient: writeDeps.merchantClient } : undefined,
+  );
 
   // Register consequential (write) tools if dependencies are provided
   if (writeDeps) {

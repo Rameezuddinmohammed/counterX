@@ -19,6 +19,8 @@ export type {
   RazorpayOrder,
   RazorpayPayment,
   RazorpayRefund,
+  RazorpayWebhookTokenEntity,
+  RazorpayWebhookSubscriptionEntity,
   RazorpayWebhookEvent,
   RazorpayCallbackParams,
   RazorpaySignatureComponents,

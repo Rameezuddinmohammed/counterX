@@ -111,6 +111,20 @@ class FakeRecurringMandateProvisioner implements RecurringMandateProvisionerLike
     return updated;
   }
 
+  async confirmRegistrationFromWebhook(_params: {
+    readonly providerCustomerId: string;
+    readonly providerTokenId: string;
+  }): Promise<RecurringMandateSummary | undefined> {
+    const match = [...this.#mandates.entries()].find(([, mandate]) => mandate.status === "pending");
+    if (match === undefined) {
+      return undefined;
+    }
+    const [referenceId, existing] = match;
+    const updated = { ...existing, status: "active" as const };
+    this.#mandates.set(referenceId, updated);
+    return updated;
+  }
+
   async revoke(walletId: string, referenceId: string): Promise<void> {
     const existing = this.#mandates.get(referenceId);
     if (existing === undefined || existing.walletId !== walletId) {

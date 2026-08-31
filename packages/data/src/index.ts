@@ -79,6 +79,8 @@ export type { QuoteRecord, StoredQuote } from "./quote-store.js";
 
 export { PostgresRecurringMandateReadStore } from "./recurring-mandate-read-store.js";
 export type { RecurringMandateReadResult } from "./recurring-mandate-read-store.js";
+export { PostgresPaymentConnectionReadStore } from "./payment-connection-read-store.js";
+export type { PaymentConnectionReadResult } from "./payment-connection-read-store.js";
 export { policyConfigs } from "./policy-schema.js";
 
 export { PostgresReceiptStore } from "./receipt-store.js";
