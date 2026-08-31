@@ -57,6 +57,21 @@ export interface ShopifyConnectionStatus {
   readonly connectedAt?: string;
 }
 
+/**
+ * Fired after a merchant's Shopify connection is durably stored, carrying
+ * the real access token this call just obtained. Fire-and-forget by
+ * contract - completeAuthorization does not await it and a rejection here
+ * must never fail the OAuth callback response (the connection is already
+ * saved by that point; the merchant should see "connected" regardless of
+ * whether the first catalog sync succeeds). The one real consumer today
+ * (see main.ts) kicks off CatalogSyncService.backfillProducts.
+ */
+export type OnShopifyConnected = (input: {
+  readonly merchantId: string;
+  readonly shopDomain: string;
+  readonly accessToken: string;
+}) => void;
+
 /** A client-caused failure (bad/expired state, failed HMAC, malformed callback) — maps to 400. */
 export class ShopifyOAuthError extends Error {
   constructor(message: string) {
@@ -94,6 +109,7 @@ export class ShopifyConnectionProvisioner implements ShopifyConnectionProvisione
     private readonly database: TransactionalDatabase,
     private readonly environment: Environment,
     private readonly config: ShopifyOAuthConfig,
+    private readonly onConnected?: OnShopifyConnected,
   ) {}
 
   async beginAuthorization(
@@ -249,6 +265,11 @@ export class ShopifyConnectionProvisioner implements ShopifyConnectionProvisione
              updated_at = EXCLUDED.updated_at`,
       [this.environment, redeemed.merchant_id, shopDomain, token.accessToken, token.scope, now],
     );
+
+    // Fire-and-forget by contract - see OnShopifyConnected's doc comment.
+    // Never let a sync-trigger failure surface as an OAuth callback error;
+    // the connection is already durably saved above.
+    this.onConnected?.({ merchantId: redeemed.merchant_id, shopDomain, accessToken: token.accessToken });
 
     return { merchantId: redeemed.merchant_id, shopDomain };
   }

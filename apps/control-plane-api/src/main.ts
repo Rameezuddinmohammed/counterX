@@ -8,8 +8,20 @@
  * local/test/development the in-memory store is used unless DATABASE_URL is
  * provided.
  */
-import { resolveCounterEnvironment, type Environment } from "@counter/domain";
-import { PostgresDatabase } from "@counter/data";
+import {
+  resolveCounterEnvironment,
+  type Environment,
+  type IsoCurrencyCode,
+} from "@counter/domain";
+import {
+  PostgresDatabase,
+  PostgresCursorStore,
+  PostgresProductRepository,
+  PostgresVariantRepository,
+  PostgresPriceRepository,
+  PostgresInventoryRepository,
+} from "@counter/data";
+import { createHttpGraphQLClient, CatalogSyncService } from "@counter/shopify-connector";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
 import { createDefaultPolicyCompiler } from "./policy-routes.js";
@@ -166,6 +178,86 @@ const readinessService =
     ? new MerchantReadinessService(database, runtimeEnvironment, policyStore, policyCompiler)
     : undefined;
 
+// Kicks off a real product-catalog backfill the moment a merchant's Shopify
+// OAuth connection completes, using the access token that connection just
+// obtained (never persisted here, never logged - held only for the
+// duration of this one call). Fire-and-forget by contract (see
+// OnShopifyConnected's doc comment in shopify-connection-store.ts): a
+// backfill failure must never surface as an OAuth callback error, since the
+// connection itself is already durably saved by the time this runs. This
+// is what makes the wizard's catalog-review step (packages/shopify-
+// connector's CatalogSyncService + product-index.ts existed and were fully
+// tested but wired to nothing before this) actually have real products to
+// review.
+//
+// storeCurrency defaults to INR (CounterX is India-first; every other
+// money-handling path in this codebase - recurring mandates, spend limits -
+// is already INR-only per PILOT.md) rather than querying the merchant's
+// real store currency, a real simplification worth revisiting once a
+// non-INR merchant needs onboarding.
+function createShopifyConnectedHandler(
+  postgresDatabase: PostgresDatabase,
+  targetEnvironment: Environment,
+): (input: { merchantId: string; shopDomain: string; accessToken: string }) => void {
+  const cursorStore = new PostgresCursorStore(postgresDatabase, targetEnvironment);
+  const productRepo = new PostgresProductRepository(postgresDatabase, targetEnvironment);
+  const variantRepo = new PostgresVariantRepository(postgresDatabase, targetEnvironment);
+  const priceRepo = new PostgresPriceRepository(postgresDatabase, targetEnvironment);
+  const inventoryRepo = new PostgresInventoryRepository(postgresDatabase, targetEnvironment);
+
+  return (input): void => {
+    const client = createHttpGraphQLClient({
+      shopDomain: input.shopDomain,
+      accessToken: input.accessToken,
+    });
+    const syncService = new CatalogSyncService(client, cursorStore);
+
+    const runToCompletion = async (): Promise<void> => {
+      // backfillProducts is budget-limited per call and saves a durable
+      // resume cursor when it stops early - loop until the whole catalog
+      // is fetched (hasMore: false) rather than syncing only the first
+      // budget-limited chunk on a merchant's very first connection. Capped
+      // to bound worst-case work against a pathologically large catalog or
+      // a stuck cursor; the durable cursor means a later real sync
+      // (webhook-driven incremental update, or a future manual resync)
+      // picks up exactly where this leaves off either way.
+      const MAX_ITERATIONS = 200;
+      for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        const result = await syncService.backfillProducts(input.merchantId, {
+          pageSize: 50,
+          costBudget: 5000,
+          storeCurrency: "INR" as IsoCurrencyCode,
+        });
+        for (const product of result.products) {
+          await productRepo.save(product);
+          for (const variant of product.variants) {
+            await variantRepo.save(variant);
+          }
+        }
+        for (const price of result.prices) {
+          await priceRepo.save(price);
+        }
+        for (const inventory of result.inventory) {
+          await inventoryRepo.save(inventory);
+        }
+        if (!result.hasMore) {
+          return;
+        }
+      }
+      console.warn(
+        `[${APP_NAME}] Catalog backfill for merchant ${input.merchantId} hit the ${String(MAX_ITERATIONS)}-iteration cap without completing - durable cursor saved, will resume on next sync`,
+      );
+    };
+
+    void runToCompletion().catch((error: unknown) => {
+      console.error(
+        `[${APP_NAME}] Catalog backfill failed for merchant ${input.merchantId} after a successful Shopify connection`,
+        error,
+      );
+    });
+  };
+}
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -217,6 +309,7 @@ const serverOptions: CreateServerOptions = {
                 database,
                 runtimeEnvironment,
                 shopifyOAuthConfig,
+                createShopifyConnectedHandler(database, runtimeEnvironment),
               ),
             }
           : {}),
