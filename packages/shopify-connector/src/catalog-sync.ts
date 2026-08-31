@@ -121,7 +121,7 @@ export class CatalogSyncService {
     const { pageSize, costBudget, storeCurrency } = options;
 
     // Load existing cursor for resume
-    const existingCursor = this.cursorStore.getCursor(merchantId, "products");
+    const existingCursor = await this.cursorStore.getCursor(merchantId, "products");
     let cursor: string | null = existingCursor?.cursor ?? null;
     let costConsumed = existingCursor?.totalCost ?? 0;
     let pagesFetched = existingCursor?.pagesFetched ?? 0;
@@ -133,7 +133,7 @@ export class CatalogSyncService {
     let failed = false;
 
     // Mark sync in progress
-    this.cursorStore.saveCursor({
+    await this.cursorStore.saveCursor({
       merchantId,
       resource: "products",
       cursor,
@@ -147,7 +147,7 @@ export class CatalogSyncService {
       // Check cost budget before fetching
       if (costConsumed + PRODUCTS_LIST_ESTIMATED_COST > costBudget) {
         // Save cursor for resume
-        this.cursorStore.saveCursor({
+        await this.cursorStore.saveCursor({
           merchantId,
           resource: "products",
           cursor,
@@ -183,7 +183,7 @@ export class CatalogSyncService {
       if (response.errors && response.errors.length > 0 && !response.data) {
         // Save cursor at last successful position with failed state
         failed = true;
-        this.cursorStore.saveCursor({
+        await this.cursorStore.saveCursor({
           merchantId,
           resource: "products",
           cursor,
@@ -222,7 +222,7 @@ export class CatalogSyncService {
     // Mark sync completed (skip if already marked as failed)
     if (!failed) {
       const finalState: DurableCursor["syncState"] = hasMore ? "in_progress" : "completed";
-      this.cursorStore.saveCursor({
+      await this.cursorStore.saveCursor({
         merchantId,
         resource: "products",
         cursor,

@@ -27,9 +27,12 @@ export interface DurableCursor {
 // ─── Cursor Store Interface ───────────────────────────────────────────────────
 
 export interface CursorStore {
-  getCursor(merchantId: string, resource: DurableCursor["resource"]): DurableCursor | undefined;
-  saveCursor(cursor: DurableCursor): void;
-  resetCursor(merchantId: string, resource: DurableCursor["resource"]): void;
+  getCursor(
+    merchantId: string,
+    resource: DurableCursor["resource"],
+  ): Promise<DurableCursor | undefined>;
+  saveCursor(cursor: DurableCursor): Promise<void>;
+  resetCursor(merchantId: string, resource: DurableCursor["resource"]): Promise<void>;
 }
 
 // ─── In-Memory Implementation ─────────────────────────────────────────────────
@@ -41,15 +44,18 @@ export class InMemoryCursorStore implements CursorStore {
     return `${merchantId}:${resource}`;
   }
 
-  getCursor(merchantId: string, resource: DurableCursor["resource"]): DurableCursor | undefined {
+  async getCursor(
+    merchantId: string,
+    resource: DurableCursor["resource"],
+  ): Promise<DurableCursor | undefined> {
     return this.cursors.get(this.key(merchantId, resource));
   }
 
-  saveCursor(cursor: DurableCursor): void {
+  async saveCursor(cursor: DurableCursor): Promise<void> {
     this.cursors.set(this.key(cursor.merchantId, cursor.resource), Object.freeze({ ...cursor }));
   }
 
-  resetCursor(merchantId: string, resource: DurableCursor["resource"]): void {
+  async resetCursor(merchantId: string, resource: DurableCursor["resource"]): Promise<void> {
     this.cursors.delete(this.key(merchantId, resource));
   }
 

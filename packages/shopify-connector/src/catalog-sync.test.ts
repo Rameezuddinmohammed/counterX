@@ -189,7 +189,7 @@ describe("CatalogSyncService", () => {
       expect(result.costConsumed).toBe(10);
 
       // Verify cursor was saved
-      const cursor = cursorStore.getCursor("merchant-1", "products");
+      const cursor = await cursorStore.getCursor("merchant-1", "products");
       expect(cursor).toBeDefined();
       expect(cursor!.cursor).toBe("cursor_page1");
       expect(cursor!.syncState).toBe("in_progress");
@@ -198,7 +198,7 @@ describe("CatalogSyncService", () => {
 
     it("resumes from cursor and continues where left off", async () => {
       // Pre-set a cursor as if page 1 was already fetched
-      cursorStore.saveCursor({
+      await cursorStore.saveCursor({
         merchantId: "merchant-1",
         resource: "products",
         cursor: "cursor_page1",
@@ -259,7 +259,7 @@ describe("CatalogSyncService", () => {
 
       expect(result.products).toHaveLength(0);
       // Cursor should be saved with failed state
-      const cursor = cursorStore.getCursor("merchant-1", "products");
+      const cursor = await cursorStore.getCursor("merchant-1", "products");
       expect(cursor).toBeDefined();
       expect(cursor!.syncState).toBe("failed");
     });
