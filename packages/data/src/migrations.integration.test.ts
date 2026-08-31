@@ -30,10 +30,23 @@ const protectedRelationsAtV4 = [
   ["identity", "support_grant_authorization_permissions"],
 ] as const;
 
+// Migrations 12-16 (recurring-payment-mandates, shopify-connections,
+// merchant-onboarding-applications, merchant-onboarding-payment-and-manifest)
+// each added RLS-enabled+forced tables with zero policies, same direct-SQL
+// trust boundary as wallet_setup_tokens/wallet_users below — verified against
+// each migration's .up.sql (ENABLE + FORCE ROW LEVEL SECURITY, no
+// CREATE POLICY) before adding here, not just padding the count to match CI.
 const protectedRelationsAtLatest = [
   ...protectedRelationsAtV4,
   ["identity", "wallet_setup_tokens"],
   ["identity", "wallet_users"],
+  ["merchant", "capability_manifests"],
+  ["merchant", "manual_catalog_items"],
+  ["merchant", "onboarding_applications"],
+  ["merchant", "payment_connections"],
+  ["merchant", "shopify_connections"],
+  ["merchant", "shopify_oauth_states"],
+  ["wallet", "recurring_payment_mandates"],
 ] as const;
 
 const identityFunctionSignatures = [
