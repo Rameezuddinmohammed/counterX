@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --no-file-parallelism",
+    "test": "vitest run --no-file-parallelism --exclude src/migrations.integration.test.ts --exclude src/rls.integration.test.ts",
     "test:integration": "vitest run --no-file-parallelism src/migrations.integration.test.ts src/rls.integration.test.ts",
     "schema:diff": "drizzle-kit generate --config=drizzle.config.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",

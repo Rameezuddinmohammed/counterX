@@ -80,6 +80,20 @@ jobs:
       - name: PostgreSQL migration lifecycle
         run: pnpm db:test:lifecycle
 
+      # migrations.integration.test.ts and rls.integration.test.ts (just run
+      # above) each end by dropping every application schema as part of
+      # proving the migration runner's teardown path - by design, not a bug.
+      # Every OTHER DB-gated integration test across the repo (packages/data's
+      # spend-ledger/tenant-isolation/policy-store/idempotency-store,
+      # control-plane-api's *-store tests, most of worker's) deliberately does
+      # NOT self-provision its schema (see e.g. spend-ledger.integration.test
+      # .ts's own doc comment: "It never truncates, drops, or migrates the
+      # shared schema") - they assume an already-migrated database, the same
+      # way a real deployment would find it. `pnpm db:migrate` reads
+      # DATABASE_URL, not TEST_DATABASE_URL, hence the explicit override.
+      - name: Apply migrations for integration tests
+        run: DATABASE_URL="$TEST_DATABASE_URL" pnpm db:migrate
+
       - name: Test
         run: pnpm test
 
