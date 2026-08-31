@@ -36,6 +36,7 @@ import {
   PostgresSpendLedger,
   PostgresPolicyStore,
   PostgresRecurringMandateReadStore,
+  PostgresPaymentConnectionReadStore,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
@@ -196,11 +197,12 @@ async function main(): Promise<void> {
   // loop starts. The durable Postgres-backed step ledger and kill-switch store
   // are threaded in so the Shopify legs dedup across restarts and an active
   // kill switch blocks a checkout BEFORE any external effect.
-  const selection = selectPaymentAuthorizationPort(process.env, undefined, {
+  const selection = await selectPaymentAuthorizationPort(process.env, undefined, {
     stepLedger: new PostgresStepLedger(database, runtimeEnvironment),
     killSwitchStore: new PostgresKillSwitchStore(database, runtimeEnvironment),
     spendLedger: new PostgresSpendLedger(database, runtimeEnvironment, spendLimitConfig),
     recurringMandateStore: new PostgresRecurringMandateReadStore(database, runtimeEnvironment),
+    paymentConnectionStore: new PostgresPaymentConnectionReadStore(database, runtimeEnvironment),
   });
   logger.info("payment connector selected", {
     mode: selection.mode,
