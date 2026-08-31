@@ -119,10 +119,10 @@ function makePolicy(): FreshnessPolicy {
 describe("Commerce Graph", () => {
   // (a) Provenance completeness
   describe("Provenance completeness", () => {
-    it("every saved product retains source reference, observed time, and mapping version", () => {
+    it("every saved product retains source reference, observed time, and mapping version", async () => {
       const repo = new InMemoryProductRepository();
       const product = makeProduct();
-      const saved = repo.save(product);
+      const saved = await repo.save(product);
 
       expect(saved.ok).toBe(true);
       if (!saved.ok) return;
@@ -133,10 +133,10 @@ describe("Commerce Graph", () => {
       expect(saved.value.sourceReference.mappingVersion.schemaHash).toBe("abc123");
     });
 
-    it("price snapshot retains source and observation time", () => {
+    it("price snapshot retains source and observation time", async () => {
       const repo = new InMemoryPriceRepository();
       const snapshot = makePriceSnapshot();
-      const saved = repo.save(snapshot);
+      const saved = await repo.save(snapshot);
 
       expect(saved.ok).toBe(true);
       if (!saved.ok) return;
@@ -146,10 +146,10 @@ describe("Commerce Graph", () => {
       expect(saved.value.source.mappingVersion.version).toBe("1.0.0");
     });
 
-    it("inventory snapshot retains source and observation time", () => {
+    it("inventory snapshot retains source and observation time", async () => {
       const repo = new InMemoryInventoryRepository();
       const snapshot = makeInventorySnapshot();
-      const saved = repo.save(snapshot);
+      const saved = await repo.save(snapshot);
 
       expect(saved.ok).toBe(true);
       if (!saved.ok) return;
@@ -190,27 +190,27 @@ describe("Commerce Graph", () => {
 
   // (c) Variant identity
   describe("Variant identity", () => {
-    it("variants are uniquely identified by id and sku within a merchant", () => {
+    it("variants are uniquely identified by id and sku within a merchant", async () => {
       const repo = new InMemoryVariantRepository();
-      repo.save(makeVariant({ id: "var-1", sku: "SKU-001", merchantId: "m1" }));
-      repo.save(makeVariant({ id: "var-2", sku: "SKU-002", merchantId: "m1" }));
+      await repo.save(makeVariant({ id: "var-1", sku: "SKU-001", merchantId: "m1" }));
+      await repo.save(makeVariant({ id: "var-2", sku: "SKU-002", merchantId: "m1" }));
 
-      const found1 = repo.getBySkuAndMerchant("SKU-001", "m1");
-      const found2 = repo.getBySkuAndMerchant("SKU-002", "m1");
-      const notFound = repo.getBySkuAndMerchant("SKU-001", "m2");
+      const found1 = await repo.getBySkuAndMerchant("SKU-001", "m1");
+      const found2 = await repo.getBySkuAndMerchant("SKU-002", "m1");
+      const notFound = await repo.getBySkuAndMerchant("SKU-001", "m2");
 
       expect(found1.ok && found1.value?.id).toBe("var-1");
       expect(found2.ok && found2.value?.id).toBe("var-2");
       expect(notFound.ok && notFound.value).toBeNull();
     });
 
-    it("same sku in different merchants are distinct", () => {
+    it("same sku in different merchants are distinct", async () => {
       const repo = new InMemoryVariantRepository();
-      repo.save(makeVariant({ id: "var-1", sku: "SKU-001", merchantId: "m1" }));
-      repo.save(makeVariant({ id: "var-2", sku: "SKU-001", merchantId: "m2" }));
+      await repo.save(makeVariant({ id: "var-1", sku: "SKU-001", merchantId: "m1" }));
+      await repo.save(makeVariant({ id: "var-2", sku: "SKU-001", merchantId: "m2" }));
 
-      const found1 = repo.getBySkuAndMerchant("SKU-001", "m1");
-      const found2 = repo.getBySkuAndMerchant("SKU-001", "m2");
+      const found1 = await repo.getBySkuAndMerchant("SKU-001", "m1");
+      const found2 = await repo.getBySkuAndMerchant("SKU-001", "m2");
 
       expect(found1.ok && found1.value?.id).toBe("var-1");
       expect(found2.ok && found2.value?.id).toBe("var-2");
@@ -290,11 +290,11 @@ describe("Commerce Graph", () => {
 
   // (e) Out-of-order observation handling
   describe("Out-of-order observation handling", () => {
-    it("later timestamp wins even if received first", () => {
+    it("later timestamp wins even if received first", async () => {
       const repo = new InMemoryPriceRepository();
 
       // Receive newer observation first
-      repo.save(
+      await repo.save(
         makePriceSnapshot({
           observedAt: 1704067300000 as Instant,
           amount: makeMoney(2500n, "USD"),
@@ -302,14 +302,14 @@ describe("Commerce Graph", () => {
       );
 
       // Receive older observation second (out of order)
-      repo.save(
+      await repo.save(
         makePriceSnapshot({
           observedAt: 1704067200000 as Instant,
           amount: makeMoney(1999n, "USD"),
         }),
       );
 
-      const latest = repo.getLatest("var-1");
+      const latest = await repo.getLatest("var-1");
       expect(latest.ok).toBe(true);
       if (!latest.ok) return;
 
@@ -343,12 +343,12 @@ describe("Commerce Graph", () => {
 
   // (f) Tombstone behavior
   describe("Tombstone behavior", () => {
-    it("tombstoned products are excluded from active queries", () => {
+    it("tombstoned products are excluded from active queries", async () => {
       const repo = new InMemoryProductRepository();
-      repo.save(makeProduct({ id: "prod-1", merchantId: "m1", status: "active" }));
-      repo.save(makeProduct({ id: "prod-2", merchantId: "m1", status: "tombstoned" }));
+      await repo.save(makeProduct({ id: "prod-1", merchantId: "m1", status: "active" }));
+      await repo.save(makeProduct({ id: "prod-2", merchantId: "m1", status: "tombstoned" }));
 
-      const active = repo.listByMerchant("m1");
+      const active = await repo.listByMerchant("m1");
 
       expect(active.ok).toBe(true);
       if (!active.ok) return;
@@ -356,24 +356,24 @@ describe("Commerce Graph", () => {
       expect(active.value[0]?.id).toBe("prod-1");
     });
 
-    it("tombstoned products are retained in storage", () => {
+    it("tombstoned products are retained in storage", async () => {
       const repo = new InMemoryProductRepository();
-      repo.save(makeProduct({ id: "prod-1", merchantId: "m1", status: "active" }));
-      repo.tombstone("prod-1", 1704067300000);
+      await repo.save(makeProduct({ id: "prod-1", merchantId: "m1", status: "active" }));
+      await repo.tombstone("prod-1", 1704067300000);
 
-      const byId = repo.getById("prod-1");
+      const byId = await repo.getById("prod-1");
       expect(byId.ok).toBe(true);
       if (!byId.ok) return;
       expect(byId.value?.status).toBe("tombstoned");
       expect(byId.value?.tombstonedAt).toBe(1704067300000);
     });
 
-    it("tombstoned products can be queried by status", () => {
+    it("tombstoned products can be queried by status", async () => {
       const repo = new InMemoryProductRepository();
-      repo.save(makeProduct({ id: "prod-1", merchantId: "m1", status: "active" }));
-      repo.tombstone("prod-1", 1704067300000);
+      await repo.save(makeProduct({ id: "prod-1", merchantId: "m1", status: "active" }));
+      await repo.tombstone("prod-1", 1704067300000);
 
-      const tombstoned = repo.listByStatus("m1", "tombstoned");
+      const tombstoned = await repo.listByStatus("m1", "tombstoned");
       expect(tombstoned.ok).toBe(true);
       if (!tombstoned.ok) return;
       expect(tombstoned.value.length).toBe(1);

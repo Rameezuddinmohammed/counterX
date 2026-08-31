@@ -20,39 +20,42 @@ import type {
 // ─── Product Repository ───────────────────────────────────────────────────────
 
 export interface ProductRepository {
-  save(product: Product): Result<Product>;
-  getById(id: string): Result<Product | null>;
-  getByExternalId(platform: string, externalId: string): Result<Product | null>;
-  listByMerchant(merchantId: string): Result<readonly Product[]>;
-  listByStatus(merchantId: string, status: ProductStatus): Result<readonly Product[]>;
-  tombstone(id: string, tombstonedAt: number): Result<Product | null>;
+  save(product: Product): Promise<Result<Product>>;
+  getById(id: string): Promise<Result<Product | null>>;
+  getByExternalId(platform: string, externalId: string): Promise<Result<Product | null>>;
+  listByMerchant(merchantId: string): Promise<Result<readonly Product[]>>;
+  listByStatus(merchantId: string, status: ProductStatus): Promise<Result<readonly Product[]>>;
+  tombstone(id: string, tombstonedAt: number): Promise<Result<Product | null>>;
 }
 
 // ─── Variant Repository ───────────────────────────────────────────────────────
 
 export interface VariantRepository {
-  save(variant: Variant): Result<Variant>;
-  getById(id: string): Result<Variant | null>;
-  getByProductId(productId: string): Result<readonly Variant[]>;
-  getBySkuAndMerchant(sku: string, merchantId: string): Result<Variant | null>;
+  save(variant: Variant): Promise<Result<Variant>>;
+  getById(id: string): Promise<Result<Variant | null>>;
+  getByProductId(productId: string): Promise<Result<readonly Variant[]>>;
+  getBySkuAndMerchant(sku: string, merchantId: string): Promise<Result<Variant | null>>;
 }
 
 // ─── Price Repository ─────────────────────────────────────────────────────────
 
 export interface PriceRepository {
-  save(snapshot: PriceSnapshot): Result<PriceSnapshot>;
-  getLatest(variantId: string): Result<PriceSnapshot | null>;
-  getHistory(variantId: string): Result<readonly PriceSnapshot[]>;
-  getByVariantAndSource(variantId: string, platform: string): Result<PriceSnapshot | null>;
+  save(snapshot: PriceSnapshot): Promise<Result<PriceSnapshot>>;
+  getLatest(variantId: string): Promise<Result<PriceSnapshot | null>>;
+  getHistory(variantId: string): Promise<Result<readonly PriceSnapshot[]>>;
+  getByVariantAndSource(variantId: string, platform: string): Promise<Result<PriceSnapshot | null>>;
 }
 
 // ─── Inventory Repository ─────────────────────────────────────────────────────
 
 export interface InventoryRepository {
-  save(snapshot: InventorySnapshot): Result<InventorySnapshot>;
-  getLatest(variantId: string): Result<InventorySnapshot | null>;
-  getHistory(variantId: string): Result<readonly InventorySnapshot[]>;
-  getByVariantAndSource(variantId: string, platform: string): Result<InventorySnapshot | null>;
+  save(snapshot: InventorySnapshot): Promise<Result<InventorySnapshot>>;
+  getLatest(variantId: string): Promise<Result<InventorySnapshot | null>>;
+  getHistory(variantId: string): Promise<Result<readonly InventorySnapshot[]>>;
+  getByVariantAndSource(
+    variantId: string,
+    platform: string,
+  ): Promise<Result<InventorySnapshot | null>>;
 }
 
 // ─── Mapping Version Repository ───────────────────────────────────────────────
