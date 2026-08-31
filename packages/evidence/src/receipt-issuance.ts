@@ -64,7 +64,7 @@ export async function issueReceipt(
   const commitmentDigest = computeCommitmentDigest(commitment);
 
   // 2. Determine supersession (predecessor)
-  const predecessor = store.getLatestByTransactionAndAudience(input.transactionId, audience);
+  const predecessor = await store.getLatestByTransactionAndAudience(input.transactionId, audience);
   const version = predecessor !== undefined ? predecessor.version + 1 : 1;
   const predecessorReceiptId = predecessor?.id;
 
@@ -122,7 +122,7 @@ export async function issueReceipt(
   };
 
   // 8. Store the record
-  const storeResult = store.append(record);
+  const storeResult = await store.append(record);
   if (!storeResult.ok) {
     return storeResult;
   }

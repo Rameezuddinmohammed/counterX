@@ -13,6 +13,12 @@
       "path": "../domain"
     },
     {
+      "path": "../evidence"
+    },
+    {
+      "path": "../trust-protocol"
+    },
+    {
       "path": "../workflow"
     }
   ]

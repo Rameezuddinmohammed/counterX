@@ -81,6 +81,8 @@ export { PostgresRecurringMandateReadStore } from "./recurring-mandate-read-stor
 export type { RecurringMandateReadResult } from "./recurring-mandate-read-store.js";
 export { policyConfigs } from "./policy-schema.js";
 
+export { PostgresReceiptStore } from "./receipt-store.js";
+
 export { PostgresSpendLedger, DEFAULT_SPEND_LIMIT_CONFIG } from "./spend-ledger.js";
 export type {
   SpendLimitConfig,

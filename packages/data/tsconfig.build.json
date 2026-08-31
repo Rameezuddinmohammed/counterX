@@ -12,6 +12,12 @@
       "path": "../domain/tsconfig.build.json"
     },
     {
+      "path": "../evidence/tsconfig.build.json"
+    },
+    {
+      "path": "../trust-protocol/tsconfig.build.json"
+    },
+    {
       "path": "../workflow/tsconfig.build.json"
     }
   ]
