@@ -13,8 +13,18 @@
  *   - prod-like and credentials missing -> the FEAT-001 helper throws
  *     (fail loud) BEFORE we reach the fallback.
  *
- * SECURITY: credentials are read from the environment only and are passed
- * directly into the connector factories. They are never logged or echoed.
+ * Razorpay keyId/keySecret specifically: when a DurableStores.paymentConnectionStore
+ * is supplied (always true at the real deployment entrypoint, main.ts), the
+ * operating merchant's OWN verified credentials (self-serve "bring your own
+ * gateway", merchant.payment_connections) are the ONLY source used to
+ * authorize/capture payments — never a shared platform-level env credential.
+ * A merchant with no connected gateway fails loud instead of silently
+ * borrowing another merchant's credential. See
+ * resolveRazorpayCredentialsForMerchant.
+ *
+ * SECURITY: credentials are read from the environment/database only and are
+ * passed directly into the connector factories. They are never logged or
+ * echoed.
  */
 
 import { createCounterId, parseCounterId } from "@counter/domain";
@@ -27,7 +37,10 @@ import {
 } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
 import { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger } from "@counter/data";
-import type { PostgresRecurringMandateReadStore } from "@counter/data";
+import type {
+  PostgresRecurringMandateReadStore,
+  PostgresPaymentConnectionReadStore,
+} from "@counter/data";
 import { DEFAULT_SPEND_LIMIT_CONFIG } from "@counter/data";
 import type {
   AsyncStepLedger,
@@ -107,6 +120,14 @@ export interface DurableStores {
   readonly killSwitchStore?: AsyncKillSwitchStore | undefined;
   readonly spendLedger?: PostgresSpendLedger | undefined;
   readonly recurringMandateStore?: PostgresRecurringMandateReadStore | undefined;
+  /**
+   * Read-only lookup of the operating merchant's OWN verified Razorpay
+   * credentials (self-serve "bring your own gateway"). When present, this is
+   * the ONLY source of the keyId/keySecret pair used to authorize/capture
+   * real payments — see resolveRazorpayCredentialsForMerchant. Optional so
+   * unit tests can omit it and exercise the legacy env-credential path.
+   */
+  readonly paymentConnectionStore?: PostgresPaymentConnectionReadStore | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -118,7 +139,7 @@ export interface DurableStores {
  * credentials; when omitted the real factories are constructed from resolved
  * credentials.
  */
-export function selectPaymentAuthorizationPort(
+export async function selectPaymentAuthorizationPort(
   env: EnvironmentBag,
   overrides?: Partial<
     Pick<
@@ -127,7 +148,7 @@ export function selectPaymentAuthorizationPort(
     >
   >,
   stores?: DurableStores,
-): SelectedPaymentPort {
+): Promise<SelectedPaymentPort> {
   // Fail loud in prod-like environments when credentials are missing; return
   // null (mock-eligible) in local/test.
   const shopifyCreds = requireShopifyCredentials(env);
@@ -137,7 +158,19 @@ export function selectPaymentAuthorizationPort(
     return { mode: "deterministic", port: createDeterministicPaymentAuthorizationPort() };
   }
 
-  const bundle = buildRealConnectorBundle(shopifyCreds, razorpayCreds, env);
+  // Resolve the ACTUAL keyId/keySecret to charge with before building the
+  // connector bundle: the operating merchant's own verified credentials when
+  // a paymentConnectionStore is wired in, never a shared platform pair — see
+  // resolveRazorpayCredentialsForMerchant. buildRealConnectorBundle itself
+  // stays synchronous and env-credential-shaped so every existing caller
+  // (adversarial/reliability integration tests included) is unaffected.
+  const effectiveRazorpayCreds = await resolveRazorpayCredentialsForMerchant(
+    pilotMerchantId(),
+    razorpayCreds,
+    stores?.paymentConnectionStore,
+  );
+
+  const bundle = buildRealConnectorBundle(shopifyCreds, effectiveRazorpayCreds, env);
 
   // Durable stores (Postgres-backed) resolved at the deployment entrypoint are
   // preferred over any explicit override. An explicit override still wins over
@@ -233,8 +266,55 @@ export interface RealConnectorBundle {
 }
 
 /**
+ * Resolves the FULL Razorpay credential set actually used to authorize/capture
+ * a payment for `merchantId` — same shape {@link requireRazorpayCredentials}
+ * returns, so it drops straight into {@link buildRealConnectorBundle}
+ * unchanged.
+ *
+ * When `paymentConnectionStore` is provided (always true at the real
+ * deployment entrypoint — see main.ts), the merchant's own verified keyId/
+ * keySecret (self-serve "bring your own gateway", merchant.payment_connections)
+ * REPLACE the env-level pair — using the env pair here would mean every
+ * merchant's transactions silently ran through one shared credential, exactly
+ * the bug this closes. `webhookSecret`/`baseUrl` still come from env (deployment-
+ * level config, not a per-merchant secret today). If the merchant has not
+ * connected their own gateway yet, this throws a clear, fail-loud error rather
+ * than falling back to the shared pair.
+ *
+ * When no store is provided (unit tests exercising the legacy path, or a
+ * caller that intentionally omits it), returns `envRazorpayCreds` unchanged —
+ * preserves existing behavior for callers that don't opt into merchant-scoped
+ * routing.
+ */
+export async function resolveRazorpayCredentialsForMerchant(
+  merchantId: MerchantId,
+  envRazorpayCreds: NonNullable<ReturnType<typeof requireRazorpayCredentials>>,
+  paymentConnectionStore: PostgresPaymentConnectionReadStore | undefined,
+): Promise<NonNullable<ReturnType<typeof requireRazorpayCredentials>>> {
+  if (paymentConnectionStore === undefined) {
+    return envRazorpayCreds;
+  }
+  const connection = await paymentConnectionStore.findByMerchantId(merchantId);
+  if (connection === undefined) {
+    throw new Error(
+      `Merchant ${merchantId} has not connected a Razorpay payment gateway. ` +
+        `Refusing to fall back to a shared platform credential — complete the ` +
+        `payment-connect step in the merchant onboarding wizard first.`,
+    );
+  }
+  return { ...envRazorpayCreds, keyId: connection.keyId, keySecret: connection.keySecret };
+}
+
+/**
  * Builds the {@link RealConnectorBundle} from resolved credentials. Credentials
  * are passed straight into the connector factories and never logged.
+ *
+ * Stays synchronous and env-credential-shaped: callers that need merchant-
+ * scoped routing resolve the effective `razorpayCreds` first via
+ * {@link resolveRazorpayCredentialsForMerchant} (see
+ * `selectPaymentAuthorizationPort`), then pass the result straight in — this
+ * keeps every existing caller (adversarial/reliability integration tests
+ * included, which build a bundle synchronously at `describe`-scope) unaffected.
  */
 export function buildRealConnectorBundle(
   shopifyCreds: NonNullable<ReturnType<typeof requireShopifyCredentials>>,

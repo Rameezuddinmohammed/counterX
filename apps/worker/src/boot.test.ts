@@ -4,8 +4,13 @@ import {
   selectPaymentAuthorizationPort,
   createDeterministicPaymentAuthorizationPort,
   resolveSpendLimitConfig,
+  pilotMerchantId,
 } from "./boot.js";
-import { DEFAULT_SPEND_LIMIT_CONFIG, type PolicyConfigEntry } from "@counter/data";
+import {
+  DEFAULT_SPEND_LIMIT_CONFIG,
+  type PolicyConfigEntry,
+  type PostgresPaymentConnectionReadStore,
+} from "@counter/data";
 import type { EnvironmentBag } from "./connector-env.js";
 import { createCounterId, type CounterId } from "@counter/domain";
 
@@ -16,18 +21,18 @@ function txnId(fill: number): CounterId<"transaction"> {
 }
 
 describe("selectPaymentAuthorizationPort", () => {
-  it("falls back to the deterministic port in local/test without credentials", () => {
+  it("falls back to the deterministic port in local/test without credentials", async () => {
     const env: EnvironmentBag = { COUNTER_ENV: "test" };
-    const selection = selectPaymentAuthorizationPort(env);
+    const selection = await selectPaymentAuthorizationPort(env);
     expect(selection.mode).toBe("deterministic");
   });
 
-  it("throws (fail loud) in a prod-like environment without credentials", () => {
+  it("throws (fail loud) in a prod-like environment without credentials", async () => {
     const env: EnvironmentBag = { COUNTER_ENV: "production" };
-    expect(() => selectPaymentAuthorizationPort(env)).toThrow(/production-like/);
+    await expect(selectPaymentAuthorizationPort(env)).rejects.toThrow(/production-like/);
   });
 
-  it("selects the real port when both credential sets are present", () => {
+  it("selects the real port when both credential sets are present", async () => {
     const env: EnvironmentBag = {
       COUNTER_ENV: "test",
       SHOPIFY_STORE_DOMAIN: "counter-commerce-agent.myshopify.com",
@@ -36,18 +41,63 @@ describe("selectPaymentAuthorizationPort", () => {
       RAZORPAY_KEY_SECRET: "secret_fake",
       RAZORPAY_WEBHOOK_SECRET: "whsecret_fake",
     };
-    const selection = selectPaymentAuthorizationPort(env);
+    const selection = await selectPaymentAuthorizationPort(env);
     expect(selection.mode).toBe("real");
   });
 
-  it("uses deterministic when only Shopify credentials are present (local/test)", () => {
+  it("uses deterministic when only Shopify credentials are present (local/test)", async () => {
     const env: EnvironmentBag = {
       COUNTER_ENV: "local",
       SHOPIFY_STORE_DOMAIN: "counter-commerce-agent.myshopify.com",
       SHOPIFY_ACCESS_TOKEN: "shpat_fake",
     };
-    const selection = selectPaymentAuthorizationPort(env);
+    const selection = await selectPaymentAuthorizationPort(env);
     expect(selection.mode).toBe("deterministic");
+  });
+
+  it("uses the merchant's OWN verified Razorpay credentials when a paymentConnectionStore is wired in", async () => {
+    const env: EnvironmentBag = {
+      COUNTER_ENV: "test",
+      SHOPIFY_STORE_DOMAIN: "counter-commerce-agent.myshopify.com",
+      SHOPIFY_ACCESS_TOKEN: "shpat_fake",
+      RAZORPAY_KEY_ID: "rzp_test_platform_shared",
+      RAZORPAY_KEY_SECRET: "secret_platform_shared",
+      RAZORPAY_WEBHOOK_SECRET: "whsecret_fake",
+    };
+    const merchantId = pilotMerchantId();
+    const store = {
+      findByMerchantId: async (id: string) => {
+        expect(id).toBe(merchantId);
+        return {
+          keyId: "rzp_test_merchant_own",
+          keySecret: "secret_merchant_own",
+          verifiedAt: "2026-01-01T00:00:00.000Z",
+        };
+      },
+    } as unknown as PostgresPaymentConnectionReadStore;
+
+    const selection = await selectPaymentAuthorizationPort(env, undefined, {
+      paymentConnectionStore: store,
+    });
+    expect(selection.mode).toBe("real");
+  });
+
+  it("fails loud (never falls back to the shared credential) when the merchant has no connected gateway", async () => {
+    const env: EnvironmentBag = {
+      COUNTER_ENV: "test",
+      SHOPIFY_STORE_DOMAIN: "counter-commerce-agent.myshopify.com",
+      SHOPIFY_ACCESS_TOKEN: "shpat_fake",
+      RAZORPAY_KEY_ID: "rzp_test_platform_shared",
+      RAZORPAY_KEY_SECRET: "secret_platform_shared",
+      RAZORPAY_WEBHOOK_SECRET: "whsecret_fake",
+    };
+    const store = {
+      findByMerchantId: async () => undefined,
+    } as unknown as PostgresPaymentConnectionReadStore;
+
+    await expect(
+      selectPaymentAuthorizationPort(env, undefined, { paymentConnectionStore: store }),
+    ).rejects.toThrow(/has not connected a Razorpay payment gateway/);
   });
 });
 

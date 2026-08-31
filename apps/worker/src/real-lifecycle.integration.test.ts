@@ -43,7 +43,7 @@ class RecordingSink implements ReceiptSink {
 
 credDescribe("real connector lifecycle (creds-gated, live network)", () => {
   it("completes one real transaction lifecycle end to end", async () => {
-    const selection = selectPaymentAuthorizationPort(process.env);
+    const selection = await selectPaymentAuthorizationPort(process.env);
     expect(selection.mode).toBe("real");
 
     const sink = new RecordingSink();
