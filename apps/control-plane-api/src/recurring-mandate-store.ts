@@ -94,9 +94,33 @@ export interface ConfirmRegistrationParams {
   readonly razorpaySignature: string;
 }
 
+export interface ConfirmRegistrationFromWebhookParams {
+  readonly providerCustomerId: string;
+  readonly providerTokenId: string;
+}
+
 export interface RecurringMandateProvisionerLike {
   beginRegistration(params: BeginRegistrationParams): Promise<BeginRegistrationResult>;
   confirmRegistration(params: ConfirmRegistrationParams): Promise<RecurringMandateSummary>;
+  /**
+   * Server-side fallback confirmation path, for when Razorpay's own
+   * asynchronous webhook (not the browser's Standard Checkout callback)
+   * is what confirms a UPI Autopay/token registration — e.g. the buyer's
+   * browser session ends before the callback fires, but Razorpay still
+   * confirms the mandate moments or days later. The webhook's own HMAC
+   * signature (verified at the ingress layer before this is ever called)
+   * is the proof of authenticity here, not a per-payment callback
+   * signature — so this takes the provider's own customer/token ids
+   * instead of ConfirmRegistrationParams's callback fields. Idempotent
+   * against a mandate already confirmed via the browser callback (the
+   * underlying UPDATE only matches a still-`pending` row) and returns
+   * `undefined` when no matching pending mandate is found (the webhook
+   * may be for an unrelated customer, or the confirmation already
+   * happened another way).
+   */
+  confirmRegistrationFromWebhook(
+    params: ConfirmRegistrationFromWebhookParams,
+  ): Promise<RecurringMandateSummary | undefined>;
   revoke(walletId: string, referenceId: string): Promise<void>;
   list(walletId: string): Promise<readonly RecurringMandateSummary[]>;
 }
@@ -262,6 +286,40 @@ export class RecurringMandateProvisioner implements RecurringMandateProvisionerL
       throw new Error(`Failed to activate mandate: ${params.referenceId}`);
     }
     return toSummary(updatedRow);
+  }
+
+  async confirmRegistrationFromWebhook(
+    params: ConfirmRegistrationFromWebhookParams,
+  ): Promise<RecurringMandateSummary | undefined> {
+    // A wallet can have more than one pending row for the same Razorpay
+    // customer (e.g. an abandoned-then-retried registration) — target only
+    // the most recent, same as beginRegistration's own customer-reuse
+    // lookup, rather than blindly UPDATEing every pending row that matches.
+    const pending = await this.database.query<{ reference_id: string }>(
+      `SELECT reference_id FROM wallet.recurring_payment_mandates
+        WHERE environment = $1 AND provider_customer_id = $2 AND status = 'pending'
+        ORDER BY created_at DESC LIMIT 1`,
+      [this.environment, params.providerCustomerId],
+    );
+    const referenceId = pending.rows[0]?.reference_id;
+    if (referenceId === undefined) {
+      return undefined;
+    }
+
+    const now = new Date().toISOString();
+    // Re-guards status = 'pending' so a race against the browser-callback
+    // confirm path (or a duplicate webhook delivery) is a safe no-op, not a
+    // double-activation.
+    const updated = await this.database.query<MandateRow>(
+      `UPDATE wallet.recurring_payment_mandates
+          SET status = 'active', provider_token_id = $1, updated_at = $2
+        WHERE environment = $3 AND reference_id = $4 AND status = 'pending'
+      RETURNING reference_id, wallet_id, status, provider_customer_id, provider_token_id,
+                ceiling_minor, currency, valid_from, valid_until, eligible_merchants, eligible_operations`,
+      [params.providerTokenId, now, this.environment, referenceId],
+    );
+    const updatedRow = updated.rows[0];
+    return updatedRow === undefined ? undefined : toSummary(updatedRow);
   }
 
   async revoke(walletId: string, referenceId: string): Promise<void> {

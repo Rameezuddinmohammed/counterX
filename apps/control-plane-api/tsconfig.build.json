@@ -27,6 +27,9 @@
       "path": "../../packages/razorpay-adapter/tsconfig.build.json"
     },
     {
+      "path": "../../packages/shopify-connector/tsconfig.build.json"
+    },
+    {
       "path": "../../packages/trust-protocol/tsconfig.build.json"
     }
   ]

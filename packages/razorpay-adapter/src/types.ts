@@ -73,6 +73,27 @@ export interface RazorpayRefund {
   readonly created_at: number;
 }
 
+/**
+ * Razorpay's webhook payload entity for a UPI Autopay / recurring-payment
+ * token (registration/mandate). Field names are the documented shape as of
+ * this writing, NOT independently verified against a live Razorpay
+ * test-mode account — the same disclosed-assumption caveat recurring-
+ * mandate-provider.ts already carries for the rest of this integration.
+ * Verify against a real test account before trusting this shape.
+ */
+export interface RazorpayWebhookTokenEntity {
+  readonly id: string;
+  readonly customer_id: string;
+  readonly status: string;
+}
+
+/** Razorpay's webhook payload entity for a subscription event (e.g. subscription.charged). */
+export interface RazorpayWebhookSubscriptionEntity {
+  readonly id: string;
+  readonly customer_id?: string;
+  readonly status: string;
+}
+
 export interface RazorpayWebhookEvent {
   readonly entity: "event";
   readonly account_id: string;
@@ -82,6 +103,8 @@ export interface RazorpayWebhookEvent {
     readonly payment?: { readonly entity: RazorpayPayment };
     readonly refund?: { readonly entity: RazorpayRefund };
     readonly order?: { readonly entity: RazorpayOrder };
+    readonly token?: { readonly entity: RazorpayWebhookTokenEntity };
+    readonly subscription?: { readonly entity: RazorpayWebhookSubscriptionEntity };
   };
   readonly created_at: number;
 }

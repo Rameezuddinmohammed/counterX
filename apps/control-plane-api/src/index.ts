@@ -43,6 +43,7 @@ import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
 import type { MerchantReadinessServiceLike } from "./merchant-readiness-store.js";
 import { merchantManifestRoutesPlugin } from "./merchant-manifest-routes.js";
 import type { MerchantManifestStoreLike } from "./merchant-manifest-store.js";
+import { webhookRoutesPlugin, type WebhookRoutesOptions } from "./webhook-routes.js";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -57,8 +58,27 @@ const SHOPIFY_CALLBACK_ROUTE_PATTERN = "/control/v1/merchants/:merchantId/shopif
 
 const DEFAULT_VERSION = "0.1.0";
 const DEFAULT_ENVIRONMENT = "local";
-const AUTH_ISSUER = "https://dev-jzw3etjxnn3svs56.us.auth0.com/";
-const AUTH_AUDIENCE = "https://api.counter.dev";
+// Env-var driven, matching the pattern every Next.js console already uses
+// (apps/{merchant,wallet,operations}-console/src/lib/auth.ts's
+// AUTH0_ISSUER_BASE_URL/AUTH0_AUDIENCE) — previously hardcoded to the dev
+// tenant here only, which meant a different Auth0 tenant (e.g. a real
+// production one) required a source change instead of an env flip like
+// every other app in this repo. The dev-tenant string stays as the
+// fallback default so nothing breaks when unset.
+//
+// The consoles' own AUTH0_ISSUER_BASE_URL convention has no trailing slash
+// (`https://${domain}`), but the JWKS URL below is built by string
+// concatenation (`${AUTH_ISSUER}.well-known/jwks.json`) and the Auth0
+// issuer claim itself is conventionally slash-terminated — normalize to
+// exactly one trailing slash regardless of how the operator sets it.
+function withTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
+const AUTH_ISSUER = withTrailingSlash(
+  process.env["AUTH0_ISSUER_BASE_URL"] ?? "https://dev-jzw3etjxnn3svs56.us.auth0.com/",
+);
+const AUTH_AUDIENCE = process.env["AUTH0_AUDIENCE"] ?? "https://api.counter.dev";
 
 /**
  * Environments that MAY fall back to an in-memory policy store when no store is
@@ -165,6 +185,12 @@ export interface CreateServerOptions {
    * manifest registered — Step 6, same optional-feature pattern.
    */
   readonly merchantManifestStore?: MerchantManifestStoreLike | undefined;
+  /**
+   * Only when present is POST /webhooks/v1/{shopify,razorpay} registered —
+   * real HMAC-verified webhook ingress for both providers, same
+   * optional-feature pattern as every other provisioner above.
+   */
+  readonly webhookRoutes?: WebhookRoutesOptions | undefined;
 }
 
 /**
@@ -200,12 +226,18 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     // setup token itself (single-use, 15-minute expiry) is the entire proof
     // of identity for this one route. See wallet-user-routes.ts's header.
     // Shopify's OAuth callback also carries no Counter session — see the
-    // SHOPIFY_CALLBACK_ROUTE_PATTERN comment above.
+    // SHOPIFY_CALLBACK_ROUTE_PATTERN comment above. Webhook senders
+    // (Shopify, Razorpay) carry no Counter Bearer JWT either — their own
+    // HMAC signature, verified inside webhook-routes.ts, is the entire
+    // proof of authenticity for those routes; isSkipped's prefix match
+    // (path.startsWith(route + "/")) covers both the bare
+    // /webhooks/v1/:adapter route and the /webhooks/v1/:adapter/* one.
     skipAuthRoutes: [
       "/control/v1/wallet-users/agent-keys",
       ...(options?.shopifyConnectionProvisioner !== undefined
         ? [SHOPIFY_CALLBACK_ROUTE_PATTERN]
         : []),
+      ...(options?.webhookRoutes !== undefined ? ["/webhooks/v1"] : []),
     ],
     ...(options?.merchantApplicationProvisioner !== undefined
       ? { skipActorClaimsRoutes: [MERCHANT_APPLICATION_PROVISION_ROUTE] }
@@ -311,6 +343,12 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     void server.register(merchantManifestRoutesPlugin, {
       store: options.merchantManifestStore,
     });
+  }
+
+  // Real webhook ingress for Shopify and Razorpay — only registered when
+  // configured (see CreateServerOptions.webhookRoutes).
+  if (options?.webhookRoutes !== undefined) {
+    void server.register(webhookRoutesPlugin, options.webhookRoutes);
   }
 
   return server;

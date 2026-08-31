@@ -25,6 +25,7 @@
     "@counter/merchant-application": "workspace:0.1.0",
     "@counter/payment-sdk": "workspace:0.1.0",
     "@counter/razorpay-adapter": "workspace:0.1.0",
+    "@counter/shopify-connector": "workspace:0.1.0",
     "@counter/trust-protocol": "workspace:0.1.0",
     "fastify": "5.2.1"
   },

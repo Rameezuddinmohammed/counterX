@@ -28,6 +28,9 @@
       "path": "../../packages/razorpay-adapter"
     },
     {
+      "path": "../../packages/shopify-connector"
+    },
+    {
       "path": "../../packages/trust-protocol"
     }
   ]

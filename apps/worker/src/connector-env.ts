@@ -208,6 +208,7 @@ export function requireShopifyCredentials(env: EnvironmentBag): ShopifyCredentia
 export function requireRazorpayCredentials(env: EnvironmentBag): RazorpayCredentials | null {
   const resolved = resolveRazorpayCredentials(env);
   if (resolved !== null) {
+    assertRazorpayKeyShapeMatchesEnvironment(resolved.keyId, env);
     return resolved;
   }
   if (!isProdLike(env)) {
@@ -218,6 +219,31 @@ export function requireRazorpayCredentials(env: EnvironmentBag): RazorpayCredent
       `credentials. Missing required environment variable(s): ` +
       `${missingRazorpayVars(env).join(", ")}.`,
   );
+}
+
+/**
+ * Defense-in-depth guard against a misconfigured deploy: Razorpay key ids are
+ * always prefixed `rzp_test_` or `rzp_live_`, so a live key pasted into a
+ * non-prod box (or a test key surviving into a prod-like one) is a real,
+ * catchable mistake — nothing else in this file checks for it. Only asserts
+ * on a recognized prefix; an unrecognized shape is left to Razorpay's own API
+ * to reject rather than guessed at here.
+ */
+function assertRazorpayKeyShapeMatchesEnvironment(keyId: string, env: EnvironmentBag): void {
+  const prodLike = isProdLike(env);
+  if (keyId.startsWith("rzp_test_") && prodLike) {
+    throw new Error(
+      "Refusing to start: a Razorpay TEST-mode key (rzp_test_...) is configured in a " +
+        "production-like environment. This would silently run real checkouts against a " +
+        "sandbox account instead of live Razorpay.",
+    );
+  }
+  if (keyId.startsWith("rzp_live_") && !prodLike) {
+    throw new Error(
+      "Refusing to start: a Razorpay LIVE-mode key (rzp_live_...) is configured in a " +
+        "non-production environment. This would risk moving real money from a local/test run.",
+    );
+  }
 }
 
 /** Names of the environment variables the test-payment signer resolver requires. */
