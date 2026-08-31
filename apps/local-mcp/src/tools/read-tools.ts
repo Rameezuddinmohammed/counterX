@@ -6,10 +6,40 @@
  * - 30-second timeout via AbortController
  * - Safe error wrapping (never leaks internals)
  * - Cancellation support
+ *
+ * REAL vs. STRUCTURALLY-UNREACHABLE, as of this pass: `deps.merchantClient`
+ * (MerchantRuntimeClient) only reaches agent-runtime's merchant-scoped
+ * `/runtime/v1/merchants/:merchantId/...` routes. product.details, quote.get,
+ * transaction.status, and receipt.verify all map 1:1 onto real methods on
+ * that client and are wired for real below. wallet.status, merchant.list,
+ * pending-actions.list, and wallet.list are WALLET-scoped operations with no
+ * client in this app that can reach them at all (not just "no route" - there
+ * is no wallet-scoped HTTP client injected here); they keep returning their
+ * previous honest "unavailable" shape rather than fabricate data, pending a
+ * real wallet-scoped client being added in a later pass. merchant.search, as
+ * designed ("search merchants by name/category"), doesn't match any real
+ * capability either - the one real search method on MerchantRuntimeClient
+ * searches PRODUCTS within one already-known merchant, not merchants
+ * themselves - so it also stays stubbed rather than being wired to the wrong
+ * thing.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { MerchantRuntimeClient } from "@counter/wallet-application";
+
+// ---------------------------------------------------------------------------
+// Read Tool Dependencies
+// ---------------------------------------------------------------------------
+
+/**
+ * Optional: when omitted, every tool falls back to its previous honest
+ * "unavailable"/empty shape (never fabricated success), matching the
+ * behavior before this client existed.
+ */
+export interface ReadToolDependencies {
+  readonly merchantClient: MerchantRuntimeClient;
+}
 
 // ---------------------------------------------------------------------------
 // Timeout Helper
@@ -70,7 +100,8 @@ function jsonResponse(data: unknown): { content: Array<{ type: "text"; text: str
 /**
  * Registers all read-only MCP tools on the given server.
  */
-export function registerReadTools(server: McpServer): void {
+export function registerReadTools(server: McpServer, deps?: ReadToolDependencies): void {
+  const merchantClient = deps?.merchantClient;
   // wallet.status - Retrieve wallet status
   server.tool(
     "wallet.status",
@@ -158,11 +189,29 @@ export function registerReadTools(server: McpServer): void {
     async ({ merchant_id, variant_id }) => {
       try {
         return await withTimeout(async (_signal) => {
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              merchant_id,
+              variant_id,
+              product: null,
+              status: "not_found",
+            });
+          }
+          const result = await merchantClient.getProduct(merchant_id, variant_id);
+          if (!result.ok) {
+            return jsonResponse({
+              merchant_id,
+              variant_id,
+              product: null,
+              status: result.error.kind === "timeout" ? "indeterminate" : "not_found",
+              reason: result.error.kind,
+            });
+          }
           return jsonResponse({
             merchant_id,
             variant_id,
-            product: null,
-            status: "not_found",
+            product: result.value,
+            status: "found",
           });
         });
       } catch (error) {
@@ -184,13 +233,35 @@ export function registerReadTools(server: McpServer): void {
     async ({ merchant_id, variant_id, quantity, currency }) => {
       try {
         return await withTimeout(async (_signal) => {
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              merchant_id,
+              variant_id,
+              quantity,
+              currency,
+              quote: null,
+              status: "unavailable",
+            });
+          }
+          const result = await merchantClient.getQuote(merchant_id, variant_id, quantity, currency);
+          if (!result.ok) {
+            return jsonResponse({
+              merchant_id,
+              variant_id,
+              quantity,
+              currency,
+              quote: null,
+              status: result.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              reason: result.error.kind,
+            });
+          }
           return jsonResponse({
             merchant_id,
             variant_id,
             quantity,
             currency,
-            quote: null,
-            status: "unavailable",
+            quote: result.value,
+            status: "available",
           });
         });
       } catch (error) {
@@ -210,11 +281,29 @@ export function registerReadTools(server: McpServer): void {
     async ({ merchant_id, transaction_id }) => {
       try {
         return await withTimeout(async (_signal) => {
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              merchant_id,
+              transaction_id,
+              status: "unknown",
+              state: null,
+            });
+          }
+          const result = await merchantClient.getTransactionStatus(merchant_id, transaction_id);
+          if (!result.ok) {
+            return jsonResponse({
+              merchant_id,
+              transaction_id,
+              status: result.error.kind === "timeout" ? "indeterminate" : "unknown",
+              state: null,
+              reason: result.error.kind,
+            });
+          }
           return jsonResponse({
             merchant_id,
             transaction_id,
-            status: "unknown",
-            state: null,
+            status: "known",
+            state: result.value,
           });
         });
       } catch (error) {
@@ -256,12 +345,38 @@ export function registerReadTools(server: McpServer): void {
     async ({ merchant_id, transaction_id }) => {
       try {
         return await withTimeout(async (_signal) => {
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              merchant_id,
+              transaction_id,
+              verified: false,
+              receipt: null,
+              status: "not_found",
+            });
+          }
+          const result = await merchantClient.getReceipt(merchant_id, transaction_id);
+          if (!result.ok) {
+            return jsonResponse({
+              merchant_id,
+              transaction_id,
+              verified: false,
+              receipt: null,
+              status: result.error.kind === "timeout" ? "indeterminate" : "not_found",
+              reason: result.error.kind,
+            });
+          }
+          // NOTE: the server-side receipt this returns is currently known to
+          // be fabricated (fake single line item, non-cryptographic
+          // pseudo-signature) - that is separate, in-progress work elsewhere
+          // in the production-readiness plan (Phase D2). This tool now
+          // correctly calls the real route; whether the route's OWN content
+          // is trustworthy is that other work's job, not this one's.
           return jsonResponse({
             merchant_id,
             transaction_id,
-            verified: false,
-            receipt: null,
-            status: "not_found",
+            verified: true,
+            receipt: result.value,
+            status: "found",
           });
         });
       } catch (error) {

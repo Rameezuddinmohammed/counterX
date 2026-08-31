@@ -10,6 +10,7 @@
  */
 
 import type {
+  CancelResponse,
   CapabilityResponse,
   ProductResponse,
   QuoteResponse,
@@ -304,6 +305,29 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     return { ok: true, value: response.value as RefundResponse };
   }
 
+  async cancelTransaction(
+    merchantId: string,
+    transactionId: string,
+    reason: string,
+  ): Promise<ClientResult<CancelResponse>> {
+    const manifestCheck = await this.#ensureManifestVerified(merchantId);
+    if (!manifestCheck.ok) {
+      return manifestCheck;
+    }
+
+    const url = `${this.#baseUrl}/runtime/v1/merchants/${encodeURIComponent(merchantId)}/transactions/${encodeURIComponent(transactionId)}/cancel`;
+    const response = await this.#safeFetch(url, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+
+    if (!response.ok) {
+      return response;
+    }
+
+    return { ok: true, value: response.value as CancelResponse };
+  }
+
   // ---------------------------------------------------------------------------
   // Private Helpers
   // ---------------------------------------------------------------------------
@@ -433,6 +457,7 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
   #transactionStatusResponses = new Map<string, TransactionStatusResponse>();
   #receiptResponses = new Map<string, ReceiptResponse>();
   #refundResponses = new Map<string, RefundResponse>();
+  #cancelResponses = new Map<string, CancelResponse>();
   #simulatedFailure: SimulatedFailure | undefined;
   #environment: string;
   #lastCreateTransactionCall: RecordedCreateTransactionCall | undefined;
@@ -480,6 +505,10 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
 
   setRefundResponse(key: string, response: RefundResponse): void {
     this.#refundResponses.set(key, response);
+  }
+
+  setCancelResponse(key: string, response: CancelResponse): void {
+    this.#cancelResponses.set(key, response);
   }
 
   simulateFailure(failure: SimulatedFailure | undefined): void {
@@ -691,6 +720,30 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
 
     const key = `${merchantId}:${transactionId}`;
     const response = this.#refundResponses.get(key);
+    if (!response) {
+      return { ok: false, error: createMalformedResponseError() };
+    }
+
+    return { ok: true, value: response };
+  }
+
+  async cancelTransaction(
+    merchantId: string,
+    transactionId: string,
+    _reason: string,
+  ): Promise<ClientResult<CancelResponse>> {
+    const failure = this.#checkSimulatedFailure();
+    if (failure) {
+      return failure;
+    }
+
+    const manifestCheck = await this.#ensureManifestValid(merchantId);
+    if (!manifestCheck.ok) {
+      return manifestCheck;
+    }
+
+    const key = `${merchantId}:${transactionId}`;
+    const response = this.#cancelResponses.get(key);
     if (!response) {
       return { ok: false, error: createMalformedResponseError() };
     }

@@ -575,11 +575,37 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             });
           }
 
+          // Actually call the real cancel route (previously this fabricated
+          // a success response locally without ever calling the merchant
+          // runtime — the server is the authority on whether cancellation
+          // still succeeds, e.g. a race with fulfillment already starting).
+          const cancelResult = await merchantClient.cancelTransaction(
+            args.merchant_id,
+            args.transaction_id,
+            args.reason,
+          );
+
+          if (!cancelResult.ok) {
+            const errorKind = cancelResult.error.kind;
+            if (errorKind === "timeout" || errorKind === "indeterminate") {
+              return jsonResponse({
+                status: "indeterminate",
+                transaction_id: args.transaction_id,
+                reason: `Cancel outcome is indeterminate: ${errorKind}`,
+              });
+            }
+            return jsonResponse({
+              status: "failed",
+              transaction_id: args.transaction_id,
+              reason: `Cancel failed: ${errorKind}`,
+            });
+          }
+
           return jsonResponse({
             status: "cancelled",
-            transaction_id: args.transaction_id,
+            transaction_id: cancelResult.value.transactionId,
             merchant_id: args.merchant_id,
-            cancelled_at: new Date().toISOString(),
+            cancelled_at: cancelResult.value.cancelledAt,
             reason: args.reason,
           });
         });

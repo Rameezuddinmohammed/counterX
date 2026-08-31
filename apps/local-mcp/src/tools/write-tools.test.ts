@@ -284,6 +284,96 @@ describe("write-tools: purchase.cancel", () => {
       expect(result.value.status !== "pending").toBe(true);
     }
   });
+
+  it("actually calls the real cancel route and returns the server's own cancelledAt, not a locally-fabricated one", async () => {
+    const deps = createTestDeps();
+    const client = deps.merchantClient as InMemoryMerchantRuntimeClient;
+
+    client.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: ["purchase"],
+      healthStatus: "healthy",
+    });
+    client.setTransactionStatusResponse("merchant-1:tx-3", {
+      transactionId: "tx-3",
+      merchantId: "merchant-1",
+      status: "pending",
+      amount: { amount: "10000", currency: "INR" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: "1",
+    });
+    const serverCancelledAt = "2026-01-01T00:00:00.000Z";
+    client.setCancelResponse("merchant-1:tx-3", {
+      transactionId: "tx-3",
+      status: "cancelled",
+      cancelledAt: serverCancelledAt,
+      version: "2",
+    });
+
+    const server = createTestServer(deps);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const mcpClient = new Client({ name: "test-client", version: "0.1.0" });
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)]);
+
+    const result = await mcpClient.callTool({
+      name: "purchase.cancel",
+      arguments: { merchant_id: "merchant-1", transaction_id: "tx-3", reason: "changed my mind" },
+    });
+    const content = (result.content as Array<{ type: string; text: string }>)[0];
+    const parsed = JSON.parse(content?.text ?? "{}") as {
+      status: string;
+      cancelled_at: string;
+    };
+    expect(parsed.status).toBe("cancelled");
+    // The whole point of this test: this came from the server's real
+    // response, not from a locally-fabricated `new Date().toISOString()`.
+    expect(parsed.cancelled_at).toBe(serverCancelledAt);
+  });
+
+  it("surfaces a failed status when the real cancel route rejects it", async () => {
+    const deps = createTestDeps();
+    const client = deps.merchantClient as InMemoryMerchantRuntimeClient;
+
+    client.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: ["purchase"],
+      healthStatus: "healthy",
+    });
+    client.setTransactionStatusResponse("merchant-1:tx-4", {
+      transactionId: "tx-4",
+      merchantId: "merchant-1",
+      status: "pending",
+      amount: { amount: "10000", currency: "INR" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: "1",
+    });
+    // No cancel response configured -> the in-memory client returns a
+    // malformed_response error, simulating the server refusing the cancel.
+    client.simulateFailure(undefined);
+
+    const server = createTestServer(deps);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const mcpClient = new Client({ name: "test-client", version: "0.1.0" });
+    await Promise.all([server.connect(serverTransport), mcpClient.connect(clientTransport)]);
+
+    const result = await mcpClient.callTool({
+      name: "purchase.cancel",
+      arguments: { merchant_id: "merchant-1", transaction_id: "tx-4", reason: "too late" },
+    });
+    const content = (result.content as Array<{ type: string; text: string }>)[0];
+    const parsed = JSON.parse(content?.text ?? "{}") as { status: string };
+    expect(parsed.status).toBe("failed");
+  });
 });
 
 // ---------------------------------------------------------------------------
