@@ -8,11 +8,7 @@
  * local/test/development the in-memory store is used unless DATABASE_URL is
  * provided.
  */
-import {
-  resolveCounterEnvironment,
-  type Environment,
-  type IsoCurrencyCode,
-} from "@counter/domain";
+import { resolveCounterEnvironment, type Environment, type IsoCurrencyCode } from "@counter/domain";
 import {
   PostgresDatabase,
   PostgresCursorStore,

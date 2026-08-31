@@ -18,7 +18,10 @@ import {
   createMockGraphQLClient,
   PRODUCTS_LIST_QUERY,
 } from "@counter/shopify-connector";
-import type { ShopifyGraphQLResponse, ShopifyProductsListResponse } from "@counter/shopify-connector";
+import type {
+  ShopifyGraphQLResponse,
+  ShopifyProductsListResponse,
+} from "@counter/shopify-connector";
 import { PostgresDatabase } from "./database.js";
 import { PostgresCursorStore } from "./catalog-cursor-store.js";
 import {
@@ -113,10 +116,9 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
         await database.query(`DELETE FROM merchant.catalog_products WHERE merchant_id = $1`, [
           merchantId,
         ]);
-        await database.query(
-          `DELETE FROM merchant.catalog_sync_cursors WHERE merchant_id = $1`,
-          [merchantId],
-        );
+        await database.query(`DELETE FROM merchant.catalog_sync_cursors WHERE merchant_id = $1`, [
+          merchantId,
+        ]);
       }
     } finally {
       await database.close();
@@ -130,7 +132,10 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
       writtenMerchantIds.push(merchantId);
 
       const client = createMockGraphQLClient();
-      client.setResponse(PRODUCTS_LIST_QUERY, makeProductsPage(1) as ShopifyGraphQLResponse<unknown>);
+      client.setResponse(
+        PRODUCTS_LIST_QUERY,
+        makeProductsPage(1) as ShopifyGraphQLResponse<unknown>,
+      );
 
       const syncService = new CatalogSyncService(client, cursorStore);
       const result = await syncService.backfillProducts(merchantId, {
@@ -196,7 +201,10 @@ databaseDescribe("Catalog sync -> Postgres repositories (DB-gated)", () => {
       writtenMerchantIds.push(merchantId, otherMerchantId);
 
       const client = createMockGraphQLClient();
-      client.setResponse(PRODUCTS_LIST_QUERY, makeProductsPage(2) as ShopifyGraphQLResponse<unknown>);
+      client.setResponse(
+        PRODUCTS_LIST_QUERY,
+        makeProductsPage(2) as ShopifyGraphQLResponse<unknown>,
+      );
       const syncService = new CatalogSyncService(client, cursorStore);
 
       const resultA = await syncService.backfillProducts(merchantId, {

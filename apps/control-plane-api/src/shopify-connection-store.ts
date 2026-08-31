@@ -269,7 +269,11 @@ export class ShopifyConnectionProvisioner implements ShopifyConnectionProvisione
     // Fire-and-forget by contract - see OnShopifyConnected's doc comment.
     // Never let a sync-trigger failure surface as an OAuth callback error;
     // the connection is already durably saved above.
-    this.onConnected?.({ merchantId: redeemed.merchant_id, shopDomain, accessToken: token.accessToken });
+    this.onConnected?.({
+      merchantId: redeemed.merchant_id,
+      shopDomain,
+      accessToken: token.accessToken,
+    });
 
     return { merchantId: redeemed.merchant_id, shopDomain };
   }
