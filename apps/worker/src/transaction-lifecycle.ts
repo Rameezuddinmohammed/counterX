@@ -124,6 +124,12 @@ export interface AuthorityEnvelope {
   readonly authorizedMerchantId?: string | undefined;
   /** The wallet the spend is charged to; used for the rolling 24h ledger. */
   readonly walletId?: string | undefined;
+  /** The durable WalletMandate this purchase claims to be governed by —
+   *  independently re-checked for durable revocation before any effect
+   *  (defense-in-depth: the admission-time check happened upstream in
+   *  agent-runtime; a mandate revoked between then and now must still
+   *  block the actual money movement). */
+  readonly mandateId?: string | undefined;
 }
 
 /**

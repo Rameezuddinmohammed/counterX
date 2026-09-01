@@ -120,13 +120,13 @@ export class RecoveryService {
   /**
    * Revokes a device by revoking the device scope in the revocation service.
    */
-  revokeDevice(
+  async revokeDevice(
     walletId: CounterId<"wallet">,
     principalId: CounterId<"actor">,
     deviceId: string,
     reason: string,
-  ): RecoveryResult<{ revoked: true }> {
-    const result = this.#revocationService.revoke({
+  ): Promise<RecoveryResult<{ revoked: true }>> {
+    const result = await this.#revocationService.revoke({
       principalId,
       walletId,
       scopeType: "agent",
@@ -166,13 +166,13 @@ export class RecoveryService {
   /**
    * Revokes an active mandate via the revocation service.
    */
-  revokeMandate(
+  async revokeMandate(
     walletId: CounterId<"wallet">,
     principalId: CounterId<"actor">,
     mandateId: CounterId<"mandate">,
     reason: string,
-  ): RecoveryResult<{ revoked: true }> {
-    const result = this.#revocationService.revoke({
+  ): Promise<RecoveryResult<{ revoked: true }>> {
+    const result = await this.#revocationService.revoke({
       principalId,
       walletId,
       scopeType: "mandate",

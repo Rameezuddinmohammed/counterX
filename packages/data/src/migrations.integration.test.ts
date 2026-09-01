@@ -40,6 +40,9 @@ const protectedRelationsAtV4 = [
 // verification discipline. runtime.receipts (migration 17) is deliberately
 // NOT here - it lives in the runtime schema, which this RLS check doesn't
 // query, and (matching every other runtime.* table) doesn't use RLS at all.
+// Migration 19 (wallet-revocations-and-mandates) added 2 more, same pattern
+// (ENABLE + FORCE ROW LEVEL SECURITY, no CREATE POLICY) - verified directly
+// against 0019's .up.sql before adding here.
 const protectedRelationsAtLatest = [
   ...protectedRelationsAtV4,
   ["identity", "wallet_setup_tokens"],
@@ -56,6 +59,8 @@ const protectedRelationsAtLatest = [
   ["merchant", "shopify_connections"],
   ["merchant", "shopify_oauth_states"],
   ["wallet", "recurring_payment_mandates"],
+  ["wallet", "mandates"],
+  ["wallet", "revocations"],
 ] as const;
 
 const identityFunctionSignatures = [

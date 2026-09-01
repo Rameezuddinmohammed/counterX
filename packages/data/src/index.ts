@@ -81,6 +81,9 @@ export { PostgresRecurringMandateReadStore } from "./recurring-mandate-read-stor
 export type { RecurringMandateReadResult } from "./recurring-mandate-read-store.js";
 export { PostgresPaymentConnectionReadStore } from "./payment-connection-read-store.js";
 export type { PaymentConnectionReadResult } from "./payment-connection-read-store.js";
+export { PostgresRevocationStore } from "./revocation-store.js";
+export { PostgresMandateRepository } from "./mandate-repository.js";
+export { PostgresCtpKeyRegistry } from "./ctp-key-registry.js";
 export { policyConfigs } from "./policy-schema.js";
 
 export { PostgresReceiptStore } from "./receipt-store.js";
@@ -101,3 +104,12 @@ export type {
   ReserveSpendOutcome,
   ReserveDenyCode,
 } from "./spend-ledger.js";
+
+export { PostgresWalletBalanceStore } from "./wallet-balance-store.js";
+export type {
+  TopUpRequest,
+  TopUpOutcome,
+  DebitRequest,
+  DebitOutcome,
+  DebitDenyCode,
+} from "./wallet-balance-store.js";

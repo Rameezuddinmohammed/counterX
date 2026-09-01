@@ -125,7 +125,7 @@ class FakeRecurringMandateProvisioner implements RecurringMandateProvisionerLike
     return updated;
   }
 
-  async revoke(walletId: string, referenceId: string): Promise<void> {
+  async revoke(walletId: string, referenceId: string, _principalId: string): Promise<void> {
     const existing = this.#mandates.get(referenceId);
     if (existing === undefined || existing.walletId !== walletId) {
       throw new Error("No such mandate");

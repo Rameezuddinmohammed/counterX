@@ -10,18 +10,21 @@
  * PostgresIdentityRepositories, matching every other durable write this
  * deployment already makes.
  *
- * SCOPE NOTE: revoke() updates this table's own status and cancels the
- * Razorpay token, but does NOT call packages/wallet-application's
- * WalletRevocationService/CTP revocation-cascade machinery. That service
- * requires a signing key (its revoke() call takes a `kid` and produces a
- * signed CTP envelope) and today is wired only into apps/local-mcp with an
- * in-memory store — there is no durable, control-plane-api-reachable
- * revocation trail anywhere in the real path yet. Wiring this mandate's
- * revocation into that broader system is real follow-up work, not silently
- * folded into this change.
+ * revoke() updates this table's own status and cancels the Razorpay token
+ * (the money-relevant, enforced-by-the-worker state — see
+ * apps/worker/src/lifecycle-policy.ts's recurringMandateLookup), THEN
+ * records a durable, signed CTP revocation event via
+ * packages/wallet-application's WalletRevocationService, scoped
+ * "payment_reference" — see RecurringMandateRevocationConfig. This is the
+ * first durable, control-plane-api-reachable revocation trail in the real
+ * path (see migration 0019). The revocation-service call is best-effort
+ * evidence recorded AFTER the state change that actually matters: a failure
+ * there is logged, never thrown — the mandate is already unusable by the
+ * time it runs, so failing the whole request here would misleadingly imply
+ * the revocation itself did not take effect.
  */
 import { randomBytes } from "node:crypto";
-import type { Environment } from "@counter/domain";
+import type { CounterId, Environment } from "@counter/domain";
 import { createCounterId, parseCounterId } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
 import type {
@@ -32,6 +35,7 @@ import type {
   RegistrationCallbackResult,
 } from "@counter/razorpay-adapter";
 import type { PaymentOperationResult } from "@counter/payment-sdk";
+import type { WalletRevocationService } from "@counter/wallet-application";
 
 /**
  * Structural interface for the subset of RazorpayRecurringMandateProvider's
@@ -121,8 +125,24 @@ export interface RecurringMandateProvisionerLike {
   confirmRegistrationFromWebhook(
     params: ConfirmRegistrationFromWebhookParams,
   ): Promise<RecurringMandateSummary | undefined>;
-  revoke(walletId: string, referenceId: string): Promise<void>;
+  /** `principalId` is the revoking actor — recorded on the durable revocation evidence, never trusted for authorization (the route's own verifyWalletAccess already gates that). */
+  revoke(walletId: string, referenceId: string, principalId: string): Promise<void>;
   list(walletId: string): Promise<readonly RecurringMandateSummary[]>;
+}
+
+/**
+ * Durable, signed revocation evidence for a mandate's revoke() — optional so
+ * tests/local dev can omit it (revoke() still works; it just skips the
+ * evidence write, same graceful-absence shape as every other optional
+ * dependency in this app). `service` is a real WalletRevocationService
+ * backed by PostgresRevocationStore/PostgresMandateRepository; `kid` is
+ * control-plane-api's own signing key (see control-plane-signer-env.ts) —
+ * never the worker's COUNTER_TEST_PAYMENT_SIGNER key, a different signer for
+ * a different purpose.
+ */
+export interface RecurringMandateRevocationConfig {
+  readonly service: WalletRevocationService;
+  readonly kid: string;
 }
 
 interface MandateRow {
@@ -157,6 +177,7 @@ export class RecurringMandateProvisioner implements RecurringMandateProvisionerL
     private readonly database: TransactionalDatabase,
     private readonly environment: Environment,
     private readonly razorpay: RazorpayRecurringMandateProviderLike,
+    private readonly revocation?: RecurringMandateRevocationConfig,
   ) {}
 
   async beginRegistration(params: BeginRegistrationParams): Promise<BeginRegistrationResult> {
@@ -322,7 +343,7 @@ export class RecurringMandateProvisioner implements RecurringMandateProvisionerL
     return updatedRow === undefined ? undefined : toSummary(updatedRow);
   }
 
-  async revoke(walletId: string, referenceId: string): Promise<void> {
+  async revoke(walletId: string, referenceId: string, principalId: string): Promise<void> {
     const existing = await this.database.query<MandateRow>(
       `SELECT reference_id, wallet_id, status, provider_customer_id, provider_token_id,
               ceiling_minor, currency, valid_from, valid_until, eligible_merchants, eligible_operations
@@ -346,6 +367,29 @@ export class RecurringMandateProvisioner implements RecurringMandateProvisionerL
         WHERE environment = $3 AND reference_id = $4`,
       [nextStatus, new Date().toISOString(), this.environment, referenceId],
     );
+
+    // Durable, signed revocation evidence — best-effort. The money-relevant
+    // state change is already committed above; a failure here is logged,
+    // never thrown, so a transient issue writing evidence doesn't make an
+    // already-successful revocation look like it failed to the caller.
+    if (this.revocation !== undefined) {
+      try {
+        await this.revocation.service.revoke({
+          principalId: principalId as CounterId<"actor">,
+          walletId: walletId as CounterId<"wallet">,
+          scopeType: "payment_reference",
+          scopeId: referenceId,
+          reasonClass: "principal_initiated",
+          correlationId: `recurring-mandate-revoke-${referenceId}`,
+          kid: this.revocation.kid,
+        });
+      } catch (error) {
+        console.error(
+          `[recurring-mandate-store] failed to record durable revocation evidence for ${referenceId} (mandate itself is already revoked)`,
+          error,
+        );
+      }
+    }
   }
 
   async list(walletId: string): Promise<readonly RecurringMandateSummary[]> {

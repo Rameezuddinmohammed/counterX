@@ -34,9 +34,17 @@ import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import {
   createRealRazorpayProvider,
   createRealRazorpayRecurringMandateProvider,
+  createRealRazorpayOrderVerificationProvider,
 } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
-import { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger } from "@counter/data";
+import type { PaymentProvider } from "@counter/payment-sdk";
+import {
+  PostgresStepLedger,
+  PostgresKillSwitchStore,
+  PostgresSpendLedger,
+  PostgresRevocationStore,
+} from "@counter/data";
+import type { PostgresWalletBalanceStore } from "@counter/data";
 import type {
   PostgresRecurringMandateReadStore,
   PostgresPaymentConnectionReadStore,
@@ -128,6 +136,26 @@ export interface DurableStores {
    * unit tests can omit it and exercise the legacy env-credential path.
    */
   readonly paymentConnectionStore?: PostgresPaymentConnectionReadStore | undefined;
+  /**
+   * Durable, cross-service revocation record (packages/wallet-application's
+   * WalletRevocationService / packages/data's PostgresRevocationStore). When
+   * present, the production policy independently re-verifies the wallet on
+   * `authority.walletId` before every external effect — never trusting the
+   * job payload's own `authority.revokedAtMs` claim alone. Optional so unit
+   * tests can omit it and exercise the legacy payload-only path.
+   */
+  readonly revocationStore?: PostgresRevocationStore | undefined;
+  /**
+   * Durable prepaid wallet balance (packages/data's PostgresWalletBalanceStore
+   * — see its header for the full rationale: fund once via a real Razorpay
+   * TEST MODE one-time payment, spend many times under Counter's own policy
+   * checks with no further per-purchase provider round trip). When present
+   * AND the job's authority envelope carries a walletId, an ordinary
+   * one-shot purchase draws down this balance instead of creating a fresh
+   * Razorpay order. Optional so unit tests / deployments without this
+   * feature enabled are unaffected and take the existing real-Razorpay path.
+   */
+  readonly walletBalanceStore?: PostgresWalletBalanceStore | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -220,13 +248,49 @@ export async function selectPaymentAuthorizationPort(
       : undefined;
   const recurringPayments = createRealRazorpayRecurringMandateProvider(razorpayCreds);
 
+  // Durable wallet-level revocation: independently re-verifies authority.walletId
+  // against the durable revocation store, rather than trusting the job payload's
+  // own authority.revokedAtMs claim alone. See lifecycle-policy.ts predicate 2b.
+  const walletRevocationCheck =
+    stores?.revocationStore !== undefined
+      ? (walletId: string) => stores.revocationStore!.isRevoked("wallet", walletId)
+      : undefined;
+
+  // Same durable check, scoped to the governed agent mandate itself — see
+  // lifecycle-policy.ts predicate 2c. Reuses the SAME revocationStore
+  // instance (one durable table, wallet.revocations, scoped by scope_type).
+  const mandateRevocationCheck =
+    stores?.revocationStore !== undefined
+      ? (mandateId: string) => stores.revocationStore!.isRevoked("mandate", mandateId)
+      : undefined;
+
   const policy =
     overrides?.policy ??
     createProductionPolicy({
       operatingMerchantId: bundle.merchantId,
       ...(durableReserveSpend !== undefined ? { reserveSpend: durableReserveSpend } : {}),
       ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
+      ...(walletRevocationCheck !== undefined ? { walletRevocationCheck } : {}),
+      ...(mandateRevocationCheck !== undefined ? { mandateRevocationCheck } : {}),
     });
+
+  // Prepaid wallet balance (fund-once, spend-many — see boot.ts's
+  // DurableStores.walletBalanceStore doc and packages/data's
+  // PostgresWalletBalanceStore header). Re-resolves the SAME CTP signer
+  // buildRealConnectorBundle already resolved for the unattended payment
+  // provider (requireCounterTestPaymentSigner is a pure derivation from env,
+  // safe to call again), so prepaid-balance evidence is signed with the
+  // same, real deployment-specific key.
+  const walletBalanceSigning =
+    stores?.walletBalanceStore !== undefined
+      ? (() => {
+          const prepaidSigner = requireCounterTestPaymentSigner(env);
+          return {
+            signer: new InMemorySigner(prepaidSigner.kid, prepaidSigner.seed),
+            kid: prepaidSigner.kid,
+          };
+        })()
+      : undefined;
 
   const config: RealLifecycleConfig = {
     shopify: bundle.shopify,
@@ -236,6 +300,10 @@ export async function selectPaymentAuthorizationPort(
     policy,
     recurringPayments,
     ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
+    ...(stores?.walletBalanceStore !== undefined
+      ? { walletBalanceStore: stores.walletBalanceStore }
+      : {}),
+    ...(walletBalanceSigning !== undefined ? { walletBalanceSigning } : {}),
     ...(overrides?.variantResolver !== undefined
       ? { variantResolver: overrides.variantResolver }
       : {}),
@@ -261,7 +329,11 @@ export async function selectPaymentAuthorizationPort(
 export interface RealConnectorBundle {
   readonly shopify: ReturnType<typeof createShopifyConnectorFromConfig>;
   readonly razorpay: ReturnType<typeof createRealRazorpayProvider>;
-  readonly payments: CounterTestPaymentProvider;
+  /**
+   * CounterTestPaymentProvider (default) or, when RAZORPAY_REAL_CAPTURE_MODE
+   * is set, RazorpayOrderVerificationProvider — see buildRealConnectorBundle.
+   */
+  readonly payments: PaymentProvider;
   readonly merchantId: MerchantId;
 }
 
@@ -341,11 +413,24 @@ export function buildRealConnectorBundle(
   // fixture — see requireCounterTestPaymentSigner for why a prod-like
   // deployment fails loud instead of silently using that fixture.
   const testPaymentSigner = requireCounterTestPaymentSigner(env);
-  const payments = new CounterTestPaymentProvider({
-    environment: "test",
-    signer: new InMemorySigner(testPaymentSigner.kid, testPaymentSigner.seed),
-    kid: testPaymentSigner.kid,
-  });
+  const signer = new InMemorySigner(testPaymentSigner.kid, testPaymentSigner.seed);
+
+  // Default: CounterTestPaymentProvider (purely simulated, synchronous —
+  // unaffected default, every existing credential-gated integration test
+  // relies on this exact fast/deterministic behavior). Opt-in only:
+  // RAZORPAY_REAL_CAPTURE_MODE swaps in RazorpayOrderVerificationProvider,
+  // which verifies (never fakes) a REAL captured Razorpay test-mode payment
+  // against the real order step 4 already creates — see that provider's
+  // header. Human-present (a real Standard Checkout must actually be
+  // completed), so this is for demo/manual runs, not automated test suites.
+  const payments: PaymentProvider =
+    env["RAZORPAY_REAL_CAPTURE_MODE"] === "1"
+      ? createRealRazorpayOrderVerificationProvider(razorpayCreds, signer, testPaymentSigner.kid)
+      : new CounterTestPaymentProvider({
+          environment: "test",
+          signer,
+          kid: testPaymentSigner.kid,
+        });
 
   return { shopify, razorpay, payments, merchantId: pilotMerchantId() };
 }
@@ -579,4 +664,9 @@ export function createPostgresKillSwitchGatePort(
 }
 
 // Re-export for construction convenience at the deployment entrypoint.
-export { PostgresStepLedger, PostgresKillSwitchStore, PostgresSpendLedger };
+export {
+  PostgresStepLedger,
+  PostgresKillSwitchStore,
+  PostgresSpendLedger,
+  PostgresRevocationStore,
+};

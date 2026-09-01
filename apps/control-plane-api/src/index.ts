@@ -31,6 +31,8 @@ import { walletUserRoutesPlugin } from "./wallet-user-routes.js";
 import type { WalletUserProvisionerLike } from "./wallet-user-store.js";
 import { recurringMandateRoutesPlugin } from "./recurring-mandate-routes.js";
 import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
+import { mandateBindingRoutesPlugin } from "./mandate-binding-routes.js";
+import type { MandateBindingService } from "./mandate-binding-store.js";
 import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
 import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
 import { refundRequestRoutesPlugin } from "./refund-request-routes.js";
@@ -153,6 +155,11 @@ export interface CreateServerOptions {
    * registered — same optional-feature pattern as walletUserProvisioner.
    */
   readonly recurringMandateProvisioner?: RecurringMandateProvisionerLike | undefined;
+  /**
+   * Only when present is /control/v1/wallets/*\/mandates registered — same
+   * optional-feature pattern as walletUserProvisioner.
+   */
+  readonly mandateBindingService?: MandateBindingService | undefined;
   /**
    * Only when present is /control/v1/merchants/:merchantId/shopify/*
    * registered — a new, optional feature (self-serve Shopify OAuth), not
@@ -294,6 +301,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.recurringMandateProvisioner !== undefined) {
     void server.register(recurringMandateRoutesPlugin, {
       provisioner: options.recurringMandateProvisioner,
+    });
+  }
+
+  // Wallet-mandate binding route — only registered when a binding service
+  // is wired (see CreateServerOptions.mandateBindingService).
+  if (options?.mandateBindingService !== undefined) {
+    void server.register(mandateBindingRoutesPlugin, {
+      bindingService: options.mandateBindingService,
     });
   }
 

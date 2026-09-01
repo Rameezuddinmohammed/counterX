@@ -44,12 +44,17 @@ export type { RealRazorpayHttpConfig, TransportFailureBody } from "./real-http-c
 export {
   createRealRazorpayProvider,
   createRealRazorpayRecurringMandateProvider,
+  createRealRazorpayOrderVerificationProvider,
 } from "./real-provider-factory.js";
 export type { RealRazorpayProviderConfig } from "./real-provider-factory.js";
 
 // Provider
 export { RazorpayTestProvider } from "./razorpay-provider.js";
 export type { RazorpayProviderConfig } from "./razorpay-provider.js";
+
+// Order verification provider (real one-time payment capture — see file header)
+export { RazorpayOrderVerificationProvider } from "./order-verification-provider.js";
+export type { RazorpayOrderVerificationProviderConfig } from "./order-verification-provider.js";
 
 // Recurring payment mandate (UPI Autopay / e-mandate) provider
 export { RazorpayRecurringMandateProvider } from "./recurring-mandate-provider.js";

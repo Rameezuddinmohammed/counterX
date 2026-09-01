@@ -244,7 +244,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             : undefined;
 
           // Run precheck
-          const precheckResult = precheckService.precheck({
+          const precheckResult = await precheckService.precheck({
             quote,
             policy: policyConstraints,
             policyVersionId: args.policy_version_id,
@@ -361,7 +361,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
       try {
         return await withTimeout(async (_signal) => {
           // Validate mandate is not revoked
-          if (revocationStore.isRevoked("mandate", args.mandate_id)) {
+          if (await revocationStore.isRevoked("mandate", args.mandate_id)) {
             return jsonResponse({
               status: "rejected",
               reason: "Mandate has been revoked",
@@ -369,7 +369,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
           }
 
           // Validate wallet is not revoked
-          if (revocationStore.isRevoked("wallet", args.wallet_id)) {
+          if (await revocationStore.isRevoked("wallet", args.wallet_id)) {
             return jsonResponse({
               status: "rejected",
               reason: "Wallet has been revoked",
@@ -442,7 +442,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
 
           const mandate = { mandateId: args.mandate_id, walletId: args.wallet_id };
 
-          const precheckResult = precheckService.precheck({
+          const precheckResult = await precheckService.precheck({
             quote,
             policy: policyConstraints,
             policyVersionId: args.policy_version_id,

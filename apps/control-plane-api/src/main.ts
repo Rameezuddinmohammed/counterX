@@ -16,8 +16,12 @@ import {
   PostgresVariantRepository,
   PostgresPriceRepository,
   PostgresInventoryRepository,
+  PostgresRevocationStore,
+  PostgresMandateRepository,
+  PostgresCtpKeyRegistry,
 } from "@counter/data";
 import { createHttpGraphQLClient, CatalogSyncService } from "@counter/shopify-connector";
+import { WalletRevocationService } from "@counter/wallet-application";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
 import { createPostgresPolicyStore } from "./policy-store-postgres.js";
 import { createDefaultPolicyCompiler } from "./policy-routes.js";
@@ -27,7 +31,10 @@ import {
   createRealRazorpayProvider,
   createRealRazorpayRecurringMandateProvider,
 } from "@counter/razorpay-adapter";
-import { RecurringMandateProvisioner } from "./recurring-mandate-store.js";
+import {
+  RecurringMandateProvisioner,
+  type RecurringMandateRevocationConfig,
+} from "./recurring-mandate-store.js";
 import {
   ShopifyConnectionProvisioner,
   type ShopifyOAuthConfig,
@@ -37,6 +44,8 @@ import { MerchantApplicationProvisioner } from "./merchant-application-store.js"
 import { MerchantPaymentConnectionStore } from "./merchant-payment-connection-store.js";
 import { MerchantReadinessService } from "./merchant-readiness-store.js";
 import { MerchantManifestStore } from "./merchant-manifest-store.js";
+import { requireControlPlaneSigner } from "./control-plane-signer-env.js";
+import { MandateBindingService } from "./mandate-binding-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -254,12 +263,55 @@ function createShopifyConnectedHandler(
   };
 }
 
+// Shared across the revocation cascade AND the new mandate-binding route —
+// one durable mandate repository instance, not two, for the same table.
+const mandateRepo =
+  database !== undefined ? new PostgresMandateRepository(database, runtimeEnvironment) : undefined;
+
+// Durable, signed revocation evidence for recurring-mandate revoke() (Phase
+// A4) — only resolved when recurring mandates are actually configured (no
+// point requiring a signing key for a feature that isn't enabled).
+// requireControlPlaneSigner fails loud in a production-like environment with
+// the key unset, matching requireCounterTestPaymentSigner's precedent — this
+// is control-plane-api's OWN key, never the worker's
+// COUNTER_TEST_PAYMENT_SIGNER (different signer, different purpose).
+const revocationConfig: RecurringMandateRevocationConfig | undefined =
+  database !== undefined && razorpayRecurringProvider !== undefined && mandateRepo !== undefined
+    ? {
+        service: new WalletRevocationService(
+          new PostgresRevocationStore(database, runtimeEnvironment),
+          mandateRepo,
+        ),
+        kid: requireControlPlaneSigner(process.env, IN_MEMORY_ELIGIBLE).kid,
+      }
+    : undefined;
+
 // Reused for both the recurring-mandate routes and the webhook route's
 // server-side mandate-confirmation fallback, rather than constructing a
 // second instance.
 const recurringMandateProvisioner =
   database !== undefined && razorpayRecurringProvider !== undefined
-    ? new RecurringMandateProvisioner(database, runtimeEnvironment, razorpayRecurringProvider)
+    ? new RecurringMandateProvisioner(
+        database,
+        runtimeEnvironment,
+        razorpayRecurringProvider,
+        revocationConfig,
+      )
+    : undefined;
+
+// Wallet-mandate binding: verifies an already-signed counter.mandate.v1
+// envelope (built client-side, where the buyer's own key lives) and durably
+// persists it, bound to an active, human-authorized recurringMandateProvisioner
+// mandate — see mandate-binding-store.ts's header for the full design. Only
+// resolved when both a durable mandate repo AND the recurring-mandate
+// provisioner (the thing it binds against) are configured.
+const mandateBindingService =
+  database !== undefined && mandateRepo !== undefined && recurringMandateProvisioner !== undefined
+    ? new MandateBindingService(
+        mandateRepo,
+        new PostgresCtpKeyRegistry(database, runtimeEnvironment),
+        recurringMandateProvisioner,
+      )
     : undefined;
 
 // Real webhook ingress (Shopify + Razorpay) — registered only when BOTH real
@@ -326,6 +378,7 @@ const serverOptions: CreateServerOptions = {
             }
           : {}),
         ...(recurringMandateProvisioner !== undefined ? { recurringMandateProvisioner } : {}),
+        ...(mandateBindingService !== undefined ? { mandateBindingService } : {}),
         ...(shopifyOAuthConfig !== undefined
           ? {
               shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(

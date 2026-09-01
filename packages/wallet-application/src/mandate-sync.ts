@@ -65,7 +65,7 @@ export class MandateSyncService {
    * Returns the mandate only if it is fresh and valid.
    * Fails closed: stale or unverifiable mandates are denied.
    */
-  fetchMandate(mandateId: CounterId<"mandate">, now?: string): MandateSyncResult {
+  async fetchMandate(mandateId: CounterId<"mandate">, now?: string): Promise<MandateSyncResult> {
     const currentTime = now ?? new Date().toISOString();
 
     // Check cache first
@@ -102,7 +102,7 @@ export class MandateSyncService {
     }
 
     // No cache - fetch from repository
-    const mandate = this.#repo.findById(mandateId);
+    const mandate = await this.#repo.findById(mandateId);
     if (!mandate) {
       return {
         ok: false,
@@ -162,7 +162,7 @@ export class MandateSyncService {
   /**
    * Refreshes a cached mandate from the repository.
    */
-  refresh(mandateId: CounterId<"mandate">, now?: string): MandateSyncResult {
+  async refresh(mandateId: CounterId<"mandate">, now?: string): Promise<MandateSyncResult> {
     this.#cache.delete(mandateId);
     return this.fetchMandate(mandateId, now);
   }

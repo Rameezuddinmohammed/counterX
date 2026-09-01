@@ -79,13 +79,13 @@ describe("RecoveryService", () => {
   });
 
   describe("device revocation", () => {
-    it("revokes a device via the revocation service", () => {
+    it("revokes a device via the revocation service", async () => {
       const { service, revocationStore } = createRecoveryService();
 
-      const result = service.revokeDevice(WALLET_ID, PRINCIPAL_ID, DEVICE_ID, "Lost device");
+      const result = await service.revokeDevice(WALLET_ID, PRINCIPAL_ID, DEVICE_ID, "Lost device");
 
       expect(result.ok).toBe(true);
-      expect(revocationStore.isRevoked("agent", DEVICE_ID)).toBe(true);
+      expect(await revocationStore.isRevoked("agent", DEVICE_ID)).toBe(true);
     });
   });
 
@@ -114,10 +114,10 @@ describe("RecoveryService", () => {
   });
 
   describe("mandate revocation", () => {
-    it("revokes a mandate via the revocation service", () => {
+    it("revokes a mandate via the revocation service", async () => {
       const { service, revocationStore } = createRecoveryService();
 
-      const result = service.revokeMandate(
+      const result = await service.revokeMandate(
         WALLET_ID,
         PRINCIPAL_ID,
         MANDATE_ID,
@@ -125,7 +125,7 @@ describe("RecoveryService", () => {
       );
 
       expect(result.ok).toBe(true);
-      expect(revocationStore.isRevoked("mandate", MANDATE_ID)).toBe(true);
+      expect(await revocationStore.isRevoked("mandate", MANDATE_ID)).toBe(true);
     });
   });
 

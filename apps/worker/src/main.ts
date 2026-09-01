@@ -37,6 +37,7 @@ import {
   PostgresPolicyStore,
   PostgresRecurringMandateReadStore,
   PostgresPaymentConnectionReadStore,
+  PostgresRevocationStore,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
@@ -203,6 +204,7 @@ async function main(): Promise<void> {
     spendLedger: new PostgresSpendLedger(database, runtimeEnvironment, spendLimitConfig),
     recurringMandateStore: new PostgresRecurringMandateReadStore(database, runtimeEnvironment),
     paymentConnectionStore: new PostgresPaymentConnectionReadStore(database, runtimeEnvironment),
+    revocationStore: new PostgresRevocationStore(database, runtimeEnvironment),
   });
   logger.info("payment connector selected", {
     mode: selection.mode,

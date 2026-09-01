@@ -75,9 +75,9 @@ describe("write-tools: purchase.execute", () => {
     expect(server).toBeDefined();
   });
 
-  it("revocation store blocks revoked mandates", () => {
+  it("revocation store blocks revoked mandates", async () => {
     const { revocationStore } = deps;
-    revocationStore.save({
+    await revocationStore.save({
       revocationId: "rev-1",
       scopeType: "mandate",
       scopeId: "mandate-123",
@@ -88,13 +88,13 @@ describe("write-tools: purchase.execute", () => {
       principalId: "actor-1",
     });
 
-    expect(revocationStore.isRevoked("mandate", "mandate-123")).toBe(true);
-    expect(revocationStore.isRevoked("mandate", "mandate-other")).toBe(false);
+    expect(await revocationStore.isRevoked("mandate", "mandate-123")).toBe(true);
+    expect(await revocationStore.isRevoked("mandate", "mandate-other")).toBe(false);
   });
 
-  it("revocation store blocks revoked wallets", () => {
+  it("revocation store blocks revoked wallets", async () => {
     const { revocationStore } = deps;
-    revocationStore.save({
+    await revocationStore.save({
       revocationId: "rev-2",
       scopeType: "wallet",
       scopeId: "wallet-abc",
@@ -105,8 +105,8 @@ describe("write-tools: purchase.execute", () => {
       principalId: "actor-1",
     });
 
-    expect(revocationStore.isRevoked("wallet", "wallet-abc")).toBe(true);
-    expect(revocationStore.isRevoked("wallet", "wallet-def")).toBe(false);
+    expect(await revocationStore.isRevoked("wallet", "wallet-abc")).toBe(true);
+    expect(await revocationStore.isRevoked("wallet", "wallet-def")).toBe(false);
   });
 
   it("actually signs the purchase intent and sends the signature — proves the previously-missing wiring", async () => {
