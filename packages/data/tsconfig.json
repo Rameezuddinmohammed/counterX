@@ -25,6 +25,12 @@
       "path": "../trust-protocol"
     },
     {
+      "path": "../wallet-application"
+    },
+    {
+      "path": "../wallet-domain"
+    },
+    {
       "path": "../workflow"
     }
   ]
