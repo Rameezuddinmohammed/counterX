@@ -93,3 +93,25 @@ export interface RefundResult {
   readonly orderId: string;
   readonly refundedAt: string;
 }
+
+// ─── Fulfillment (inbound webhook only — no outbound fulfillment API here) ────
+
+/**
+ * Shopify's REST-style webhook payload shape for fulfillments/create and
+ * fulfillments/update (subscribed in shopify-manifest.ts's events.topics).
+ * `order_id` is Shopify's plain NUMERIC order id, as delivered on the
+ * webhook — NOT the GraphQL Admin API's `gid://shopify/Order/...` format
+ * this codebase's own OrderResult.orderId uses elsewhere. A consumer that
+ * needs to join this back to a Counter transaction (see
+ * apps/control-plane-api/src/fulfillment-webhook-handler.ts) must construct
+ * the matching GID itself before comparing.
+ */
+export interface ShopifyFulfillmentWebhookPayload {
+  readonly id: number;
+  readonly order_id: number;
+  readonly status: string;
+  readonly tracking_company: string | null;
+  readonly tracking_number: string | null;
+  readonly tracking_url: string | null;
+  readonly updated_at: string;
+}

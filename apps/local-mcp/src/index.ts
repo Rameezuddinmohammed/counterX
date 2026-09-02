@@ -14,6 +14,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { registerReadTools } from "./tools/read-tools.js";
 import { registerWriteTools } from "./tools/write-tools.js";
 import type { WriteToolDependencies } from "./tools/write-tools.js";
+import type { WalletRuntimeClient } from "./wallet-runtime-client.js";
 
 export const APP_NAME = "@counter/local-mcp";
 
@@ -59,9 +60,15 @@ export function isDeniedTool(toolName: string): boolean {
 /**
  * Creates and configures the MCP server with tool registrations.
  * Uses stdio transport for local process communication.
- * Optionally accepts write tool dependencies for consequential tools.
+ * Optionally accepts write tool dependencies for consequential tools, and a
+ * separate wallet-scoped read client (Phase 2 of the remote-MCP plan) for
+ * notifications.list/invoices.get — independent of writeDeps since a wallet
+ * read client has nothing to do with consequential purchase tools.
  */
-export function createMcpServer(writeDeps?: WriteToolDependencies): McpServer {
+export function createMcpServer(
+  writeDeps?: WriteToolDependencies,
+  walletClient?: WalletRuntimeClient,
+): McpServer {
   const server = new McpServer({
     name: APP_NAME,
     version: "0.1.0",
@@ -70,10 +77,10 @@ export function createMcpServer(writeDeps?: WriteToolDependencies): McpServer {
   // Register all read-only tools. Reuses writeDeps' merchantClient when
   // present (same client, same auth) rather than requiring a second one -
   // read tools stay honestly stubbed when no client is configured at all.
-  registerReadTools(
-    server,
-    writeDeps !== undefined ? { merchantClient: writeDeps.merchantClient } : undefined,
-  );
+  registerReadTools(server, {
+    ...(writeDeps !== undefined ? { merchantClient: writeDeps.merchantClient } : {}),
+    ...(walletClient !== undefined ? { walletClient } : {}),
+  });
 
   // Register consequential (write) tools if dependencies are provided
   if (writeDeps) {

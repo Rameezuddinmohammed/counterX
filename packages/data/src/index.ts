@@ -113,3 +113,9 @@ export type {
   DebitOutcome,
   DebitDenyCode,
 } from "./wallet-balance-store.js";
+
+export { PostgresWebhookEndpointReadStore } from "./webhook-endpoint-read-store.js";
+export type { WebhookEndpointReadResult } from "./webhook-endpoint-read-store.js";
+
+export { PostgresBuyerNotificationStore } from "./buyer-notification-store.js";
+export type { BuyerNotificationInput, BuyerNotification } from "./buyer-notification-store.js";

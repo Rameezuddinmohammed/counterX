@@ -140,6 +140,34 @@ describe("transaction lifecycle handler", () => {
     expect(requests[0]!.authority?.mandateId).toBe("ctr_mandate_AAAAAAAAAAAAAAAAAAAA");
   });
 
+  it("carries merchantId/walletId from the job's authority envelope onto the receipt (Phase 2 outbox routing depends on this)", async () => {
+    const sink = new RecordingSink();
+    const handler = createTransactionLifecycleHandler(
+      provider({ status: "captured", capturedMinor: 4999, providerReference: "pay_routing" }),
+      sink,
+    );
+
+    const jobWithAuthority: HandledJob = {
+      id: "ctr_job_routing" as HandledJob["id"],
+      type: "transaction.lifecycle",
+      payload: {
+        transactionId: "order-routing-1",
+        amountMinor: 4999,
+        currency: "INR",
+        authority: {
+          authorizedMerchantId: "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA",
+          walletId: "ctr_wallet_AAAAAAAAAAAAAAAAAAAAAA",
+        },
+      },
+    };
+
+    await handler.execute(jobWithAuthority, instant(1_000));
+
+    expect(sink.receipts).toHaveLength(1);
+    expect(sink.receipts[0]!.merchantId).toBe("ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA");
+    expect(sink.receipts[0]!.walletId).toBe("ctr_wallet_AAAAAAAAAAAAAAAAAAAAAA");
+  });
+
   it("rejects an invalid payload terminally", async () => {
     const sink = new RecordingSink();
     const handler = createTransactionLifecycleHandler(

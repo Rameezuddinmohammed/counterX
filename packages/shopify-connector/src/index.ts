@@ -174,6 +174,7 @@ export type {
   CancelResult,
   RefundInput,
   RefundResult,
+  ShopifyFulfillmentWebhookPayload,
 } from "./order-types.js";
 
 // ─── Order Mutations ──────────────────────────────────────────────────────────

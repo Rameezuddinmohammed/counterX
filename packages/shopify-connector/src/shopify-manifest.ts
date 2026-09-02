@@ -139,6 +139,8 @@ export const SHOPIFY_CONNECTOR_MANIFEST: ConnectorManifest = {
       "orders/paid",
       "refunds/create",
       "inventory_levels/update",
+      "fulfillments/create",
+      "fulfillments/update",
     ],
     deduplicationStrategy: "webhook_id",
     signatureVerification: true,

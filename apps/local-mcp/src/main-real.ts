@@ -13,6 +13,9 @@
  *   COUNTER_RUNTIME_AUTH_TOKEN         bearer token for the deployed API
  *   COUNTER_WALLET_KEYSTORE_PASSPHRASE the passphrase chosen at registration
  *   COUNTER_WALLET_KEYSTORE_PATH       optional; defaults to ~/.counter/wallet-keys.enc.json
+ *   COUNTER_CONTROL_PLANE_URL          optional; e.g. https://counter-control-plane-api.fly.dev
+ *                                      — enables notifications.list/invoices.get (Phase 2);
+ *                                      omitted, those tools stay honestly "unavailable"
  *
  * Durable revocation is out of scope for this phase — InMemoryRevocationStore
  * is used here too; only the key custody and the merchant-runtime transport
@@ -23,6 +26,7 @@
 import { FileSecureKeyStore, defaultWalletKeyStorePath } from "@counter/wallet-domain";
 import { HttpMerchantRuntimeClient, InMemoryRevocationStore } from "@counter/wallet-application";
 import { createMcpServer, createStdioTransport } from "./index.js";
+import { HttpWalletRuntimeClient } from "./wallet-runtime-client.js";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -46,7 +50,20 @@ async function main(): Promise<void> {
   });
   const revocationStore = new InMemoryRevocationStore();
 
-  const server = createMcpServer({ keyStore, merchantClient, revocationStore });
+  // Wallet-scoped notifications.list/invoices.get (Phase 2 of the
+  // remote-MCP plan) — optional: control-plane-api's base URL defaults to
+  // the agent-runtime one's sibling service naming, but is independently
+  // overridable since they are separate Fly apps. Uses the SAME bearer
+  // token as merchantClient (control-plane-api's default JWT audience is
+  // the same https://api.counter.dev resource — see
+  // wallet-runtime-client.ts's header).
+  const controlPlaneUrl = process.env["COUNTER_CONTROL_PLANE_URL"];
+  const walletClient =
+    controlPlaneUrl !== undefined && controlPlaneUrl.trim().length > 0
+      ? new HttpWalletRuntimeClient(controlPlaneUrl, authToken)
+      : undefined;
+
+  const server = createMcpServer({ keyStore, merchantClient, revocationStore }, walletClient);
   const transport = createStdioTransport();
   await server.connect(transport);
 }

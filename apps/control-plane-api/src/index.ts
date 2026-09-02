@@ -43,6 +43,10 @@ import { merchantApplicationRoutesPlugin } from "./merchant-application-routes.j
 import type { MerchantApplicationProvisionerLike } from "./merchant-application-store.js";
 import { merchantPaymentConnectionRoutesPlugin } from "./merchant-payment-connection-routes.js";
 import type { MerchantPaymentConnectionStoreLike } from "./merchant-payment-connection-store.js";
+import { merchantWebhookEndpointRoutesPlugin } from "./merchant-webhook-endpoint-routes.js";
+import type { MerchantWebhookEndpointStoreLike } from "./merchant-webhook-endpoint-store.js";
+import { buyerNotificationRoutesPlugin } from "./buyer-notification-routes.js";
+import type { PostgresBuyerNotificationStore } from "@counter/data";
 import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
 import type { MerchantReadinessServiceLike } from "./merchant-readiness-store.js";
 import { merchantManifestRoutesPlugin } from "./merchant-manifest-routes.js";
@@ -193,6 +197,20 @@ export interface CreateServerOptions {
    * same optional-feature pattern as merchantApplicationProvisioner.
    */
   readonly merchantPaymentConnectionStore?: MerchantPaymentConnectionStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/merchants/:merchantId/webhook-endpoint
+   * registered — Phase 2 of the remote-MCP plan (notifications backbone):
+   * a merchant registers a callback URL for real order/fulfillment event
+   * delivery. Same optional-feature pattern as merchantPaymentConnectionStore.
+   */
+  readonly merchantWebhookEndpointStore?: MerchantWebhookEndpointStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/wallets/:walletId/notifications
+   * registered — Phase 2 of the remote-MCP plan (notifications backbone),
+   * serving the notifications.list/invoices.get MCP tools. Same
+   * optional-feature pattern as merchantWebhookEndpointStore.
+   */
+  readonly buyerNotificationStore?: PostgresBuyerNotificationStore | undefined;
   /**
    * Only when present is /control/v1/merchant-applications/:merchantId/
    * readiness registered — Step 5, same optional-feature pattern.
@@ -361,6 +379,22 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.merchantPaymentConnectionStore !== undefined) {
     void server.register(merchantPaymentConnectionRoutesPlugin, {
       store: options.merchantPaymentConnectionStore,
+    });
+  }
+
+  // Merchant webhook endpoint registration (Phase 2 notifications backbone)
+  // — only registered when a store is wired.
+  if (options?.merchantWebhookEndpointStore !== undefined) {
+    void server.register(merchantWebhookEndpointRoutesPlugin, {
+      store: options.merchantWebhookEndpointStore,
+    });
+  }
+
+  // Buyer-facing notifications/invoices (Phase 2 notifications backbone) —
+  // only registered when a store is wired.
+  if (options?.buyerNotificationStore !== undefined) {
+    void server.register(buyerNotificationRoutesPlugin, {
+      store: options.buyerNotificationStore,
     });
   }
 

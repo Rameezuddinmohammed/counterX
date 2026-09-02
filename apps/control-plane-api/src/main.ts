@@ -20,6 +20,7 @@ import {
   PostgresMandateRepository,
   PostgresCtpKeyRegistry,
   PostgresWalletBalanceStore,
+  PostgresBuyerNotificationStore,
 } from "@counter/data";
 import { createHttpGraphQLClient, CatalogSyncService } from "@counter/shopify-connector";
 import { WalletRevocationService } from "@counter/wallet-application";
@@ -43,6 +44,8 @@ import {
 import { RefundRequestStore } from "./refund-request-store.js";
 import { MerchantApplicationProvisioner } from "./merchant-application-store.js";
 import { MerchantPaymentConnectionStore } from "./merchant-payment-connection-store.js";
+import { MerchantWebhookEndpointStore } from "./merchant-webhook-endpoint-store.js";
+import { createFulfillmentWebhookHandler } from "./fulfillment-webhook-handler.js";
 import { MerchantReadinessService } from "./merchant-readiness-store.js";
 import { MerchantManifestStore } from "./merchant-manifest-store.js";
 import { requireControlPlaneSigner } from "./control-plane-signer-env.js";
@@ -352,6 +355,9 @@ const webhookRoutesOptions =
         shopifyWebhookSecret: shopifyOAuthConfig.clientSecret,
         razorpayWebhookSecret,
         ...(recurringMandateProvisioner !== undefined ? { recurringMandateProvisioner } : {}),
+        ...(database !== undefined
+          ? { onShopifyFulfillmentWebhook: createFulfillmentWebhookHandler(database, runtimeEnvironment) }
+          : {}),
       }
     : undefined;
 
@@ -388,6 +394,11 @@ const serverOptions: CreateServerOptions = {
               : {}),
           },
         ),
+        merchantWebhookEndpointStore: new MerchantWebhookEndpointStore(
+          database,
+          runtimeEnvironment,
+        ),
+        buyerNotificationStore: new PostgresBuyerNotificationStore(database, runtimeEnvironment),
         ...(readinessService !== undefined
           ? {
               merchantReadinessService: readinessService,

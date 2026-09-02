@@ -23,11 +23,23 @@ import type { ShopifyProductsListResponse, ShopifyProductNode } from "./catalog-
 
 // ─── Webhook Event ────────────────────────────────────────────────────────────
 
+/**
+ * Generic across every subscribed topic (see shopify-manifest.ts's
+ * events.topics) — the HMAC-verify/dedup transport layer (WebhookInbox)
+ * that produces this is topic-agnostic (see
+ * apps/control-plane-api/src/webhook-routes.ts's own header). `payload` is
+ * `unknown` rather than the product-specific WebhookProductPayload it used
+ * to be typed as (that was a compile-time-only cast with no runtime
+ * validation behind it — a real type lie for any non-products/* topic,
+ * e.g. fulfillments/create/update). A consumer for a specific topic
+ * narrows/validates it itself (see
+ * fulfillment-webhook-handler.ts's isFulfillmentPayload).
+ */
 export interface WebhookEvent {
   readonly topic: string;
   readonly shopDomain: string;
   readonly webhookId: string;
-  readonly payload: WebhookProductPayload;
+  readonly payload: unknown;
   readonly receivedAt: Instant;
 }
 
@@ -257,12 +269,19 @@ export class CatalogSyncService {
    * webhook. Fixed before this method had any real caller.
    */
   syncIncrementalFromWebhook(merchantId: string, event: WebhookEvent): Product {
+    // This method is product-topic-specific by contract (see its own docs);
+    // event.payload is generic across every subscribed topic (see
+    // WebhookEvent's own docs), so narrow it here, once, rather than at
+    // every access below — same compile-time-only assertion this file
+    // always made, just localized to the one function that actually needs
+    // the product shape.
+    const payload = event.payload as WebhookProductPayload;
     const fetchedAt = event.receivedAt;
-    const gid = `gid://shopify/Product/${String(event.payload.id)}`;
+    const gid = `gid://shopify/Product/${String(payload.id)}`;
 
     // Check if we have a newer version already
     const existing = this.productState.get(gid);
-    const incomingUpdatedAt = Date.parse(event.payload.updated_at) as Instant;
+    const incomingUpdatedAt = Date.parse(payload.updated_at) as Instant;
     if (existing && existing.updatedAt > incomingUpdatedAt) {
       // Stale event - return existing product unchanged
       return existing;
@@ -272,8 +291,8 @@ export class CatalogSyncService {
       const tombstone: Product = Object.freeze({
         id: gid,
         merchantId,
-        title: event.payload.title,
-        description: event.payload.body_html,
+        title: payload.title,
+        description: payload.body_html,
         variants: Object.freeze([]),
         sourceReference: Object.freeze({
           platform: "shopify",
@@ -291,7 +310,7 @@ export class CatalogSyncService {
         ]),
         status: "tombstoned" as const,
         tombstonedAt: fetchedAt,
-        createdAt: Date.parse(event.payload.created_at) as Instant,
+        createdAt: Date.parse(payload.created_at) as Instant,
         updatedAt: incomingUpdatedAt,
       });
       this.setProductState(gid, tombstone);
@@ -301,13 +320,13 @@ export class CatalogSyncService {
     // Map to a Shopify product node structure for reuse of mapping
     const shopifyNode: ShopifyProductNode = {
       id: gid,
-      title: event.payload.title,
-      descriptionHtml: event.payload.body_html,
-      status: event.payload.status,
-      createdAt: event.payload.created_at,
-      updatedAt: event.payload.updated_at,
+      title: payload.title,
+      descriptionHtml: payload.body_html,
+      status: payload.status,
+      createdAt: payload.created_at,
+      updatedAt: payload.updated_at,
       variants: {
-        edges: event.payload.variants.map((v) => ({
+        edges: payload.variants.map((v) => ({
           node: {
             id: `gid://shopify/ProductVariant/${String(v.id)}`,
             title: v.title,

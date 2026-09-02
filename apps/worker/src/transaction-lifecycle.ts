@@ -250,6 +250,21 @@ export interface TransactionReceipt {
   readonly providerReference: string;
   readonly reconciliation: ReconciliationOutcome;
   /**
+   * The operating merchant and buyer wallet this transaction belongs to,
+   * carried straight from the job payload's authority envelope (never
+   * re-derived) — Phase 2 of the remote-MCP plan uses these to route the
+   * order-lifecycle outbox events this receipt triggers (see
+   * apps/worker/src/main.ts's createOutboxReceiptSink). Absent for a job
+   * with no authority envelope (a legacy/test path); a receipt sink that
+   * needs merchant/wallet routing simply skips the routing-dependent event
+   * in that case, same "absent fields skip their predicate" idiom as
+   * AuthorityEnvelope itself.
+   */
+  readonly merchantId?: string | undefined;
+  readonly walletId?: string | undefined;
+  /** ISO 4217 currency code for reconciliation's amounts, carried from the job payload. */
+  readonly currency?: string | undefined;
+  /**
    * The CTP-signed payment evidence envelope, when the provider returned one.
    * This is the actual signed receipt (invariant #3 / FEAT-004 AC) — provider
    * references and amounts only, never secrets. Present on a captured outcome;
@@ -483,6 +498,9 @@ export function createTransactionLifecycleHandler(
             providerAmountMinor: providerResult.capturedMinor,
           },
           signedEvidence: providerResult.signedEvidence,
+          merchantId: payload.authority?.authorizedMerchantId,
+          walletId: payload.authority?.walletId,
+          currency: payload.currency,
         });
         throw new HandlerError(
           "payment.indeterminate",
@@ -541,6 +559,9 @@ export function createTransactionLifecycleHandler(
           providerReference: providerResult.providerReference,
           reconciliation,
           signedEvidence: providerResult.signedEvidence,
+          merchantId: payload.authority?.authorizedMerchantId,
+          walletId: payload.authority?.walletId,
+          currency: payload.currency,
         });
         throw new HandlerError(
           "reconciliation.mismatch",
@@ -567,6 +588,9 @@ export function createTransactionLifecycleHandler(
         providerReference: providerResult.providerReference,
         reconciliation,
         signedEvidence: providerResult.signedEvidence,
+        merchantId: payload.authority?.authorizedMerchantId,
+        walletId: payload.authority?.walletId,
+        currency: payload.currency,
       });
     },
   };

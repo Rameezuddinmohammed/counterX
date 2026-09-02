@@ -34,6 +34,7 @@ export const COUNTER_ID_KINDS = [
   "device",
   "registration",
   "command",
+  "buyer-notification",
 ] as const;
 
 export type CounterIdKind = (typeof COUNTER_ID_KINDS)[number];
