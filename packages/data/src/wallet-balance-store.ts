@@ -101,12 +101,35 @@ export class PostgresWalletBalanceStore {
     }
 
     return this.database.transaction(async (session) => {
-      const existing = await session.query<ExistingEventRow>(
-        `SELECT reference FROM wallet.balance_events
-          WHERE environment = $1 AND wallet_id = $2 AND reference = $3`,
-        [this.environment, request.walletId, request.reference],
+      // Atomically claim this reference FIRST: the INSERT's own PRIMARY KEY
+      // (environment, wallet_id, reference) is the atomic gate, not a
+      // preceding SELECT. A plain "SELECT then branch" here would leave a
+      // window where two concurrent calls for the SAME reference both see
+      // "not yet applied" and both credit the balance — Postgres serializes
+      // concurrent INSERTs on the same unique key (the second blocks until
+      // the first commits, then re-checks the conflict), so whichever call
+      // loses this INSERT is guaranteed to observe the winner's committed
+      // credit, never a stale read. Same technique as this codebase's
+      // step-ledger .claim() (apps/worker/src/real-lifecycle.ts).
+      const claimed = await session.query(
+        `INSERT INTO wallet.balance_events
+           (environment, wallet_id, reference, event_type, amount_minor, currency, provider_payment_id)
+         VALUES ($1, $2, $3, 'topup', $4, $5, $6)
+         ON CONFLICT (environment, wallet_id, reference) DO NOTHING`,
+        [
+          this.environment,
+          request.walletId,
+          request.reference,
+          request.amountMinor.toString(),
+          request.currency,
+          request.providerPaymentId,
+        ],
       );
-      if (existing.rows.length > 0) {
+
+      if (claimed.rowCount === 0) {
+        // Lost the claim: another call (this one or a genuine race) already
+        // applied this exact reference. Read the CURRENT balance, which by
+        // now reflects the winner's committed credit — never double-apply.
         const current = await this.#lockedBalance(session, request.walletId);
         return ok(
           Object.freeze({ alreadyApplied: true as const, balanceMinor: current.balanceMinor }),
@@ -120,21 +143,6 @@ export class PostgresWalletBalanceStore {
          DO UPDATE SET balance_minor = wallet.balances.balance_minor + EXCLUDED.balance_minor,
                         updated_at = clock_timestamp()`,
         [this.environment, request.walletId, request.amountMinor.toString(), request.currency],
-      );
-
-      await session.query(
-        `INSERT INTO wallet.balance_events
-           (environment, wallet_id, reference, event_type, amount_minor, currency, provider_payment_id)
-         VALUES ($1, $2, $3, 'topup', $4, $5, $6)
-         ON CONFLICT (environment, wallet_id, reference) DO NOTHING`,
-        [
-          this.environment,
-          request.walletId,
-          request.reference,
-          request.amountMinor.toString(),
-          request.currency,
-          request.providerPaymentId,
-        ],
       );
 
       const updated = await session.query<BalanceRow>(
@@ -166,6 +174,23 @@ export class PostgresWalletBalanceStore {
     }
 
     return this.database.transaction(async (session) => {
+      // Lock the wallet's balance row FIRST — before the idempotency check,
+      // not after. A concurrent debit for the SAME reference blocks here
+      // until the first transaction commits, so by the time it acquires the
+      // lock the first transaction's balance_events INSERT (below) is
+      // already visible: the idempotency check that follows is guaranteed
+      // to see it and short-circuit, rather than racing a stale "not yet
+      // applied" read against an in-flight sibling transaction. (Checking
+      // idempotency BEFORE this lock — as an earlier version of this method
+      // did — leaves exactly that window: two concurrent debits for the same
+      // reference could both observe "not applied" and both debit.)
+      const locked = await session.query<BalanceRow>(
+        `SELECT balance_minor, currency FROM wallet.balances
+          WHERE environment = $1 AND wallet_id = $2
+          FOR UPDATE`,
+        [this.environment, request.walletId],
+      );
+
       const existing = await session.query<ExistingEventRow>(
         `SELECT reference FROM wallet.balance_events
           WHERE environment = $1 AND wallet_id = $2 AND reference = $3`,
@@ -182,14 +207,6 @@ export class PostgresWalletBalanceStore {
         );
       }
 
-      // Lock the wallet's balance row so a concurrent debit for the same
-      // wallet serializes behind this transaction and observes our UPDATE.
-      const locked = await session.query<BalanceRow>(
-        `SELECT balance_minor, currency FROM wallet.balances
-          WHERE environment = $1 AND wallet_id = $2
-          FOR UPDATE`,
-        [this.environment, request.walletId],
-      );
       const row = locked.rows[0];
       const currentBalance = row !== undefined ? BigInt(row.balance_minor) : 0n;
       const currency = row?.currency ?? request.currency;
