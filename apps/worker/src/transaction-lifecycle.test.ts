@@ -5,6 +5,7 @@ import {
   HandlerError,
   type HandledJob,
   type PaymentAuthorizationPort,
+  type PaymentAuthorizationRequest,
   type PaymentAuthorizationResult,
   type ReceiptSink,
   type TransactionReceipt,
@@ -29,6 +30,25 @@ class RecordingSink implements ReceiptSink {
 function provider(result: PaymentAuthorizationResult): PaymentAuthorizationPort {
   return {
     authorizeAndCapture: (): Promise<PaymentAuthorizationResult> => Promise.resolve(result),
+  };
+}
+
+/** Records the exact request the handler builds, so a test can assert on it. */
+function recordingProvider(result: PaymentAuthorizationResult): {
+  readonly port: PaymentAuthorizationPort;
+  readonly requests: PaymentAuthorizationRequest[];
+} {
+  const requests: PaymentAuthorizationRequest[] = [];
+  return {
+    requests,
+    port: {
+      authorizeAndCapture: (
+        request: PaymentAuthorizationRequest,
+      ): Promise<PaymentAuthorizationResult> => {
+        requests.push(request);
+        return Promise.resolve(result);
+      },
+    },
   };
 }
 
@@ -88,6 +108,36 @@ describe("transaction lifecycle handler", () => {
       retryable: false,
     });
     expect(sink.receipts).toHaveLength(0);
+  });
+
+  it("threads authority.mandateId from the job payload through to the provider request (regression: parseAuthority previously dropped it, silently disabling the worker's own mandate-revocation re-check)", async () => {
+    const { port, requests } = recordingProvider({
+      status: "captured",
+      capturedMinor: 4999,
+      providerReference: "pay_mandate",
+    });
+    const sink = new RecordingSink();
+    const handler = createTransactionLifecycleHandler(port, sink);
+
+    const jobWithAuthority: HandledJob = {
+      id: "ctr_job_y" as HandledJob["id"],
+      type: "transaction.lifecycle",
+      payload: {
+        transactionId: "order-mandate-1",
+        amountMinor: 4999,
+        currency: "INR",
+        authority: {
+          walletId: "ctr_wallet_AAAAAAAAAAAAAAAAAAAAAA",
+          mandateId: "ctr_mandate_AAAAAAAAAAAAAAAAAAAA",
+        },
+      },
+    };
+
+    await handler.execute(jobWithAuthority, instant(1_000));
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.authority?.walletId).toBe("ctr_wallet_AAAAAAAAAAAAAAAAAAAAAA");
+    expect(requests[0]!.authority?.mandateId).toBe("ctr_mandate_AAAAAAAAAAAAAAAAAAAA");
   });
 
   it("rejects an invalid payload terminally", async () => {

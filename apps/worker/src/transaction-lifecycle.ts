@@ -350,6 +350,7 @@ function parseAuthority(raw: unknown): AuthorityEnvelope | undefined {
     revokedAtMs: num(r["revokedAtMs"]),
     authorizedMerchantId: str(r["authorizedMerchantId"]),
     walletId: str(r["walletId"]),
+    mandateId: str(r["mandateId"]),
   };
   return envelope;
 }

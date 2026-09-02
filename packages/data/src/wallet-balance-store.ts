@@ -270,6 +270,23 @@ export class PostgresWalletBalanceStore {
     return row !== undefined ? BigInt(row.balance_minor) : 0n;
   }
 
+  /**
+   * Whether this wallet has ever been topped up (a wallet.balances row
+   * exists), regardless of current balance. Distinct from getBalance(): a
+   * wallet that topped up once and has since spent everything still HAS a
+   * prepaid-balance account (balance 0n); a wallet that never topped up
+   * does not. Used at mandate-BINDING time to decide "is this wallet
+   * eligible for a prepaid-balance-backed mandate at all" — never as a
+   * funds-available check, which stays exclusively debit()'s job.
+   */
+  async hasBalanceAccount(walletId: string): Promise<boolean> {
+    const result = await this.database.query(
+      `SELECT 1 FROM wallet.balances WHERE environment = $1 AND wallet_id = $2`,
+      [this.environment, walletId],
+    );
+    return result.rows.length > 0;
+  }
+
   async #lockedBalance(
     session: DatabaseSession,
     walletId: string,
