@@ -81,7 +81,10 @@ export async function mandateBindingRoutesPlugin(
       const body = request.body as Record<string, unknown> | undefined;
       const envelope = body?.["envelope"];
       if (envelope === undefined || typeof envelope !== "object") {
-        sendValidationError(reply, "Field 'envelope' (a signed CTP counter.mandate.v1 envelope) is required");
+        sendValidationError(
+          reply,
+          "Field 'envelope' (a signed CTP counter.mandate.v1 envelope) is required",
+        );
         return;
       }
 

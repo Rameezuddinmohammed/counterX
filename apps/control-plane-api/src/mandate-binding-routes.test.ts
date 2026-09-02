@@ -156,7 +156,11 @@ describe("mandate-binding routes", () => {
 
   it("unauthenticated request returns 401", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", mandateBindingService: buildBindingService() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateBindingService: buildBindingService(),
+    });
     await server.ready();
 
     const envelope = await signedMandateEnvelope();
@@ -170,7 +174,11 @@ describe("mandate-binding routes", () => {
 
   it("a wallet-owner token for a DIFFERENT wallet gets 404, not 403 (existence-hiding)", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", mandateBindingService: buildBindingService() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateBindingService: buildBindingService(),
+    });
     await server.ready();
 
     const envelope = await signedMandateEnvelope();
@@ -186,7 +194,11 @@ describe("mandate-binding routes", () => {
 
   it("a plain-session (non-step-up) wallet-owner token is denied — granting spending authority requires step-up", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", mandateBindingService: buildBindingService() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateBindingService: buildBindingService(),
+    });
     await server.ready();
 
     const envelope = await signedMandateEnvelope();
@@ -202,7 +214,11 @@ describe("mandate-binding routes", () => {
 
   it("a step-up wallet-owner token with a valid, in-bounds signed mandate envelope succeeds (201)", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", mandateBindingService: buildBindingService() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateBindingService: buildBindingService(),
+    });
     await server.ready();
 
     const envelope = await signedMandateEnvelope();
@@ -221,7 +237,11 @@ describe("mandate-binding routes", () => {
 
   it("missing envelope field is a 400, not a 500", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", mandateBindingService: buildBindingService() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateBindingService: buildBindingService(),
+    });
     await server.ready();
 
     const token = await createWalletOwnerToken(WALLET_ID);

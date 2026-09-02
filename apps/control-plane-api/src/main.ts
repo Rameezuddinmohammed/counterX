@@ -356,7 +356,12 @@ const webhookRoutesOptions =
         razorpayWebhookSecret,
         ...(recurringMandateProvisioner !== undefined ? { recurringMandateProvisioner } : {}),
         ...(database !== undefined
-          ? { onShopifyFulfillmentWebhook: createFulfillmentWebhookHandler(database, runtimeEnvironment) }
+          ? {
+              onShopifyFulfillmentWebhook: createFulfillmentWebhookHandler(
+                database,
+                runtimeEnvironment,
+              ),
+            }
           : {}),
       }
     : undefined;

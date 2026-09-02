@@ -142,7 +142,10 @@ describe("MandateBindingService.bind", () => {
     const envelope = await signedMandateEnvelope();
     const tampered = {
       ...envelope,
-      payload: { ...envelope.payload, per_transaction_limit: { amount: 999_999_999, currency: "INR" } },
+      payload: {
+        ...envelope.payload,
+        per_transaction_limit: { amount: 999_999_999, currency: "INR" },
+      },
     };
 
     const result = await service.bind(WALLET_ID, tampered, new Date("2025-06-15T00:00:00.000Z"));

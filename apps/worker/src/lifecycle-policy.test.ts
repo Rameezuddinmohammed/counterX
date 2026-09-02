@@ -167,9 +167,9 @@ describe("createProductionPolicy — durable mandate-level revocation re-verific
       walletRevocationCheck: async () => false,
       mandateRevocationCheck: async () => true,
     });
-    expect(await p.allow(req(100, { walletId: "wallet-clean", mandateId: "mandate-revoked" }))).toBe(
-      false,
-    );
+    expect(
+      await p.allow(req(100, { walletId: "wallet-clean", mandateId: "mandate-revoked" })),
+    ).toBe(false);
   });
 });
 

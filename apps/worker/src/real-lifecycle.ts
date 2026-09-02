@@ -52,7 +52,11 @@
 
 import { randomBytes } from "node:crypto";
 
-import { createCanonicalError, instantFromEpochMilliseconds, serializeInstant } from "@counter/domain";
+import {
+  createCanonicalError,
+  instantFromEpochMilliseconds,
+  serializeInstant,
+} from "@counter/domain";
 import type { CanonicalError, IsoCurrencyCode, MerchantId, Money, Result } from "@counter/domain";
 import type { ActionOutcome } from "@counter/connector-sdk";
 import type { ShopifyConnector } from "@counter/shopify-connector";

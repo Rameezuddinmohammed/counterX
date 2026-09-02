@@ -43,7 +43,11 @@
 import { randomBytes } from "node:crypto";
 
 import type { Instant } from "@counter/domain";
-import { createCanonicalError, instantFromEpochMilliseconds, serializeInstant } from "@counter/domain";
+import {
+  createCanonicalError,
+  instantFromEpochMilliseconds,
+  serializeInstant,
+} from "@counter/domain";
 import type { CtpEnvelope, EvidencePayload, Signer } from "@counter/trust-protocol";
 import { buildUnsignedEnvelope, generateNonce, signEnvelope } from "@counter/trust-protocol";
 import type {

@@ -61,50 +61,44 @@ export async function merchantWebhookEndpointRoutesPlugin(
   registerRoutePermission(`POST:${POST_ROUTE}`, { permission: "identity.scope.manage" });
   registerRoutePermission(`GET:${GET_ROUTE}`, { permission: "identity.scope.read" });
 
-  fastify.post(
-    POST_ROUTE,
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const params = request.params as Record<string, string>;
-      const merchantId = params["merchantId"] ?? "";
+  fastify.post(POST_ROUTE, async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as Record<string, string>;
+    const merchantId = params["merchantId"] ?? "";
 
-      if (!verifyMerchantAccess(request, merchantId)) {
-        sendNotFound(reply);
+    if (!verifyMerchantAccess(request, merchantId)) {
+      sendNotFound(reply);
+      return;
+    }
+
+    const body = request.body as Record<string, unknown> | undefined;
+    const url = body?.["url"];
+    if (typeof url !== "string" || url.length === 0) {
+      sendValidationError(reply, "Field 'url' is required");
+      return;
+    }
+
+    try {
+      const registration = await store.register(merchantId, url);
+      void reply.status(200).send(registration);
+    } catch (error) {
+      if (error instanceof WebhookEndpointValidationError) {
+        sendValidationError(reply, error.message);
         return;
       }
+      throw error;
+    }
+  });
 
-      const body = request.body as Record<string, unknown> | undefined;
-      const url = body?.["url"];
-      if (typeof url !== "string" || url.length === 0) {
-        sendValidationError(reply, "Field 'url' is required");
-        return;
-      }
+  fastify.get(GET_ROUTE, async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as Record<string, string>;
+    const merchantId = params["merchantId"] ?? "";
 
-      try {
-        const registration = await store.register(merchantId, url);
-        void reply.status(200).send(registration);
-      } catch (error) {
-        if (error instanceof WebhookEndpointValidationError) {
-          sendValidationError(reply, error.message);
-          return;
-        }
-        throw error;
-      }
-    },
-  );
+    if (!verifyMerchantAccess(request, merchantId)) {
+      sendNotFound(reply);
+      return;
+    }
 
-  fastify.get(
-    GET_ROUTE,
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const params = request.params as Record<string, string>;
-      const merchantId = params["merchantId"] ?? "";
-
-      if (!verifyMerchantAccess(request, merchantId)) {
-        sendNotFound(reply);
-        return;
-      }
-
-      const status = await store.getStatus(merchantId);
-      void reply.status(200).send(status);
-    },
-  );
+    const status = await store.getStatus(merchantId);
+    void reply.status(200).send(status);
+  });
 }

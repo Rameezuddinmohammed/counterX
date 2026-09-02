@@ -41,7 +41,9 @@ class FakeDatabase {
       return { rows: this.hasStep ? [{ idempotency_key: TRANSACTION_ID }] : [] };
     }
     if (text.includes("SELECT authority_context FROM runtime.workflow_intents")) {
-      return { rows: this.authorityContext === null ? [] : [{ authority_context: this.authorityContext }] };
+      return {
+        rows: this.authorityContext === null ? [] : [{ authority_context: this.authorityContext }],
+      };
     }
     if (text.includes("INSERT INTO runtime.outbox_events")) {
       this.appendedRows.push({ text, values: values ?? [] });

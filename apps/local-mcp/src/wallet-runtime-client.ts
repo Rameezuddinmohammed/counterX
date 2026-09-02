@@ -31,7 +31,12 @@ export interface WalletNotificationsResult {
   readonly total: number;
 }
 
-export type WalletClientErrorKind = "network" | "timeout" | "unauthorized" | "server_error" | "not_found";
+export type WalletClientErrorKind =
+  | "network"
+  | "timeout"
+  | "unauthorized"
+  | "server_error"
+  | "not_found";
 
 export interface WalletClientError {
   readonly kind: WalletClientErrorKind;

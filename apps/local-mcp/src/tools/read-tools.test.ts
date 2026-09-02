@@ -25,7 +25,9 @@ import type {
 class FakeWalletRuntimeClient implements WalletRuntimeClient {
   #responses = new Map<string, WalletNotificationsResult>();
   failWith: WalletClientResult<WalletNotificationsResult> | undefined;
-  lastCall: { walletId: string; options?: { limit?: number; notificationType?: string } } | undefined;
+  lastCall:
+    | { walletId: string; options?: { limit?: number; notificationType?: string } }
+    | undefined;
 
   setResponse(walletId: string, response: WalletNotificationsResult): void {
     this.#responses.set(walletId, response);
@@ -336,7 +338,10 @@ describe("read-tools: notifications.list / invoices.get (Phase 2)", () => {
     );
     expect(result["status"]).toBe("indeterminate");
 
-    walletClient.failWith = { ok: false, error: { kind: "network", message: "Network request failed" } };
+    walletClient.failWith = {
+      ok: false,
+      error: { kind: "network", message: "Network request failed" },
+    };
     const result2 = textOf(
       await client.callTool({ name: "notifications.list", arguments: { wallet_id: "wallet-1" } }),
     );

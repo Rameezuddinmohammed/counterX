@@ -224,7 +224,10 @@ export async function runOutboxDispatchTick(
       await dispatchOutboxEvent(event, deps, logger);
       const markResult = await outbox.markDispatched([event.id], clock());
       if (!markResult.ok) {
-        logger.error("markDispatched failed", { eventId: event.id, error: markResult.error.message });
+        logger.error("markDispatched failed", {
+          eventId: event.id,
+          error: markResult.error.message,
+        });
         failed += 1;
         continue;
       }

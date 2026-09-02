@@ -15,7 +15,11 @@
  */
 import { afterAll, beforeAll, expect } from "vitest";
 import { describe as vitestDescribe, it as vitestIt } from "vitest";
-import { PostgresDatabase, PostgresRevocationStore, PostgresMandateRepository } from "@counter/data";
+import {
+  PostgresDatabase,
+  PostgresRevocationStore,
+  PostgresMandateRepository,
+} from "@counter/data";
 import { WalletRevocationService } from "@counter/wallet-application";
 import { WalletUserProvisioner } from "./wallet-user-store.js";
 import {

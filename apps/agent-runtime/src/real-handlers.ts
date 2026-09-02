@@ -273,7 +273,10 @@ async function checkMandateAuthority(
     return `Mandate status is '${mandate.status}', not 'active'`;
   }
   const nowMs = now.getTime();
-  if (nowMs < new Date(mandate.validFrom).getTime() || nowMs > new Date(mandate.validUntil).getTime()) {
+  if (
+    nowMs < new Date(mandate.validFrom).getTime() ||
+    nowMs > new Date(mandate.validUntil).getTime()
+  ) {
     return "Mandate is outside its validity window";
   }
   if (
@@ -346,7 +349,10 @@ function createTransactionCreateHandler(
       let buyerWalletId: string | undefined;
       let boundMandateId: string | undefined;
       if (input.ctpEnvelope !== undefined) {
-        if (!isCtpEnvelope(input.ctpEnvelope) || input.ctpEnvelope.type !== "counter.purchase-intent.v1") {
+        if (
+          !isCtpEnvelope(input.ctpEnvelope) ||
+          input.ctpEnvelope.type !== "counter.purchase-intent.v1"
+        ) {
           return errResult({
             kind: "unauthorized" as const,
             reason: "Malformed signed envelope (expected counter.purchase-intent.v1)",
@@ -385,7 +391,8 @@ function createTransactionCreateHandler(
         if (mandateId === undefined || mandateId.length === 0) {
           return errResult({
             kind: "unauthorized" as const,
-            reason: "Signed purchase-intent envelope carries no mandate_id — ungoverned agent requests are refused",
+            reason:
+              "Signed purchase-intent envelope carries no mandate_id — ungoverned agent requests are refused",
           });
         }
         const mandateDenial = await checkMandateAuthority(

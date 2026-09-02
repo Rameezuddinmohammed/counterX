@@ -35,7 +35,11 @@
  */
 import type { CtpEnvelope, KeyRegistry, MandatePayload } from "@counter/trust-protocol";
 import { isCtpEnvelope, verifyEnvelope } from "@counter/trust-protocol";
-import type { BuyerPolicyConstraints, MandateRepository, WalletMandate } from "@counter/wallet-domain";
+import type {
+  BuyerPolicyConstraints,
+  MandateRepository,
+  WalletMandate,
+} from "@counter/wallet-domain";
 import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
 
 /** The environment MandateService.issue() hardcodes into every mandate envelope it builds. */
@@ -63,7 +67,9 @@ export interface MandateBindingResult {
 }
 
 function moneyAmountToPaise(amount: { readonly amount: number | string }): bigint {
-  return typeof amount.amount === "string" ? BigInt(amount.amount) : BigInt(Math.trunc(amount.amount));
+  return typeof amount.amount === "string"
+    ? BigInt(amount.amount)
+    : BigInt(Math.trunc(amount.amount));
 }
 
 /**
@@ -142,10 +148,14 @@ export class MandateBindingService {
     envelopeInput: unknown,
     now: Date,
   ): Promise<
-    { readonly ok: true; readonly value: MandateBindingResult } | { readonly ok: false; readonly error: MandateBindingError }
+    | { readonly ok: true; readonly value: MandateBindingResult }
+    | { readonly ok: false; readonly error: MandateBindingError }
   > {
     if (!isCtpEnvelope(envelopeInput)) {
-      return { ok: false, error: { code: "INVALID_ENVELOPE", message: "Not a valid signed CTP envelope" } };
+      return {
+        ok: false,
+        error: { code: "INVALID_ENVELOPE", message: "Not a valid signed CTP envelope" },
+      };
     }
     if (envelopeInput.type !== "counter.mandate.v1") {
       return {
@@ -165,14 +175,20 @@ export class MandateBindingService {
       expectedEnvironment: MANDATE_ENVELOPE_ENVIRONMENT,
     });
     if (!verifyResult.ok) {
-      return { ok: false, error: { code: "SIGNATURE_INVALID", message: verifyResult.error.message } };
+      return {
+        ok: false,
+        error: { code: "SIGNATURE_INVALID", message: verifyResult.error.message },
+      };
     }
 
     const payload = envelope.payload;
     if (payload.wallet_id !== walletId) {
       return {
         ok: false,
-        error: { code: "WALLET_MISMATCH", message: "Envelope's wallet_id does not match the route's walletId" },
+        error: {
+          code: "WALLET_MISMATCH",
+          message: "Envelope's wallet_id does not match the route's walletId",
+        },
       };
     }
 
@@ -213,7 +229,8 @@ export class MandateBindingService {
         ok: false,
         error: {
           code: "EXCEEDS_PROVIDER_MANDATE",
-          message: "Requested merchant allowlist is not a subset of the provider mandate's eligible merchants",
+          message:
+            "Requested merchant allowlist is not a subset of the provider mandate's eligible merchants",
         },
       };
     }
@@ -225,7 +242,8 @@ export class MandateBindingService {
         ok: false,
         error: {
           code: "EXCEEDS_PROVIDER_MANDATE",
-          message: "Requested operations are not a subset of the provider mandate's eligible operations",
+          message:
+            "Requested operations are not a subset of the provider mandate's eligible operations",
         },
       };
     }
@@ -251,7 +269,8 @@ export class MandateBindingService {
       validUntil: payload.validity_end,
       issuedAt: now.toISOString(),
       consentAttestationDigest:
-        envelope.evidence_refs.find((e) => e.type === "consent-attestation")?.digest ?? envelope.payload_digest,
+        envelope.evidence_refs.find((e) => e.type === "consent-attestation")?.digest ??
+        envelope.payload_digest,
       status: "active",
       revocationLocator: payload.revocation_locator ?? `revoke:mandate:${payload.mandate_id}`,
       policyVersionId: payload.policy_version,

@@ -47,7 +47,11 @@ class AsyncInMemoryOutboxRepository implements AsyncOutboxRepository {
   ): Promise<Result<readonly OutboxEvent[], CanonicalError>> {
     return Promise.resolve(this.inner.append(events, now));
   }
-  claim(limit: number, owner: string, now: Instant): Promise<Result<readonly OutboxEvent[], CanonicalError>> {
+  claim(
+    limit: number,
+    owner: string,
+    now: Instant,
+  ): Promise<Result<readonly OutboxEvent[], CanonicalError>> {
     return Promise.resolve(this.inner.claim(limit, owner, now));
   }
   markDispatched(
@@ -63,7 +67,10 @@ class AsyncInMemoryOutboxRepository implements AsyncOutboxRepository {
   ): Promise<Result<void, CanonicalError>> {
     return Promise.resolve(this.inner.markFailed(id, errorClass, now));
   }
-  markDeadLetter(id: CounterId<"outbox-event">, owner: string): Promise<Result<void, CanonicalError>> {
+  markDeadLetter(
+    id: CounterId<"outbox-event">,
+    owner: string,
+  ): Promise<Result<void, CanonicalError>> {
     return Promise.resolve(this.inner.markDeadLetter(id, owner));
   }
 }
@@ -101,9 +108,10 @@ interface RecordedFetchCall {
   readonly body: string;
 }
 
-function fakeFetch(
-  responses: readonly { status: number }[],
-): { fetchImpl: typeof fetch; calls: RecordedFetchCall[] } {
+function fakeFetch(responses: readonly { status: number }[]): {
+  fetchImpl: typeof fetch;
+  calls: RecordedFetchCall[];
+} {
   const calls: RecordedFetchCall[] = [];
   let callIndex = 0;
   const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
@@ -150,7 +158,9 @@ describe("runOutboxDispatchTick", () => {
       fetchImpl,
     };
 
-    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () => instant(2_000));
+    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () =>
+      instant(2_000),
+    );
 
     expect(result).toEqual({ claimed: 1, dispatched: 1, failed: 0 });
     expect(calls).toHaveLength(0);
@@ -174,7 +184,11 @@ describe("runOutboxDispatchTick", () => {
       instant(1_000),
     );
     const webhookEndpoints = new FakeWebhookEndpoints();
-    webhookEndpoints.set(MERCHANT_ID, "https://merchant.example.com/webhooks/counter", "test-secret");
+    webhookEndpoints.set(
+      MERCHANT_ID,
+      "https://merchant.example.com/webhooks/counter",
+      "test-secret",
+    );
     const { fetchImpl, calls } = fakeFetch([{ status: 200 }]);
     const deps: OutboxDispatcherDeps = {
       webhookEndpoints,
@@ -182,7 +196,9 @@ describe("runOutboxDispatchTick", () => {
       fetchImpl,
     };
 
-    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () => instant(2_000));
+    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () =>
+      instant(2_000),
+    );
 
     expect(result).toEqual({ claimed: 1, dispatched: 1, failed: 0 });
     expect(calls).toHaveLength(1);
@@ -215,7 +231,9 @@ describe("runOutboxDispatchTick", () => {
       fetchImpl,
     };
 
-    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () => instant(2_000));
+    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () =>
+      instant(2_000),
+    );
 
     expect(result).toEqual({ claimed: 1, dispatched: 1, failed: 0 });
     expect(calls).toHaveLength(0);
@@ -271,7 +289,11 @@ describe("runOutboxDispatchTick", () => {
       instant(1_000),
     );
     const webhookEndpoints = new FakeWebhookEndpoints();
-    webhookEndpoints.set(MERCHANT_ID, "https://merchant.example.com/webhooks/counter", "test-secret");
+    webhookEndpoints.set(
+      MERCHANT_ID,
+      "https://merchant.example.com/webhooks/counter",
+      "test-secret",
+    );
     const { fetchImpl } = fakeFetch([{ status: 500 }]);
     const deps: OutboxDispatcherDeps = {
       webhookEndpoints,
@@ -279,7 +301,9 @@ describe("runOutboxDispatchTick", () => {
       fetchImpl,
     };
 
-    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () => instant(2_000));
+    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () =>
+      instant(2_000),
+    );
 
     expect(result).toEqual({ claimed: 1, dispatched: 0, failed: 1 });
     const event = repo.inner.getAll()[0]!;
@@ -305,7 +329,11 @@ describe("runOutboxDispatchTick", () => {
       instant(1_000),
     );
     const webhookEndpoints = new FakeWebhookEndpoints();
-    webhookEndpoints.set(MERCHANT_ID, "https://merchant.example.com/webhooks/counter", "test-secret");
+    webhookEndpoints.set(
+      MERCHANT_ID,
+      "https://merchant.example.com/webhooks/counter",
+      "test-secret",
+    );
     const deps: OutboxDispatcherDeps = {
       webhookEndpoints,
       buyerNotifications: new FakeBuyerNotifications(),
@@ -317,7 +345,9 @@ describe("runOutboxDispatchTick", () => {
     let clockMs = 2_000;
     let lastResult;
     for (let i = 0; i < 5; i += 1) {
-      lastResult = await runOutboxDispatchTick(repo, deps, config(), undefined, () => instant(clockMs));
+      lastResult = await runOutboxDispatchTick(repo, deps, config(), undefined, () =>
+        instant(clockMs),
+      );
       clockMs += 10_000_000; // comfortably past any exponential backoff window
     }
 
@@ -334,7 +364,9 @@ describe("runOutboxDispatchTick", () => {
       fetchImpl: fakeFetch([{ status: 200 }]).fetchImpl,
     };
 
-    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () => instant(2_000));
+    const result = await runOutboxDispatchTick(repo, deps, config(), undefined, () =>
+      instant(2_000),
+    );
 
     expect(result).toEqual({ claimed: 0, dispatched: 0, failed: 0 });
   });
