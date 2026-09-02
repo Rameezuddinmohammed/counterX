@@ -43,6 +43,14 @@ const protectedRelationsAtV4 = [
 // Migration 19 (wallet-revocations-and-mandates) added 2 more, same pattern
 // (ENABLE + FORCE ROW LEVEL SECURITY, no CREATE POLICY) - verified directly
 // against 0019's .up.sql before adding here.
+// Migration 21 (wallet-prepaid-balance) added 2 more (wallet.balances,
+// wallet.balance_events) and migration 22 (webhook-endpoints-and-buyer-
+// notifications) added 1 more (merchant.webhook_endpoints) — same pattern,
+// verified directly against each migration's .up.sql before adding here.
+// 0022 also forces RLS on runtime.buyer_notifications, but forcedRlsRelations()
+// only queries the identity/merchant/wallet schemas (see its definition
+// below), matching the existing runtime.receipts convention noted above, so
+// that table is correctly NOT listed here.
 const protectedRelationsAtLatest = [
   ...protectedRelationsAtV4,
   ["identity", "wallet_setup_tokens"],
@@ -61,6 +69,9 @@ const protectedRelationsAtLatest = [
   ["wallet", "recurring_payment_mandates"],
   ["wallet", "mandates"],
   ["wallet", "revocations"],
+  ["wallet", "balances"],
+  ["wallet", "balance_events"],
+  ["merchant", "webhook_endpoints"],
 ] as const;
 
 const identityFunctionSignatures = [
