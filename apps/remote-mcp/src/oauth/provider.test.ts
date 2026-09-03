@@ -67,7 +67,13 @@ interface Harness {
   now: { value: number };
 }
 
-function harness(overrides: { pendingFlowTtlMs?: number; grantTtlMs?: number } = {}): Harness {
+function harness(
+  overrides: {
+    pendingFlowTtlMs?: number;
+    grantTtlMs?: number;
+    onUpstreamCallbackError?: (error: unknown) => void;
+  } = {},
+): Harness {
   const clients = new InMemoryRemoteMcpClientRepository();
   const fetchMock = vi.fn(async () => jsonResponse(AUTH0_TOKENS));
   const now = { value: 1_700_000_000_000 };
@@ -385,6 +391,32 @@ describe("handleUpstreamCallback (leg 2: Auth0 -> us -> downstream)", () => {
     expect(url.searchParams.get("error")).toBe("server_error");
     expect(url.searchParams.get("error_description")).not.toContain("secret detail");
     expect(h.provider.grantCount).toBe(0);
+  });
+
+  it("reports the real cause of a failed Auth0 token exchange to onUpstreamCallbackError, server-side only", async () => {
+    // The browser-facing redirect above stays generic on purpose - this is
+    // what makes that failure diagnosable at all instead of leaving zero
+    // trace anywhere (the gap that made a real "Authorization failed"
+    // report untraceable in the deployed server's logs).
+    const onUpstreamCallbackError = vi.fn();
+    const h = harness({ onUpstreamCallbackError });
+    h.fetchMock.mockResolvedValue(
+      jsonResponse({ error: "invalid_grant", error_description: "secret detail" }, 403),
+    );
+    const client = await registerClient(h.provider);
+    const capture = captureRedirect();
+    await h.provider.authorize(
+      client,
+      { codeChallenge: "c", redirectUri: MCP_REDIRECT_URI },
+      capture.res,
+    );
+    const upstreamState = new URL(capture.url()).searchParams.get("state") as string;
+
+    await h.provider.handleUpstreamCallback({ code: "bad", state: upstreamState });
+
+    expect(onUpstreamCallbackError).toHaveBeenCalledTimes(1);
+    const [reportedError] = onUpstreamCallbackError.mock.calls[0] as [unknown];
+    expect(String(reportedError)).toContain("403");
   });
 });
 

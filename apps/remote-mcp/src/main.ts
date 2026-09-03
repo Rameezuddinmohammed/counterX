@@ -49,6 +49,13 @@ async function main(): Promise<void> {
     version: process.env["APP_VERSION"] ?? "0.1.0",
     environment: nodeEnvironment,
     logger: true,
+    // Previously silent by design (never leaked to the browser) - this is
+    // the ONLY server-side trace of an Auth0 token-exchange failure, which
+    // is otherwise indistinguishable in the logs from a client that simply
+    // never finished the flow. See provider.ts's onUpstreamCallbackError doc.
+    onUpstreamCallbackError: (error) => {
+      console.error(`${APP_NAME} failed to redeem Auth0's authorization code`, error);
+    },
   });
 
   // VAULT_TOKEN is a Vault periodic token (see vault-config.hcl) with no

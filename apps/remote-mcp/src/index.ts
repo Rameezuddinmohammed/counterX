@@ -71,6 +71,8 @@ export interface CreateServerOptions {
   readonly logger?: boolean | undefined;
   /** Injectable for tests (fake Auth0 HTTP layer). */
   readonly fetchImpl?: typeof fetch | undefined;
+  /** See CounterOAuthServerProviderOptions.onUpstreamCallbackError. */
+  readonly onUpstreamCallbackError?: (error: unknown) => void;
 }
 
 export interface RemoteMcpServer {
@@ -96,6 +98,9 @@ export async function createServer(options: CreateServerOptions): Promise<Remote
       ...(typeof options.jwks === "object" && options.jwks !== null ? { jwks: options.jwks } : {}),
     }),
     ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}),
+    ...(options.onUpstreamCallbackError !== undefined
+      ? { onUpstreamCallbackError: options.onUpstreamCallbackError }
+      : {}),
   });
 
   const serverOptions: ServerFactoryOptions = {
