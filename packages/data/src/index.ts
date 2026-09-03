@@ -113,6 +113,7 @@ export type {
   DebitRequest,
   DebitOutcome,
   DebitDenyCode,
+  BalanceEventSummary,
 } from "./wallet-balance-store.js";
 
 export { PostgresWebhookEndpointReadStore } from "./webhook-endpoint-read-store.js";

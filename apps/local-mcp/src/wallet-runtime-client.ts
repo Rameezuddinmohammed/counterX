@@ -1,9 +1,13 @@
 /**
  * Minimal wallet-scoped HTTP client to control-plane-api — Phase 2 of the
- * remote-MCP plan (notifications backbone). Serves notifications.list/
+ * remote-MCP plan (notifications backbone), extended in Phase 4
+ * (wallet-dashboard backend) with getMandates. Serves notifications.list/
  * invoices.get (tools/read-tools.ts), reading the real
  * GET /control/v1/wallets/:walletId/notifications route
- * (apps/control-plane-api/src/buyer-notification-routes.ts).
+ * (apps/control-plane-api/src/buyer-notification-routes.ts), and
+ * wallet.status, reading the real
+ * GET /control/v1/wallets/:walletId/mandates route
+ * (apps/control-plane-api/src/wallet-mandate-routes.ts).
  *
  * Deliberately much simpler than HttpMerchantRuntimeClient
  * (@counter/wallet-application): no manifest-verification step (there is
@@ -31,6 +35,27 @@ export interface WalletNotificationsResult {
   readonly total: number;
 }
 
+/** Wire shape of wallet-mandate-routes.ts's toWireMandate — bigint fields already stringified. */
+export interface WalletMandateSummary {
+  readonly mandateId: string;
+  readonly agentId: string;
+  readonly principalId: string;
+  readonly kid: string;
+  readonly paymentReferenceId: string;
+  readonly validFrom: string;
+  readonly validUntil: string;
+  readonly issuedAt: string;
+  readonly status: string;
+  readonly policyVersionId: string;
+  readonly constraints: unknown;
+}
+
+export interface WalletMandatesResult {
+  readonly walletId: string;
+  readonly mandates: readonly WalletMandateSummary[];
+  readonly total: number;
+}
+
 export type WalletClientErrorKind =
   | "network"
   | "timeout"
@@ -52,6 +77,8 @@ export interface WalletRuntimeClient {
     walletId: string,
     options?: { readonly limit?: number; readonly notificationType?: string },
   ): Promise<WalletClientResult<WalletNotificationsResult>>;
+  /** Currently-active mandates for a wallet — backs the wallet.status MCP tool. */
+  getMandates(walletId: string): Promise<WalletClientResult<WalletMandatesResult>>;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -75,8 +102,19 @@ export class HttpWalletRuntimeClient implements WalletRuntimeClient {
     if (options.limit !== undefined) query.set("limit", String(options.limit));
     if (options.notificationType !== undefined) query.set("type", options.notificationType);
     const suffix = query.toString().length > 0 ? `?${query.toString()}` : "";
-    const url = `${this.#baseUrl}/control/v1/wallets/${encodeURIComponent(walletId)}/notifications${suffix}`;
+    return this.#get<WalletNotificationsResult>(
+      `/control/v1/wallets/${encodeURIComponent(walletId)}/notifications${suffix}`,
+    );
+  }
 
+  async getMandates(walletId: string): Promise<WalletClientResult<WalletMandatesResult>> {
+    return this.#get<WalletMandatesResult>(
+      `/control/v1/wallets/${encodeURIComponent(walletId)}/mandates`,
+    );
+  }
+
+  async #get<T>(path: string): Promise<WalletClientResult<T>> {
+    const url = `${this.#baseUrl}${path}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
     try {
@@ -96,7 +134,7 @@ export class HttpWalletRuntimeClient implements WalletRuntimeClient {
         return { ok: false, error: { kind: "server_error", message: `HTTP ${response.status}` } };
       }
 
-      const body = (await response.json()) as WalletNotificationsResult;
+      const body = (await response.json()) as T;
       return { ok: true, value: body };
     } catch (error: unknown) {
       if (error instanceof Error && error.name === "AbortError") {

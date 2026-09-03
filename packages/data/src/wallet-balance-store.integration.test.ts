@@ -251,6 +251,39 @@ databaseDescribe("PostgresWalletBalanceStore (real Postgres)", () => {
   );
 
   it(
+    "listRecentEvents returns real committed events, newest first, respecting the limit",
+    async () => {
+      const walletId = await seedWallet();
+      await store.topUp({
+        walletId,
+        reference: `pay_${walletId}_topup1`,
+        amountMinor: 500_000n,
+        currency: "INR",
+        providerPaymentId: `pay_${walletId}_topup1`,
+      });
+      await store.debit({
+        walletId,
+        reference: `txn_${walletId}_1`,
+        amountMinor: 49_900n,
+        currency: "INR",
+      });
+
+      const all = await store.listRecentEvents(walletId, 20);
+      expect(all).toHaveLength(2);
+      // Newest first: the debit (second write) precedes the topup (first write).
+      expect(all[0]!.eventType).toBe("debit");
+      expect(all[0]!.amountMinor).toBe(49_900n);
+      expect(all[1]!.eventType).toBe("topup");
+      expect(all[1]!.providerPaymentId).toBe(`pay_${walletId}_topup1`);
+
+      const limited = await store.listRecentEvents(walletId, 1);
+      expect(limited).toHaveLength(1);
+      expect(limited[0]!.eventType).toBe("debit");
+    },
+    databaseHookTimeout,
+  );
+
+  it(
     "CONCURRENCY: simultaneous debits for DIFFERENT references never both succeed past the balance",
     async () => {
       const walletId = await seedWallet();

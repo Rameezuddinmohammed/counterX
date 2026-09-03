@@ -46,7 +46,10 @@ import type { MerchantPaymentConnectionStoreLike } from "./merchant-payment-conn
 import { merchantWebhookEndpointRoutesPlugin } from "./merchant-webhook-endpoint-routes.js";
 import type { MerchantWebhookEndpointStoreLike } from "./merchant-webhook-endpoint-store.js";
 import { buyerNotificationRoutesPlugin } from "./buyer-notification-routes.js";
-import type { PostgresBuyerNotificationStore } from "@counter/data";
+import type { PostgresBuyerNotificationStore, PostgresWalletBalanceStore } from "@counter/data";
+import { walletBalanceRoutesPlugin } from "./wallet-balance-routes.js";
+import { walletMandateRoutesPlugin } from "./wallet-mandate-routes.js";
+import type { MandateRepository } from "@counter/wallet-domain";
 import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
 import type { MerchantReadinessServiceLike } from "./merchant-readiness-store.js";
 import { merchantManifestRoutesPlugin } from "./merchant-manifest-routes.js";
@@ -211,6 +214,22 @@ export interface CreateServerOptions {
    * optional-feature pattern as merchantWebhookEndpointStore.
    */
   readonly buyerNotificationStore?: PostgresBuyerNotificationStore | undefined;
+  /**
+   * Only when present is /control/v1/wallets/:walletId/balance registered —
+   * Phase 4 of the remote-MCP plan (wallet-dashboard backend): real prepaid
+   * balance + recent balance_events for a wallet. Same optional-feature
+   * pattern as buyerNotificationStore.
+   */
+  readonly walletBalanceStore?: PostgresWalletBalanceStore | undefined;
+  /**
+   * Only when present is /control/v1/wallets/:walletId/mandates (GET)
+   * registered — Phase 4 of the remote-MCP plan: a wallet's currently-active
+   * mandates, read-only. Independent of mandateBindingService (which only
+   * registers the POST that CREATES a mandate) — this can be wired even
+   * when no binding service is configured, since it only reads the same
+   * durable mandateRepo every binding path already writes to.
+   */
+  readonly mandateRepository?: MandateRepository | undefined;
   /**
    * Only when present is /control/v1/merchant-applications/:merchantId/
    * readiness registered — Step 5, same optional-feature pattern.
@@ -395,6 +414,22 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.buyerNotificationStore !== undefined) {
     void server.register(buyerNotificationRoutesPlugin, {
       store: options.buyerNotificationStore,
+    });
+  }
+
+  // Buyer-facing wallet balance (Phase 4, wallet-dashboard backend) — only
+  // registered when a store is wired.
+  if (options?.walletBalanceStore !== undefined) {
+    void server.register(walletBalanceRoutesPlugin, {
+      store: options.walletBalanceStore,
+    });
+  }
+
+  // Buyer-facing active-mandates listing (Phase 4, wallet-dashboard
+  // backend) — only registered when a repository is wired.
+  if (options?.mandateRepository !== undefined) {
+    void server.register(walletMandateRoutesPlugin, {
+      mandateRepository: options.mandateRepository,
     });
   }
 

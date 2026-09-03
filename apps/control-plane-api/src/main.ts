@@ -404,6 +404,13 @@ const serverOptions: CreateServerOptions = {
           runtimeEnvironment,
         ),
         buyerNotificationStore: new PostgresBuyerNotificationStore(database, runtimeEnvironment),
+        // Phase 4 (wallet-dashboard backend): both walletBalanceStore and
+        // mandateRepo above already exist unconditionally whenever database
+        // is present (constructed earlier for the prepaid-mandate-binding
+        // and revocation-cascade paths respectively) — reused here, not a
+        // second instance.
+        ...(walletBalanceStore !== undefined ? { walletBalanceStore } : {}),
+        ...(mandateRepo !== undefined ? { mandateRepository: mandateRepo } : {}),
         ...(readinessService !== undefined
           ? {
               merchantReadinessService: readinessService,

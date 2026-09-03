@@ -33,6 +33,8 @@ export type {
   WalletRuntimeClient,
   WalletNotification,
   WalletNotificationsResult,
+  WalletMandateSummary,
+  WalletMandatesResult,
   WalletClientResult,
   WalletClientError,
   WalletClientErrorKind,
