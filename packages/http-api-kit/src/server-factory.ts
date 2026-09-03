@@ -23,6 +23,8 @@ export interface ServerFactoryOptions {
     readonly issuer: string;
     readonly audience: string;
     readonly jwks: JWTVerifyGetKey | string;
+    /** See AuthPluginOptions.resourceMetadataUrl. */
+    readonly resourceMetadataUrl?: string;
   };
   readonly health?: {
     readonly readinessChecker?: ReadinessChecker;
@@ -79,6 +81,9 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     audience: options.auth.audience,
     jwks: options.auth.jwks,
     skipRoutes,
+    ...(options.auth.resourceMetadataUrl !== undefined
+      ? { resourceMetadataUrl: options.auth.resourceMetadataUrl }
+      : {}),
   });
   void server.register(actorExtractionPlugin, { skipRoutes: actorSkipRoutes });
   void server.register(scopeEnforcementPlugin, {

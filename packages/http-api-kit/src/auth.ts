@@ -14,6 +14,21 @@ export interface AuthPluginOptions {
   readonly audience: string;
   readonly jwks: JWTVerifyGetKey | string;
   readonly skipRoutes?: readonly string[];
+  /**
+   * When set, every 401 response carries a
+   * `WWW-Authenticate: Bearer resource_metadata="<url>"` header (RFC 9728 /
+   * RFC 6750) pointing at this server's own OAuth Protected Resource
+   * Metadata document. Only meaningful for a server that IS an MCP resource
+   * server (currently just apps/remote-mcp) — an MCP client's discovery flow
+   * starts by hitting the resource unauthenticated and reading this header
+   * to find out where the metadata (and from there, the authorization
+   * server) lives; without it, discovery has nothing to follow and silently
+   * falls back to asking a human to configure the connector by hand. Found
+   * by actually pointing a real Claude.ai Connector at the deployed server —
+   * every other check (the metadata endpoints themselves, the 401 status
+   * code) was already correct in isolation, but this header was missing.
+   */
+  readonly resourceMetadataUrl?: string;
 }
 
 export interface JwtPayload {
@@ -76,8 +91,23 @@ function isSkipped(request: FastifyRequest, skipRoutes: readonly string[]): bool
 export const authPlugin = fp(
   async (fastify: FastifyInstance, options: AuthPluginOptions): Promise<void> => {
     const getKey = resolveJwks(options.jwks);
-    const { issuer, audience } = options;
+    const { issuer, audience, resourceMetadataUrl } = options;
     const skipRoutes = options.skipRoutes ?? [];
+
+    const sendUnauthenticated = (reply: FastifyReply, wwwAuthErrorParam?: string): FastifyReply => {
+      const error = createCanonicalError("UNAUTHENTICATED");
+      if (resourceMetadataUrl !== undefined) {
+        const params = [
+          wwwAuthErrorParam !== undefined ? `error="${wwwAuthErrorParam}"` : undefined,
+          `resource_metadata="${resourceMetadataUrl}"`,
+        ].filter((part): part is string => part !== undefined);
+        void reply.header("WWW-Authenticate", `Bearer ${params.join(", ")}`);
+      }
+      void reply.status(401).send({
+        error: { code: error.code, message: error.message },
+      });
+      return reply;
+    };
 
     fastify.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
       if (isSkipped(request, skipRoutes)) {
@@ -86,11 +116,7 @@ export const authPlugin = fp(
 
       const authorization = request.headers.authorization;
       if (typeof authorization !== "string" || !authorization.startsWith("Bearer ")) {
-        const error = createCanonicalError("UNAUTHENTICATED");
-        void reply.status(401).send({
-          error: { code: error.code, message: error.message },
-        });
-        return reply;
+        return sendUnauthenticated(reply);
       }
 
       const token = authorization.slice(7);
@@ -104,11 +130,7 @@ export const authPlugin = fp(
 
         jwtPayloads.set(request, payload as unknown as JwtPayload);
       } catch {
-        const error = createCanonicalError("UNAUTHENTICATED");
-        void reply.status(401).send({
-          error: { code: error.code, message: error.message },
-        });
-        return reply;
+        return sendUnauthenticated(reply, "invalid_token");
       }
     });
   },

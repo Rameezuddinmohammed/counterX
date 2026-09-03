@@ -402,6 +402,15 @@ describe("authPlugin", () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it("does not set WWW-Authenticate when resourceMetadataUrl is not configured (every service but apps/remote-mcp)", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/protected",
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.headers["www-authenticate"]).toBeUndefined();
+  });
+
   it("skips auth for configured skip routes", async () => {
     const response = await server.inject({
       method: "GET",
@@ -419,6 +428,52 @@ describe("authPlugin", () => {
       url: "/health?probe=1&another=value",
     });
     expect(response.statusCode).toBe(200);
+  });
+});
+
+describe("authPlugin with resourceMetadataUrl (apps/remote-mcp)", () => {
+  let server: FastifyInstance;
+  const resourceMetadataUrl =
+    "https://counter-remote-mcp.fly.dev/.well-known/oauth-protected-resource/mcp";
+
+  beforeEach(async () => {
+    const { jwks } = await getTestKeys();
+    server = Fastify();
+    await server.register(authPlugin, {
+      issuer: TEST_ISSUER,
+      audience: TEST_AUDIENCE,
+      jwks,
+      resourceMetadataUrl,
+    });
+    server.get("/mcp", async (_request, reply) => {
+      void reply.send({ ok: true });
+    });
+    await server.ready();
+  });
+
+  afterEach(async () => {
+    await server.close();
+  });
+
+  it("sets WWW-Authenticate with resource_metadata on a missing token, so an MCP client's discovery flow has something to follow", async () => {
+    const response = await server.inject({ method: "GET", url: "/mcp" });
+    expect(response.statusCode).toBe(401);
+    expect(response.headers["www-authenticate"]).toBe(
+      `Bearer resource_metadata="${resourceMetadataUrl}"`,
+    );
+  });
+
+  it('sets WWW-Authenticate with error="invalid_token" on a rejected token', async () => {
+    const token = await createExpiredToken();
+    const response = await server.inject({
+      method: "GET",
+      url: "/mcp",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(401);
+    expect(response.headers["www-authenticate"]).toBe(
+      `Bearer error="invalid_token", resource_metadata="${resourceMetadataUrl}"`,
+    );
   });
 });
 
