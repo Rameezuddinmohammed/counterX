@@ -316,6 +316,54 @@ describe("the full authorization-code dance over real HTTP", () => {
     await expect(replay.json()).resolves.toMatchObject({ error: "invalid_grant" });
   });
 
+  it("rate-limits each real client by its own IP once trust proxy is configured, not one shared bucket for everyone behind Fly's edge", async () => {
+    // Real bug, found only by a real OAuth attempt through the deployed
+    // server (never by local testing, which never sends this header): Fly's
+    // edge proxy adds X-Forwarded-For to every request. express-rate-limit's
+    // default keyGenerator only trusts that header when the mounted Express
+    // app's own "trust proxy" setting says how many hops to trust - see
+    // oauth-router.ts. Below that config, two things are true and both are
+    // worth asserting directly rather than trusting a status code:
+    //  1. express-rate-limit does NOT throw/500 on the mismatch - its
+    //     validation errors are caught internally and only logged (confirmed
+    //     by reading its source), so a bare "does the request still succeed"
+    //     assertion would pass whether or not this is configured correctly
+    //     and would never catch a regression here.
+    //  2. what actually changes is which key each request is rate-limited
+    //     under: without trust proxy, request.ip is always the same TCP peer
+    //     address (Fly's own edge, identical for every real user), so every
+    //     distinct client would silently share ONE rate-limit budget - a
+    //     starvation bug, not a crash. With it configured, two requests
+    //     carrying different X-Forwarded-For values must be counted
+    //     separately.
+    harness = await startHarness();
+    const h = harness;
+    const clientId = await registerViaDcr(h);
+
+    const authorizeAs = async (forwardedFor: string) => {
+      const { challenge } = pkcePair();
+      const url = new URL(`${h.baseUrl}/authorize`);
+      url.searchParams.set("client_id", clientId);
+      url.searchParams.set("redirect_uri", MCP_REDIRECT_URI);
+      url.searchParams.set("response_type", "code");
+      url.searchParams.set("code_challenge", challenge);
+      url.searchParams.set("code_challenge_method", "S256");
+      return fetch(url, { redirect: "manual", headers: { "x-forwarded-for": forwardedFor } });
+    };
+
+    const first = await authorizeAs("203.0.113.7");
+    expect(first.status).toBe(302);
+    const second = await authorizeAs("203.0.113.99");
+    expect(second.status).toBe(302);
+
+    // Both are "this IP's first request" - if trust proxy were unset, the
+    // second would instead read one lower than the first (same shared key).
+    const firstRemaining = first.headers.get("ratelimit-remaining");
+    const secondRemaining = second.headers.get("ratelimit-remaining");
+    expect(firstRemaining).not.toBeNull();
+    expect(secondRemaining).toBe(firstRemaining);
+  });
+
   it("rejects a token request whose PKCE verifier does not match (SDK-side check)", async () => {
     harness = await startHarness();
     const clientId = await registerViaDcr(harness);

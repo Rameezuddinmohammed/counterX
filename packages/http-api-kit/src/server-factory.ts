@@ -70,6 +70,14 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
   const server = Fastify({
     logger: options.logger ?? false,
     disableRequestLogging: true,
+    // Every app built by this factory deploys on Fly, and Fly's edge proxy
+    // is the only thing that can ever reach these apps directly, adding
+    // exactly one X-Forwarded-For hop. `1` trusts that one hop for
+    // Fastify's own request.ip resolution (used for correlation/logging,
+    // and by anything mounted on top - see oauth-router.ts's comment on
+    // @fastify/express for why that dependency in particular needs this
+    // set here, at the Fastify level, and not only on the Express side).
+    trustProxy: 1,
   });
 
   // Register plugins in order (order matters for hooks)
