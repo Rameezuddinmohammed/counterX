@@ -48,7 +48,7 @@ The local process is a client of hosted Counter APIs, not a privileged database/
 |---|---|
 | Hosted data | account, policy, consent, public keys, mandates, opaque test references, claims, receipts |
 | Local secrets | agent private key and local device refresh credential through `SecureKeyStore` |
-| MCP transport | local stdio for the pilot; exact official SDK/profile pinned at Gate A |
+| MCP transport | local stdio remains supported for buyers who prefer it (`apps/local-mcp`, unchanged); **as of Phase 3, a remote Streamable-HTTP MCP transport (`apps/remote-mcp`) is also available and is the primary onboarding path** — see "Remote MCP transport and key custody" below for the reversal and its mitigations |
 | Human auth | hosted identity-provider boundary with step-up; provider selected at Gate A |
 | Principal consent | hosted Wallet service attestation after authenticated step-up, with assurance/evidence |
 | Agent intent | signed locally by registered agent key |
@@ -57,7 +57,7 @@ The local process is a client of hosted Counter APIs, not a privileged database/
 | Time trigger | local scheduler while signer is running, only if mandate explicitly allows it |
 | Deployment | hosted APIs/console use foundation AWS target; local signer needs no AWS credentials |
 
-Official MCP SDK documentation describes local stdio as a supported transport and TypeScript servers exposing tools/resources. The exact SDK/profile is selected and pinned during implementation rather than inferred from a moving “latest” version: [MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/). Content is summarized for compliance.
+Official MCP SDK documentation describes local stdio as a supported transport and TypeScript servers exposing tools/resources. The exact SDK/profile is selected and pinned during implementation rather than inferred from a moving “latest” version: [MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/). Content is summarized for compliance. The same SDK also ships a Streamable HTTP server transport and a full OAuth 2.1 authorization-server toolkit — the remote transport described below builds on that same pinned SDK, not a separate one.
 
 ## Components and Interfaces
 
@@ -133,6 +133,91 @@ interface SecureKeyStore {
 The API does not expose private-key export. Windows secure storage is the first implementation; macOS Keychain and Linux Secret Service are separate adapters before broad distribution. Process memory is minimized/zeroed where supported. Debug logs and crash reports never include key or credential bytes.
 
 If a device is lost, recovery revokes the public key, mandates, and device credential; the private key is not recovered from Counter. A new key/device is registered.
+
+## Remote MCP transport and key custody (Phase 3 — reversal, decided and documented here)
+
+**This is a genuine reversal of this document's original principle** ("local stdio by default; no
+unauthenticated network listener", Security and privacy section below) — recorded explicitly, not
+silently contradicted. The founder decided in principle that the buyer must only ever connect to
+one thing — the Counter remote MCP URL — ruling out a "read-only remote, purchases stay local"
+hybrid that would keep private keys client-side. That means signing keys move server-side. This
+section records the concrete custody mechanism chosen to implement that decision, the alternatives
+considered, and the accepted residual risk.
+
+### Decision: HashiCorp Vault Transit engine, self-hosted on Fly
+
+**Chosen:** HashiCorp Vault, Transit secrets engine, `ed25519` key type, run as a new Fly app
+(`apps/remote-mcp`'s only trusted collaborator for signing — no other service holds a Vault token
+with signing rights).
+
+**Confirmed by real execution, not documentation reading** (per this repo's own source-of-truth
+hierarchy in `CLAUDE.md` — this codebase has a documented history of static claims about
+crypto/wiring turning out wrong): a real Vault 1.17.6 binary was run locally in dev mode, an
+`ed25519` Transit key was created with `exportable=false` (the private key can never leave Vault
+through any API call), a message was signed through Vault's `transit/sign` HTTP endpoint, and the
+resulting 64-byte signature was verified successfully using the exact `@noble/ed25519`
+`verifyAsync()` call this repo's own `packages/trust-protocol/src/verify.ts` uses to check CTP
+envelopes — confirming Vault's Ed25519 output is bit-compatible with the app's existing verification
+path with no format translation needed. A tampered-message negative control correctly failed
+verification.
+
+**Alternatives considered and why they weren't chosen:**
+
+- **AWS Cloud KMS.** `docs/architecture/adr/0006-signing-key-boundaries.md` (Accepted, 2025-02-15)
+  names AWS KMS + Secrets Manager as the default for production signing infrastructure — but that
+  ADR inherits its AWS assumption from `docs/architecture/adr/0009-aws-pilot-target.md`, which
+  specified AWS `ap-south-1` (ECS Fargate, RDS, KMS) as the pilot target. **That target was never
+  actually realized: the system that is actually running today is deployed to Fly.io with Supabase
+  Postgres** (confirmed directly — `fly.worker.toml`, `fly.control-plane-api.toml`,
+  `fly.agent-runtime.toml` exist; no Terraform/OpenTofu state, AWS credentials, or AWS CLI exist
+  anywhere in this environment). Flagging this per `CLAUDE.md`'s instruction to surface — not
+  silently resolve — a conflict between a canonical document (ADR-0006) and the running system: ADR
+  0006/0009's AWS assumption is stale relative to actual deployed infrastructure and should be
+  revisited as its own item, separate from this phase. Introducing AWS KMS here would mean
+  provisioning an entirely new cloud account/credential set this stack doesn't otherwise touch,
+  purely for this one purpose.
+- **GCP Cloud KMS.** Same objection the original Phase 3 plan raised: a new cloud provider this
+  stack doesn't use anywhere else today. No GCP account or credentials exist in this environment
+  either.
+- **Vault wins on fit, not just elimination:** it runs on the infrastructure already in active use
+  (Fly, already authenticated in this environment) with no new external account/billing
+  relationship, and its `ed25519` Transit support was the one directly confirmed by execution above.
+
+### Residual risk: self-hosted Vault means Counter, not a cloud provider, owns unseal/availability
+
+A managed KMS (AWS/GCP) durably protects its own root key material and handles unseal transparently.
+A self-hosted Vault instance's Shamir unseal key(s) are Counter's own operational responsibility: if
+the Vault Fly VM restarts, it comes back **sealed** and the remote-mcp app's signing capability (and
+therefore every buyer's ability to transact through the remote connector) is unavailable until
+someone runs `vault operator unseal`. This is the accepted trade-off of not depending on a second
+cloud provider. Mitigations:
+
+- Small unseal threshold appropriate to a solo-founder pilot (not a large enterprise Shamir split);
+  unseal key material is held outside this repository and outside any service that itself depends on
+  Vault being unsealed (i.e., not stored as a Fly secret on the Vault app itself).
+- Vault's audit log records every sign operation (buyer/tenant key id, timestamp, requester) —
+  auditable per ADR-0006's "key operations are auditable" requirement.
+- The Vault token held by `apps/remote-mcp` is scoped to a least-privilege policy: `sign`/`verify`
+  under `transit/*` and key-creation for provisioning new buyer keys only — never `transit/keys/*`
+  export, never Vault's own root/management capabilities.
+- Blast radius of a compromised remote-mcp Vault token is bounded by the **existing, independent**
+  defense-in-depth layers this platform already has: per-buyer key isolation (one Transit key per
+  buyer, not one shared key), spend ceilings and merchant allowlists enforced by `checkMandateAuthority`
+  and `createProductionPolicy` (unchanged by this phase — signing a bad intent still can't spend past
+  policy), real-time balance checks at debit time, and instant mandate revocation.
+- A Vault outage degrades to "no new signatures" (fail closed), not "signatures with a stale or wrong
+  key" — Vault returns an error, not silently-wrong output, when sealed or when a key is revoked.
+
+### Multi-tenant key resolution
+
+The existing `SecureKeyStore` interface (`packages/wallet-domain/src/secure-key-store.ts`) is
+single-owner — one store, one passphrase-derived unlock, matching one stdio process per buyer. It is
+**not reused as-is** for the remote transport; a new `VaultSecureKeyStore` is added
+(`packages/wallet-domain`) implementing a multi-tenant shape that threads a buyer/tenant identifier
+through key resolution per authenticated request, backed by one Vault Transit key per buyer (key
+name derived from the buyer's stable wallet/agent id, never a shared key). The existing
+`FileSecureKeyStore`/`InMemorySecureKeyStore` are untouched and remain what `apps/local-mcp` uses for
+buyers who keep the local-stdio model.
 
 ## Data Models
 
@@ -348,7 +433,11 @@ Threats include compromised AI host, prompt injection, malicious MCP client, loc
 
 Controls include:
 
-- local stdio by default; no unauthenticated network listener;
+- local stdio remains available for buyers who choose it; **as of Phase 3, the primary path is a
+  remote MCP transport with server-side, KMS-backed signing** — see "Remote MCP transport and key
+  custody" above for the reversal, the concrete mitigations, and why this is still not a bare
+  unauthenticated listener (OAuth 2.1-gated, per-buyer key isolation, unchanged policy/limit
+  enforcement);
 - if a loopback callback is used, random path/state, one-time verifier, strict host/origin, and DNS-rebinding protections;
 - OS secure storage and non-exporting application interface;
 - signed current policy/mandate and monotonic revocation checks;
