@@ -108,6 +108,14 @@ export async function createServer(options: CreateServerOptions): Promise<Remote
       issuer: options.auth0.tokenIssuer,
       audience: options.auth0.audience,
       jwks: options.jwks ?? `${options.auth0.issuerBaseUrl}/.well-known/jwks.json`,
+      // Lets a 401 from /mcp carry a WWW-Authenticate header pointing an MCP
+      // client's discovery flow at this exact resource's metadata document
+      // (RFC 9728) - without it, discovery has nothing to follow and a
+      // client falls back to asking a human to configure the connector by
+      // hand. Same path the SDK's own mcpAuthMetadataRouter serves this at
+      // (see oauth-router.ts) - confirmed by pointing a real Claude.ai
+      // Connector at the deployed server and finding the gap.
+      resourceMetadataUrl: `${options.publicBaseUrl}/.well-known/oauth-protected-resource${MCP_PATH}`,
     },
     // Every path the OAuth dance itself lives on. A client calling these has
     // no token yet by definition — requiring one would make the flow
