@@ -1,0 +1,40 @@
+# Counter — HashiCorp Vault (Transit engine), the multi-tenant Ed25519 signing
+# backend for apps/remote-mcp (Phase 3). See vault-config.hcl for the server
+# config and .kiro/specs/counter-agent-wallet/design.md for why Vault, not a
+# cloud KMS, was chosen.
+#
+# Deliberately has NO [http_service] / [[services]] block: this app is never
+# exposed to the public internet. It is reachable only from other apps in
+# this Fly org over the private network, at counter-vault.internal:8200.
+#
+# Deliberately has no autostop/autoscale: unlike the other Counter services,
+# a sealed Vault (which is what a restarted Vault always comes back as)
+# cannot serve signing requests until someone runs `vault operator unseal`.
+# Scaling this to zero on idle would mean the remote MCP connector silently
+# breaks the next time a buyer tries to transact. It stays running
+# continuously instead, at a small fixed Fly cost.
+app = "counter-vault"
+primary_region = "sin"
+
+[build]
+  image = "hashicorp/vault:1.17.6"
+
+[[files]]
+  guest_path = "/vault/config/vault.hcl"
+  local_path = "vault-config.hcl"
+
+[[mounts]]
+  source      = "counter_vault_data"
+  destination = "/vault/file"
+
+# hashicorp/vault's default image CMD is ["server", "-dev"] (in-memory,
+# auto-unsealed, ignores the mounted config's storage/listener) — override to
+# plain "server" so the entrypoint's production branch actually honors
+# vault-config.hcl's file storage backend instead of silently running in
+# throwaway dev mode.
+[processes]
+  app = "server"
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = 256

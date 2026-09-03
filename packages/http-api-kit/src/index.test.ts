@@ -409,6 +409,17 @@ describe("authPlugin", () => {
     });
     expect(response.statusCode).toBe(200);
   });
+
+  it("skips auth for a skip-listed route even when it carries a query string", async () => {
+    // e.g. an OAuth authorize redirect or callback, which always carries
+    // query parameters (client_id, code, state, ...) - request.url includes
+    // them, so the skip check must compare against the pathname only.
+    const response = await server.inject({
+      method: "GET",
+      url: "/health?probe=1&another=value",
+    });
+    expect(response.statusCode).toBe(200);
+  });
 });
 
 describe("actorExtractionPlugin", () => {

@@ -54,9 +54,16 @@ function resolveJwks(jwks: JWTVerifyGetKey | string): JWTVerifyGetKey {
  * arbitrary URL an attacker constructs — it's an exact match against the
  * server's own declared route table, same trust level as the literal-path
  * check already used here.
+ *
+ * request.url is the raw request target and includes the query string
+ * (e.g. "/authorize?client_id=..." for an OAuth authorize redirect), so the
+ * literal-path checks compare against the pathname only — otherwise any
+ * skip-listed route that legitimately receives query parameters (an OAuth
+ * callback, an authorize redirect) would never match and would be
+ * incorrectly authenticated.
  */
 function isSkipped(request: FastifyRequest, skipRoutes: readonly string[]): boolean {
-  const path = request.url;
+  const path = request.url.split("?")[0] ?? request.url;
   const routePattern = request.routeOptions?.url;
   for (const route of skipRoutes) {
     if (path === route || path.startsWith(route + "/") || routePattern === route) {

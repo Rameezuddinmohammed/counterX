@@ -25,6 +25,19 @@ export { registerReadTools } from "./tools/read-tools.js";
 export { registerWriteTools } from "./tools/write-tools.js";
 export type { WriteToolDependencies } from "./tools/write-tools.js";
 
+// Re-exported so apps/remote-mcp can build the same wallet-scoped read
+// client over the remote transport instead of forking this file. The class
+// and its behaviour are unchanged; only its visibility outside this package.
+export { HttpWalletRuntimeClient } from "./wallet-runtime-client.js";
+export type {
+  WalletRuntimeClient,
+  WalletNotification,
+  WalletNotificationsResult,
+  WalletClientResult,
+  WalletClientError,
+  WalletClientErrorKind,
+} from "./wallet-runtime-client.js";
+
 // ---------------------------------------------------------------------------
 // Denylist: tools that must NEVER be exposed locally
 // ---------------------------------------------------------------------------
