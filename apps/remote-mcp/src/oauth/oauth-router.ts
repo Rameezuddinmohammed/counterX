@@ -74,6 +74,39 @@ export async function registerOAuthRoutes(
 
   await server.register(fastifyExpress);
 
+  // Fly's edge proxy sits in front of every real request and adds its own
+  // X-Forwarded-For hop. Discovered by a real OAuth attempt through the
+  // deployed server logging ERR_ERL_UNEXPECTED_X_FORWARDED_FOR, not by
+  // reading the code - and reading the code afterwards turned up a second,
+  // more consequential layer to the same bug (see server-factory.ts's
+  // `trustProxy: 1`, which is the actual fix for it):
+  //
+  //   1. This line only silences express-rate-limit's own warning. Its
+  //      default keyGenerator throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+  //      when `request.app.get("trust proxy") === false` (Express's
+  //      default) and an X-Forwarded-For header is present - but that
+  //      throw is caught internally and only logged (see
+  //      express-rate-limit's `wrappedValidations`), so on its own this
+  //      line changes nothing about request handling, only log noise.
+  //   2. The rate limiter's actual per-client KEY comes from `request.ip`.
+  //      @fastify/express's enhanceRequest hook sets `req.raw.ip = req.ip`
+  //      on every request BEFORE Express ever sees it - i.e. Fastify's own,
+  //      already-resolved IP is written as a plain property on the object
+  //      Express treats as its request, which shadows Express's own
+  //      trust-proxy-aware `req.ip` getter entirely. So the app-level
+  //      setting below cannot affect the key generator's real behavior -
+  //      only Fastify's `trustProxy` option can, since that's what actually
+  //      produces the value that ends up on `req.raw.ip`. Without it, every
+  //      real client behind Fly's edge collapses onto Fastify's own
+  //      loopback-facing peer address - one shared rate-limit budget for
+  //      everyone, not a crash. Verified with a real assertion on the
+  //      `ratelimit-remaining` header in server.test.ts, not just a status
+  //      code (a bare 200/302 check passes either way, per point 1).
+  //
+  // Kept anyway, for the warning and for defensive correctness if
+  // @fastify/express's shadowing behavior ever changes.
+  server.express.set("trust proxy", 1);
+
   server.use(
     mcpAuthRouter({
       provider,
