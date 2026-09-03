@@ -11,8 +11,17 @@ primary_region = "sin"
   internal_port = 8080
   force_https = true
   auto_start_machines = true
-  auto_stop_machines = true
-  min_machines_running = 0
+  # Kept always-on (was 0) - Auth0's Post-Login Action calls this app's
+  # /control/v1/wallet-users/provision route synchronously with a short
+  # execution timeout. A cold start here (~7-9s observed) exceeds that
+  # timeout and Auth0 aborts the login with `access_denied` /
+  # `ACTION_ERROR_TIMEOUT` - reproduced for real via a live remote-mcp
+  # connector attempt, not inferred. Same tradeoff as counter-vault's own
+  # always-on config: a small fixed Fly cost buys reliable login instead of
+  # an intermittent race against a wake-up delay. Founder approved the cost
+  # explicitly (2026-09-03) rather than this being assumed.
+  auto_stop_machines = false
+  min_machines_running = 1
 
 [[vm]]
   size = "shared-cpu-1x"
