@@ -145,6 +145,7 @@ const protectedRelations = [
   "wallet.recurring_payment_mandates",
   "wallet.revocations",
   "wallet.scopes",
+  "wallet.vault_keys",
 ] as const;
 
 const expectedPolicyNames = [

@@ -84,6 +84,7 @@ export type { PaymentConnectionReadResult } from "./payment-connection-read-stor
 export { PostgresRevocationStore } from "./revocation-store.js";
 export { PostgresMandateRepository } from "./mandate-repository.js";
 export { PostgresCtpKeyRegistry } from "./ctp-key-registry.js";
+export { PostgresVaultKeyRepository } from "./vault-key-repository.js";
 export { policyConfigs } from "./policy-schema.js";
 
 export { PostgresReceiptStore } from "./receipt-store.js";

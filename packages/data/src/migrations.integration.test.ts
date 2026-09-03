@@ -51,6 +51,8 @@ const protectedRelationsAtV4 = [
 // only queries the identity/merchant/wallet schemas (see its definition
 // below), matching the existing runtime.receipts convention noted above, so
 // that table is correctly NOT listed here.
+// Migration 23 (remote-mcp-vault-keys) added 1 more (wallet.vault_keys) -
+// same pattern, verified directly against 0023's .up.sql before adding here.
 const protectedRelationsAtLatest = [
   ...protectedRelationsAtV4,
   ["identity", "wallet_setup_tokens"],
@@ -72,6 +74,7 @@ const protectedRelationsAtLatest = [
   ["wallet", "balances"],
   ["wallet", "balance_events"],
   ["merchant", "webhook_endpoints"],
+  ["wallet", "vault_keys"],
 ] as const;
 
 const identityFunctionSignatures = [

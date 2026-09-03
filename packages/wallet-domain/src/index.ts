@@ -63,6 +63,18 @@ export type {
 export { InMemorySecureKeyStore } from "./in-memory-key-store.js";
 export { FileSecureKeyStore, defaultWalletKeyStorePath } from "./file-key-store.js";
 export { WindowsSecureKeyStore } from "./windows-key-store.js";
+export {
+  VaultSecureKeyStore,
+  InMemoryVaultKeyRepository,
+  vaultTransitKeyName,
+} from "./vault-key-store.js";
+export type {
+  VaultSecureKeyStoreOptions,
+  VaultKeyRepository,
+  VaultKeyRecord,
+  VaultKeyStatus,
+  CreateVaultKeyInput,
+} from "./vault-key-store.js";
 
 // Buyer policy types
 export type {
