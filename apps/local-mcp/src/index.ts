@@ -77,10 +77,17 @@ export function isDeniedTool(toolName: string): boolean {
  * separate wallet-scoped read client (Phase 2 of the remote-MCP plan) for
  * notifications.list/invoices.get — independent of writeDeps since a wallet
  * read client has nothing to do with consequential purchase tools.
+ *
+ * `boundWalletId`, when present, is the ONE wallet this server instance is
+ * scoped to (apps/remote-mcp always has this — see mcp-route.ts's own
+ * session model docs; apps/local-mcp's main-real.ts does not pass one today,
+ * so wallet.list keeps its previous stubbed behaviour there unchanged). Used
+ * only by wallet.list below — everything else is unaffected.
  */
 export function createMcpServer(
   writeDeps?: WriteToolDependencies,
   walletClient?: WalletRuntimeClient,
+  boundWalletId?: string,
 ): McpServer {
   const server = new McpServer({
     name: APP_NAME,
@@ -100,13 +107,22 @@ export function createMcpServer(
     registerWriteTools(server, writeDeps);
   }
 
-  // Register wallet list tool
+  // Register wallet list tool. An authenticated MCP session (local or
+  // remote) is never scoped to more than one wallet — see mcp-route.ts's own
+  // "an MCP session belongs to exactly one WALLET" invariant — so when the
+  // caller knows which one, the honest answer is that single wallet, not an
+  // unconditional "not implemented" (which previously made a genuinely
+  // connected, working wallet look inaccessible — found live, 2026-09-03,
+  // via a real Claude.ai Connector attempt asking "check my wallet status").
   server.tool("wallet.list", "List wallets accessible to the current principal.", {}, async () => {
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ wallets: [], status: "not_implemented" }),
+          text:
+            boundWalletId === undefined
+              ? JSON.stringify({ wallets: [], status: "not_implemented" })
+              : JSON.stringify({ wallets: [{ wallet_id: boundWalletId }], status: "ok" }),
         },
       ],
     };

@@ -235,7 +235,11 @@ async function createSession(input: {
   // surface, the denylist and the write-tool policy prechecks are the same
   // code the local transport runs. Only the transport and the key custody
   // differ between local and remote.
-  const server = createMcpServer({ keyStore, merchantClient, revocationStore }, walletClient);
+  const server = createMcpServer(
+    { keyStore, merchantClient, revocationStore },
+    walletClient,
+    walletId,
+  );
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
