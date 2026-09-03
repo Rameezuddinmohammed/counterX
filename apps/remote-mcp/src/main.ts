@@ -56,6 +56,23 @@ async function main(): Promise<void> {
     onUpstreamCallbackError: (error) => {
       console.error(`${APP_NAME} failed to redeem Auth0's authorization code`, error);
     },
+    // A genuine Auth0-side denial (e.g. Attack Protection, or a Post-Login
+    // Action calling api.access.deny()) — this is the ONLY place
+    // error_description would ever surface; disableRequestLogging on this
+    // app means the incoming callback query string itself is never logged.
+    onUpstreamDenied: ({ error, errorDescription }) => {
+      console.error(`${APP_NAME} Auth0 denied the authorization request`, {
+        error,
+        errorDescription,
+      });
+    },
+    // The downstream client (e.g. Claude's backend) failed to redeem a code
+    // WE issued, after Auth0's own leg already succeeded — e.g. it arrived
+    // after DEFAULT_GRANT_TTL_MS, or after a scale-to-zero restart wiped the
+    // in-process grant. Previously indistinguishable from "never tried".
+    onGrantRejected: (reason) => {
+      console.error(`${APP_NAME} rejected a downstream code redemption`, { reason });
+    },
   });
 
   // VAULT_TOKEN is a Vault periodic token (see vault-config.hcl) with no

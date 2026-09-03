@@ -145,6 +145,38 @@ export interface CounterOAuthServerProviderOptions {
    * tests that intentionally exercise this path stay quiet unless they ask.
    */
   readonly onUpstreamCallbackError?: (error: unknown) => void;
+  /**
+   * Called whenever Auth0 itself redirects back to /oauth/callback with an
+   * `error` param — i.e. Auth0 (or a Post-Login Action it ran) denied the
+   * request before ever issuing a code. This is a DIFFERENT failure class
+   * from onUpstreamCallbackError above (which only fires once we already
+   * have a code and the redemption call itself fails): a genuine upstream
+   * denial never reaches that path at all. Before this hook existed, this
+   * branch had ZERO server-side trace — combined with disableRequestLogging
+   * on this app's Fastify instance, a real `access_denied` from Auth0 (with
+   * its actual error_description — the one thing that would explain WHY)
+   * was silently forwarded to the browser and discarded, never logged
+   * anywhere. Optional and defaults to a no-op, same reasoning as above.
+   */
+  readonly onUpstreamDenied?: (details: {
+    readonly error: string;
+    readonly errorDescription: string | undefined;
+  }) => void;
+  /**
+   * Called whenever the DOWNSTREAM MCP client's own code redemption
+   * (POST /token, the SDK's handler calling challengeForAuthorizationCode /
+   * exchangeAuthorizationCode) is rejected — code not found, already
+   * consumed, expired, or issued to a different client. The reason sent
+   * back to the client stays the same generic "invalid_grant" either way
+   * (see #requireLiveGrant's own comment on why); this is server-side only.
+   * Same motivation as onUpstreamDenied: this app has disableRequestLogging
+   * on, so without this hook a real client (e.g. Claude's backend) failing
+   * to redeem a code we issued — for instance because our single-machine,
+   * in-process #grants Map lost it to a scale-to-zero restart, or the
+   * client simply took longer than DEFAULT_GRANT_TTL_MS to call back — was
+   * invisible here even though Auth0's OWN side had already reported success.
+   */
+  readonly onGrantRejected?: (reason: string) => void;
 }
 
 /** A browser round-trip through a login page. Generous but bounded. */
@@ -191,6 +223,11 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
   readonly #pendingFlowTtlMs: number;
   readonly #grantTtlMs: number;
   readonly #onUpstreamCallbackError: (error: unknown) => void;
+  readonly #onUpstreamDenied: (details: {
+    error: string;
+    errorDescription: string | undefined;
+  }) => void;
+  readonly #onGrantRejected: (reason: string) => void;
 
   readonly #pendingUpstreamFlows = new Map<string, PendingUpstreamFlow>();
   readonly #grants = new Map<string, StoredGrant>();
@@ -215,6 +252,8 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
     this.#pendingFlowTtlMs = options.pendingFlowTtlMs ?? DEFAULT_PENDING_FLOW_TTL_MS;
     this.#grantTtlMs = options.grantTtlMs ?? DEFAULT_GRANT_TTL_MS;
     this.#onUpstreamCallbackError = options.onUpstreamCallbackError ?? (() => {});
+    this.#onUpstreamDenied = options.onUpstreamDenied ?? (() => {});
+    this.#onGrantRejected = options.onGrantRejected ?? (() => {});
   }
 
   /** The fixed callback URI a human must allowlist in the Auth0 application. */
@@ -406,6 +445,14 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
     }
 
     if (typeof query.error === "string" && query.error.length > 0) {
+      // Server-side only, same as onUpstreamCallbackError below — the
+      // browser-facing redirect is unchanged, but this is otherwise the
+      // ONLY place Auth0's real error_description (e.g. why a Post-Login
+      // Action denied access) would ever be visible.
+      this.#onUpstreamDenied({
+        error: query.error,
+        errorDescription: query.error_description,
+      });
       return {
         kind: "redirect",
         url: buildErrorRedirect(flow, query.error, query.error_description),
@@ -524,18 +571,22 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
   #requireLiveGrant(client: OAuthClientInformationFull, authorizationCode: string): StoredGrant {
     const grant = this.#grants.get(authorizationCode);
     if (grant === undefined) {
+      this.#onGrantRejected("not_found");
       throw new InvalidGrantError("Authorization code is invalid or has expired");
     }
     if (grant.consumed) {
+      this.#onGrantRejected("already_consumed");
       throw new InvalidGrantError("Authorization code has already been used");
     }
     if (this.#now() - grant.createdAt > this.#grantTtlMs) {
       this.#grants.delete(authorizationCode);
+      this.#onGrantRejected("expired");
       throw new InvalidGrantError("Authorization code is invalid or has expired");
     }
     if (grant.clientId !== client.client_id) {
       // Same message as "not found" on purpose: a client must not be able to
       // probe for another client's outstanding codes.
+      this.#onGrantRejected("client_mismatch");
       throw new InvalidGrantError("Authorization code is invalid or has expired");
     }
     return grant;
