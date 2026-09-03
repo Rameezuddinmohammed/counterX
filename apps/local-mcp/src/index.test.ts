@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
   APP_NAME,
   isDeniedTool,
@@ -10,6 +12,32 @@ import {
 describe("@counter/local-mcp", () => {
   it("exposes its app identity", () => {
     expect(APP_NAME).toBe("@counter/local-mcp");
+  });
+});
+
+describe("wallet.list", () => {
+  async function callWalletList(boundWalletId?: string): Promise<Record<string, unknown>> {
+    const server = createMcpServer(undefined, undefined, boundWalletId);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "test-client", version: "0.1.0" });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const result = await client.callTool({ name: "wallet.list", arguments: {} });
+    const content = (result.content as Array<{ type: string; text: string }>)[0];
+    return JSON.parse(content?.text ?? "{}") as Record<string, unknown>;
+  }
+
+  it("keeps the previous not_implemented stub when no wallet is bound (local-mcp today)", async () => {
+    await expect(callWalletList(undefined)).resolves.toEqual({
+      wallets: [],
+      status: "not_implemented",
+    });
+  });
+
+  it("honestly reports the session's own single wallet when one is bound (apps/remote-mcp)", async () => {
+    await expect(callWalletList("ctr_wallet_I5rsr86W9WUgbDG_dbcjIA")).resolves.toEqual({
+      wallets: [{ wallet_id: "ctr_wallet_I5rsr86W9WUgbDG_dbcjIA" }],
+      status: "ok",
+    });
   });
 });
 
