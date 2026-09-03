@@ -16,7 +16,11 @@ describe("renewVaultTokenOnce", () => {
       }),
     );
 
-    const result = await renewVaultTokenOnce("http://vault.internal:8200", "hvs.test-token", fetchImpl);
+    const result = await renewVaultTokenOnce(
+      "http://vault.internal:8200",
+      "hvs.test-token",
+      fetchImpl,
+    );
 
     expect(result).toEqual({ leaseDurationSeconds: 2_592_000 });
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -35,17 +39,17 @@ describe("renewVaultTokenOnce", () => {
         new Response(JSON.stringify({ errors: ["permission denied"] }), { status: 403 }),
       );
 
-    await expect(renewVaultTokenOnce("http://vault.internal:8200", "hvs.expired", fetchImpl)).rejects.toThrow(
-      /403/,
-    );
+    await expect(
+      renewVaultTokenOnce("http://vault.internal:8200", "hvs.expired", fetchImpl),
+    ).rejects.toThrow(/403/);
   });
 
   it("throws if Vault's response has no auth.lease_duration (defensive — never silently succeed on a malformed response)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ auth: {} }));
 
-    await expect(renewVaultTokenOnce("http://vault.internal:8200", "hvs.test-token", fetchImpl)).rejects.toThrow(
-      /lease_duration/,
-    );
+    await expect(
+      renewVaultTokenOnce("http://vault.internal:8200", "hvs.test-token", fetchImpl),
+    ).rejects.toThrow(/lease_duration/);
   });
 });
 
@@ -62,7 +66,9 @@ describe("startVaultTokenRenewal", () => {
     // A Response's body can only be read once, so a fresh instance is
     // needed per call - mockResolvedValue would hand back the SAME
     // (already-consumed) Response on every renewal attempt.
-    const fetchImpl = vi.fn().mockImplementation(async () => jsonResponse({ auth: { lease_duration: 2_592_000 } }));
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(async () => jsonResponse({ auth: { lease_duration: 2_592_000 } }));
     const onRenewed = vi.fn();
 
     const handle = startVaultTokenRenewal({
@@ -112,7 +118,9 @@ describe("startVaultTokenRenewal", () => {
   });
 
   it("stop() clears the interval so it never keeps the process alive after shutdown", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ auth: { lease_duration: 2_592_000 } }));
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ auth: { lease_duration: 2_592_000 } }));
 
     const handle = startVaultTokenRenewal({
       vaultAddr: "http://vault.internal:8200",
