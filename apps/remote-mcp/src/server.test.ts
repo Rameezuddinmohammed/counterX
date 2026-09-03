@@ -478,6 +478,29 @@ describe("/mcp authentication and wallet gating", () => {
     expect(response.status).toBe(401);
   });
 
+  it("answers a CORS preflight for /mcp without requiring auth (real bug: a browser-based client's actual POST never got sent at all)", async () => {
+    // /mcp is called directly from a browser tab (Claude.ai web), not just
+    // server-to-server. A CORS preflight (OPTIONS) request never carries
+    // credentials - that's the whole point of a preflight - but this route
+    // previously ran through the SAME authPlugin as every other request and
+    // got 401'd. The browser then never sent the real POST at all: no
+    // server-side trace of the failure anywhere, no login page, nothing -
+    // just a generic "couldn't connect" in the client. Reproduced against
+    // the real deployed server before this was understood as the cause.
+    harness = await startHarness();
+    const response = await fetch(`${harness.baseUrl}/mcp`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://claude.ai",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type,authorization,mcp-protocol-version",
+      },
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://claude.ai");
+    expect(response.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+
   it("rejects a merchant_user token (403) — a non-wallet actor has no MCP session", async () => {
     harness = await startHarness();
     const response = await postMcp(harness, initializeRequest, {
