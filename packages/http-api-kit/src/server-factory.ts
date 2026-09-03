@@ -5,6 +5,7 @@
  * Supports graceful shutdown on SIGTERM/SIGINT.
  */
 import Fastify, { type FastifyInstance } from "fastify";
+import fastifyCors from "@fastify/cors";
 import type { JWTVerifyGetKey } from "jose";
 import { correlationPlugin } from "./correlation.js";
 import { idempotencyPlugin } from "./idempotency.js";
@@ -55,6 +56,22 @@ export interface ServerFactoryOptions {
   readonly skipActorClaimsRoutes?: readonly string[];
   readonly scopeEnforcement?: ScopeEnforcementOptions;
   readonly logger?: boolean;
+  /**
+   * Opt-in browser CORS support (unset = no CORS handling at all, today's
+   * default for every existing app). Real bug this fixes for apps/remote-mcp:
+   * a CORS preflight (`OPTIONS`) request never carries credentials - that's
+   * the whole point of a preflight - but authPlugin's onRequest hook ran for
+   * every method including OPTIONS, so it 401'd the preflight itself before
+   * a browser client's real request was ever sent. A Claude.ai web client
+   * calling /mcp directly hit exactly this: the browser saw the failed
+   * preflight and never issued the real POST at all - invisible to our own
+   * logs, since the request never reached us. Registered FIRST, before
+   * authPlugin, specifically so its OPTIONS short-circuit happens before any
+   * auth check runs; @fastify/cors handles both concerns (skipping auth-
+   * adjacent hooks for preflight AND answering it with the right headers) in
+   * one place, standard practice for exactly this failure mode.
+   */
+  readonly cors?: { readonly origin: boolean | string | readonly string[] };
 }
 
 export function createHttpServer(options: ServerFactoryOptions): FastifyInstance {
@@ -80,7 +97,16 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     trustProxy: 1,
   });
 
-  // Register plugins in order (order matters for hooks)
+  // Register plugins in order (order matters for hooks). CORS goes first,
+  // specifically so its OPTIONS short-circuit runs before authPlugin's
+  // onRequest hook - see the `cors` option's doc comment above.
+  if (options.cors !== undefined) {
+    const origin = options.cors.origin;
+    const corsOrigin: boolean | string | string[] = Array.isArray(origin)
+      ? [...origin]
+      : (origin as boolean | string);
+    void server.register(fastifyCors, { origin: corsOrigin });
+  }
   void server.register(errorHandlerPlugin);
   void server.register(correlationPlugin);
   void server.register(idempotencyPlugin);

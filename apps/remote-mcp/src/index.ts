@@ -127,6 +127,16 @@ export async function createServer(options: CreateServerOptions): Promise<Remote
     // impossible to start. /mcp is deliberately NOT in this list.
     skipAuthRoutes: [...OAUTH_PUBLIC_ROUTES],
     logger: options.logger ?? false,
+    // /mcp is called directly from a browser tab (Claude.ai web), not just
+    // server-to-server - see server-factory.ts's `cors` option doc for the
+    // real bug this fixes. `true` reflects the request's own Origin, the
+    // same effectively-permissive posture the MCP SDK's own OAuth routers
+    // already use for /register, /token, etc. (they bundle the `cors`
+    // npm package internally - confirmed by reading their source) - safe
+    // here because /mcp authenticates via an explicit Bearer header the
+    // browser never attaches automatically (unlike a cookie), so a wildcard
+    // origin doesn't leak credentials to a page that didn't ask for them.
+    cors: { origin: true },
   };
 
   const server = createHttpServer(serverOptions);
