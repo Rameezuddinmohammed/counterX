@@ -15,6 +15,7 @@ import { createServer, APP_NAME, MCP_PATH } from "./index.js";
 import { loadConfig } from "./config.js";
 import { PostgresRemoteMcpClientRepository } from "./oauth/client-repository.js";
 import { createVaultKeyStoreFactory } from "./key-store-factory.js";
+import { startVaultTokenRenewal } from "./vault-token-renewal.js";
 
 const nodeEnvironment = process.env["NODE_ENV"] ?? "production";
 const NON_PRODUCTION_ENVIRONMENTS = ["local", "test", "development"];
@@ -50,6 +51,21 @@ async function main(): Promise<void> {
     logger: true,
   });
 
+  // VAULT_TOKEN is a Vault periodic token (see vault-config.hcl) with no
+  // fixed expiry as long as something renews it before each 30-day window
+  // closes — this is that something. A renewal failure is loud (visible in
+  // logs) but never crashes the process; see vault-token-renewal.ts.
+  const tokenRenewal = startVaultTokenRenewal({
+    vaultAddr: config.vaultAddr,
+    vaultToken: config.vaultToken,
+    onRenewed: (leaseDurationSeconds) => {
+      console.log(`${APP_NAME} renewed its Vault token`, { leaseDurationSeconds });
+    },
+    onError: (error) => {
+      console.error(`${APP_NAME} FAILED to renew its Vault token — will retry`, error);
+    },
+  });
+
   const address = await server.listen({ port: config.port, host: "0.0.0.0" });
   console.log(`${APP_NAME} listening on ${address}`, {
     mcpEndpoint: `${config.publicBaseUrl}${MCP_PATH}`,
@@ -62,6 +78,7 @@ async function main(): Promise<void> {
   });
 
   process.on("SIGTERM", () => {
+    tokenRenewal.stop();
     void server.close().then(() => database.close());
   });
 }

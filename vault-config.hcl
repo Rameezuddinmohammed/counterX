@@ -26,3 +26,23 @@ ui       = false
 # cannot be enabled. Accepted for this pilot node: it has no swap configured
 # by default on a shared-cpu Fly VM. Documented here, not silently disabled.
 disable_mlock = true
+
+# ---------------------------------------------------------------------------
+# apps/remote-mcp's credential: a PERIODIC token, not a fixed-TTL one
+# ---------------------------------------------------------------------------
+# The `remote-mcp-signer` policy/token (created by a one-time setup script,
+# not by this config file) is issued as a Vault PERIODIC token:
+#   vault token create -policy=remote-mcp-signer -no-default-policy -orphan -period=720h
+# A periodic token's expiry is always "period" (30 days here) from its LAST
+# renewal, not from creation, with no absolute max-age ceiling as long as
+# something renews it inside each window. apps/remote-mcp does that itself
+# (src/vault-token-renewal.ts renews every 6 hours) - this is the Vault-
+# native way to get a service credential that never has to be manually
+# rotated on a calendar, without ever being a literally-permanent secret. A
+# fixed long TTL (e.g. 1 or 10 years) was considered and rejected: it is not
+# actually rotation, just a bigger number with the same eventual-expiry
+# problem deferred rather than solved.
+#
+# If this token is ever lost, revoked, or the app is down for a full period
+# with no renewal, reissue it with the same command against a real root/
+# admin token and set the new value as apps/remote-mcp's VAULT_TOKEN secret.
