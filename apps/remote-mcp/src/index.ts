@@ -73,6 +73,11 @@ export interface CreateServerOptions {
   readonly fetchImpl?: typeof fetch | undefined;
   /** See CounterOAuthServerProviderOptions.onUpstreamCallbackError. */
   readonly onUpstreamCallbackError?: (error: unknown) => void;
+  /** See CounterOAuthServerProviderOptions.onUpstreamDenied. */
+  readonly onUpstreamDenied?: (details: {
+    readonly error: string;
+    readonly errorDescription: string | undefined;
+  }) => void;
 }
 
 export interface RemoteMcpServer {
@@ -100,6 +105,9 @@ export async function createServer(options: CreateServerOptions): Promise<Remote
     ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}),
     ...(options.onUpstreamCallbackError !== undefined
       ? { onUpstreamCallbackError: options.onUpstreamCallbackError }
+      : {}),
+    ...(options.onUpstreamDenied !== undefined
+      ? { onUpstreamDenied: options.onUpstreamDenied }
       : {}),
   });
 

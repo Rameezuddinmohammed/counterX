@@ -72,6 +72,7 @@ function harness(
     pendingFlowTtlMs?: number;
     grantTtlMs?: number;
     onUpstreamCallbackError?: (error: unknown) => void;
+    onUpstreamDenied?: (details: { error: string; errorDescription: string | undefined }) => void;
   } = {},
 ): Harness {
   const clients = new InMemoryRemoteMcpClientRepository();
@@ -364,6 +365,38 @@ describe("handleUpstreamCallback (leg 2: Auth0 -> us -> downstream)", () => {
     expect(url.searchParams.get("error_description")).toBe("User cancelled");
     expect(url.searchParams.get("state")).toBe("s-9");
     expect(h.fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a real Auth0-side denial to onUpstreamDenied, server-side only", async () => {
+    // Before this hook existed, this exact branch (Auth0 redirecting back
+    // with its OWN error, before we ever see a code) had no server-side
+    // trace at all — combined with disableRequestLogging, a real
+    // access_denied from Auth0 (e.g. from Attack Protection or a Post-Login
+    // Action) was silently forwarded to the browser and never logged
+    // anywhere, which is exactly what made a real "Authorization failed"
+    // report undiagnosable.
+    const onUpstreamDenied = vi.fn();
+    const h = harness({ onUpstreamDenied });
+    const client = await registerClient(h.provider);
+    const capture = captureRedirect();
+    await h.provider.authorize(
+      client,
+      { codeChallenge: "c", redirectUri: MCP_REDIRECT_URI, state: "s-9" },
+      capture.res,
+    );
+    const upstreamState = new URL(capture.url()).searchParams.get("state") as string;
+
+    await h.provider.handleUpstreamCallback({
+      state: upstreamState,
+      error: "access_denied",
+      error_description: "some real Auth0-side reason",
+    });
+
+    expect(onUpstreamDenied).toHaveBeenCalledTimes(1);
+    expect(onUpstreamDenied).toHaveBeenCalledWith({
+      error: "access_denied",
+      errorDescription: "some real Auth0-side reason",
+    });
   });
 
   it("redirects with a generic server_error (leaking nothing) when Auth0's token call fails", async () => {
