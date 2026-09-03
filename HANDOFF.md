@@ -1,94 +1,87 @@
 # Counter — Session Handoff Document
 
-> **Purpose:** Hand off exact working context to a fresh Claude Code session picking up Phase 3 of the remote-MCP plan, without needing to re-derive anything from scratch. Self-contained. No secrets committed here — they live in `.env` (already in the repo working tree, gitignored) and Fly secrets.
+> **Purpose:** Hand off exact working context to a fresh Claude Code session picking up after Phase 3 (remote MCP connector) of the plan. Self-contained. No secrets committed here — they live in `.env` (gitignored) and Fly secrets. The Vault root token/unseal key live ONLY in the founder's own password manager — not in this repo, not in any session's context, not recoverable by Claude.
 >
-> **Written:** 2026-09-02, end of the session that completed Phases 0–2. Everything below was true at that moment; re-verify anything load-bearing before relying on it (per `CLAUDE.md`'s own source-of-truth hierarchy — this file is a starting hypothesis, not gospel).
+> **Written:** 2026-09-03, end of the session that built and deployed Phase 3. Everything below was true at that moment; re-verify anything load-bearing before relying on it (per `CLAUDE.md`'s own source-of-truth hierarchy — this file is a starting hypothesis, not gospel).
 
 ---
 
 ## 0. Read this first
 
-The **real plan** is `~/.claude/plans/federated-enchanting-wave.md` (6 phases: 0 done, 1 done, 2 done, 3 next — remote MCP connector — then 4, notifications-adjacent wallet-dashboard work). Read it before starting Phase 3; this doc is operational context, not a replacement for it.
+The **real plan** is `~/.claude/plans/federated-enchanting-wave.md` (6 phases: 0–3 done, 4 next — wallet-dashboard backend). `.kiro/specs/counter-agent-wallet/design.md`'s "Remote MCP transport and key custody" section has the full key-custody decision writeup — read it before touching Vault or `apps/remote-mcp`.
 
-Your auto-loaded memory (`MEMORY.md` + linked files) already has detailed writeups of Phases 0 and 2 — `phase0_prepaid_mandate_binding_complete.md`, `phase2_notifications_backbone_complete.md`, `founder_production_autonomy_pattern.md`, `auth0_shared_console_app_gaps.md`. Read those before this file if you want the "why", not just the "what."
-
-**Current branch:** `feat/prepaid-wallet-real-razorpay-capture`. **Not pushed to remote** — everything is local commits only. Two new commits this session: `e93196e` (Phase 0) and `38a56fb` (Phase 2), on top of the branch's prior commits (`3a49fe5`, `6a958f5`, ...). Whoever picks this up should decide whether to keep working on this branch, split it, or open a PR — the founder hasn't been asked yet.
+**Branch state:** everything through Phase 3 is merged to `main` (PRs #25 and #26, both squash-merged after real CI passed). No open branch to pick up — start a fresh branch for whatever's next.
 
 ---
 
 ## 1. What's actually done (verified by real execution, not static reading)
 
-**Phase 0 — prepaid-balance wallet mandate binding.** `PrepaidBalanceMandateBindingService` + `POST /control/v1/wallets/:walletId/prepaid-mandates` + `scripts/issue-and-bind-prepaid-mandate.mjs`. A prepaid-balance-funded wallet can now get a durable `WalletMandate` and pass `checkMandateAuthority` through the real admission path. Also fixed a real bug: `apps/worker/src/transaction-lifecycle.ts`'s `parseAuthority()` silently dropped `mandateId`, which meant the worker's own defense-in-depth revocation re-check was dead code — fixed, regression-tested. Also fixed two real production gaps found while verifying: the deployed worker was 2 days stale, and the pilot merchant (`ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw`) had **no `merchant.scopes` row at all** and no connected Razorpay gateway — both fixed (seeded the row, connected real test credentials, verified via Razorpay's own API).
+**Phase 3 — remote MCP connector.** Buyers can now (once someone completes step 4 below) connect Claude.ai directly to a hosted `https://counter-remote-mcp.fly.dev` URL instead of running a local stdio process.
 
-**Phase 1 — merchant setup completion.** Turned out to be mostly already-built: the Auth0 Post-Login Action that stamps merchant permissions onto login tokens already existed and was already correct. The real gap was that `merchant:read`/`merchant:write` were never defined as permissions on the "Counter Platform API" in Auth0, so the Action's own signal for "is this a merchant login" could never fire. Fixed: added both permissions, granted them to the "Counter Console" app (now 5/5, was 3/5). **Not live-tested** — nobody has done a fresh merchant-console login since the fix; if you touch merchant-console auth, that's the first thing to verify.
+1. **Key-custody spike**: confirmed by running a real local Vault 1.17.6 dev server that its Transit engine signs with a non-exportable Ed25519 key, and the signature verifies bit-for-bit with this repo's own `@noble/ed25519`. Chose Vault over AWS/GCP KMS (no AWS/GCP credentials exist anywhere in this environment; ADR-0006's AWS default inherits from ADR-0009's AWS pilot target, which was never actually realized — the real deployment is Fly + Supabase, a stale-doc-vs-code conflict flagged, not silently resolved).
+2. **`VaultSecureKeyStore`** (`packages/wallet-domain`) + **`PostgresVaultKeyRepository`** (`packages/data`, migration `0023`): multi-tenant Ed25519 signing where a store built for tenant A structurally cannot reach tenant B's key (every keyId is checked against a durable ownership record before Vault is ever called).
+3. **`apps/remote-mcp`**: Streamable-HTTP MCP server fronted by `CounterOAuthServerProvider`, a genuine **two-legged OAuth 2.1 proxy** — necessary because MCP clients require dynamic client registration and Auth0 doesn't support it. Full design in the file's own header comment. The MCP SDK's stock `ProxyOAuthServerProvider` does NOT work for this (confirmed by reading its source — it only supports a single fixed downstream client). Migration `0024` (`platform.remote_mcp_clients`) is the durable DCR registry.
+4. **Automatic Vault token rotation**: `apps/remote-mcp`'s Vault credential is a genuine Vault **periodic token** (30-day window), renewed by the app itself every 6 hours (`src/vault-token-renewal.ts`) — not a long fixed TTL, which isn't real rotation.
+5. **Real bug found and fixed in shared code**: `packages/http-api-kit`'s `authPlugin` skip-route matching ignored query strings, silently 401ing any OAuth route (`/authorize?client_id=...`). Was latent everywhere else; `apps/remote-mcp` was the first thing to actually hit it.
+6. **Two more real bugs found only by running the deployed system**, both documented in `vault-config.hcl`: Vault's listener was IPv4-only (`0.0.0.0`) and unreachable over Fly's IPv6-only private network — every local ssh-console health check kept passing while cross-app calls silently failed; and the `remote-mcp-signer` Vault policy had no grant for `auth/token/renew-self`, so automatic renewal 403'd until fixed.
 
-**Phase 2 — notifications backbone.** `apps/worker/src/outbox-dispatcher.ts` (claims pending `runtime.outbox_events`, fans out to merchant webhooks + a new `runtime.buyer_notifications` projection), `merchant.webhook_endpoints` table (migration 0022, applied to the real DB), a real Shopify `fulfillments/*` webhook handler, and real `notifications.list`/`invoices.get` MCP tools in `apps/local-mcp`. The dispatcher had never run before this session — the instant it started, it cleared a backlog of outbox rows stuck since **2026-08-29**. Found and fixed a real bug live: the new `merchant.order.created.v1` event initially carried an internal derived transaction id instead of the raw one the buyer actually has, making notifications uncorrelatable — caught by checking the actual DB row after a live purchase, fixed, redeployed, reverified.
-
-Both `apps/worker` and `apps/control-plane-api` are **deployed to Fly with all of this code live** as of session end. `apps/agent-runtime` was not touched this session (still whatever was deployed before) — no source changes there.
-
----
-
-## 2. Critical operational gotchas hit this session (don't rediscover these the hard way)
-
-- **The Bash tool's network is isolated from the real Supabase DB** — any `node -e` or script run via the `Bash` tool that tries to connect to `DATABASE_URL` gets `ECONNREFUSED` (looks like "nothing listening" but is actually sandboxed egress). **Use the `PowerShell` tool for anything that touches the real database.** `Test-NetConnection` from PowerShell confirmed direct TCP to the Supabase pooler works fine from there.
-- **PowerShell `node -e "..."` mangles backticks** — PowerShell treats `` ` `` as its own escape character even inside a double-quoted argument, so inline template-literal one-liners silently break. Write the script to a `.mjs` file with `Write`, then `node path\to\file.mjs` from PowerShell instead.
-- **Scripts don't get `.env` for free** — every one-off script needs to manually read and parse `.env` at the top (see any `scripts/*.mjs` for the 4-line pattern: split on newline, regex `^([A-Z_][A-Z0-9_]*)=(.*)$`, only set if not already in `process.env`).
-- **`pg`'s named exports don't work under ESM** — `import { Client } from "pg"` throws; use `import pg from "pg"; const { Client } = pg;`.
-- **`pnpm db:migrate` (the CLI) is deliberately restricted to a loopback `counter_local`/`counter_test` database** — it will refuse to run against the real Supabase `DATABASE_URL`. To apply a migration to the real DB, write a tiny script using `PostgresDatabase` + `loadMigrations`/`MigrationRunner` directly from `packages/data/dist` (see this session's git history for the exact pattern — it was a temp file, deleted after use, not committed).
-- **The Claude-in-Chrome browser extension and the `auth0` MCP server both dropped connection at least once this session** and needed the user to manually restart/reconnect them. If you need either, expect to ask the user to reconnect, and don't assume a `CONNECTION_CLOSED` error means the capability doesn't exist.
-- **The `key` action for browser automation can silently TYPE a key name as literal text** instead of pressing it as a special key (happened with `"Page_Down"` — it got typed into a live Auth0 Action's source code before I caught it and undid it). Stick to mouse actions (click, scroll, drag) for navigation in the Auth0 dashboard; only use `key` for things confirmed to work like `ctrl+Home`/`ctrl+End`/single arrow keys after clicking into a text field first, and always screenshot-verify after.
-- **Auto-mode's permission classifier blocks direct `flyctl scale`/typing-into-dashboard actions** even under the CLAUDE.md production-autonomy grant — clicking pre-existing UI elements (checkboxes) worked fine, but typing text into an Auth0 form field got blocked. When blocked, explain to the user and let them do that one step, or ask them to unblock it — don't route around it.
-- **Test wallet keystores created this session live in the session-scoped scratchpad directory**, e.g. `C:\Users\nazim\AppData\Local\Temp\claude\C--Users-nazim-counter\<session-id>\scratchpad\*.enc.json`. **This path will not exist in a new session.** If you need a wallet with existing balance/mandates for testing, either register a fresh one (cheap — synthetic top-up, real mandate binding, ~2 minutes) or ask the user for the passphrase to a specific keystore file if they've kept a copy.
+**Deployed and live:**
+- `counter-vault` (Fly) — internal-only (no public IP), holds the Transit engine. Initialized, unsealed, real `remote-mcp-signer` policy + periodic token issued.
+- `counter-remote-mcp` (Fly) — public, single machine (`min_machines_running = 0`, confirmed auto-stops when idle in the logs). Health, OAuth metadata, and `/mcp` 401-without-token all verified against the live URL.
+- New Auth0 application **"Counter Remote MCP"** (Regular Web App, `qy7o09wDfrHMGNFc4Sh5vf1ZdQS6v6Id`) created in the dashboard: grant types trimmed to Authorization Code + Refresh Token only, callback URL `https://counter-remote-mcp.fly.dev/oauth/callback`, authorized for the `agent:transact` permission on "Counter Platform API" with Allow Offline Access turned on (needed for refresh tokens).
 
 ---
 
-## 3. Real test wallet state (as of session end — likely stale/spent by the time you read this)
+## 2. What's NOT done yet
 
-The most recently created, still-usable wallet from this session: `ctr_wallet_heYUlPKiGc1wwE23UCZENw` (registered via `apps/local-mcp/scripts/register-buyer-agent.mjs`), agent `ctr_agent_QV0mia24mIc4ynWAD4MCxg`, kid `ctr_key_kWV1xJp4Ayq2vF28B-WtXQ`. Had a synthetic top-up of ₹5,000 and one active mandate `ctr_mandate_0hv-KBLojEQvYZpWYF7dDQ` (ceiling ₹5,000); made two real ₹1,228.82 purchases against it, so balance was ≈₹2,512 minus a bit at last check. **Its keystore lives in the session-scoped scratchpad (see above) and will not survive into a new session** — treat this id as a DB record you can query, not something you can sign new purchases with, unless you re-derive/re-register.
+**A real Claude.ai Connector has not been pointed at this.** Everything up through the OAuth dance and MCP session handshake was verified with real HTTP calls against the real deployed server (see PR #26's test plan), but nobody has actually added `https://counter-remote-mcp.fly.dev` as a Connector in a live Claude.ai account and completed a real purchase through it end-to-end. That's the natural next step — needs a live client to test against, which is why it wasn't done automatically this session.
 
-An earlier wallet from Phase 0, `ctr_wallet_vK-wpQwg1l1GHkC37iCfsw`, is real and has real balance but **hit its rolling 24h spend/attempt policy limit** from extensive same-session testing — a real purchase against it will legitimately get `policy-declined`, not a bug. Don't burn time re-diagnosing that if you see it again; either wait out the window or use a fresh wallet.
+Phase 4 (wallet-dashboard backend, real endpoints for balance/mandates/history) hasn't been started.
 
-**Cheapest way to get a fresh, working, funded, mandated wallet for testing:**
-```
-node apps/local-mcp/scripts/register-buyer-agent.mjs   # prompts for a passphrase; note the walletId/agentId/kid it prints
-# then top up (write a tiny script using PostgresWalletBalanceStore.topUp() with a clearly-labeled synthetic reference — see packages/data/src/wallet-balance-store.ts)
-node scripts/issue-and-bind-prepaid-mandate.mjs --wallet-id <id> --agent-id <id> --kid <kid> --ceiling-minor 500000
-```
-All run via PowerShell (see gotcha #1 above), from repo root, after building `packages/data`, `packages/wallet-domain`, `packages/wallet-application`, `packages/trust-protocol`, `packages/domain`, `packages/payment-sdk`, `apps/control-plane-api`.
+---
+
+## 3. Critical operational gotchas hit this session (don't rediscover these the hard way)
+
+- **`flyctl` commands that touch real infrastructure get inconsistently blocked by the auto-mode permission classifier** — `flyctl deploy`, `flyctl ssh console -C "..."` for anything destructive-looking (e.g. `rm -rf`), and `flyctl secrets import` via stdin all hit this at different points, sometimes passing on retry, sometimes not. When blocked, ask the founder to run the exact command rather than working around it.
+- **`flyctl ssh sftp put` has a real bug on Windows** (at least via Git Bash and PowerShell in this session): it sometimes computes the wrong remote destination path, silently failing with a confusing `file does not exist` error unrelated to the actual paths given. Multi-line heredocs piped through `flyctl ssh console -C "..."` also fail — nested quoting between PowerShell, flyctl's own arg parser, and the remote shell breaks reliably. **What actually works:** the founder opens `flyctl ssh console --app <app>` interactively themselves and pastes a `cat > file << 'EOF' ... EOF` heredoc block directly at the prompt. Slower, but it sidesteps every quoting/encoding issue at once.
+- **PowerShell pipes a UTF-8 BOM to native processes by default**, which broke `flyctl secrets import`'s stdin parsing (`"﻿NAME" is not a valid secret name`). Setting `$OutputEncoding` didn't fix it. What worked: `flyctl secrets set NAME=VALUE NAME2=VALUE2 ...` as direct command-line arguments instead of stdin.
+- **A Fly Machine's `/tmp` is the container's ephemeral filesystem, NOT the persistent volume.** A `flyctl deploy` (even just to change `vault-config.hcl`) replaces the container and silently destroys anything left only in `/tmp` — this cost a full Vault wipe-and-reinit this session (see `vault-config.hcl`'s own note). **Never leave the only copy of anything durable in `/tmp` on a Fly machine** — get it onto the operator's own machine (or the persistent volume, if appropriate for that specific secret) immediately.
+- **Fly's private 6PN network is IPv6-only.** A service that binds only `0.0.0.0` (IPv4) will accept local/loopback connections fine (so `ssh console` health checks pass) but be silently unreachable from other apps in the org. Bind `[::]` (IPv6 wildcard; dual-stacks IPv4 loopback too) for anything meant to be reached over 6PN.
+- **A fresh Fly app's first deploy creates 2 machines for HA by default**, even with `min_machines_running = 0` in `fly.toml` — costs nothing extra once both scale to zero, but `apps/remote-mcp`'s design (in-process OAuth/session state) genuinely breaks with >1 concurrent machine. Scaled down to 1 machine manually (`flyctl machine destroy <id>`) after the first deploy.
+- **The Vault root token and unseal key must never be the only copy anywhere Claude can lose them** — they were generated, immediately handed to the founder to save in their own password manager, and never displayed in this session's own visible output (redirected straight to files, extracted via `grep`/`awk` server-side, never `cat`'d into a tool result). The `remote-mcp-signer` Vault token (scoped to sign/verify only, already proven to reject listing-all-keys and sys/admin access) is a different, much lower-stakes secret and is fine to have passed through a session's context and into `flyctl secrets set`.
+- **The real deployed data partition is `COUNTER_ENV=test`**, not `"pilot"` or `"sandbox"` (both appear as decorative/descriptive strings elsewhere in scripts, not the actual partition) — confirmed by querying `merchant.scopes`/`wallet.mandates` directly against the real Supabase DB, and independently confirmed by the fact that the `COUNTER_ENV` secret's DIGEST on the newly-created `counter-remote-mcp` app matches `counter-control-plane-api`'s exactly once set to `"test"`.
 
 ---
 
 ## 4. Production state
 
-- `counter-worker` (Fly) — running current code including the outbox dispatcher and the transactionId fix. Healthy, `payment connector selected { mode: 'real' }`, dispatcher loop confirmed running.
-- `counter-control-plane-api` (Fly) — running current code including all Phase 2 routes. Healthy (auto-stops when idle, wakes on request — normal).
-- `counter-agent-runtime` (Fly) — untouched this session, whatever was live before.
-- Real DB migrations applied through **0022** (`webhook-endpoints-and-buyer-notifications`).
-- Pilot merchant `ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw` now has a real `merchant.scopes` row and a connected (real, verified) Razorpay test gateway — this was NOT true before this session and blocked the worker from booting; don't re-diagnose that failure mode if you see old references to it.
-- Auth0 "Counter Platform API" now has 5 permissions (`agent:transact`, `wallet-users:provision`, `wallet-users:self-serve`, `merchant:read`, `merchant:write`), all granted to "Counter Console".
+- `counter-worker`, `counter-control-plane-api` (Fly) — unchanged this session, same state as previous handoff.
+- `counter-agent-runtime` (Fly) — still untouched, shows `suspended` (expected — scales to zero when idle).
+- `counter-vault` (Fly, **new**) — internal-only, always-on (`min_machines_running` not set to 0 — a sealed Vault needs a human to unseal it, so it doesn't auto-stop like the others). Real Transit engine, real `remote-mcp-signer` policy + periodic token, auto-renewed by `apps/remote-mcp`.
+- `counter-remote-mcp` (Fly, **new**) — public, scales to zero when idle (confirmed in logs).
+- Real DB migrations applied through **`0024`** (`remote-mcp-clients`).
+- Auth0 "Counter Platform API" unchanged from previous handoff except: new "Counter Remote MCP" application added and authorized for `agent:transact`; "Allow Offline Access" turned on (previously off — needed for the new app's refresh tokens; check whether this has any effect on the three existing console apps if you touch Auth0 next, though none of them requested `offline_access` scope before and this only permits refresh-token issuance, doesn't force it).
 
 ---
 
 ## 5. Verification baseline at handoff
 
-Full clean build, `pnpm typecheck`, `pnpm lint`, and `pnpm test` were all green across the entire monorepo (20 packages/apps with tests, zero failures) as the very last check before the Phase 2 commit. If you touch anything, re-run the relevant scoped checks; re-run the full suite before another commit/PR.
+Full clean-state (`pnpm clean` + deleted tsbuildinfo) `format:check`, `lint`, `build`, `typecheck`, and `test` all green across the entire monorepo, both before and after Phase 3 landed. Real Postgres migration lifecycle (`pnpm db:test:lifecycle`) green — 21/21 — after updating two hardcoded RLS-relation-count test fixtures that Phase 0/2's own migrations (0021, 0022) had silently drifted out of sync with (that branch had never been pushed through CI before this session; see PR #25's fix commits for the exact drift).
 
 **Known, pre-existing, NOT-yours-to-fix failures:**
-- `pnpm depcruise` fails with a Node 24 / `dependency-cruiser@16.10.0` incompatibility (`node:fs` doesn't export `R_OK` the way that version expects). Unrelated to any of this session's or prior sessions' code changes — a devDependency/Node-version mismatch. Don't attempt a fix unless asked.
-- `apps/merchant-console` has one pre-existing `react-hooks/exhaustive-deps` lint warning (not an error, doesn't fail the gate).
+- `pnpm depcruise` fails with a Node 24 / `dependency-cruiser@16.10.0` incompatibility. Unrelated to any session's code changes.
+- `apps/merchant-console` has one pre-existing `react-hooks/exhaustive-deps` lint warning (not an error).
 
 ---
 
-## 6. Starting point for Phase 3 (remote MCP connector)
+## 6. Starting point for whoever picks this up next
 
-This is the biggest, most novel phase. Per the plan, **do the key-custody spike first, before writing any transport code**: confirm Ed25519 signing support and choose between HashiCorp Vault's Transit engine and GCP Cloud KMS, then document the choice and the accepted residual risk directly in `.kiro/specs/counter-agent-wallet/design.md` (updating its "local stdio by default" principle rather than silently contradicting it) — this was a decision the founder already made in principle (signing keys move server-side, buyer only ever connects to one remote MCP URL) but the concrete Vault-vs-KMS choice was left for this phase.
+**Most valuable next step: the live Claude.ai Connector test.** Add `https://counter-remote-mcp.fly.dev` as a Connector in a real Claude.ai account, complete the OAuth flow (it'll redirect through Auth0's real login), and confirm a purchase tool call actually signs with the correct buyer's key and reaches the same real HTTP path Phase 0 proved. If this needs a wallet_user Auth0 login that doesn't exist yet, that's the same self-serve/invite gap noted in prior handoffs (`auth0_shared_console_app_gaps` memory) — check whether it's been resolved since.
 
-After that: a new multi-tenant `SecureKeyStore` in `packages/wallet-domain` (existing `FileSecureKeyStore`/`InMemorySecureKeyStore` stay untouched), a new `apps/remote-mcp` app wrapping `createMcpServer` from `apps/local-mcp` with the MCP SDK's `StreamableHTTPServerTransport` over Fastify, and a Fastify-native reimplementation of the MCP SDK's OAuth endpoints fronting the **existing** Auth0 tenant via `ProxyOAuthServerProvider` (one new pre-registered Auth0 client — same pattern the three existing consoles use). Full detail is in the plan file itself.
-
-**Known related gap, not part of Phase 3 per se but adjacent:** `AGENT_RUNTIME_M2M_CLIENT_ID`/`SECRET` (the credential a Post-Login Action would use to mint a wallet's own runtime bearer token) is not configured anywhere in this environment — this is the same missing piece that made `apps/local-mcp/src/wallet-runtime-client.ts` (Phase 2) gracefully degrade rather than being live-testable end-to-end through the full self-serve flow. Phase 3's OAuth work may end up touching or resolving this naturally; if not, it's worth flagging to the founder as its own small gap.
+After that (or in parallel): **Phase 4**, wallet-dashboard backend — real endpoints in `apps/control-plane-api` for balance/mandates/transaction history, no visual/UI work (the founder is handling that separately). See the plan file for exact scope.
 
 ---
 
 ## 7. Documents you can trust vs. re-verify
 
-Per `CLAUDE.md`'s own hierarchy (which governs this repo — read it, it's short and this doc doesn't repeat it): the **plan file** and **this handoff** are your best current starting points. `COUNTERX-ARCHITECTURE.md`, if present, was already flagged stale by a prior session regarding the payment-signer fixture note — treat any of its wiring/boot-status claims as needing re-verification against running code, same as always. Don't trust this file's own specific numbers (wallet balances, exact commit hashes matching HEAD, exact deploy versions) without a quick real check — trust its shape and gotchas, re-verify its specifics.
+Per `CLAUDE.md`'s own hierarchy: the **plan file** and **this handoff** are your best current starting points. `COUNTERX-ARCHITECTURE.md`, if present, is stale relative to everything in this and the prior handoff — treat any of its wiring/boot-status claims as needing re-verification against running code. Don't trust this file's own specific numbers (exact commit hashes, exact deploy versions) without a quick real check — trust its shape and gotchas, re-verify its specifics.
