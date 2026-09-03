@@ -162,6 +162,21 @@ export interface CounterOAuthServerProviderOptions {
     readonly error: string;
     readonly errorDescription: string | undefined;
   }) => void;
+  /**
+   * Called whenever the DOWNSTREAM MCP client's own code redemption
+   * (POST /token, the SDK's handler calling challengeForAuthorizationCode /
+   * exchangeAuthorizationCode) is rejected — code not found, already
+   * consumed, expired, or issued to a different client. The reason sent
+   * back to the client stays the same generic "invalid_grant" either way
+   * (see #requireLiveGrant's own comment on why); this is server-side only.
+   * Same motivation as onUpstreamDenied: this app has disableRequestLogging
+   * on, so without this hook a real client (e.g. Claude's backend) failing
+   * to redeem a code we issued — for instance because our single-machine,
+   * in-process #grants Map lost it to a scale-to-zero restart, or the
+   * client simply took longer than DEFAULT_GRANT_TTL_MS to call back — was
+   * invisible here even though Auth0's OWN side had already reported success.
+   */
+  readonly onGrantRejected?: (reason: string) => void;
 }
 
 /** A browser round-trip through a login page. Generous but bounded. */
@@ -212,6 +227,7 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
     error: string;
     errorDescription: string | undefined;
   }) => void;
+  readonly #onGrantRejected: (reason: string) => void;
 
   readonly #pendingUpstreamFlows = new Map<string, PendingUpstreamFlow>();
   readonly #grants = new Map<string, StoredGrant>();
@@ -237,6 +253,7 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
     this.#grantTtlMs = options.grantTtlMs ?? DEFAULT_GRANT_TTL_MS;
     this.#onUpstreamCallbackError = options.onUpstreamCallbackError ?? (() => {});
     this.#onUpstreamDenied = options.onUpstreamDenied ?? (() => {});
+    this.#onGrantRejected = options.onGrantRejected ?? (() => {});
   }
 
   /** The fixed callback URI a human must allowlist in the Auth0 application. */
@@ -554,18 +571,22 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
   #requireLiveGrant(client: OAuthClientInformationFull, authorizationCode: string): StoredGrant {
     const grant = this.#grants.get(authorizationCode);
     if (grant === undefined) {
+      this.#onGrantRejected("not_found");
       throw new InvalidGrantError("Authorization code is invalid or has expired");
     }
     if (grant.consumed) {
+      this.#onGrantRejected("already_consumed");
       throw new InvalidGrantError("Authorization code has already been used");
     }
     if (this.#now() - grant.createdAt > this.#grantTtlMs) {
       this.#grants.delete(authorizationCode);
+      this.#onGrantRejected("expired");
       throw new InvalidGrantError("Authorization code is invalid or has expired");
     }
     if (grant.clientId !== client.client_id) {
       // Same message as "not found" on purpose: a client must not be able to
       // probe for another client's outstanding codes.
+      this.#onGrantRejected("client_mismatch");
       throw new InvalidGrantError("Authorization code is invalid or has expired");
     }
     return grant;

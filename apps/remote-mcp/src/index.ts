@@ -78,6 +78,8 @@ export interface CreateServerOptions {
     readonly error: string;
     readonly errorDescription: string | undefined;
   }) => void;
+  /** See CounterOAuthServerProviderOptions.onGrantRejected. */
+  readonly onGrantRejected?: (reason: string) => void;
 }
 
 export interface RemoteMcpServer {
@@ -108,6 +110,9 @@ export async function createServer(options: CreateServerOptions): Promise<Remote
       : {}),
     ...(options.onUpstreamDenied !== undefined
       ? { onUpstreamDenied: options.onUpstreamDenied }
+      : {}),
+    ...(options.onGrantRejected !== undefined
+      ? { onGrantRejected: options.onGrantRejected }
       : {}),
   });
 

@@ -73,6 +73,7 @@ function harness(
     grantTtlMs?: number;
     onUpstreamCallbackError?: (error: unknown) => void;
     onUpstreamDenied?: (details: { error: string; errorDescription: string | undefined }) => void;
+    onGrantRejected?: (reason: string) => void;
   } = {},
 ): Harness {
   const clients = new InMemoryRemoteMcpClientRepository();
@@ -557,6 +558,30 @@ describe("redemption", () => {
     await expect(
       h.provider.exchangeAuthorizationCode(client, "made-up-code", undefined, MCP_REDIRECT_URI),
     ).rejects.toThrow(/invalid or has expired/iu);
+  });
+
+  it("reports the specific reason a grant was rejected to onGrantRejected, server-side only", async () => {
+    // Auth0's own leg can succeed (a real "Success Login") while the
+    // downstream client's later /token call still fails silently here -
+    // e.g. arriving after DEFAULT_GRANT_TTL_MS. The client-facing error
+    // stays the same generic "invalid or has expired" either way; only the
+    // hook sees which specific case actually happened.
+    const onGrantRejected = vi.fn();
+    const h = harness({ onGrantRejected });
+    const client = await registerClient(h.provider);
+
+    await h.provider.exchangeAuthorizationCode(client, "never-issued", undefined, MCP_REDIRECT_URI)
+      .catch(() => {});
+    expect(onGrantRejected).toHaveBeenLastCalledWith("not_found");
+
+    const ourCode = await danceToOurCode(h, client);
+    await h.provider.exchangeAuthorizationCode(client, ourCode, undefined, MCP_REDIRECT_URI);
+    await h.provider
+      .exchangeAuthorizationCode(client, ourCode, undefined, MCP_REDIRECT_URI)
+      .catch(() => {});
+    expect(onGrantRejected).toHaveBeenLastCalledWith("already_consumed");
+
+    expect(onGrantRejected).toHaveBeenCalledTimes(2);
   });
 });
 
