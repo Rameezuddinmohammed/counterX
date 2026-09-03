@@ -3,9 +3,10 @@
  *
  * Covers both real-client behavior (product.details, quote.get,
  * transaction.status, receipt.verify - the four tools that map onto real
- * MerchantRuntimeClient methods) and the honest-fallback behavior for tools
- * with no reachable client (wallet.status, merchant.list, merchant.search,
- * pending-actions.list) and for the no-deps case generally.
+ * MerchantRuntimeClient methods; wallet.status, via WalletRuntimeClient) and
+ * the honest-fallback behavior for tools with no reachable client
+ * (merchant.list, merchant.search, pending-actions.list) and for the
+ * no-deps case generally.
  */
 
 import { describe, expect, it } from "vitest";
@@ -17,20 +18,28 @@ import type { ReadToolDependencies } from "./read-tools.js";
 import { registerReadTools } from "./read-tools.js";
 import type {
   WalletClientResult,
+  WalletMandatesResult,
   WalletNotificationsResult,
   WalletRuntimeClient,
 } from "../wallet-runtime-client.js";
 
-/** Minimal fake WalletRuntimeClient for notifications.list/invoices.get tests. */
+/** Minimal fake WalletRuntimeClient for notifications.list/invoices.get/wallet.status tests. */
 class FakeWalletRuntimeClient implements WalletRuntimeClient {
   #responses = new Map<string, WalletNotificationsResult>();
+  #mandateResponses = new Map<string, WalletMandatesResult>();
   failWith: WalletClientResult<WalletNotificationsResult> | undefined;
+  mandatesFailWith: WalletClientResult<WalletMandatesResult> | undefined;
   lastCall:
     | { walletId: string; options?: { limit?: number; notificationType?: string } }
     | undefined;
+  lastMandatesCall: { walletId: string } | undefined;
 
   setResponse(walletId: string, response: WalletNotificationsResult): void {
     this.#responses.set(walletId, response);
+  }
+
+  setMandatesResponse(walletId: string, response: WalletMandatesResult): void {
+    this.#mandateResponses.set(walletId, response);
   }
 
   async listNotifications(
@@ -43,6 +52,15 @@ class FakeWalletRuntimeClient implements WalletRuntimeClient {
     return response !== undefined
       ? { ok: true, value: response }
       : { ok: true, value: { walletId, notifications: [], total: 0 } };
+  }
+
+  async getMandates(walletId: string): Promise<WalletClientResult<WalletMandatesResult>> {
+    this.lastMandatesCall = { walletId };
+    if (this.mandatesFailWith !== undefined) return this.mandatesFailWith;
+    const response = this.#mandateResponses.get(walletId);
+    return response !== undefined
+      ? { ok: true, value: response }
+      : { ok: true, value: { walletId, mandates: [], total: 0 } };
   }
 }
 
@@ -221,15 +239,9 @@ describe("read-tools: real client wiring", () => {
 });
 
 describe("read-tools: honest fallback for structurally-unreachable tools", () => {
-  it("wallet.status, merchant.list, pending-actions.list, and wallet.list stay honestly stubbed even with a real client", async () => {
+  it("merchant.list and pending-actions.list stay honestly stubbed even with a real client", async () => {
     const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
     const { client } = await connectedClient({ merchantClient });
-
-    const walletStatus = textOf(
-      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
-    );
-    expect(walletStatus["status"]).toBe("active");
-    expect(walletStatus["mandates"]).toEqual([]);
 
     const merchantList = textOf(
       await client.callTool({ name: "merchant.list", arguments: { wallet_id: "wallet-1" } }),
@@ -257,7 +269,7 @@ describe("read-tools: honest fallback for structurally-unreachable tools", () =>
     expect(result["product"]).toBeNull();
   });
 
-  it("notifications.list and invoices.get stay honestly unavailable with no walletClient", async () => {
+  it("notifications.list, invoices.get, and wallet.status stay honestly unavailable with no walletClient", async () => {
     const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
     const { client } = await connectedClient({ merchantClient });
 
@@ -272,6 +284,107 @@ describe("read-tools: honest fallback for structurally-unreachable tools", () =>
     );
     expect(invoices["status"]).toBe("unavailable");
     expect(invoices["invoices"]).toEqual([]);
+
+    const walletStatus = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(walletStatus["status"]).toBe("unavailable");
+    expect(walletStatus["mandates"]).toEqual([]);
+  });
+});
+
+describe("read-tools: wallet.status (Phase 4)", () => {
+  it("reports active when the wallet has at least one active mandate, with real mandate data", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.setMandatesResponse("wallet-1", {
+      walletId: "wallet-1",
+      mandates: [
+        {
+          mandateId: "ctr_mandate_1",
+          agentId: "ctr_agent_1",
+          principalId: "ctr_actor_1",
+          kid: "kid-1",
+          paymentReferenceId: "prepaid-balance:wallet-1",
+          validFrom: new Date().toISOString(),
+          validUntil: new Date(Date.now() + 3_600_000).toISOString(),
+          issuedAt: new Date().toISOString(),
+          status: "active",
+          policyVersionId: "v1",
+          constraints: {},
+        },
+      ],
+      total: 1,
+    });
+
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["status"]).toBe("active");
+    expect((result["mandates"] as unknown[]).length).toBe(1);
+    expect(walletClient.lastMandatesCall?.walletId).toBe("wallet-1");
+  });
+
+  it("reports no_active_mandate (never fabricates 'active') when the wallet has zero active mandates", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["status"]).toBe("no_active_mandate");
+    expect(result["mandates"]).toEqual([]);
+  });
+
+  it("a DIFFERENT wallet's mandates never leak into this wallet's status", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.setMandatesResponse("wallet-1", {
+      walletId: "wallet-1",
+      mandates: [
+        {
+          mandateId: "ctr_mandate_1",
+          agentId: "ctr_agent_1",
+          principalId: "ctr_actor_1",
+          kid: "kid-1",
+          paymentReferenceId: "prepaid-balance:wallet-1",
+          validFrom: new Date().toISOString(),
+          validUntil: new Date(Date.now() + 3_600_000).toISOString(),
+          issuedAt: new Date().toISOString(),
+          status: "active",
+          policyVersionId: "v1",
+          constraints: {},
+        },
+      ],
+      total: 1,
+    });
+
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-2" } }),
+    );
+    expect(result["status"]).toBe("no_active_mandate");
+    expect(result["mandates"]).toEqual([]);
+  });
+
+  it("surfaces indeterminate on a timeout, unavailable on other errors", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.mandatesFailWith = {
+      ok: false,
+      error: { kind: "timeout", message: "Request timed out" },
+    };
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["status"]).toBe("indeterminate");
+
+    walletClient.mandatesFailWith = {
+      ok: false,
+      error: { kind: "network", message: "Network request failed" },
+    };
+    const result2 = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result2["status"]).toBe("unavailable");
   });
 });
 

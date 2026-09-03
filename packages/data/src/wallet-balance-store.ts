@@ -64,6 +64,17 @@ export interface DebitRequest {
   readonly currency: string;
 }
 
+/** One row of wallet.balance_events, as read back for a wallet's own history view. */
+export interface BalanceEventSummary {
+  readonly reference: string;
+  readonly eventType: "topup" | "debit";
+  readonly amountMinor: bigint;
+  readonly currency: string;
+  /** The real Razorpay payment id that funded a topup; undefined for a debit. */
+  readonly providerPaymentId: string | undefined;
+  readonly createdAt: string;
+}
+
 interface BalanceRow extends QueryResultRow {
   readonly balance_minor: string;
   readonly currency: string;
@@ -71,6 +82,15 @@ interface BalanceRow extends QueryResultRow {
 
 interface ExistingEventRow extends QueryResultRow {
   readonly reference: string;
+}
+
+interface BalanceEventRow extends QueryResultRow {
+  readonly reference: string;
+  readonly event_type: string;
+  readonly amount_minor: string;
+  readonly currency: string;
+  readonly provider_payment_id: string | null;
+  readonly created_at: Date;
 }
 
 // ─── Postgres wallet balance store ──────────────────────────────────────────
@@ -285,6 +305,34 @@ export class PostgresWalletBalanceStore {
       [this.environment, walletId],
     );
     return result.rows.length > 0;
+  }
+
+  /**
+   * Most recent balance events for a wallet (topups and debits), newest
+   * first — backs the wallet-dashboard/MCP "recent activity" view. Reuses
+   * the existing balance_events_wallet_lookup index (environment, wallet_id,
+   * created_at DESC), so this is a plain indexed read, no new index needed.
+   * Read-only; never mutates the ledger.
+   */
+  async listRecentEvents(walletId: string, limit = 20): Promise<readonly BalanceEventSummary[]> {
+    const result = await this.database.query<BalanceEventRow>(
+      `SELECT reference, event_type, amount_minor, currency, provider_payment_id, created_at
+         FROM wallet.balance_events
+        WHERE environment = $1 AND wallet_id = $2
+        ORDER BY created_at DESC
+        LIMIT $3`,
+      [this.environment, walletId, limit],
+    );
+    return result.rows.map((row) =>
+      Object.freeze({
+        reference: row.reference,
+        eventType: row.event_type as "topup" | "debit",
+        amountMinor: BigInt(row.amount_minor),
+        currency: row.currency,
+        providerPaymentId: row.provider_payment_id ?? undefined,
+        createdAt: row.created_at.toISOString(),
+      }),
+    );
   }
 
   async #lockedBalance(
