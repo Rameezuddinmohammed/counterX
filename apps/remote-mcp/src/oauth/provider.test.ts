@@ -570,7 +570,8 @@ describe("redemption", () => {
     const h = harness({ onGrantRejected });
     const client = await registerClient(h.provider);
 
-    await h.provider.exchangeAuthorizationCode(client, "never-issued", undefined, MCP_REDIRECT_URI)
+    await h.provider
+      .exchangeAuthorizationCode(client, "never-issued", undefined, MCP_REDIRECT_URI)
       .catch(() => {});
     expect(onGrantRejected).toHaveBeenLastCalledWith("not_found");
 

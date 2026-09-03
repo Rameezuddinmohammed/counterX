@@ -111,9 +111,7 @@ export async function createServer(options: CreateServerOptions): Promise<Remote
     ...(options.onUpstreamDenied !== undefined
       ? { onUpstreamDenied: options.onUpstreamDenied }
       : {}),
-    ...(options.onGrantRejected !== undefined
-      ? { onGrantRejected: options.onGrantRejected }
-      : {}),
+    ...(options.onGrantRejected !== undefined ? { onGrantRejected: options.onGrantRejected } : {}),
   });
 
   const serverOptions: ServerFactoryOptions = {
