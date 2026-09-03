@@ -135,6 +135,16 @@ export interface CounterOAuthServerProviderOptions {
   readonly now?: () => number;
   readonly pendingFlowTtlMs?: number;
   readonly grantTtlMs?: number;
+  /**
+   * Called with the real cause whenever redeeming Auth0's code fails —
+   * server-side only, never part of the browser response (the redirect the
+   * browser gets stays the same generic "server_error" regardless; see the
+   * catch site). Without this the failure was completely invisible: no log,
+   * no metric, nothing — a real "Authorization failed" report had no server-
+   * side trace to diagnose it from. Optional and defaults to a no-op so
+   * tests that intentionally exercise this path stay quiet unless they ask.
+   */
+  readonly onUpstreamCallbackError?: (error: unknown) => void;
 }
 
 /** A browser round-trip through a login page. Generous but bounded. */
@@ -180,6 +190,7 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
   readonly #now: () => number;
   readonly #pendingFlowTtlMs: number;
   readonly #grantTtlMs: number;
+  readonly #onUpstreamCallbackError: (error: unknown) => void;
 
   readonly #pendingUpstreamFlows = new Map<string, PendingUpstreamFlow>();
   readonly #grants = new Map<string, StoredGrant>();
@@ -203,6 +214,7 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
     this.#now = options.now ?? Date.now;
     this.#pendingFlowTtlMs = options.pendingFlowTtlMs ?? DEFAULT_PENDING_FLOW_TTL_MS;
     this.#grantTtlMs = options.grantTtlMs ?? DEFAULT_GRANT_TTL_MS;
+    this.#onUpstreamCallbackError = options.onUpstreamCallbackError ?? (() => {});
   }
 
   /** The fixed callback URI a human must allowlist in the Auth0 application. */
@@ -411,8 +423,10 @@ export class CounterOAuthServerProvider implements OAuthServerProvider {
     let auth0Tokens: OAuthTokens;
     try {
       auth0Tokens = await this.#redeemUpstreamCode(code);
-    } catch {
-      // Never leak the upstream failure detail into a browser redirect.
+    } catch (error) {
+      // Real cause goes server-side only via the injected callback - never
+      // into the browser redirect below, which stays generic on purpose.
+      this.#onUpstreamCallbackError(error);
       return {
         kind: "redirect",
         url: buildErrorRedirect(
