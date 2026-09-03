@@ -10,7 +10,7 @@
 import { ok, err, createCanonicalError } from "@counter/domain";
 import type { Instant, Result } from "@counter/domain";
 import { verifyWebhookSignature } from "./auth.js";
-import type { WebhookEvent, WebhookProductPayload } from "./catalog-sync.js";
+import type { WebhookEvent } from "./catalog-sync.js";
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
 
@@ -157,11 +157,12 @@ export class WebhookInbox {
       });
     }
 
-    // Parse payload
-    let payload: WebhookProductPayload;
+    // Parse payload — topic-agnostic (see WebhookEvent's own docs); the
+    // caller narrows/validates it for whichever topic it actually is.
+    let payload: unknown;
     try {
       const decoder = new TextDecoder();
-      payload = JSON.parse(decoder.decode(rawBody)) as WebhookProductPayload;
+      payload = JSON.parse(decoder.decode(rawBody));
     } catch {
       return err(
         createCanonicalError({

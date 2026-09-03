@@ -94,11 +94,11 @@ function createTestMandate(): WalletMandate {
 // ---------------------------------------------------------------------------
 
 describe("PolicyPrecheckService", () => {
-  it("returns allowed when action is within policy limits", () => {
+  it("returns allowed when action is within policy limits", async () => {
     const store = new InMemoryRevocationStore();
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote(),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",
@@ -113,11 +113,11 @@ describe("PolicyPrecheckService", () => {
     expect(result.policyVersionId).toBe("policy-v1");
   });
 
-  it("returns denied when amount exceeds per-transaction limit", () => {
+  it("returns denied when amount exceeds per-transaction limit", async () => {
     const store = new InMemoryRevocationStore();
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote({ totalAmountPaise: 200000n }),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",
@@ -132,11 +132,11 @@ describe("PolicyPrecheckService", () => {
     expect(result.reasons[0]).toContain("per-transaction limit");
   });
 
-  it("returns review_required when amount exceeds approval threshold but within limits", () => {
+  it("returns review_required when amount exceeds approval threshold but within limits", async () => {
     const store = new InMemoryRevocationStore();
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote({ totalAmountPaise: 75000n }),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",
@@ -150,9 +150,9 @@ describe("PolicyPrecheckService", () => {
     expect(result.reasons[0]).toContain("approval threshold");
   });
 
-  it("returns denied when mandate is revoked", () => {
+  it("returns denied when mandate is revoked", async () => {
     const store = new InMemoryRevocationStore();
-    store.save({
+    await store.save({
       revocationId: "rev-001",
       scopeType: "mandate",
       scopeId: "mnd-test-001",
@@ -164,7 +164,7 @@ describe("PolicyPrecheckService", () => {
     });
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote(),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",
@@ -178,11 +178,11 @@ describe("PolicyPrecheckService", () => {
     expect(result.reasons[0]).toContain("revoked");
   });
 
-  it("returns denied when rolling limit would be exceeded", () => {
+  it("returns denied when rolling limit would be exceeded", async () => {
     const store = new InMemoryRevocationStore();
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote({ totalAmountPaise: 25000n }),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",
@@ -196,11 +196,11 @@ describe("PolicyPrecheckService", () => {
     expect(result.reasons[0]).toContain("Rolling period");
   });
 
-  it("works without a mandate (policy-only check)", () => {
+  it("works without a mandate (policy-only check)", async () => {
     const store = new InMemoryRevocationStore();
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote(),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",
@@ -214,11 +214,11 @@ describe("PolicyPrecheckService", () => {
     expect(result.mandateId).toBeUndefined();
   });
 
-  it("returns denied when merchant is not in allowlist", () => {
+  it("returns denied when merchant is not in allowlist", async () => {
     const store = new InMemoryRevocationStore();
     const service = new PolicyPrecheckService(store);
 
-    const result = service.precheck({
+    const result = await service.precheck({
       quote: createTestQuote({ merchantId: "merchant-999" }),
       policy: createTestPolicy(),
       policyVersionId: "policy-v1",

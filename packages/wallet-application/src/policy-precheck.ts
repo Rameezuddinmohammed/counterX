@@ -60,7 +60,7 @@ export class PolicyPrecheckService {
    * Evaluates a merchant quote against the given policy, mandate, and accumulated usage.
    * Returns a PrecheckResult indicating whether the action is allowed, denied, or requires review.
    */
-  precheck(params: {
+  async precheck(params: {
     readonly quote: MerchantQuote;
     readonly policy: BuyerPolicyConstraints;
     readonly policyVersionId: string;
@@ -68,7 +68,7 @@ export class PolicyPrecheckService {
     readonly accumulatedUsage: AccumulatedUsage;
     readonly paymentReferenceId: string;
     readonly timestamp: string;
-  }): PrecheckResult {
+  }): Promise<PrecheckResult> {
     const {
       quote,
       policy,
@@ -81,7 +81,7 @@ export class PolicyPrecheckService {
 
     // Check revocation first
     if (mandate) {
-      if (this.#revocationStore.isRevoked("mandate", mandate.mandateId)) {
+      if (await this.#revocationStore.isRevoked("mandate", mandate.mandateId)) {
         return {
           outcome: "denied",
           reasons: ["Mandate has been revoked"],
@@ -91,7 +91,7 @@ export class PolicyPrecheckService {
         };
       }
 
-      if (this.#revocationStore.isRevoked("wallet", mandate.walletId)) {
+      if (await this.#revocationStore.isRevoked("wallet", mandate.walletId)) {
         return {
           outcome: "denied",
           reasons: ["Wallet has been revoked"],

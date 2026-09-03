@@ -143,7 +143,7 @@ describe("E2E Autonomous Purchase Flow", () => {
       const quote = createTestQuote(25000n); // 250 INR, below 500 INR threshold
 
       // 4. Precheck
-      const precheckResult = precheckService.precheck({
+      const precheckResult = await precheckService.precheck({
         quote,
         policy,
         policyVersionId: TEST_POLICY_VERSION,
@@ -268,11 +268,11 @@ describe("E2E Autonomous Purchase Flow", () => {
   });
 
   describe("above-threshold triggers review_required", () => {
-    it("returns review_required for amount above approval threshold", () => {
+    it("returns review_required for amount above approval threshold", async () => {
       const policy = createTestPolicy({ thresholdPaise: 50000n });
       const quote = createTestQuote(75000n); // 750 INR, above 500 INR threshold
 
-      const precheckResult = precheckService.precheck({
+      const precheckResult = await precheckService.precheck({
         quote,
         policy,
         policyVersionId: TEST_POLICY_VERSION,
@@ -293,12 +293,12 @@ describe("E2E Autonomous Purchase Flow", () => {
   });
 
   describe("revoked mandate rejects", () => {
-    it("denies purchase when mandate is revoked", () => {
+    it("denies purchase when mandate is revoked", async () => {
       const policy = createTestPolicy();
       const quote = createTestQuote(25000n);
 
       // Revoke the mandate
-      revocationStore.save({
+      await revocationStore.save({
         revocationId: "rev-e2e-001",
         scopeType: "mandate",
         scopeId: "mandate-e2e-revoked",
@@ -326,7 +326,7 @@ describe("E2E Autonomous Purchase Flow", () => {
         policyVersionId: TEST_POLICY_VERSION,
       };
 
-      const precheckResult = precheckService.precheck({
+      const precheckResult = await precheckService.precheck({
         quote,
         policy,
         policyVersionId: TEST_POLICY_VERSION,
@@ -346,11 +346,11 @@ describe("E2E Autonomous Purchase Flow", () => {
   });
 
   describe("exceeded limits reject", () => {
-    it("denies when per-transaction limit is exceeded", () => {
+    it("denies when per-transaction limit is exceeded", async () => {
       const policy = createTestPolicy({ perTransactionMaxPaise: 10000n });
       const quote = createTestQuote(25000n);
 
-      const precheckResult = precheckService.precheck({
+      const precheckResult = await precheckService.precheck({
         quote,
         policy,
         policyVersionId: TEST_POLICY_VERSION,
@@ -368,11 +368,11 @@ describe("E2E Autonomous Purchase Flow", () => {
       expect(precheckResult.reasons.some((r) => r.includes("per-transaction limit"))).toBe(true);
     });
 
-    it("denies when rolling period limit is exceeded", () => {
+    it("denies when rolling period limit is exceeded", async () => {
       const policy = createTestPolicy({ rollingMaxPaise: 50000n });
       const quote = createTestQuote(25000n);
 
-      const precheckResult = precheckService.precheck({
+      const precheckResult = await precheckService.precheck({
         quote,
         policy,
         policyVersionId: TEST_POLICY_VERSION,
@@ -390,11 +390,11 @@ describe("E2E Autonomous Purchase Flow", () => {
       expect(precheckResult.reasons.some((r) => r.includes("rolling"))).toBe(true);
     });
 
-    it("denies when transaction count limit is exceeded", () => {
+    it("denies when transaction count limit is exceeded", async () => {
       const policy = createTestPolicy({ maxTransactions: 3 });
       const quote = createTestQuote(25000n);
 
-      const precheckResult = precheckService.precheck({
+      const precheckResult = await precheckService.precheck({
         quote,
         policy,
         policyVersionId: TEST_POLICY_VERSION,
@@ -593,8 +593,8 @@ describe("E2E Autonomous Purchase Flow", () => {
   });
 
   describe("wallet revocation blocks execution", () => {
-    it("revoked wallet blocks all purchase attempts", () => {
-      revocationStore.save({
+    it("revoked wallet blocks all purchase attempts", async () => {
+      await revocationStore.save({
         revocationId: "rev-wallet-001",
         scopeType: "wallet",
         scopeId: TEST_WALLET_ID,
@@ -605,7 +605,7 @@ describe("E2E Autonomous Purchase Flow", () => {
         principalId: "actor-e2e-001",
       });
 
-      expect(revocationStore.isRevoked("wallet", TEST_WALLET_ID)).toBe(true);
+      expect(await revocationStore.isRevoked("wallet", TEST_WALLET_ID)).toBe(true);
     });
   });
 

@@ -31,6 +31,10 @@ import { walletUserRoutesPlugin } from "./wallet-user-routes.js";
 import type { WalletUserProvisionerLike } from "./wallet-user-store.js";
 import { recurringMandateRoutesPlugin } from "./recurring-mandate-routes.js";
 import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
+import { mandateBindingRoutesPlugin } from "./mandate-binding-routes.js";
+import type { MandateBindingService } from "./mandate-binding-store.js";
+import { prepaidBalanceMandateBindingRoutesPlugin } from "./prepaid-balance-mandate-binding-routes.js";
+import type { PrepaidBalanceMandateBindingService } from "./prepaid-balance-mandate-binding-store.js";
 import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
 import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
 import { refundRequestRoutesPlugin } from "./refund-request-routes.js";
@@ -39,6 +43,10 @@ import { merchantApplicationRoutesPlugin } from "./merchant-application-routes.j
 import type { MerchantApplicationProvisionerLike } from "./merchant-application-store.js";
 import { merchantPaymentConnectionRoutesPlugin } from "./merchant-payment-connection-routes.js";
 import type { MerchantPaymentConnectionStoreLike } from "./merchant-payment-connection-store.js";
+import { merchantWebhookEndpointRoutesPlugin } from "./merchant-webhook-endpoint-routes.js";
+import type { MerchantWebhookEndpointStoreLike } from "./merchant-webhook-endpoint-store.js";
+import { buyerNotificationRoutesPlugin } from "./buyer-notification-routes.js";
+import type { PostgresBuyerNotificationStore } from "@counter/data";
 import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
 import type { MerchantReadinessServiceLike } from "./merchant-readiness-store.js";
 import { merchantManifestRoutesPlugin } from "./merchant-manifest-routes.js";
@@ -154,6 +162,20 @@ export interface CreateServerOptions {
    */
   readonly recurringMandateProvisioner?: RecurringMandateProvisionerLike | undefined;
   /**
+   * Only when present is /control/v1/wallets/*\/mandates registered — same
+   * optional-feature pattern as walletUserProvisioner.
+   */
+  readonly mandateBindingService?: MandateBindingService | undefined;
+  /**
+   * Only when present is /control/v1/wallets/*\/prepaid-mandates
+   * registered — same optional-feature pattern as mandateBindingService,
+   * but for the prepaid-balance-backed authority model (see
+   * prepaid-balance-mandate-binding-store.ts's header). A wholly separate
+   * route from mandateBindingService's — the two authority models never
+   * share a code path.
+   */
+  readonly prepaidBalanceMandateBindingService?: PrepaidBalanceMandateBindingService | undefined;
+  /**
    * Only when present is /control/v1/merchants/:merchantId/shopify/*
    * registered — a new, optional feature (self-serve Shopify OAuth), not
    * one every deployment of this app needs.
@@ -175,6 +197,20 @@ export interface CreateServerOptions {
    * same optional-feature pattern as merchantApplicationProvisioner.
    */
   readonly merchantPaymentConnectionStore?: MerchantPaymentConnectionStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/merchants/:merchantId/webhook-endpoint
+   * registered — Phase 2 of the remote-MCP plan (notifications backbone):
+   * a merchant registers a callback URL for real order/fulfillment event
+   * delivery. Same optional-feature pattern as merchantPaymentConnectionStore.
+   */
+  readonly merchantWebhookEndpointStore?: MerchantWebhookEndpointStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/wallets/:walletId/notifications
+   * registered — Phase 2 of the remote-MCP plan (notifications backbone),
+   * serving the notifications.list/invoices.get MCP tools. Same
+   * optional-feature pattern as merchantWebhookEndpointStore.
+   */
+  readonly buyerNotificationStore?: PostgresBuyerNotificationStore | undefined;
   /**
    * Only when present is /control/v1/merchant-applications/:merchantId/
    * readiness registered — Step 5, same optional-feature pattern.
@@ -297,6 +333,23 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     });
   }
 
+  // Wallet-mandate binding route — only registered when a binding service
+  // is wired (see CreateServerOptions.mandateBindingService).
+  if (options?.mandateBindingService !== undefined) {
+    void server.register(mandateBindingRoutesPlugin, {
+      bindingService: options.mandateBindingService,
+    });
+  }
+
+  // Prepaid-balance-backed wallet-mandate binding route — only registered
+  // when a binding service is wired (see
+  // CreateServerOptions.prepaidBalanceMandateBindingService).
+  if (options?.prepaidBalanceMandateBindingService !== undefined) {
+    void server.register(prepaidBalanceMandateBindingRoutesPlugin, {
+      bindingService: options.prepaidBalanceMandateBindingService,
+    });
+  }
+
   // Self-serve Shopify OAuth routes — only registered when a provisioner is
   // wired (see CreateServerOptions.shopifyConnectionProvisioner).
   if (options?.shopifyConnectionProvisioner !== undefined) {
@@ -326,6 +379,22 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.merchantPaymentConnectionStore !== undefined) {
     void server.register(merchantPaymentConnectionRoutesPlugin, {
       store: options.merchantPaymentConnectionStore,
+    });
+  }
+
+  // Merchant webhook endpoint registration (Phase 2 notifications backbone)
+  // — only registered when a store is wired.
+  if (options?.merchantWebhookEndpointStore !== undefined) {
+    void server.register(merchantWebhookEndpointRoutesPlugin, {
+      store: options.merchantWebhookEndpointStore,
+    });
+  }
+
+  // Buyer-facing notifications/invoices (Phase 2 notifications backbone) —
+  // only registered when a store is wired.
+  if (options?.buyerNotificationStore !== undefined) {
+    void server.register(buyerNotificationRoutesPlugin, {
+      store: options.buyerNotificationStore,
     });
   }
 

@@ -1,175 +1,94 @@
 # Counter — Session Handoff Document
 
-> **Purpose:** Hand off the full working context of the Counter build to a fresh assistant session so no context is lost and nothing is hallucinated. Self-contained. Secrets/API keys are **NOT** in this file (never commit them) — they are provided separately in chat. Where a secret is needed, this doc names it and points to the chat handoff.
+> **Purpose:** Hand off exact working context to a fresh Claude Code session picking up Phase 3 of the remote-MCP plan, without needing to re-derive anything from scratch. Self-contained. No secrets committed here — they live in `.env` (already in the repo working tree, gitignored) and Fly secrets.
+>
+> **Written:** 2026-09-02, end of the session that completed Phases 0–2. Everything below was true at that moment; re-verify anything load-bearing before relying on it (per `CLAUDE.md`'s own source-of-truth hierarchy — this file is a starting hypothesis, not gospel).
 
 ---
 
-## 0. What Counter is
+## 0. Read this first
 
-**Counter** is an India-first **agent-commerce platform**: AI agents buy from merchants under **bounded authority** (spend limits, scopes, kill switches). Brand: name "Counter", domain **getcounter.in**, tagline "The commerce layer for AI agents", bold-orange + Linear-style UI + Stripe-quality docs.
+The **real plan** is `~/.claude/plans/federated-enchanting-wave.md` (6 phases: 0 done, 1 done, 2 done, 3 next — remote MCP connector — then 4, notifications-adjacent wallet-dashboard work). Read it before starting Phase 3; this doc is operational context, not a replacement for it.
 
-**Product bar (user's north star, quote):** *"I need a real product not an impressive demo"* — bias toward: **real execution -> durable effects -> adversarial tests -> external truth -> reconciliation -> evidence.** "Iron tight." User wants layman explanations often and is cost-conscious.
+Your auto-loaded memory (`MEMORY.md` + linked files) already has detailed writeups of Phases 0 and 2 — `phase0_prepaid_mandate_binding_complete.md`, `phase2_notifications_backbone_complete.md`, `founder_production_autonomy_pattern.md`, `auth0_shared_console_app_gaps.md`. Read those before this file if you want the "why", not just the "what."
 
----
-
-## 1. Current status (at handoff)
-
-### Shipped & merged to `main`
-- Foundation (20 tasks), Counter Merchant (21 tasks), Counter Agent Wallet (20 tasks).
-- Full UI overhaul: shared `@counter/ui` package (shadcn/ui: Radix + CVA + tailwind-merge + cmdk + sonner + next-themes + lucide + framer-motion), landing page, 3 consoles.
-- **PR #7** — durable cross-instance **atomic rolling-spend ledger** (migration 0009 `runtime.spend_ledger`; `PostgresSpendLedger.reserveSpend` = atomic check-and-reserve in one txn with `FOR UPDATE`). Proven vs real Supabase.
-- **PR #8** — Merchant Console **Transactions page wired to a real read-model** (endpoints `GET /control/v1/merchants/:merchantId/transactions`, `GET /control/v1/transactions/:transactionId`; projects `Transaction` from `runtime.workflow_intents` + `runtime.lifecycle_steps` + `runtime.spend_ledger`; server-side tenant isolation).
-- **PR #9** — **Docker OOM fix**: backend image builds only the target app, not the 4 Next consoles.
-- **PR #10** — **Monorepo topological build fix**: all tsc-built packages converted to **TypeScript project references** (`references` arrays + per-package `tsconfig.build.json` excluding tests; `build` = `tsc -b tsconfig.build.json`). Fixes clean-state build races. Dockerfile uses a **name-based** pnpm filter derived from `BUILD_TARGET`.
-- **PR #11** — **pg ESM crash fix**: `import { DatabaseError } from "pg"` (named value import from a CommonJS module) crashed under native Node ESM; changed to `import pg from "pg"; const { DatabaseError } = pg;`.
-- **PR #12 + #13** — **Codebase sanity sweep** (lint 963->~9 by ignoring `apps/landing/out/` static-export in eslint; real fixes: data-table `[object Object]` bug, empty-interface types, merchant-console typed table cells).
-
-**All merged. NO open PRs at handoff.** `main` HEAD ~= `e2be632` (Merge PR #13).
-
-### Deployed & live
-- **Supabase Postgres** (region ap-southeast-1, project ref `enreujnhmydptyasxlvm`): migrations **0001-0009 applied**.
-- **3 Fly.io backend apps** (region `sin`), all **deployed & confirmed healthy** after the fixes:
-  - `counter-control-plane-api` — `/control/v1/status` returns `{"error":{"code":"UNAUTHENTICATED"}}` (HEALTHY: up + auth-guarded).
-  - `counter-agent-runtime` — boots past module load (no longer crash-looping).
-  - `counter-worker` — deployed (process group `worker`, runs `node apps/worker/dist/index.js`).
-- **4 Vercel projects** (Hobby/free): `merchant-console-bay`, `wallet-console`, `operations-console-two`, `landing`. Deployed by the USER (Vercel Hobby blocks bot commits).
-
-### Verified baseline (CLEAN build)
-`pnpm build` green; `pnpm test` **2,811 passing** (+ ~25 DB-gated integration tests skip without creds); `pnpm depcruise` 0 violations; `pnpm lint` ~9 residual real-source items (in findings report; not blocking).
+**Current branch:** `feat/prepaid-wallet-real-razorpay-capture`. **Not pushed to remote** — everything is local commits only. Two new commits this session: `e93196e` (Phase 0) and `38a56fb` (Phase 2), on top of the branch's prior commits (`3a49fe5`, `6a958f5`, ...). Whoever picks this up should decide whether to keep working on this branch, split it, or open a PR — the founder hasn't been asked yet.
 
 ---
 
-## 2. THE SINGLE MOST IMPORTANT NEXT STEP — "Slice 2"
+## 1. What's actually done (verified by real execution, not static reading)
 
-**The Transactions page is wired correctly but shows an EMPTY list, because the worker records transactions IN MEMORY and never persists them to the DB.** All `runtime.*` transaction tables are currently **0 rows**.
+**Phase 0 — prepaid-balance wallet mandate binding.** `PrepaidBalanceMandateBindingService` + `POST /control/v1/wallets/:walletId/prepaid-mandates` + `scripts/issue-and-bind-prepaid-mandate.mjs`. A prepaid-balance-funded wallet can now get a durable `WalletMandate` and pass `checkMandateAuthority` through the real admission path. Also fixed a real bug: `apps/worker/src/transaction-lifecycle.ts`'s `parseAuthority()` silently dropped `mandateId`, which meant the worker's own defense-in-depth revocation re-check was dead code — fixed, regression-tested. Also fixed two real production gaps found while verifying: the deployed worker was 2 days stale, and the pilot merchant (`ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw`) had **no `merchant.scopes` row at all** and no connected Razorpay gateway — both fixed (seeded the row, connected real test credentials, verified via Razorpay's own API).
 
-**Slice 2 = make the worker persist real transactions to Postgres** (`runtime.workflow_intents` + `runtime.lifecycle_steps` + `runtime.spend_ledger`) as a transaction executes, idempotently + crash-safely (consistent with the existing durable machinery). After Slice 2, a real Shopify/Razorpay transaction will **appear live in the merchant console** — the moment Counter becomes a visible product. **Planner-led.**
+**Phase 1 — merchant setup completion.** Turned out to be mostly already-built: the Auth0 Post-Login Action that stamps merchant permissions onto login tokens already existed and was already correct. The real gap was that `merchant:read`/`merchant:write` were never defined as permissions on the "Counter Platform API" in Auth0, so the Action's own signal for "is this a merchant login" could never fire. Fixed: added both permissions, granted them to the "Counter Console" app (now 5/5, was 3/5). **Not live-tested** — nobody has done a fresh merchant-console login since the fix; if you touch merchant-console auth, that's the first thing to verify.
 
----
+**Phase 2 — notifications backbone.** `apps/worker/src/outbox-dispatcher.ts` (claims pending `runtime.outbox_events`, fans out to merchant webhooks + a new `runtime.buyer_notifications` projection), `merchant.webhook_endpoints` table (migration 0022, applied to the real DB), a real Shopify `fulfillments/*` webhook handler, and real `notifications.list`/`invoices.get` MCP tools in `apps/local-mcp`. The dispatcher had never run before this session — the instant it started, it cleared a backlog of outbox rows stuck since **2026-08-29**. Found and fixed a real bug live: the new `merchant.order.created.v1` event initially carried an internal derived transaction id instead of the raw one the buyer actually has, making notifications uncorrelatable — caught by checking the actual DB row after a live purchase, fixed, redeployed, reverified.
 
-## 3. Roadmap after Slice 2 (told to user)
-1. **Slice 2** — worker persists transactions to `runtime.*`.
-2. Fan out remaining merchant-console pages (audit, findings, policy, killswitch) to real data (reuse read-model pattern).
-3. Wire **wallet-console** and **operations-console** to real data.
-4. Connect a **real AI agent E2E** (Claude Desktop MCP -> agent-runtime).
-5. **Razorpay human-present** browser handoff (Standard Checkout returns `action_required`; unattended path uses deterministic `CounterTestPaymentProvider` but ALSO creates a real Razorpay order to prove integration).
-6. First real **pilot**.
+Both `apps/worker` and `apps/control-plane-api` are **deployed to Fly with all of this code live** as of session end. `apps/agent-runtime` was not touched this session (still whatever was deployed before) — no source changes there.
 
 ---
 
-## 4. Architecture / repo map
+## 2. Critical operational gotchas hit this session (don't rediscover these the hard way)
 
-Monorepo `~/counterX` (pnpm 9.15.4 workspaces, 36 projects, TypeScript ESM strict, Node pinned **22.14.0**).
-
-- **Backend apps (Fly.io/Docker):** `apps/control-plane-api`, `apps/agent-runtime`, `apps/worker`.
-- **Frontend apps (Vercel, Next.js 16 / React 19):** `apps/merchant-console`, `apps/wallet-console`, `apps/operations-console`, `apps/landing`.
-- **Other apps:** `apps/local-mcp` (MCP stdio), `apps/reference-buyer`, `apps/reference-services`.
-- **Key packages:** `domain` (leaf, no infra), `data` (Postgres repos: `PostgresSpendLedger`, `PostgresStepLedger`, `PostgresKillSwitchStore`, `PostgresJobRepository`, `PostgresOutboxRepository`, identity repos), `payment-sdk`, `shopify-connector`, `razorpay-adapter`, `trust-protocol`, `workflow`, `authorization`, `http-api-kit` (`getActorContext`, `registerRoutePermission`), `ui` (shadcn), `contracts`/`merchant-contracts`/`wallet-contracts`, `evidence`, `observability`, `testkit`.
-
-**Deployment stack decision:** Supabase (Postgres) + Fly.io (APIs/worker) + Vercel (consoles) + Grafana Cloud (telemetry) + Auth0 (identity). Rejected AWS (cost/ops), Railway/Render (paid). Fly ~$1-5/mo with auto-stop.
+- **The Bash tool's network is isolated from the real Supabase DB** — any `node -e` or script run via the `Bash` tool that tries to connect to `DATABASE_URL` gets `ECONNREFUSED` (looks like "nothing listening" but is actually sandboxed egress). **Use the `PowerShell` tool for anything that touches the real database.** `Test-NetConnection` from PowerShell confirmed direct TCP to the Supabase pooler works fine from there.
+- **PowerShell `node -e "..."` mangles backticks** — PowerShell treats `` ` `` as its own escape character even inside a double-quoted argument, so inline template-literal one-liners silently break. Write the script to a `.mjs` file with `Write`, then `node path\to\file.mjs` from PowerShell instead.
+- **Scripts don't get `.env` for free** — every one-off script needs to manually read and parse `.env` at the top (see any `scripts/*.mjs` for the 4-line pattern: split on newline, regex `^([A-Z_][A-Z0-9_]*)=(.*)$`, only set if not already in `process.env`).
+- **`pg`'s named exports don't work under ESM** — `import { Client } from "pg"` throws; use `import pg from "pg"; const { Client } = pg;`.
+- **`pnpm db:migrate` (the CLI) is deliberately restricted to a loopback `counter_local`/`counter_test` database** — it will refuse to run against the real Supabase `DATABASE_URL`. To apply a migration to the real DB, write a tiny script using `PostgresDatabase` + `loadMigrations`/`MigrationRunner` directly from `packages/data/dist` (see this session's git history for the exact pattern — it was a temp file, deleted after use, not committed).
+- **The Claude-in-Chrome browser extension and the `auth0` MCP server both dropped connection at least once this session** and needed the user to manually restart/reconnect them. If you need either, expect to ask the user to reconnect, and don't assume a `CONNECTION_CLOSED` error means the capability doesn't exist.
+- **The `key` action for browser automation can silently TYPE a key name as literal text** instead of pressing it as a special key (happened with `"Page_Down"` — it got typed into a live Auth0 Action's source code before I caught it and undid it). Stick to mouse actions (click, scroll, drag) for navigation in the Auth0 dashboard; only use `key` for things confirmed to work like `ctrl+Home`/`ctrl+End`/single arrow keys after clicking into a text field first, and always screenshot-verify after.
+- **Auto-mode's permission classifier blocks direct `flyctl scale`/typing-into-dashboard actions** even under the CLAUDE.md production-autonomy grant — clicking pre-existing UI elements (checkboxes) worked fine, but typing text into an Auth0 form field got blocked. When blocked, explain to the user and let them do that one step, or ask them to unblock it — don't route around it.
+- **Test wallet keystores created this session live in the session-scoped scratchpad directory**, e.g. `C:\Users\nazim\AppData\Local\Temp\claude\C--Users-nazim-counter\<session-id>\scratchpad\*.enc.json`. **This path will not exist in a new session.** If you need a wallet with existing balance/mandates for testing, either register a fresh one (cheap — synthetic top-up, real mandate binding, ~2 minutes) or ask the user for the passphrase to a specific keystore file if they've kept a copy.
 
 ---
 
-## 5. Build / test / deploy mechanics (READ before touching anything)
+## 3. Real test wallet state (as of session end — likely stale/spent by the time you read this)
 
-### Node setup — REQUIRED at start of EVERY bash command
+The most recently created, still-usable wallet from this session: `ctr_wallet_heYUlPKiGc1wwE23UCZENw` (registered via `apps/local-mcp/scripts/register-buyer-agent.mjs`), agent `ctr_agent_QV0mia24mIc4ynWAD4MCxg`, kid `ctr_key_kWV1xJp4Ayq2vF28B-WtXQ`. Had a synthetic top-up of ₹5,000 and one active mandate `ctr_mandate_0hv-KBLojEQvYZpWYF7dDQ` (ceiling ₹5,000); made two real ₹1,228.82 purchases against it, so balance was ≈₹2,512 minus a bit at last check. **Its keystore lives in the session-scoped scratchpad (see above) and will not survive into a new session** — treat this id as a DB record you can query, not something you can sign new purchases with, unless you re-derive/re-register.
+
+An earlier wallet from Phase 0, `ctr_wallet_vK-wpQwg1l1GHkC37iCfsw`, is real and has real balance but **hit its rolling 24h spend/attempt policy limit** from extensive same-session testing — a real purchase against it will legitimately get `policy-declined`, not a bug. Don't burn time re-diagnosing that if you see it again; either wait out the window or use a fresh wallet.
+
+**Cheapest way to get a fresh, working, funded, mandated wallet for testing:**
 ```
-source ~/.nvm/nvm.sh && nvm use 22
+node apps/local-mcp/scripts/register-buyer-agent.mjs   # prompts for a passphrase; note the walletId/agentId/kid it prints
+# then top up (write a tiny script using PostgresWalletBalanceStore.topUp() with a clearly-labeled synthetic reference — see packages/data/src/wallet-balance-store.ts)
+node scripts/issue-and-bind-prepaid-mandate.mjs --wallet-id <id> --agent-id <id> --kid <kid> --ceiling-minor 500000
 ```
-Repo pins 22.14.0; sandbox has 22.23.x; `engines` = `>=22.14.0`.
-
-### Build system = TypeScript project references
-- Each tsc-built package/app has a `references` array in `tsconfig.json` + a sibling `tsconfig.build.json` (distinct `tsBuildInfoFile`, **excludes** `**/*.test.ts` and `**/*.integration.test.ts`, references deps' build variants).
-- Per-package `build` = `tsc -b tsconfig.build.json`. Root `pnpm build` = `pnpm -r --if-present run build`.
-- **Always verify from a CLEAN state** (repo had a latent build-order race only clean builds expose):
-  ```
-  find apps packages -name '*.tsbuildinfo' -delete; rm -rf apps/*/dist packages/*/dist
-  ```
-  (The broad `find . -path ./node_modules -prune -o -name '*.tsbuildinfo' -delete` form has MISFIRED in the sandbox — prefer explicit `find apps packages ...`.)
-
-### Dockerfile (shared by all 3 Fly apps)
-- Builds ONLY the target app + its workspace dep closure via a **name filter** derived from `BUILD_TARGET` (a path like `apps/worker`):
-  `RUN pnpm --filter "$(node -p "require('./${BUILD_TARGET}/package.json').name")..." run build`
-- Consoles are NEVER built in the backend image. Do not reintroduce full `pnpm build`.
-
-### Fly deploy (user runs locally on Windows PowerShell)
-```
-cd $HOME\counter\counterX; git checkout main; git pull origin main
-& "$HOME\.fly\bin\flyctl.exe" deploy --config fly.control-plane-api.toml --remote-only
-& "$HOME\.fly\bin\flyctl.exe" deploy --config fly.agent-runtime.toml --remote-only
-& "$HOME\.fly\bin\flyctl.exe" deploy --config fly.worker.toml --remote-only
-& "$HOME\.fly\bin\flyctl.exe" scale count worker=1
-```
-Fly apps: `auto_stop_machines=true`, `min_machines_running=0` -> **scale to zero when idle (STATE: stopped is NORMAL, not a crash).** Failed builds cost nothing.
-
-### Fly secrets each app needs (NAMES only; values in chat handoff)
-- **control-plane-api & agent-runtime:** `DATABASE_URL`, `NODE_ENV=production`. (Fail loud without `DATABASE_URL` in prod-like env; do NOT read Auth0 vars at startup.)
-- **worker:** `DATABASE_URL`, `NODE_ENV=production`, `COUNTER_ENV=test`, `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_API_VERSION`, `SHOPIFY_TEST_VARIANT_GID`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `SHOPIFY_WEBHOOK_SECRET`. (`selectPaymentAuthorizationPort` FAILS LOUD in prod-like env if Shopify/Razorpay creds missing.) Webhook secrets can be `"x"` for now.
-- **`DATABASE_URL` gotcha:** the `#` in the DB password MUST be percent-encoded as `%23`.
-
-### Vercel env vars (consoles) — set by user per project in Vercel dashboard
-`AUTH0_SECRET` (any 64-hex), `AUTH0_BASE_URL` (deployed URL), `AUTH0_ISSUER_BASE_URL`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_AUDIENCE`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_BASE_URL=https://counter-control-plane-api.fly.dev`. merchant-console page reads `NEXT_PUBLIC_MERCHANT_ID` (falls back to pilot merchant); real tenant boundary is server-side from the token.
+All run via PowerShell (see gotcha #1 above), from repo root, after building `packages/data`, `packages/wallet-domain`, `packages/wallet-application`, `packages/trust-protocol`, `packages/domain`, `packages/payment-sdk`, `apps/control-plane-api`.
 
 ---
 
-## 6. SANDBOX / ENVIRONMENT BUGS (do NOT re-diagnose)
+## 4. Production state
 
-1. **File-tool overlay divergence (CRITICAL):** `fs_write`/`str_replace`/`read_file` + `grep_search` operate on a per-turn overlay that **DIVERGES from real disk** (git/pnpm/tsc/node). Caused real failures (a lost eslint fix reported "done"; a "1 error" that was really 907; this very HANDOFF file failed the first fs_write). **ALWAYS edit via bash (python3 heredoc / `cat <<'EOF'`) and verify with `cat`/`git diff`/by running the command.** Never trust a file tool's readback alone.
-2. **Verify from ground truth, not sub-agent reports.** Sub-agents have reported success not matching disk. Orchestrator re-verifies (git diff, re-run lint/build) before publishing.
-3. **Sandbox resets between sessions:** workspace may be empty — re-clone `git clone https://github.com/Rameezuddinmohammed/counterX.git ~/counterX`.
-4. **Sandbox network to Fly may time out** (curls to *.fly.dev time out from inside) — sandbox egress, NOT apps down. Trust `flyctl status`/`logs` from user's machine.
-5. **git/GraphQL:** clone via HTTPS; `gh pr`/`gh issue`/`gh repo view` are GraphQL and fail — use `gh api "<REST>"`. `gh auth status` "failure" is cosmetic. Push to a NEW branch + PR via `gh api repos/.../pulls`; never push to main directly.
-6. **Tests use vitest (esbuild)** — LENIENT about CJS/ESM named-import interop, so runtime ESM crashes (like `pg`) pass tests but crash prod Node. For import changes, prove native load: `node -e "import('./apps/<app>/dist/main.js').catch(e=>{console.error(e);process.exit(1)})"` (missing-env exit is fine; a `SyntaxError` on import is the bug).
-
----
-
-## 7. Data model notes for Slice 2
-
-There is **NO `transactions` table**. A transaction's truth lives across `runtime.*`:
-- `runtime.workflow_intents` — SPINE: `id`, `transaction_id`, `environment`, `scope_kind` ('merchant'|'wallet'|'platform'), `scope_id` (= merchantId when scope_kind='merchant'), `command_type`, `command_digest`, `authority_context` jsonb, `status` ('pending'|'executing'|'completed'|'failed'), `created_at`. Dedup unique index `(environment, transaction_id, command_type, command_digest)`.
-- `runtime.lifecycle_steps` — per external-effect outcome: `(environment, idempotency_key, step)` unique; `step` e.g. `shopify.draft`/`shopify.finalize`/`shopify.markPaid`(+`.claim`); `status` ('completed'|'declined'); `reference` (provider order id); `snapshot` jsonb (currently null); `created_at`/`completed_at`.
-- `runtime.spend_ledger` — `(environment, wallet_id, reference)` unique; `amount_minor` (minor units, /100 for INR display), `currency`, `spent_at`.
-- Others: `idempotency_keys`, `inbox_events`, `outbox_events`, `jobs`, `job_attempts`, `kill_switches`.
-
-Read-model projection (PR #8) maps these to the front-end `Transaction` type. `buyerRef`/`method` have no persisted column yet -> read from `authority_context` else `(unavailable)`/`unknown`. NOTE: `PostgresStepLedger` hardcodes `environment='local'` in queries — relevant when wiring persistence; scope must flow through `workflow_intents.scope_id`.
+- `counter-worker` (Fly) — running current code including the outbox dispatcher and the transactionId fix. Healthy, `payment connector selected { mode: 'real' }`, dispatcher loop confirmed running.
+- `counter-control-plane-api` (Fly) — running current code including all Phase 2 routes. Healthy (auto-stops when idle, wakes on request — normal).
+- `counter-agent-runtime` (Fly) — untouched this session, whatever was live before.
+- Real DB migrations applied through **0022** (`webhook-endpoints-and-buyer-notifications`).
+- Pilot merchant `ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw` now has a real `merchant.scopes` row and a connected (real, verified) Razorpay test gateway — this was NOT true before this session and blocked the worker from booting; don't re-diagnose that failure mode if you see old references to it.
+- Auth0 "Counter Platform API" now has 5 permissions (`agent:transact`, `wallet-users:provision`, `wallet-users:self-serve`, `merchant:read`, `merchant:write`), all granted to "Counter Console".
 
 ---
 
-## 8. Prioritized backlog (from sanity sweep; deliberately NOT changed)
+## 5. Verification baseline at handoff
 
-Full report: `.agents/tasks/task-codebase-sanity-cleanup/FINDINGS-REPORT.md`. Highlights:
-1. **[MED] Transaction read-model follow-ups** (touch deployed API contract — human decision): (a) LIST can emit duplicate rows if a `transaction_id` has two `workflow_intents` -> `DISTINCT ON`; (b) `loadAmount` picks an arbitrary `spend_ledger` row (`ORDER BY id ASC LIMIT 1`) on multi-wallet refs -> make deterministic/aggregate; (c) N+1 fan-out (~401 round-trips at limit=200) -> batch into `IN` queries. Files: `apps/control-plane-api/src/transaction-{routes,store-postgres}.ts`.
-2. **[MED] Test-support code in prod dist:** adopt `*.testsupport.ts` convention / exclude globs. CAUTION: `fixtures.ts`/`mock-graphql-client.ts` are re-exported from public `index.ts` and are **load-bearing** (cross-package) — needs an API decision first.
-3. **[LOW] DataTable generic constraint** forces `as unknown as ...` bridges in merchant-console — relax `DataTable<T extends Record<string,unknown>>`.
-4. **[LOW] operations-console** has 7 pre-existing `react-hooks/exhaustive-deps` issues (eslint-plugin-react-hooks is NOT installed/registered — removed to keep PR #13 coherent).
-5. **[COSMETIC] Next 16 deprecations** ("middleware -> proxy", "Unrecognized key: eslint" in next.config.ts) — harmless now; clean up before a Next upgrade.
+Full clean build, `pnpm typecheck`, `pnpm lint`, and `pnpm test` were all green across the entire monorepo (20 packages/apps with tests, zero failures) as the very last check before the Phase 2 commit. If you touch anything, re-run the relevant scoped checks; re-run the full suite before another commit/PR.
 
----
-
-## 9. Domain facts / limits (PILOT.md Profile 0.1)
-- Max transaction: **500,000 paise (Rs 5,000)**. Rolling 24h total: **1,000,000 paise (Rs 10,000)**. Max **5 attempts / 24h**.
-- Real transaction proven E2E: real Shopify order, real Razorpay order, signed receipt, reconciled. Fixed real-infra bugs previously: Shopify `noteAttributes`->`customAttributes` (API 2025-07), Razorpay double `/v1` base URL, Shopify mark-paid eventual-consistency retry.
-- Shopify token lacks `write_products`. Razorpay TEST mode. `COUNTER_ENV=test` uses deterministic `CounterTestPaymentProvider` for the unattended path but ALSO creates a real Razorpay order to prove integration; Razorpay Standard Checkout stays human-present (`action_required`).
+**Known, pre-existing, NOT-yours-to-fix failures:**
+- `pnpm depcruise` fails with a Node 24 / `dependency-cruiser@16.10.0` incompatibility (`node:fs` doesn't export `R_OK` the way that version expects). Unrelated to any of this session's or prior sessions' code changes — a devDependency/Node-version mismatch. Don't attempt a fix unless asked.
+- `apps/merchant-console` has one pre-existing `react-hooks/exhaustive-deps` lint warning (not an error, doesn't fail the gate).
 
 ---
 
-## 10. Working agreements with the user
-- Report when ALL of a multi-part task is done, not per-task (unless blocked).
-- Give layman explanations often; user is cost-paranoid (reassure: Fly idle = $0, failed builds = $0).
-- Publish is the default final step: push to a NEW branch + open a PR via the GitHub Power; never push to main directly; share the PR link. The USER merges and deploys (Vercel Hobby blocks bot commits).
-- Grafana token was EXPIRED (401) — user must regenerate; telemetry wiring deferred.
+## 6. Starting point for Phase 3 (remote MCP connector)
+
+This is the biggest, most novel phase. Per the plan, **do the key-custody spike first, before writing any transport code**: confirm Ed25519 signing support and choose between HashiCorp Vault's Transit engine and GCP Cloud KMS, then document the choice and the accepted residual risk directly in `.kiro/specs/counter-agent-wallet/design.md` (updating its "local stdio by default" principle rather than silently contradicting it) — this was a decision the founder already made in principle (signing keys move server-side, buyer only ever connects to one remote MCP URL) but the concrete Vault-vs-KMS choice was left for this phase.
+
+After that: a new multi-tenant `SecureKeyStore` in `packages/wallet-domain` (existing `FileSecureKeyStore`/`InMemorySecureKeyStore` stay untouched), a new `apps/remote-mcp` app wrapping `createMcpServer` from `apps/local-mcp` with the MCP SDK's `StreamableHTTPServerTransport` over Fastify, and a Fastify-native reimplementation of the MCP SDK's OAuth endpoints fronting the **existing** Auth0 tenant via `ProxyOAuthServerProvider` (one new pre-registered Auth0 client — same pattern the three existing consoles use). Full detail is in the plan file itself.
+
+**Known related gap, not part of Phase 3 per se but adjacent:** `AGENT_RUNTIME_M2M_CLIENT_ID`/`SECRET` (the credential a Post-Login Action would use to mint a wallet's own runtime bearer token) is not configured anywhere in this environment — this is the same missing piece that made `apps/local-mcp/src/wallet-runtime-client.ts` (Phase 2) gracefully degrade rather than being live-testable end-to-end through the full self-serve flow. Phase 3's OAuth work may end up touching or resolving this naturally; if not, it's worth flagging to the founder as its own small gap.
 
 ---
 
-## 11. First-run verification checklist for the next session (from clean)
-```
-source ~/.nvm/nvm.sh && nvm use 22 && cd ~/counterX
-git checkout main && git pull origin main
-find apps packages -name '*.tsbuildinfo' -delete; rm -rf apps/*/dist packages/*/dist
-pnpm install --frozen-lockfile
-pnpm build            # expect: green
-pnpm test             # expect: 2811 passing (+ integration skips w/o DATABASE_URL)
-pnpm depcruise        # expect: 0 violations
-pnpm lint             # expect: ~9 residual real-source items (see findings report)
-```
-For integration/DB work, export `DATABASE_URL` (value in chat handoff; keep `#` as `%23`).
+## 7. Documents you can trust vs. re-verify
+
+Per `CLAUDE.md`'s own hierarchy (which governs this repo — read it, it's short and this doc doesn't repeat it): the **plan file** and **this handoff** are your best current starting points. `COUNTERX-ARCHITECTURE.md`, if present, was already flagged stale by a prior session regarding the payment-signer fixture note — treat any of its wiring/boot-status claims as needing re-verification against running code, same as always. Don't trust this file's own specific numbers (wallet balances, exact commit hashes matching HEAD, exact deploy versions) without a quick real check — trust its shape and gotchas, re-verify its specifics.

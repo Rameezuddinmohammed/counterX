@@ -74,6 +74,9 @@ importers:
       '@counter/trust-protocol':
         specifier: workspace:0.1.0
         version: link:../../packages/trust-protocol
+      '@counter/wallet-domain':
+        specifier: workspace:0.1.0
+        version: link:../../packages/wallet-domain
       '@counter/workflow':
         specifier: workspace:0.1.0
         version: link:../../packages/workflow
@@ -120,6 +123,12 @@ importers:
       '@counter/trust-protocol':
         specifier: workspace:0.1.0
         version: link:../../packages/trust-protocol
+      '@counter/wallet-application':
+        specifier: workspace:0.1.0
+        version: link:../../packages/wallet-application
+      '@counter/wallet-domain':
+        specifier: workspace:0.1.0
+        version: link:../../packages/wallet-domain
       fastify:
         specifier: 5.2.1
         version: 5.2.1
@@ -582,6 +591,12 @@ importers:
       '@counter/trust-protocol':
         specifier: workspace:0.1.0
         version: link:../trust-protocol
+      '@counter/wallet-application':
+        specifier: workspace:0.1.0
+        version: link:../wallet-application
+      '@counter/wallet-domain':
+        specifier: workspace:0.1.0
+        version: link:../wallet-domain
       '@counter/workflow':
         specifier: workspace:0.1.0
         version: link:../workflow

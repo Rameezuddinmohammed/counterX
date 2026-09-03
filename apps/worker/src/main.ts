@@ -37,10 +37,15 @@ import {
   PostgresPolicyStore,
   PostgresRecurringMandateReadStore,
   PostgresPaymentConnectionReadStore,
+  PostgresRevocationStore,
+  PostgresWalletBalanceStore,
+  PostgresWebhookEndpointReadStore,
+  PostgresBuyerNotificationStore,
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
+import { createOutboxDispatcherLoop, type OutboxDispatcherConfig } from "./outbox-dispatcher.js";
 import {
   selectPaymentAuthorizationPort,
   pilotMerchantId,
@@ -94,37 +99,83 @@ function randomCounterId<Kind extends Parameters<typeof createCounterId>[0]>(
   return result.value;
 }
 
-/** Receipt sink that appends a durable evidence event to the outbox. */
+/**
+ * Receipt sink that appends a durable evidence event to the outbox.
+ *
+ * Phase 2 of the remote-MCP plan (notifications backbone): when a real
+ * order was actually committed (finalState.order === "committed") and the
+ * job's authority envelope carried the operating merchant's id, this ALSO
+ * appends a merchant.order.created.v1 event in the SAME atomic append()
+ * call — one write path feeding the outbox dispatcher
+ * (apps/worker/src/outbox-dispatcher.ts), which fans it out to the
+ * merchant's registered webhook endpoint and, when a walletId is present
+ * too, into the buyer-facing runtime.buyer_notifications projection. A
+ * declined/indeterminate/reconciliation-mismatch outcome never reaches
+ * this branch (finalState.order stays unset), so a webhook/notification is
+ * only ever emitted for a transaction that genuinely closed.
+ */
 function createOutboxReceiptSink(outbox: PostgresOutboxRepository): ReceiptSink {
   return {
     async record(receipt: TransactionReceipt): Promise<void> {
-      const eventId = randomCounterId("outbox-event");
       const now = Date.now() as Instant;
-      const result = await outbox.append(
-        [
-          {
-            id: eventId,
-            eventType: "transaction.receipt.v1",
-            eventVersion: 1,
-            payload: {
-              transactionId: receipt.transactionId,
-              // The RAW opaque transaction reference (payload.transactionId).
-              // The out-of-band reconciliation scanner joins on THIS key because
-              // the durable step ledger is keyed on it (not on the derived
-              // `transactionId` CounterId). Never a secret.
-              idempotencyKey: receipt.idempotencyKey,
-              phase: receipt.finalState.phase,
-              payment: receipt.finalState.payment,
-              order: receipt.finalState.order,
-              providerReference: receipt.providerReference,
-              reconciliation: receipt.reconciliation,
-            },
-            correlationId: undefined,
+      const events = [
+        {
+          id: randomCounterId("outbox-event"),
+          eventType: "transaction.receipt.v1",
+          eventVersion: 1,
+          payload: {
+            transactionId: receipt.transactionId,
+            // The RAW opaque transaction reference (payload.transactionId).
+            // The out-of-band reconciliation scanner joins on THIS key because
+            // the durable step ledger is keyed on it (not on the derived
+            // `transactionId` CounterId). Never a secret.
             idempotencyKey: receipt.idempotencyKey,
+            phase: receipt.finalState.phase,
+            payment: receipt.finalState.payment,
+            order: receipt.finalState.order,
+            providerReference: receipt.providerReference,
+            reconciliation: receipt.reconciliation,
           },
-        ],
-        now,
-      );
+          correlationId: undefined,
+          idempotencyKey: receipt.idempotencyKey,
+        },
+        ...(receipt.finalState.order === "committed" && receipt.merchantId !== undefined
+          ? [
+              {
+                id: randomCounterId("outbox-event"),
+                eventType: "merchant.order.created.v1",
+                eventVersion: 1,
+                payload: {
+                  // The RAW opaque transaction reference (idempotencyKey),
+                  // NOT receipt.transactionId (an internal derived
+                  // CounterId the caller never sees) — a buyer/merchant
+                  // correlating this notification back to their own
+                  // purchase call only ever knows the raw reference (the
+                  // SAME value real-handlers.ts returned as `transactionId`
+                  // when the purchase was created). See the receipt event
+                  // just above for the same "raw, not derived" convention.
+                  transactionId: receipt.idempotencyKey,
+                  merchantId: receipt.merchantId,
+                  walletId: receipt.walletId,
+                  amountMinor: receipt.reconciliation.providerAmountMinor,
+                  currency: receipt.currency,
+                  providerReference: receipt.providerReference,
+                  orderStatus: receipt.finalState.order,
+                  paymentStatus: receipt.finalState.payment,
+                },
+                correlationId: undefined,
+                // A DIFFERENT idempotency key than the receipt event above —
+                // same transaction, different event type, so the two must
+                // not collide (idempotency_key is not unique per se, but
+                // keeping them distinct avoids ever conflating the two
+                // event streams when reading back "the outbox row for this
+                // key").
+                idempotencyKey: `${receipt.idempotencyKey}:order-created`,
+              },
+            ]
+          : []),
+      ];
+      const result = await outbox.append(events, now);
       if (!result.ok) {
         logger.error("failed to append receipt to outbox", { error: result.error.message });
       }
@@ -203,6 +254,8 @@ async function main(): Promise<void> {
     spendLedger: new PostgresSpendLedger(database, runtimeEnvironment, spendLimitConfig),
     recurringMandateStore: new PostgresRecurringMandateReadStore(database, runtimeEnvironment),
     paymentConnectionStore: new PostgresPaymentConnectionReadStore(database, runtimeEnvironment),
+    revocationStore: new PostgresRevocationStore(database, runtimeEnvironment),
+    walletBalanceStore: new PostgresWalletBalanceStore(database, runtimeEnvironment),
   });
   logger.info("payment connector selected", {
     mode: selection.mode,
@@ -233,6 +286,27 @@ async function main(): Promise<void> {
 
   const loop = createWorkerLoop(jobRepository, config, logger);
 
+  // Outbox dispatcher (Phase 2 of the remote-MCP plan, notifications
+  // backbone): claims pending runtime.outbox_events rows and fans them out
+  // — merchant webhook delivery + the buyer-notifications projection. Runs
+  // alongside the transaction-lifecycle loop, not inside it, since outbox
+  // dispatch is a wholly separate concern from job execution — see
+  // outbox-dispatcher.ts's header for the full design.
+  const dispatcherConfig: OutboxDispatcherConfig = {
+    owner: `${hostname()}-${randomUUID()}`,
+    batchSize: BATCH_SIZE,
+    pollIntervalMs: POLL_INTERVAL_MS,
+  };
+  const outboxDispatcherLoop = createOutboxDispatcherLoop(
+    outboxRepository,
+    {
+      webhookEndpoints: new PostgresWebhookEndpointReadStore(database, runtimeEnvironment),
+      buyerNotifications: new PostgresBuyerNotificationStore(database, runtimeEnvironment),
+    },
+    dispatcherConfig,
+    logger,
+  );
+
   // Periodic reconciliation: env-guarded and only when the REAL connector is
   // active (a real Shopify connector is required to query authoritative order
   // state). Inert in unit/local runs and when RECONCILIATION_ENABLED is unset.
@@ -259,7 +333,8 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info("shutting down", { signal });
     loop.stop();
-    void loop.done
+    outboxDispatcherLoop.stop();
+    void Promise.all([loop.done, outboxDispatcherLoop.done])
       .then(() => (reconciliation !== undefined ? reconciliation.stop() : undefined))
       .then(() => database.close())
       .then(() => {

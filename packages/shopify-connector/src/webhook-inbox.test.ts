@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 
 import { WebhookInbox } from "./webhook-inbox.js";
 import type { WebhookHeaders } from "./webhook-inbox.js";
-import type { WebhookEvent } from "./catalog-sync.js";
+import type { WebhookEvent, WebhookProductPayload } from "./catalog-sync.js";
 
 // ─── Test Helpers ─────────────────────────────────────────────────────────────
 
@@ -266,9 +266,9 @@ describe("WebhookInbox", () => {
       inbox.process();
 
       expect(processedEvents).toHaveLength(3);
-      expect(processedEvents[0]!.payload.id).toBe(1);
-      expect(processedEvents[1]!.payload.id).toBe(2);
-      expect(processedEvents[2]!.payload.id).toBe(3);
+      expect((processedEvents[0]!.payload as WebhookProductPayload).id).toBe(1);
+      expect((processedEvents[1]!.payload as WebhookProductPayload).id).toBe(2);
+      expect((processedEvents[2]!.payload as WebhookProductPayload).id).toBe(3);
     });
 
     it("returns false when queue is empty", () => {

@@ -27,18 +27,22 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MerchantRuntimeClient } from "@counter/wallet-application";
+import type { WalletRuntimeClient } from "../wallet-runtime-client.js";
 
 // ---------------------------------------------------------------------------
 // Read Tool Dependencies
 // ---------------------------------------------------------------------------
 
 /**
- * Optional: when omitted, every tool falls back to its previous honest
- * "unavailable"/empty shape (never fabricated success), matching the
- * behavior before this client existed.
+ * Both fields optional and independent: when merchantClient is omitted,
+ * merchant-scoped tools fall back to their previous honest
+ * "unavailable"/empty shape (never fabricated success); same for
+ * walletClient and the wallet-scoped notifications.list/invoices.get tools
+ * (Phase 2 of the remote-MCP plan).
  */
 export interface ReadToolDependencies {
-  readonly merchantClient: MerchantRuntimeClient;
+  readonly merchantClient?: MerchantRuntimeClient;
+  readonly walletClient?: WalletRuntimeClient;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +106,7 @@ function jsonResponse(data: unknown): { content: Array<{ type: "text"; text: str
  */
 export function registerReadTools(server: McpServer, deps?: ReadToolDependencies): void {
   const merchantClient = deps?.merchantClient;
+  const walletClient = deps?.walletClient;
   // wallet.status - Retrieve wallet status
   server.tool(
     "wallet.status",
@@ -377,6 +382,95 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
             verified: true,
             receipt: result.value,
             status: "found",
+          });
+        });
+      } catch (error) {
+        return safeErrorResponse(error);
+      }
+    },
+  );
+
+  // notifications.list - List real order/fulfillment notifications for a wallet
+  server.tool(
+    "notifications.list",
+    "List recent order/fulfillment notifications for a wallet (real orders and their delivery status).",
+    {
+      wallet_id: z.string().min(1).describe("The wallet ID"),
+      limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+    },
+    async ({ wallet_id, limit }) => {
+      try {
+        return await withTimeout(async (_signal) => {
+          if (walletClient === undefined) {
+            return jsonResponse({
+              wallet_id,
+              notifications: [],
+              total: 0,
+              status: "unavailable",
+            });
+          }
+          const result = await walletClient.listNotifications(wallet_id, {
+            ...(limit !== undefined ? { limit } : {}),
+          });
+          if (!result.ok) {
+            return jsonResponse({
+              wallet_id,
+              notifications: [],
+              total: 0,
+              status: result.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              reason: result.error.kind,
+            });
+          }
+          return jsonResponse({
+            wallet_id,
+            notifications: result.value.notifications,
+            total: result.value.total,
+            status: "available",
+          });
+        });
+      } catch (error) {
+        return safeErrorResponse(error);
+      }
+    },
+  );
+
+  // invoices.get - Order-created/fulfilled notifications for a wallet, invoice-style
+  server.tool(
+    "invoices.get",
+    "Get real order receipts and delivery status for a wallet, filtered to order-lifecycle events (an invoice-style view over notifications.list).",
+    {
+      wallet_id: z.string().min(1).describe("The wallet ID"),
+      limit: z.number().int().min(1).max(100).optional().describe("Maximum results to return"),
+    },
+    async ({ wallet_id, limit }) => {
+      try {
+        return await withTimeout(async (_signal) => {
+          if (walletClient === undefined) {
+            return jsonResponse({
+              wallet_id,
+              invoices: [],
+              total: 0,
+              status: "unavailable",
+            });
+          }
+          const created = await walletClient.listNotifications(wallet_id, {
+            ...(limit !== undefined ? { limit } : {}),
+            notificationType: "merchant.order.created.v1",
+          });
+          if (!created.ok) {
+            return jsonResponse({
+              wallet_id,
+              invoices: [],
+              total: 0,
+              status: created.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              reason: created.error.kind,
+            });
+          }
+          return jsonResponse({
+            wallet_id,
+            invoices: created.value.notifications,
+            total: created.value.total,
+            status: "available",
           });
         });
       } catch (error) {

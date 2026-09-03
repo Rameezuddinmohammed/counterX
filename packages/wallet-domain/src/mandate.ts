@@ -61,12 +61,19 @@ export interface WalletMandate {
  * Repository port for wallet mandates.
  */
 export interface MandateRepository {
-  findById(mandateId: CounterId<"mandate">): WalletMandate | undefined;
-  findByWallet(walletId: CounterId<"wallet">): readonly WalletMandate[];
-  findByAgent(agentId: CounterId<"agent">): readonly WalletMandate[];
-  findActive(walletId: CounterId<"wallet">): readonly WalletMandate[];
-  save(mandate: WalletMandate): void;
-  updateStatus(mandateId: CounterId<"mandate">, status: MandateStatus): void;
+  findById(mandateId: CounterId<"mandate">): Promise<WalletMandate | undefined>;
+  findByWallet(walletId: CounterId<"wallet">): Promise<readonly WalletMandate[]>;
+  findByAgent(agentId: CounterId<"agent">): Promise<readonly WalletMandate[]>;
+  findActive(walletId: CounterId<"wallet">): Promise<readonly WalletMandate[]>;
+  /**
+   * Mandates bound to a given payment-authorization reference (e.g. a
+   * RecurringMandateSummary.referenceId) — the join point that lets a
+   * revoked provider mandate cascade to every Counter-native mandate issued
+   * against it.
+   */
+  findByPaymentReference(paymentReferenceId: string): Promise<readonly WalletMandate[]>;
+  save(mandate: WalletMandate): Promise<void>;
+  updateStatus(mandateId: CounterId<"mandate">, status: MandateStatus): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,29 +86,33 @@ export interface MandateRepository {
 export class InMemoryMandateRepository implements MandateRepository {
   readonly #mandates = new Map<string, WalletMandate>();
 
-  findById(mandateId: CounterId<"mandate">): WalletMandate | undefined {
+  async findById(mandateId: CounterId<"mandate">): Promise<WalletMandate | undefined> {
     return this.#mandates.get(mandateId);
   }
 
-  findByWallet(walletId: CounterId<"wallet">): readonly WalletMandate[] {
+  async findByWallet(walletId: CounterId<"wallet">): Promise<readonly WalletMandate[]> {
     return [...this.#mandates.values()].filter((m) => m.walletId === walletId);
   }
 
-  findByAgent(agentId: CounterId<"agent">): readonly WalletMandate[] {
+  async findByAgent(agentId: CounterId<"agent">): Promise<readonly WalletMandate[]> {
     return [...this.#mandates.values()].filter((m) => m.agentId === agentId);
   }
 
-  findActive(walletId: CounterId<"wallet">): readonly WalletMandate[] {
+  async findActive(walletId: CounterId<"wallet">): Promise<readonly WalletMandate[]> {
     return [...this.#mandates.values()].filter(
       (m) => m.walletId === walletId && m.status === "active",
     );
   }
 
-  save(mandate: WalletMandate): void {
+  async findByPaymentReference(paymentReferenceId: string): Promise<readonly WalletMandate[]> {
+    return [...this.#mandates.values()].filter((m) => m.paymentReferenceId === paymentReferenceId);
+  }
+
+  async save(mandate: WalletMandate): Promise<void> {
     this.#mandates.set(mandate.mandateId, mandate);
   }
 
-  updateStatus(mandateId: CounterId<"mandate">, status: MandateStatus): void {
+  async updateStatus(mandateId: CounterId<"mandate">, status: MandateStatus): Promise<void> {
     const existing = this.#mandates.get(mandateId);
     if (existing) {
       this.#mandates.set(mandateId, { ...existing, status });

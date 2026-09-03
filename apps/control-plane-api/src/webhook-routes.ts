@@ -47,6 +47,13 @@ import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.
 export interface WebhookRoutesOptions {
   readonly shopifyWebhookSecret: string;
   readonly onShopifyProductWebhook?: ((event: WebhookEvent) => Promise<void>) | undefined;
+  /**
+   * Sibling to onShopifyProductWebhook (see this file's header), dispatched
+   * ONLY for `fulfillments/create`/`fulfillments/update` topics — Phase 2 of
+   * the remote-MCP plan (notifications backbone). Wired in main.ts once the
+   * durable outbox is available to write into.
+   */
+  readonly onShopifyFulfillmentWebhook?: ((event: WebhookEvent) => Promise<void>) | undefined;
   readonly razorpayWebhookSecret: string;
   readonly recurringMandateProvisioner?: RecurringMandateProvisionerLike | undefined;
   readonly onRazorpayPaymentWebhook?: ((event: RazorpayWebhookEvent) => Promise<void>) | undefined;
@@ -124,10 +131,15 @@ function createShopifyWebhookHandler(options: WebhookRoutesOptions): WebhookHand
       return;
     }
 
-    // "accepted" — real, verified, deduped. Drive the (currently stubbed)
-    // catalog write directly rather than via WebhookInbox's synchronous
-    // process() queue (see module header for why).
-    if (options.onShopifyProductWebhook !== undefined) {
+    // "accepted" — real, verified, deduped. Drive the real side effect
+    // directly rather than via WebhookInbox's synchronous process() queue
+    // (see module header for why). Dispatched by topic: product topics to
+    // onShopifyProductWebhook (currently stubbed — see that callback's own
+    // docs), fulfillment topics to onShopifyFulfillmentWebhook.
+    const callback = topic.startsWith("fulfillments/")
+      ? options.onShopifyFulfillmentWebhook
+      : options.onShopifyProductWebhook;
+    if (callback !== undefined) {
       const decoder = new TextDecoder();
       const event: WebhookEvent = Object.freeze({
         topic,
@@ -137,7 +149,7 @@ function createShopifyWebhookHandler(options: WebhookRoutesOptions): WebhookHand
         receivedAt: nowInstant(),
       });
       try {
-        await options.onShopifyProductWebhook(event);
+        await callback(event);
       } catch (error: unknown) {
         // Verification+dedup already succeeded and must not be retried —
         // a downstream write failure is logged, not surfaced as a 4xx/5xx

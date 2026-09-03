@@ -126,12 +126,12 @@ function createMandateService(
 
 describe("MandateService", () => {
   describe("issuance", () => {
-    it("should issue mandate from fresh consent attestation", () => {
+    it("should issue mandate from fresh consent attestation", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const service = createMandateService(mandateRepo);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId,
@@ -156,13 +156,13 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate for unregistered agent", () => {
+    it("should reject mandate for unregistered agent", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const unknownAgentId = idGen.generate("agent");
       const service = createMandateService(mandateRepo);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId: unknownAgentId,
@@ -183,7 +183,7 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate for suspended agent", () => {
+    it("should reject mandate for suspended agent", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const suspendedAgent: AgentRegistration = {
         ...createActiveAgent(),
@@ -192,7 +192,7 @@ describe("MandateService", () => {
       const service = createMandateService(mandateRepo, suspendedAgent);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId,
@@ -213,12 +213,12 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate with wrong key ID", () => {
+    it("should reject mandate with wrong key ID", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const service = createMandateService(mandateRepo);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId,
@@ -239,12 +239,12 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate with invalid consent attestation digest", () => {
+    it("should reject mandate with invalid consent attestation digest", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const service = createMandateService(mandateRepo);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId,
@@ -265,7 +265,7 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate with expired step-up session", () => {
+    it("should reject mandate with expired step-up session", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const service = createMandateService(mandateRepo);
       const expiredSession: StepUpSession = {
@@ -277,7 +277,7 @@ describe("MandateService", () => {
         nonce: "expired-nonce",
       };
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId,
@@ -298,12 +298,12 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate with invalid validity window", () => {
+    it("should reject mandate with invalid validity window", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const service = createMandateService(mandateRepo);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId,
         principalId,
         agentId,
@@ -324,7 +324,7 @@ describe("MandateService", () => {
       }
     });
 
-    it("should reject mandate for agent registered to different wallet", () => {
+    it("should reject mandate for agent registered to different wallet", async () => {
       const mandateRepo = new InMemoryMandateRepository();
       const otherWalletId = idGen.generate("wallet");
       const agentOnOtherWallet: AgentRegistration = {
@@ -334,7 +334,7 @@ describe("MandateService", () => {
       const service = createMandateService(mandateRepo, agentOnOtherWallet);
       const session = createValidStepUpSession();
 
-      const result = service.issue({
+      const result = await service.issue({
         walletId, // Different from agent's wallet
         principalId,
         agentId,
@@ -381,97 +381,97 @@ describe("MandateSyncService", () => {
     };
   }
 
-  it("should fetch and cache a valid active mandate", () => {
+  it("should fetch and cache a valid active mandate", async () => {
     const repo = new InMemoryMandateRepository();
     const mandate = createActiveMandate();
-    repo.save(mandate);
+    await repo.save(mandate);
 
     const syncService = new MandateSyncService(repo);
-    const result = syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
+    const result = await syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
 
     expect(result.ok).toBe(true);
     expect(result.mandate).toEqual(mandate);
     expect(result.freshness).toBe("fresh");
   });
 
-  it("should reject expired mandate", () => {
+  it("should reject expired mandate", async () => {
     const repo = new InMemoryMandateRepository();
     const mandate: WalletMandate = {
       ...createActiveMandate(),
       validUntil: "2024-12-31T23:59:59.000Z", // Already expired
     };
-    repo.save(mandate);
+    await repo.save(mandate);
 
     const syncService = new MandateSyncService(repo);
-    const result = syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
+    const result = await syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
 
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("expired");
   });
 
-  it("should reject revoked mandate", () => {
+  it("should reject revoked mandate", async () => {
     const repo = new InMemoryMandateRepository();
     const mandate: WalletMandate = {
       ...createActiveMandate(),
       status: "revoked",
     };
-    repo.save(mandate);
+    await repo.save(mandate);
 
     const syncService = new MandateSyncService(repo);
-    const result = syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
+    const result = await syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
 
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("revoked");
   });
 
-  it("should fail closed when cache is stale", () => {
+  it("should fail closed when cache is stale", async () => {
     const repo = new InMemoryMandateRepository();
     const mandate = createActiveMandate();
-    repo.save(mandate);
+    await repo.save(mandate);
 
     // Use very short staleness threshold
     const syncService = new MandateSyncService(repo, 1); // 1ms staleness
 
     // First fetch caches it
-    syncService.fetchMandate(mandate.mandateId, "2025-01-01T00:00:00.000Z");
+    await syncService.fetchMandate(mandate.mandateId, "2025-01-01T00:00:00.000Z");
 
     // Second fetch after the cache is stale (>1ms later)
-    const result = syncService.fetchMandate(mandate.mandateId, "2025-01-01T00:01:00.000Z");
+    const result = await syncService.fetchMandate(mandate.mandateId, "2025-01-01T00:01:00.000Z");
 
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("stale");
     expect(result.reason).toContain("denied for safety");
   });
 
-  it("should return not found for unknown mandate", () => {
+  it("should return not found for unknown mandate", async () => {
     const repo = new InMemoryMandateRepository();
     const syncService = new MandateSyncService(repo);
     const unknownId = idGen.generate("mandate");
 
-    const result = syncService.fetchMandate(unknownId, "2025-06-01T00:00:00.000Z");
+    const result = await syncService.fetchMandate(unknownId, "2025-06-01T00:00:00.000Z");
 
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("not found");
   });
 
-  it("should invalidate cached mandate", () => {
+  it("should invalidate cached mandate", async () => {
     const repo = new InMemoryMandateRepository();
     const mandate = createActiveMandate();
-    repo.save(mandate);
+    await repo.save(mandate);
 
     const syncService = new MandateSyncService(repo);
 
     // Cache it
-    syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
+    await syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
 
     // Invalidate
     syncService.invalidate(mandate.mandateId);
 
     // Now update the repo to revoked
-    repo.updateStatus(mandate.mandateId, "revoked");
+    await repo.updateStatus(mandate.mandateId, "revoked");
 
     // Fetch again - should see revoked status
-    const result = syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:01.000Z");
+    const result = await syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:01.000Z");
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("revoked");
   });
@@ -482,7 +482,7 @@ describe("MandateSyncService", () => {
 // ---------------------------------------------------------------------------
 
 describe("WalletRevocationService", () => {
-  function createServiceWithMandate() {
+  async function createServiceWithMandate() {
     const mandateRepo = new InMemoryMandateRepository();
     const store = new InMemoryRevocationStore();
     const mandate: WalletMandate = {
@@ -501,16 +501,16 @@ describe("WalletRevocationService", () => {
       revocationLocator: "revoke:mandate:test",
       policyVersionId: "v1",
     };
-    mandateRepo.save(mandate);
+    await mandateRepo.save(mandate);
 
     const service = new WalletRevocationService(store, mandateRepo);
     return { service, store, mandateRepo, mandate };
   }
 
-  it("should revoke a mandate and block future use", () => {
-    const { service, mandateRepo, mandate } = createServiceWithMandate();
+  it("should revoke a mandate and block future use", async () => {
+    const { service, mandateRepo, mandate } = await createServiceWithMandate();
 
-    const result = service.revoke({
+    const result = await service.revoke({
       principalId,
       walletId,
       scopeType: "mandate",
@@ -529,18 +529,18 @@ describe("WalletRevocationService", () => {
     }
 
     // Verify mandate is now revoked in repo
-    const updated = mandateRepo.findById(mandate.mandateId);
+    const updated = await mandateRepo.findById(mandate.mandateId);
     expect(updated?.status).toBe("revoked");
 
     // Verify revocation check
-    expect(service.isRevoked("mandate", mandate.mandateId)).toBe(true);
+    expect(await service.isRevoked("mandate", mandate.mandateId)).toBe(true);
   });
 
-  it("should be monotonic - cannot un-revoke", () => {
-    const { service, mandate } = createServiceWithMandate();
+  it("should be monotonic - cannot un-revoke", async () => {
+    const { service, mandate } = await createServiceWithMandate();
 
     // Revoke
-    service.revoke({
+    await service.revoke({
       principalId,
       walletId,
       scopeType: "mandate",
@@ -551,7 +551,7 @@ describe("WalletRevocationService", () => {
     });
 
     // Attempt to revoke again (idempotent)
-    const result = service.revoke({
+    const result = await service.revoke({
       principalId,
       walletId,
       scopeType: "mandate",
@@ -563,10 +563,10 @@ describe("WalletRevocationService", () => {
 
     // Should still be ok (idempotent) but still revoked
     expect(result.ok).toBe(true);
-    expect(service.isRevoked("mandate", mandate.mandateId)).toBe(true);
+    expect(await service.isRevoked("mandate", mandate.mandateId)).toBe(true);
   });
 
-  it("should cascade wallet revocation to all mandates", () => {
+  it("should cascade wallet revocation to all mandates", async () => {
     const mandateRepo = new InMemoryMandateRepository();
     const store = new InMemoryRevocationStore();
 
@@ -602,13 +602,13 @@ describe("WalletRevocationService", () => {
       revocationLocator: "revoke:mandate:2",
       policyVersionId: "v1",
     };
-    mandateRepo.save(mandate1);
-    mandateRepo.save(mandate2);
+    await mandateRepo.save(mandate1);
+    await mandateRepo.save(mandate2);
 
     const service = new WalletRevocationService(store, mandateRepo);
 
     // Revoke the wallet
-    service.revoke({
+    await service.revoke({
       principalId,
       walletId,
       scopeType: "wallet",
@@ -620,11 +620,11 @@ describe("WalletRevocationService", () => {
     });
 
     // Both mandates should be revoked
-    expect(mandateRepo.findById(mandate1.mandateId)?.status).toBe("revoked");
-    expect(mandateRepo.findById(mandate2.mandateId)?.status).toBe("revoked");
+    expect((await mandateRepo.findById(mandate1.mandateId))?.status).toBe("revoked");
+    expect((await mandateRepo.findById(mandate2.mandateId))?.status).toBe("revoked");
   });
 
-  it("should cascade agent revocation to agent mandates only", () => {
+  it("should cascade agent revocation to agent mandates only", async () => {
     const mandateRepo = new InMemoryMandateRepository();
     const store = new InMemoryRevocationStore();
     const otherAgentId = idGen.generate("agent");
@@ -661,13 +661,13 @@ describe("WalletRevocationService", () => {
       revocationLocator: "revoke:mandate:other",
       policyVersionId: "v1",
     };
-    mandateRepo.save(mandateForAgent);
-    mandateRepo.save(mandateForOther);
+    await mandateRepo.save(mandateForAgent);
+    await mandateRepo.save(mandateForOther);
 
     const service = new WalletRevocationService(store, mandateRepo);
 
     // Revoke agent
-    service.revoke({
+    await service.revoke({
       principalId,
       walletId,
       scopeType: "agent",
@@ -678,14 +678,99 @@ describe("WalletRevocationService", () => {
     });
 
     // Only the revoked agent's mandate should be affected
-    expect(mandateRepo.findById(mandateForAgent.mandateId)?.status).toBe("revoked");
-    expect(mandateRepo.findById(mandateForOther.mandateId)?.status).toBe("active");
+    expect((await mandateRepo.findById(mandateForAgent.mandateId))?.status).toBe("revoked");
+    expect((await mandateRepo.findById(mandateForOther.mandateId))?.status).toBe("active");
   });
 
-  it("should create valid CTP revocation envelope", () => {
-    const { service, mandate } = createServiceWithMandate();
+  it("should cascade payment-reference revocation (human revokes the provider mandate) to every Counter mandate bound to it, but not others", async () => {
+    const mandateRepo = new InMemoryMandateRepository();
+    const store = new InMemoryRevocationStore();
+    const otherAgentId = idGen.generate("agent");
+    const revokedReferenceId = "ctr_payment-reference_revoked-provider-mandate";
+    const otherReferenceId = "ctr_payment-reference_unrelated-provider-mandate";
 
-    const result = service.revoke({
+    // Two agents each hold their OWN Counter mandate against the SAME
+    // human-authorized provider mandate (the realistic shape: one Razorpay
+    // recurring authorization, multiple agent-scoped sub-authorities).
+    const mandateBoundToRevoked1: WalletMandate = {
+      mandateId: idGen.generate("mandate"),
+      walletId,
+      principalId,
+      agentId,
+      kid,
+      constraints: createTestConstraints(),
+      paymentReferenceId: revokedReferenceId,
+      validFrom: "2025-01-01T00:00:00.000Z",
+      validUntil: "2026-12-31T23:59:59.000Z",
+      issuedAt: "2025-01-01T00:00:00.000Z",
+      consentAttestationDigest: "sha256:digest-1",
+      status: "active",
+      revocationLocator: "revoke:mandate:pr-1",
+      policyVersionId: "v1",
+    };
+    const mandateBoundToRevoked2: WalletMandate = {
+      mandateId: idGen.generate("mandate"),
+      walletId,
+      principalId,
+      agentId: otherAgentId,
+      kid: `kid-${otherAgentId}`,
+      constraints: createTestConstraints(),
+      paymentReferenceId: revokedReferenceId,
+      validFrom: "2025-01-01T00:00:00.000Z",
+      validUntil: "2026-12-31T23:59:59.000Z",
+      issuedAt: "2025-01-01T00:00:00.000Z",
+      consentAttestationDigest: "sha256:digest-2",
+      status: "active",
+      revocationLocator: "revoke:mandate:pr-2",
+      policyVersionId: "v1",
+    };
+    const mandateBoundToOther: WalletMandate = {
+      mandateId: idGen.generate("mandate"),
+      walletId,
+      principalId,
+      agentId,
+      kid,
+      constraints: createTestConstraints(),
+      paymentReferenceId: otherReferenceId,
+      validFrom: "2025-01-01T00:00:00.000Z",
+      validUntil: "2026-12-31T23:59:59.000Z",
+      issuedAt: "2025-01-01T00:00:00.000Z",
+      consentAttestationDigest: "sha256:digest-3",
+      status: "active",
+      revocationLocator: "revoke:mandate:pr-3",
+      policyVersionId: "v1",
+    };
+    await mandateRepo.save(mandateBoundToRevoked1);
+    await mandateRepo.save(mandateBoundToRevoked2);
+    await mandateRepo.save(mandateBoundToOther);
+
+    const service = new WalletRevocationService(store, mandateRepo);
+
+    // Revoke the provider mandate (mirrors RecurringMandateProvisioner.revoke()
+    // calling WalletRevocationService.revoke({ scopeType: "payment_reference", ... })).
+    await service.revoke({
+      principalId,
+      walletId,
+      scopeType: "payment_reference",
+      scopeId: revokedReferenceId,
+      reasonClass: "principal_initiated",
+      reason: "Buyer cancelled the underlying autopay authorization",
+      correlationId: "corr-rev-pr-001",
+      kid,
+    });
+
+    // Both mandates bound to the revoked provider mandate are revoked...
+    expect((await mandateRepo.findById(mandateBoundToRevoked1.mandateId))?.status).toBe("revoked");
+    expect((await mandateRepo.findById(mandateBoundToRevoked2.mandateId))?.status).toBe("revoked");
+    // ...but a mandate bound to a DIFFERENT provider mandate is untouched.
+    expect((await mandateRepo.findById(mandateBoundToOther.mandateId))?.status).toBe("active");
+    expect(await service.isRevoked("payment_reference", revokedReferenceId)).toBe(true);
+  });
+
+  it("should create valid CTP revocation envelope", async () => {
+    const { service, mandate } = await createServiceWithMandate();
+
+    const result = await service.revoke({
       principalId,
       walletId,
       scopeType: "mandate",
@@ -707,11 +792,11 @@ describe("WalletRevocationService", () => {
     }
   });
 
-  it("should handle revocation race (concurrent revoke + use)", () => {
-    const { service, mandateRepo, mandate } = createServiceWithMandate();
+  it("should handle revocation race (concurrent revoke + use)", async () => {
+    const { service, mandateRepo, mandate } = await createServiceWithMandate();
 
     // Simulate concurrent: revoke the mandate
-    service.revoke({
+    await service.revoke({
       principalId,
       walletId,
       scopeType: "mandate",
@@ -722,12 +807,15 @@ describe("WalletRevocationService", () => {
     });
 
     // After revocation, mandate is blocked
-    const mandateState = mandateRepo.findById(mandate.mandateId);
+    const mandateState = await mandateRepo.findById(mandate.mandateId);
     expect(mandateState?.status).toBe("revoked");
 
     // Attempting to use the revoked mandate via sync service should fail
     const syncService = new MandateSyncService(mandateRepo);
-    const fetchResult = syncService.fetchMandate(mandate.mandateId, "2025-06-01T00:00:00.000Z");
+    const fetchResult = await syncService.fetchMandate(
+      mandate.mandateId,
+      "2025-06-01T00:00:00.000Z",
+    );
     expect(fetchResult.ok).toBe(false);
     expect(fetchResult.reason).toContain("revoked");
   });
@@ -738,7 +826,7 @@ describe("WalletRevocationService", () => {
 // ---------------------------------------------------------------------------
 
 describe("policy widening and mandate reissuance", () => {
-  it("widening policy requires step-up and new mandate (old mandate has old constraints)", () => {
+  it("widening policy requires step-up and new mandate (old mandate has old constraints)", async () => {
     // This test verifies the design invariant: when policy is widened,
     // existing mandates retain their original (narrower) constraints.
     // A new mandate must be issued with the wider policy, requiring
@@ -750,7 +838,7 @@ describe("policy widening and mandate reissuance", () => {
 
     // Issue first mandate with narrow constraints
     const narrowConstraints = createTestConstraints();
-    const result1 = service.issue({
+    const result1 = await service.issue({
       walletId,
       principalId,
       agentId,
@@ -769,7 +857,7 @@ describe("policy widening and mandate reissuance", () => {
 
     // The old mandate retains its original narrow constraints
     if (result1.ok) {
-      const oldMandate = mandateRepo.findById(result1.value.mandate.mandateId);
+      const oldMandate = await mandateRepo.findById(result1.value.mandate.mandateId);
       expect(oldMandate?.constraints.amountLimits.perTransactionMaxPaise).toBe(1_000_000n);
     }
 
@@ -783,7 +871,7 @@ describe("policy widening and mandate reissuance", () => {
       },
     };
 
-    const result2 = service.issue({
+    const result2 = await service.issue({
       walletId,
       principalId,
       agentId,

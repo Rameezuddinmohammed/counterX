@@ -26,14 +26,21 @@
 import type { Environment, Instant } from "@counter/domain";
 import { createCounterId } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
-import { PostgresOutboxRepository, PostgresQuoteStore, PostgresStepLedger } from "@counter/data";
+import {
+  PostgresOutboxRepository,
+  PostgresQuoteStore,
+  PostgresStepLedger,
+  PostgresMandateRepository,
+  PostgresRevocationStore,
+} from "@counter/data";
 import type { AsyncJobRepository } from "@counter/data";
 import type { ShopifyGraphQLPort } from "@counter/shopify-connector";
 import type { ShopifyConnector } from "@counter/shopify-connector";
 import { isCtpEnvelope, verifyEnvelope } from "@counter/trust-protocol";
+import type { WalletMandate } from "@counter/wallet-domain";
 import { getCatalogVariant, searchCatalog } from "./shopify-catalog.js";
 import { buildQuote } from "./quote-builder.js";
-import { PostgresCtpKeyRegistry } from "./ctp-key-registry.js";
+import { PostgresCtpKeyRegistry } from "@counter/data";
 import { TransactionReadModel, STEP_CANCEL, STEP_MARK_PAID } from "./transaction-read-model.js";
 import type {
   CancelHandler,
@@ -222,6 +229,79 @@ function createQuoteHandler(
 
 const TRANSACTION_LIFECYCLE_JOB_TYPE = "transaction.lifecycle";
 
+/**
+ * Independently re-verifies a governed agent purchase against its durable
+ * WalletMandate BEFORE the quote is consumed or any job is enqueued — never
+ * trusting the caller's own claim, only what's actually durably stored and
+ * not revoked.
+ *
+ * Enforces the subset of BuyerPolicyConstraints that's honestly checkable
+ * with data genuinely available at this call site today: per-transaction
+ * amount ceiling, merchant allowlist, and operation allowlist (mirroring
+ * evaluatePolicy()'s own empty-list semantics: an empty merchant allowlist
+ * denies everything, an empty operations list permits everything). Does
+ * NOT evaluate geography, category/SKU, rolling/aggregate spend, count
+ * limits, time-of-day windows, or approval thresholds — this call site has
+ * no verified merchant-country/delivery-country/category/accumulated-usage
+ * data to evaluate them against honestly, and inventing values for a
+ * PRODUCTION-grade check would be exactly the "pretend a capability
+ * exists" shortcut this milestone explicitly rules out. Full
+ * evaluatePolicy() enforcement is a named follow-up once that data exists
+ * on this path.
+ *
+ * Returns undefined when authorized, or a plain-language denial reason.
+ */
+async function checkMandateAuthority(
+  mandateRepo: PostgresMandateRepository,
+  revocationStore: PostgresRevocationStore,
+  mandateId: string,
+  walletId: string,
+  merchantId: string,
+  amountMinor: bigint,
+  now: Date,
+): Promise<string | undefined> {
+  const mandate: WalletMandate | undefined = await mandateRepo.findById(
+    mandateId as WalletMandate["mandateId"],
+  );
+  if (mandate === undefined) {
+    return `No such durable mandate: ${mandateId}`;
+  }
+  if (mandate.walletId !== walletId) {
+    return "Mandate's walletId does not match the signed envelope's wallet_id";
+  }
+  if (mandate.status !== "active") {
+    return `Mandate status is '${mandate.status}', not 'active'`;
+  }
+  const nowMs = now.getTime();
+  if (
+    nowMs < new Date(mandate.validFrom).getTime() ||
+    nowMs > new Date(mandate.validUntil).getTime()
+  ) {
+    return "Mandate is outside its validity window";
+  }
+  if (
+    (await revocationStore.isRevoked("mandate", mandate.mandateId)) ||
+    (await revocationStore.isRevoked("wallet", mandate.walletId))
+  ) {
+    return "Mandate (or its wallet) is durably revoked";
+  }
+  if (amountMinor > mandate.constraints.amountLimits.perTransactionMaxPaise) {
+    return `Amount ${amountMinor} exceeds the mandate's per-transaction ceiling (${mandate.constraints.amountLimits.perTransactionMaxPaise})`;
+  }
+  const { allowedMerchantIds, allowedDomains } = mandate.constraints.merchantAllowlist;
+  if (allowedMerchantIds.length === 0 && allowedDomains.length === 0) {
+    return "Mandate's merchant allowlist is empty — no merchants are permitted";
+  }
+  if (allowedMerchantIds.length > 0 && !allowedMerchantIds.includes(merchantId)) {
+    return `Merchant '${merchantId}' is not in the mandate's allowed merchant list`;
+  }
+  const { allowedOperations } = mandate.constraints.operations;
+  if (allowedOperations.length > 0 && !allowedOperations.includes("purchase")) {
+    return "Mandate does not permit the 'purchase' operation";
+  }
+  return undefined;
+}
+
 /** CTP protocol environment for verifying buyer-signed envelopes (a separate vocabulary from the platform Environment — see @counter/trust-protocol's CtpEnvironment). */
 const CTP_VERIFICATION_ENVIRONMENT = "sandbox";
 
@@ -232,6 +312,8 @@ function createTransactionCreateHandler(
 ): TransactionCreateHandler {
   const quoteStore = new PostgresQuoteStore(database, environment);
   const ctpKeyRegistry = new PostgresCtpKeyRegistry(database, environment);
+  const mandateRepo = new PostgresMandateRepository(database, environment);
+  const revocationStore = new PostgresRevocationStore(database, environment);
 
   return {
     async handle(ctx, input) {
@@ -265,9 +347,16 @@ function createTransactionCreateHandler(
       // consuming the quote: a failed/tampered signature must not burn the
       // quote and deny the legitimate buyer a chance to retry.
       let buyerWalletId: string | undefined;
+      let boundMandateId: string | undefined;
       if (input.ctpEnvelope !== undefined) {
-        if (!isCtpEnvelope(input.ctpEnvelope)) {
-          return errResult({ kind: "unauthorized" as const, reason: "Malformed signed envelope" });
+        if (
+          !isCtpEnvelope(input.ctpEnvelope) ||
+          input.ctpEnvelope.type !== "counter.purchase-intent.v1"
+        ) {
+          return errResult({
+            kind: "unauthorized" as const,
+            reason: "Malformed signed envelope (expected counter.purchase-intent.v1)",
+          });
         }
         const verifyResult = await verifyEnvelope(input.ctpEnvelope, {
           keyRegistry: ctpKeyRegistry,
@@ -290,6 +379,35 @@ function createTransactionCreateHandler(
           });
         }
         buyerWalletId = payload.wallet_id;
+
+        // Real, governed agent authority: a signed purchase-intent envelope
+        // with no mandate_id is not a governed request — it's an assertion
+        // that omits the one thing that would let us check it. Fail closed
+        // rather than silently letting an ungoverned "real buyer agent"
+        // flow through with only the quote-tamper/expiry checks above (the
+        // exact "every authority field is optional and silently skips its
+        // predicate when absent" weakness this milestone exists to close).
+        const mandateId = payload.mandate_id;
+        if (mandateId === undefined || mandateId.length === 0) {
+          return errResult({
+            kind: "unauthorized" as const,
+            reason:
+              "Signed purchase-intent envelope carries no mandate_id — ungoverned agent requests are refused",
+          });
+        }
+        const mandateDenial = await checkMandateAuthority(
+          mandateRepo,
+          revocationStore,
+          mandateId,
+          payload.wallet_id,
+          ctx.merchantId,
+          BigInt(quote.totalPriceMinor),
+          new Date(now),
+        );
+        if (mandateDenial !== undefined) {
+          return errResult({ kind: "unauthorized" as const, reason: mandateDenial });
+        }
+        boundMandateId = mandateId;
       }
 
       const consumeResult = await quoteStore.markConsumed(input.quoteId);
@@ -336,6 +454,10 @@ function createTransactionCreateHandler(
               // transactions instead of each one getting its own one-shot
               // bucket (which would make the rolling-total ceiling a no-op).
               walletId: buyerWalletId ?? ctx.merchantId,
+              // Durably re-checked by the worker (defense-in-depth: a
+              // mandate revoked AFTER this admission decision but BEFORE
+              // the worker actually moves money must still block it).
+              ...(boundMandateId !== undefined ? { mandateId: boundMandateId } : {}),
             },
           },
           correlationId: undefined,
@@ -700,3 +822,9 @@ export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
     receipt: createReceiptHandler(deps.database, deps.environment),
   };
 }
+
+/** Test-only surface: lets integration tests exercise transactionCreate's
+ * durable mandate-authority enforcement directly, without needing a real
+ * Shopify connector (which the other handlers in this bundle require but
+ * transactionCreate itself does not). */
+export const __testing = Object.freeze({ createTransactionCreateHandler });

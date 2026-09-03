@@ -12,7 +12,10 @@
  *   - amount over the per-transaction ceiling and wallet rolling-24h limits, via
  *     the REAL {@link enforceTransactionLimits} from @counter/payment-sdk (not a
  *     re-implementation);
- *   - a REVOKED mandate            (authority.revokedAtMs <= now);
+ *   - a REVOKED mandate            (authority.revokedAtMs <= now, payload-claimed);
+ *   - a REVOKED wallet             (durable, independent re-verification against
+ *     the wallet-application/packages-data revocation store when wired — never
+ *     trusting authority.revokedAtMs alone; see walletRevocationCheck);
  *   - an EXPIRED mandate           (now > authority.mandateExpiresAtMs);
  *   - an EXPIRED authorization     (now > authority.authorizationExpiresAtMs);
  *   - a WRONG merchant scope       (authority.authorizedMerchantId != operator);
@@ -90,6 +93,22 @@ export interface ProductionPolicyConfig {
   readonly recurringMandateLookup?:
     | ((referenceId: string) => Promise<RecurringMandateLookupResult | undefined>)
     | undefined;
+  /**
+   * Durable, independent revocation re-verification for `authority.walletId`
+   * — never trusting what the caller claims via `authority.revokedAtMs`
+   * alone. When a request carries a walletId and this is wired, the worker
+   * denies BEFORE any external effect if the durable store says that wallet
+   * is revoked. Absent + a walletId present is itself a deny (fail closed,
+   * not skip) — same idiom as {@link recurringMandateLookup}.
+   */
+  readonly walletRevocationCheck?: ((walletId: string) => Promise<boolean>) | undefined;
+  /**
+   * Same durable, independent re-verification as {@link walletRevocationCheck},
+   * scoped to `authority.mandateId` — the Counter-native WalletMandate a
+   * governed agent purchase claims to be bound to. Absent + a mandateId
+   * present is itself a deny (fail closed, not skip).
+   */
+  readonly mandateRevocationCheck?: ((mandateId: string) => Promise<boolean>) | undefined;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -175,9 +194,35 @@ export function createProductionPolicy(config: ProductionPolicyConfig): Lifecycl
         return false;
       }
 
-      // 2. Revocation: a mandate revoked at-or-before now blocks.
+      // 2. Revocation (payload-claimed): a mandate revoked at-or-before now blocks.
       if (authority?.revokedAtMs !== undefined && authority.revokedAtMs <= nowMs) {
         return false;
+      }
+
+      // 2b. Revocation (durable, independent re-verification) — a walletId
+      //     with no way to verify it is a deny, not a skip, same as the
+      //     recurring-mandate re-verification above. Never trust the
+      //     caller's own revokedAtMs claim as the only revocation signal.
+      if (authority?.walletId !== undefined) {
+        if (config.walletRevocationCheck === undefined) {
+          return false;
+        }
+        const revoked = await config.walletRevocationCheck(authority.walletId);
+        if (revoked) {
+          return false;
+        }
+      }
+
+      // 2c. Revocation (durable, independent re-verification) — same
+      //     fail-closed idiom, scoped to the governed agent mandate itself.
+      if (authority?.mandateId !== undefined) {
+        if (config.mandateRevocationCheck === undefined) {
+          return false;
+        }
+        const mandateRevoked = await config.mandateRevocationCheck(authority.mandateId);
+        if (mandateRevoked) {
+          return false;
+        }
       }
 
       // 3. Mandate expiry.

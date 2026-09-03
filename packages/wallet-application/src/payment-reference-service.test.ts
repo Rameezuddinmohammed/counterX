@@ -177,7 +177,7 @@ describe("PaymentReferenceService", () => {
   });
 
   describe("update", () => {
-    it("updates a reference with valid step-up", () => {
+    it("updates a reference with valid step-up", async () => {
       // First create
       const createSession = createValidStepUpSession();
       service.create(
@@ -197,7 +197,7 @@ describe("PaymentReferenceService", () => {
 
       // Then update
       const updateSession = createValidStepUpSession();
-      const result = service.update(
+      const result = await service.update(
         "ref-001",
         { eligibleMerchants: ["merchant-a"] },
         updateSession,
@@ -209,7 +209,7 @@ describe("PaymentReferenceService", () => {
       }
     });
 
-    it("requires step-up for update", () => {
+    it("requires step-up for update", async () => {
       const createSession = createValidStepUpSession();
       service.create(
         {
@@ -230,7 +230,7 @@ describe("PaymentReferenceService", () => {
         expires_at: new Date(Date.now() - 1000).toISOString(),
       });
 
-      const result = service.update("ref-001", { eligibleMerchants: [] }, expiredSession);
+      const result = await service.update("ref-001", { eligibleMerchants: [] }, expiredSession);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -238,9 +238,9 @@ describe("PaymentReferenceService", () => {
       }
     });
 
-    it("returns error for unknown reference", () => {
+    it("returns error for unknown reference", async () => {
       const session = createValidStepUpSession();
-      const result = service.update("unknown-ref", { eligibleMerchants: [] }, session);
+      const result = await service.update("unknown-ref", { eligibleMerchants: [] }, session);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -248,7 +248,7 @@ describe("PaymentReferenceService", () => {
       }
     });
 
-    it("invalidates affected mandates when merchants narrowed", () => {
+    it("invalidates affected mandates when merchants narrowed", async () => {
       // Create reference
       const createSession = createValidStepUpSession();
       service.create(
@@ -268,11 +268,11 @@ describe("PaymentReferenceService", () => {
 
       // Create mandate referencing this reference with merchant-b
       const mandate = createTestMandate();
-      mandateRepo.save(mandate);
+      await mandateRepo.save(mandate);
 
       // Update reference to only allow merchant-a (mandate references merchant-b)
       const updateSession = createValidStepUpSession();
-      const result = service.update(
+      const result = await service.update(
         "ref-001",
         { eligibleMerchants: ["merchant-a"] },
         updateSession,
@@ -284,11 +284,11 @@ describe("PaymentReferenceService", () => {
       }
 
       // Verify mandate was revoked
-      const updatedMandate = mandateRepo.findById(TEST_MANDATE_ID);
+      const updatedMandate = await mandateRepo.findById(TEST_MANDATE_ID);
       expect(updatedMandate?.status).toBe("revoked");
     });
 
-    it("does not invalidate unaffected mandates", () => {
+    it("does not invalidate unaffected mandates", async () => {
       // Create reference
       const createSession = createValidStepUpSession();
       service.create(
@@ -313,11 +313,11 @@ describe("PaymentReferenceService", () => {
           operations: { allowedOperations: ["purchase"] },
         }),
       });
-      mandateRepo.save(mandate);
+      await mandateRepo.save(mandate);
 
       // Update reference - still includes merchant-a
       const updateSession = createValidStepUpSession();
-      const result = service.update(
+      const result = await service.update(
         "ref-001",
         { eligibleMerchants: ["merchant-a", "merchant-c"] },
         updateSession,
@@ -329,13 +329,13 @@ describe("PaymentReferenceService", () => {
       }
 
       // Mandate still active
-      const updatedMandate = mandateRepo.findById(TEST_MANDATE_ID);
+      const updatedMandate = await mandateRepo.findById(TEST_MANDATE_ID);
       expect(updatedMandate?.status).toBe("active");
     });
   });
 
   describe("revoke", () => {
-    it("revokes a reference with valid step-up", () => {
+    it("revokes a reference with valid step-up", async () => {
       const createSession = createValidStepUpSession();
       service.create(
         {
@@ -353,7 +353,7 @@ describe("PaymentReferenceService", () => {
       );
 
       const revokeSession = createValidStepUpSession();
-      const result = service.revoke("ref-001", revokeSession);
+      const result = await service.revoke("ref-001", revokeSession);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -361,7 +361,7 @@ describe("PaymentReferenceService", () => {
       }
     });
 
-    it("requires step-up for revocation", () => {
+    it("requires step-up for revocation", async () => {
       const createSession = createValidStepUpSession();
       service.create(
         {
@@ -382,14 +382,14 @@ describe("PaymentReferenceService", () => {
         expires_at: new Date(Date.now() - 1000).toISOString(),
       });
 
-      const result = service.revoke("ref-001", expiredSession);
+      const result = await service.revoke("ref-001", expiredSession);
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.kind).toBe("step_up_required");
       }
     });
 
-    it("invalidates all mandates referencing the revoked reference", () => {
+    it("invalidates all mandates referencing the revoked reference", async () => {
       const createSession = createValidStepUpSession();
       service.create(
         {
@@ -412,11 +412,11 @@ describe("PaymentReferenceService", () => {
         mandateId: "ctr_mandate_EEEEEEEEEEEEEEEEEEEE" as CounterId<"mandate">,
         paymentReferenceId: "ref-001",
       });
-      mandateRepo.save(mandate1);
-      mandateRepo.save(mandate2);
+      await mandateRepo.save(mandate1);
+      await mandateRepo.save(mandate2);
 
       const revokeSession = createValidStepUpSession();
-      const result = service.revoke("ref-001", revokeSession);
+      const result = await service.revoke("ref-001", revokeSession);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -424,7 +424,7 @@ describe("PaymentReferenceService", () => {
       }
     });
 
-    it("rejects double revocation", () => {
+    it("rejects double revocation", async () => {
       const createSession = createValidStepUpSession();
       service.create(
         {
@@ -442,10 +442,10 @@ describe("PaymentReferenceService", () => {
       );
 
       const revokeSession = createValidStepUpSession();
-      service.revoke("ref-001", revokeSession);
+      await service.revoke("ref-001", revokeSession);
 
       const secondRevokeSession = createValidStepUpSession();
-      const result = service.revoke("ref-001", secondRevokeSession);
+      const result = await service.revoke("ref-001", secondRevokeSession);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {

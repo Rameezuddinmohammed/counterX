@@ -98,11 +98,78 @@ describe("createProductionPolicy", () => {
       timestamp: NOW as Instant,
       idempotencyKey: "seed-rolling",
     });
-    const p = policy({ ledger });
+    const p = policy({ ledger, walletRevocationCheck: async () => false });
     // Any further spend on that wallet is over the rolling cap -> denied.
     expect(await p.allow(req(100, { walletId: walletRef }))).toBe(false);
     // A DIFFERENT wallet is unaffected -> allowed (proves the check is real).
     expect(await p.allow(req(100, { walletId: "wallet-clean" }))).toBe(true);
+  });
+});
+
+describe("createProductionPolicy — durable wallet-level revocation re-verification", () => {
+  it("denies a durably-revoked wallet even when authority.revokedAtMs is absent (the caller never claimed revocation)", async () => {
+    const p = policy({ walletRevocationCheck: async (walletId) => walletId === "wallet-revoked" });
+    expect(await p.allow(req(100, { walletId: "wallet-revoked" }))).toBe(false);
+  });
+
+  it("allows a clean wallet when the durable check is wired and returns not-revoked", async () => {
+    const p = policy({ walletRevocationCheck: async () => false });
+    expect(await p.allow(req(100, { walletId: "wallet-clean" }))).toBe(true);
+  });
+
+  it("fails closed when authority.walletId is present but no durable check is configured at all", async () => {
+    const p = policy();
+    expect(await p.allow(req(100, { walletId: "wallet-anything" }))).toBe(false);
+  });
+
+  it("skips the check (no behavior change) when authority.walletId is absent, even with the check wired", async () => {
+    const p = policy({ walletRevocationCheck: async () => true });
+    expect(await p.allow(req(100))).toBe(true);
+  });
+
+  it("still enforces the durable check ahead of unrelated predicates (revoked wallet denies even with a perfectly valid quote/scope)", async () => {
+    const p = policy({ walletRevocationCheck: async () => true });
+    expect(
+      await p.allow(
+        req(100, {
+          walletId: "wallet-revoked",
+          quotedAmountMinor: 100,
+          authorizedMerchantId: MERCHANT,
+        }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("createProductionPolicy — durable mandate-level revocation re-verification (governed agent purchases)", () => {
+  it("denies a durably-revoked mandate even when no other authority field claims revocation", async () => {
+    const p = policy({ mandateRevocationCheck: async (id) => id === "mandate-revoked" });
+    expect(await p.allow(req(100, { mandateId: "mandate-revoked" }))).toBe(false);
+  });
+
+  it("allows an active mandate when the durable check is wired and returns not-revoked", async () => {
+    const p = policy({ mandateRevocationCheck: async () => false });
+    expect(await p.allow(req(100, { mandateId: "mandate-clean" }))).toBe(true);
+  });
+
+  it("fails closed when authority.mandateId is present but no durable check is configured at all", async () => {
+    const p = policy();
+    expect(await p.allow(req(100, { mandateId: "mandate-anything" }))).toBe(false);
+  });
+
+  it("skips the check (no behavior change) when authority.mandateId is absent, even with the check wired", async () => {
+    const p = policy({ mandateRevocationCheck: async () => true });
+    expect(await p.allow(req(100))).toBe(true);
+  });
+
+  it("enforces wallet- and mandate-level revocation independently — either one revoked is enough to deny", async () => {
+    const p = policy({
+      walletRevocationCheck: async () => false,
+      mandateRevocationCheck: async () => true,
+    });
+    expect(
+      await p.allow(req(100, { walletId: "wallet-clean", mandateId: "mandate-revoked" })),
+    ).toBe(false);
   });
 });
 

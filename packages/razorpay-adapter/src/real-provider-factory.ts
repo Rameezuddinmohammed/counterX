@@ -13,10 +13,13 @@
  * config object into this factory.
  */
 
+import type { Signer } from "@counter/trust-protocol";
+
 import { createRazorpayHttpClient } from "./real-http-client.js";
 import type { RealRazorpayHttpConfig } from "./real-http-client.js";
 import { RazorpayTestProvider } from "./razorpay-provider.js";
 import { RazorpayRecurringMandateProvider } from "./recurring-mandate-provider.js";
+import { RazorpayOrderVerificationProvider } from "./order-verification-provider.js";
 import type { RazorpayTestAdapterConfig } from "./adapter-config.js";
 
 /**
@@ -99,6 +102,44 @@ export function createRealRazorpayRecurringMandateProvider(
   return new RazorpayRecurringMandateProvider({
     config: adapterConfig,
     httpClient,
+    ...(clock !== undefined ? { clock } : {}),
+  });
+}
+
+/**
+ * Constructs a {@link RazorpayOrderVerificationProvider} that performs real
+ * HTTP calls to Razorpay (test mode) using the supplied credentials — see
+ * that class's header for why it exists (verifying an already-created real
+ * order's REAL payment status, never creating its own order).
+ */
+export function createRealRazorpayOrderVerificationProvider(
+  config: RealRazorpayProviderConfig,
+  signer: Signer,
+  kid: string,
+  clock?: () => number,
+): RazorpayOrderVerificationProvider {
+  const httpConfig: RealRazorpayHttpConfig = {
+    keyId: config.keyId,
+    keySecret: config.keySecret,
+    baseUrl: config.baseUrl,
+    ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
+  };
+
+  const httpClient = createRazorpayHttpClient(httpConfig);
+
+  const adapterConfig: RazorpayTestAdapterConfig = {
+    keyId: config.keyId,
+    keySecret: config.keySecret,
+    webhookSecret: config.webhookSecret,
+    environment: "test",
+    baseUrl: config.baseUrl,
+  };
+
+  return new RazorpayOrderVerificationProvider({
+    config: adapterConfig,
+    httpClient,
+    signer,
+    kid,
     ...(clock !== undefined ? { clock } : {}),
   });
 }

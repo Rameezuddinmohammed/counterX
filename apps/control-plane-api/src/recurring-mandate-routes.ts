@@ -238,8 +238,10 @@ export async function recurringMandateRoutesPlugin(
         return;
       }
 
+      const principalId = getActorContext(request)?.actor.id ?? "unknown";
+
       try {
-        await provisioner.revoke(walletId, referenceId);
+        await provisioner.revoke(walletId, referenceId, principalId);
         void reply.status(204).send();
       } catch {
         sendNotFound(reply);

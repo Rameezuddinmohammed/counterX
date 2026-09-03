@@ -107,11 +107,14 @@ export type RevocationResult =
 // ---------------------------------------------------------------------------
 
 export interface RevocationStore {
-  isRevoked(scopeType: RevocationScopeType, scopeId: string): boolean;
-  getRevocation(scopeType: RevocationScopeType, scopeId: string): RevocationRecord | undefined;
-  getRevocationsForScope(scopeType: RevocationScopeType): readonly RevocationRecord[];
-  save(record: RevocationRecord): void;
-  getSequence(scopeType: RevocationScopeType, scopeId: string): number;
+  isRevoked(scopeType: RevocationScopeType, scopeId: string): Promise<boolean>;
+  getRevocation(
+    scopeType: RevocationScopeType,
+    scopeId: string,
+  ): Promise<RevocationRecord | undefined>;
+  getRevocationsForScope(scopeType: RevocationScopeType): Promise<readonly RevocationRecord[]>;
+  save(record: RevocationRecord): Promise<void>;
+  getSequence(scopeType: RevocationScopeType, scopeId: string): Promise<number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,25 +125,30 @@ export class InMemoryRevocationStore implements RevocationStore {
   readonly #records = new Map<string, RevocationRecord>();
   readonly #sequences = new Map<string, number>();
 
-  isRevoked(scopeType: RevocationScopeType, scopeId: string): boolean {
+  async isRevoked(scopeType: RevocationScopeType, scopeId: string): Promise<boolean> {
     return this.#records.has(this.#key(scopeType, scopeId));
   }
 
-  getRevocation(scopeType: RevocationScopeType, scopeId: string): RevocationRecord | undefined {
+  async getRevocation(
+    scopeType: RevocationScopeType,
+    scopeId: string,
+  ): Promise<RevocationRecord | undefined> {
     return this.#records.get(this.#key(scopeType, scopeId));
   }
 
-  getRevocationsForScope(scopeType: RevocationScopeType): readonly RevocationRecord[] {
+  async getRevocationsForScope(
+    scopeType: RevocationScopeType,
+  ): Promise<readonly RevocationRecord[]> {
     return [...this.#records.values()].filter((r) => r.scopeType === scopeType);
   }
 
-  save(record: RevocationRecord): void {
+  async save(record: RevocationRecord): Promise<void> {
     const key = this.#key(record.scopeType, record.scopeId);
     this.#records.set(key, record);
     this.#sequences.set(key, record.sequence);
   }
 
-  getSequence(scopeType: RevocationScopeType, scopeId: string): number {
+  async getSequence(scopeType: RevocationScopeType, scopeId: string): Promise<number> {
     return this.#sequences.get(this.#key(scopeType, scopeId)) ?? 0;
   }
 
@@ -179,10 +187,10 @@ export class WalletRevocationService {
    * If the scope is already revoked, returns the existing revocation
    * (idempotent for the same scope_id, but no un-revoke).
    */
-  revoke(input: RevocationInput): RevocationResult {
+  async revoke(input: RevocationInput): Promise<RevocationResult> {
     // Check if already revoked (monotonic - cannot un-revoke)
-    if (this.#store.isRevoked(input.scopeType, input.scopeId)) {
-      const existing = this.#store.getRevocation(input.scopeType, input.scopeId);
+    if (await this.#store.isRevoked(input.scopeType, input.scopeId)) {
+      const existing = await this.#store.getRevocation(input.scopeType, input.scopeId);
       if (existing) {
         // Return existing revocation (idempotent)
         return {
@@ -198,7 +206,7 @@ export class WalletRevocationService {
 
     const now = new Date().toISOString();
     const revocationId = this.#idGenerator.generate("evidence");
-    const sequence = this.#store.getSequence(input.scopeType, input.scopeId) + 1;
+    const sequence = (await this.#store.getSequence(input.scopeType, input.scopeId)) + 1;
 
     const record: RevocationRecord = {
       revocationId,
@@ -214,10 +222,10 @@ export class WalletRevocationService {
     };
 
     // Save revocation record
-    this.#store.save(record);
+    await this.#store.save(record);
 
     // Cascade effects
-    this.#cascadeRevocation(input);
+    await this.#cascadeRevocation(input);
 
     // Build CTP envelope
     const payload = this.#buildPayload(record);
@@ -233,41 +241,60 @@ export class WalletRevocationService {
   /**
    * Checks if a scope is currently revoked.
    */
-  isRevoked(scopeType: RevocationScopeType, scopeId: string): boolean {
+  async isRevoked(scopeType: RevocationScopeType, scopeId: string): Promise<boolean> {
     return this.#store.isRevoked(scopeType, scopeId);
   }
 
   /**
    * Gets revocation record for a scope.
    */
-  getRevocation(scopeType: RevocationScopeType, scopeId: string): RevocationRecord | undefined {
+  async getRevocation(
+    scopeType: RevocationScopeType,
+    scopeId: string,
+  ): Promise<RevocationRecord | undefined> {
     return this.#store.getRevocation(scopeType, scopeId);
   }
 
-  #cascadeRevocation(input: RevocationInput): void {
+  async #cascadeRevocation(input: RevocationInput): Promise<void> {
     // Cascade: revoking a wallet revokes all its mandates
     if (input.scopeType === "wallet") {
-      const mandates = this.#mandateRepo.findByWallet(input.scopeId as CounterId<"wallet">);
+      const mandates = await this.#mandateRepo.findByWallet(input.scopeId as CounterId<"wallet">);
       for (const mandate of mandates) {
         if (mandate.status === "active") {
-          this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
+          await this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
         }
       }
     }
 
     // Cascade: revoking an agent revokes all its mandates
     if (input.scopeType === "agent") {
-      const mandates = this.#mandateRepo.findByAgent(input.scopeId as CounterId<"agent">);
+      const mandates = await this.#mandateRepo.findByAgent(input.scopeId as CounterId<"agent">);
       for (const mandate of mandates) {
         if (mandate.status === "active") {
-          this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
+          await this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
         }
       }
     }
 
     // Cascade: revoking a mandate directly
     if (input.scopeType === "mandate") {
-      this.#mandateRepo.updateStatus(input.scopeId as CounterId<"mandate">, "revoked");
+      await this.#mandateRepo.updateStatus(input.scopeId as CounterId<"mandate">, "revoked");
+    }
+
+    // Cascade: revoking a payment-authorization reference (the human
+    // revoking the underlying provider mandate, e.g. a Razorpay recurring
+    // token) revokes every Counter-native mandate issued against it — a
+    // provider-side revocation must not leave a derived agent authority
+    // alive. The reverse is NOT cascaded here: revoking one agent's
+    // mandate must not cancel a shared provider authorization that other
+    // mandates may still be bound to.
+    if (input.scopeType === "payment_reference") {
+      const mandates = await this.#mandateRepo.findByPaymentReference(input.scopeId);
+      for (const mandate of mandates) {
+        if (mandate.status === "active") {
+          await this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
+        }
+      }
     }
   }
 

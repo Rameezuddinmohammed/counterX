@@ -24,6 +24,12 @@
       "path": "../trust-protocol/tsconfig.build.json"
     },
     {
+      "path": "../wallet-application/tsconfig.build.json"
+    },
+    {
+      "path": "../wallet-domain/tsconfig.build.json"
+    },
+    {
       "path": "../workflow/tsconfig.build.json"
     }
   ]

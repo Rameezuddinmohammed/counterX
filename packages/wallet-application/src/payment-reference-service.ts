@@ -136,11 +136,11 @@ export class PaymentReferenceService {
    * Reevaluates affected mandates and invalidates those that no longer satisfy
    * the reference constraints.
    */
-  update(
+  async update(
     referenceId: string,
     changes: UpdatePaymentReferenceParams,
     stepUpSession: StepUpSession,
-  ): PaymentReferenceResult<PaymentReferenceOutput> {
+  ): Promise<PaymentReferenceResult<PaymentReferenceOutput>> {
     // Validate step-up
     const stepUpCheck = this.#validateStepUp(stepUpSession);
     if (!stepUpCheck.ok) {
@@ -178,7 +178,7 @@ export class PaymentReferenceService {
     this.#stepUpService.consumeNonce(stepUpSession.nonce);
 
     // Reevaluate affected mandates
-    const invalidatedMandateIds = this.#invalidateAffectedMandates(existing, updated);
+    const invalidatedMandateIds = await this.#invalidateAffectedMandates(existing, updated);
 
     return {
       ok: true,
@@ -190,10 +190,10 @@ export class PaymentReferenceService {
    * Revokes a payment reference. Requires step-up authentication.
    * Invalidates ALL mandates that reference this payment reference.
    */
-  revoke(
+  async revoke(
     referenceId: string,
     stepUpSession: StepUpSession,
-  ): PaymentReferenceResult<PaymentReferenceOutput> {
+  ): Promise<PaymentReferenceResult<PaymentReferenceOutput>> {
     // Validate step-up
     const stepUpCheck = this.#validateStepUp(stepUpSession);
     if (!stepUpCheck.ok) {
@@ -220,7 +220,7 @@ export class PaymentReferenceService {
     this.#stepUpService.consumeNonce(stepUpSession.nonce);
 
     // Invalidate all mandates that reference this payment reference
-    const invalidatedMandateIds = this.#invalidateAllMandatesForReference(existing);
+    const invalidatedMandateIds = await this.#invalidateAllMandatesForReference(existing);
 
     const revoked: PaymentAuthorizationReference = { ...existing, status: "revoked" };
 
@@ -309,11 +309,11 @@ export class PaymentReferenceService {
    * After a reference update, find mandates that reference it and invalidate
    * those whose constraints are no longer satisfied.
    */
-  #invalidateAffectedMandates(
+  async #invalidateAffectedMandates(
     _original: PaymentAuthorizationReference,
     updated: PaymentAuthorizationReference,
-  ): readonly string[] {
-    const mandates = this.#mandateRepo.findActive(updated.walletId);
+  ): Promise<readonly string[]> {
+    const mandates = await this.#mandateRepo.findActive(updated.walletId);
     const invalidated: string[] = [];
 
     for (const mandate of mandates) {
@@ -323,7 +323,7 @@ export class PaymentReferenceService {
       // Mandate is affected - check if its constraints are still met
       const shouldInvalidate = this.#mandateViolatesReference(mandate, updated);
       if (shouldInvalidate) {
-        this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
+        await this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
         invalidated.push(mandate.mandateId);
       }
     }
@@ -334,13 +334,15 @@ export class PaymentReferenceService {
   /**
    * After a reference revocation, invalidate ALL mandates that reference it.
    */
-  #invalidateAllMandatesForReference(reference: PaymentAuthorizationReference): readonly string[] {
-    const mandates = this.#mandateRepo.findActive(reference.walletId);
+  async #invalidateAllMandatesForReference(
+    reference: PaymentAuthorizationReference,
+  ): Promise<readonly string[]> {
+    const mandates = await this.#mandateRepo.findActive(reference.walletId);
     const invalidated: string[] = [];
 
     for (const mandate of mandates) {
       if (mandate.paymentReferenceId === reference.referenceId) {
-        this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
+        await this.#mandateRepo.updateStatus(mandate.mandateId, "revoked");
         invalidated.push(mandate.mandateId);
       }
     }

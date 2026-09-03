@@ -15,6 +15,36 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { InMemoryMerchantRuntimeClient } from "@counter/wallet-application";
 import type { ReadToolDependencies } from "./read-tools.js";
 import { registerReadTools } from "./read-tools.js";
+import type {
+  WalletClientResult,
+  WalletNotificationsResult,
+  WalletRuntimeClient,
+} from "../wallet-runtime-client.js";
+
+/** Minimal fake WalletRuntimeClient for notifications.list/invoices.get tests. */
+class FakeWalletRuntimeClient implements WalletRuntimeClient {
+  #responses = new Map<string, WalletNotificationsResult>();
+  failWith: WalletClientResult<WalletNotificationsResult> | undefined;
+  lastCall:
+    | { walletId: string; options?: { limit?: number; notificationType?: string } }
+    | undefined;
+
+  setResponse(walletId: string, response: WalletNotificationsResult): void {
+    this.#responses.set(walletId, response);
+  }
+
+  async listNotifications(
+    walletId: string,
+    options?: { readonly limit?: number; readonly notificationType?: string },
+  ): Promise<WalletClientResult<WalletNotificationsResult>> {
+    this.lastCall = { walletId, ...(options !== undefined ? { options: { ...options } } : {}) };
+    if (this.failWith !== undefined) return this.failWith;
+    const response = this.#responses.get(walletId);
+    return response !== undefined
+      ? { ok: true, value: response }
+      : { ok: true, value: { walletId, notifications: [], total: 0 } };
+  }
+}
 
 async function connectedClient(
   deps: ReadToolDependencies | undefined,
@@ -225,5 +255,105 @@ describe("read-tools: honest fallback for structurally-unreachable tools", () =>
     );
     expect(result["status"]).toBe("not_found");
     expect(result["product"]).toBeNull();
+  });
+
+  it("notifications.list and invoices.get stay honestly unavailable with no walletClient", async () => {
+    const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
+    const { client } = await connectedClient({ merchantClient });
+
+    const notifications = textOf(
+      await client.callTool({ name: "notifications.list", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(notifications["status"]).toBe("unavailable");
+    expect(notifications["notifications"]).toEqual([]);
+
+    const invoices = textOf(
+      await client.callTool({ name: "invoices.get", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(invoices["status"]).toBe("unavailable");
+    expect(invoices["invoices"]).toEqual([]);
+  });
+});
+
+describe("read-tools: notifications.list / invoices.get (Phase 2)", () => {
+  it("notifications.list returns real data from the wallet client, scoped to the requested wallet", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.setResponse("wallet-1", {
+      walletId: "wallet-1",
+      notifications: [
+        {
+          id: "ctr_buyer-notification_1",
+          notificationType: "merchant.order.created.v1",
+          transactionId: "ctr_transaction_1",
+          payload: { amountMinor: 122882 },
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+    });
+
+    const { client } = await connectedClient({ walletClient });
+    const result = await client.callTool({
+      name: "notifications.list",
+      arguments: { wallet_id: "wallet-1" },
+    });
+    const parsed = textOf(result);
+    expect(parsed["status"]).toBe("available");
+    expect(parsed["total"]).toBe(1);
+    expect(walletClient.lastCall?.walletId).toBe("wallet-1");
+  });
+
+  it("notifications.list for a DIFFERENT wallet never sees another wallet's data", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.setResponse("wallet-1", {
+      walletId: "wallet-1",
+      notifications: [
+        {
+          id: "ctr_buyer-notification_1",
+          notificationType: "merchant.order.created.v1",
+          transactionId: "ctr_transaction_1",
+          payload: {},
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+    });
+
+    const { client } = await connectedClient({ walletClient });
+    const result = await client.callTool({
+      name: "notifications.list",
+      arguments: { wallet_id: "wallet-2" },
+    });
+    const parsed = textOf(result);
+    expect(parsed["total"]).toBe(0);
+    expect(parsed["notifications"]).toEqual([]);
+  });
+
+  it("notifications.list surfaces indeterminate on a timeout, unavailable on other errors", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.failWith = { ok: false, error: { kind: "timeout", message: "Request timed out" } };
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "notifications.list", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["status"]).toBe("indeterminate");
+
+    walletClient.failWith = {
+      ok: false,
+      error: { kind: "network", message: "Network request failed" },
+    };
+    const result2 = textOf(
+      await client.callTool({ name: "notifications.list", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result2["status"]).toBe("unavailable");
+  });
+
+  it("invoices.get filters to merchant.order.created.v1 notifications only", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    const { client } = await connectedClient({ walletClient });
+
+    await client.callTool({ name: "invoices.get", arguments: { wallet_id: "wallet-1" } });
+
+    expect(walletClient.lastCall?.options?.notificationType).toBe("merchant.order.created.v1");
   });
 });

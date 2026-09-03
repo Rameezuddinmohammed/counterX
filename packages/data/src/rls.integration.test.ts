@@ -108,8 +108,11 @@ const deniedWriteActorIds = requiredTenantClaimNames.map((_, index) =>
 // Migrations 12-16 added 7 more RLS-enabled+forced, no-policy tables since
 // this list was last updated — verified against each migration's .up.sql
 // (ENABLE + FORCE ROW LEVEL SECURITY, no CREATE POLICY) before adding here.
-// Migration 18 (catalog-sync-storage) added 5 more, same pattern. Order
-// matters: the query below sorts by relation_name (schema.table).
+// Migration 18 (catalog-sync-storage) added 5 more, same pattern. Migration
+// 19 (wallet-revocations-and-mandates) added 2 more (wallet.mandates,
+// wallet.revocations), same pattern - verified directly against 0019's
+// .up.sql before adding here. Order matters: the query below sorts by
+// relation_name (schema.table).
 const protectedRelations = [
   "identity.actor_role_assignments",
   "identity.actors",
@@ -135,7 +138,12 @@ const protectedRelations = [
   "merchant.scopes",
   "merchant.shopify_connections",
   "merchant.shopify_oauth_states",
+  "merchant.webhook_endpoints",
+  "wallet.balance_events",
+  "wallet.balances",
+  "wallet.mandates",
   "wallet.recurring_payment_mandates",
+  "wallet.revocations",
   "wallet.scopes",
 ] as const;
 

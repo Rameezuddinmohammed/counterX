@@ -1,6 +1,10 @@
 /**
  * Server-side CTP key resolution for verifying a buyer agent's signed
- * purchase-intent envelopes.
+ * envelopes (purchase-intent, mandate). Shared by every server-side verifier
+ * that needs to resolve an agent's registered public key — originally lived
+ * only in apps/agent-runtime, moved here so apps/control-plane-api's mandate
+ * verification route can use the exact same, already-tested resolution
+ * logic instead of a second implementation reading the same table.
  *
  * Reads directly from the existing, already-durable `identity.agent_public_keys`
  * table (see packages/data/src/identity-repositories.ts) rather than going
@@ -15,8 +19,8 @@
  */
 
 import type { Environment } from "@counter/domain";
-import type { TransactionalDatabase } from "@counter/data";
 import type { KeyRecord, KeyRegistry, KeyStatus } from "@counter/trust-protocol";
+import type { TransactionalDatabase } from "./database.js";
 
 interface AgentPublicKeyRow {
   readonly owner_scope_id: string;

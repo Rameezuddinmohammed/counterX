@@ -102,7 +102,7 @@ export class MandateService {
    * 3. Consent attestation digest is valid/fresh
    * 4. Validity window is sane
    */
-  issue(params: MandateIssuanceParams): MandateIssuanceResult {
+  async issue(params: MandateIssuanceParams): Promise<MandateIssuanceResult> {
     // 1. Validate step-up session
     const stepUpValidation = this.#stepUpService.validateSession(params.stepUpSession);
     if (!stepUpValidation.valid) {
@@ -280,7 +280,7 @@ export class MandateService {
     };
 
     // Persist
-    this.#mandateRepo.save(mandate);
+    await this.#mandateRepo.save(mandate);
 
     // Consume step-up nonce
     this.#stepUpService.consumeNonce(params.stepUpSession.nonce);
