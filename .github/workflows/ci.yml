@@ -65,11 +65,22 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
-      - name: Lint
-        run: pnpm lint
-
+      # Build runs BEFORE lint: type-aware ESLint rules (@typescript-eslint/
+      # no-unsafe-*) need a workspace package's real dist/*.d.ts output to
+      # resolve its types when a consumer (e.g. a Next.js app, which has no
+      # tsc -b project-reference graph of its own) imports it — without a
+      # prior build, those imports silently resolve to `any`/error types and
+      # lint reports unrelated-looking "unsafe call"/"unsafe member access"
+      # errors instead of the real problem (see apps/wallet-console's first
+      # direct import of @counter/domain/@counter/trust-protocol/
+      # @counter/wallet-application, Mandate Pivot Phase 1.3 — this ordering
+      # bug was latent until then, since no prior Next.js app imported a
+      # workspace package directly).
       - name: Build workspace dependencies and applications
         run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
