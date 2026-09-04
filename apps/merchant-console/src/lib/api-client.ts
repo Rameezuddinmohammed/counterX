@@ -28,9 +28,11 @@ import type {
   ShopifySetupStatus,
   SuspensionStatus,
   Transaction,
+  WalletConnectRequest,
   WizardManifest,
   WizardPaymentConnectionStatus,
   WizardReadinessSummary,
+  WizardWalletConnectionStatus,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -160,6 +162,15 @@ export interface MerchantApiClient {
     req: RazorpayConnectRequest,
   ): Promise<ApiResult<WizardPaymentConnectionStatus>>;
   getRazorpayConnection(merchantId: string): Promise<ApiResult<WizardPaymentConnectionStatus>>;
+
+  // Hackathon-scoped: "where do I receive crypto payments" step. See
+  // merchant-wallet-connection-store.ts's scope disclosure (format
+  // validation only, no live on-chain verification yet).
+  connectWallet(
+    merchantId: string,
+    req: WalletConnectRequest,
+  ): Promise<ApiResult<WizardWalletConnectionStatus>>;
+  getWalletConnection(merchantId: string): Promise<ApiResult<WizardWalletConnectionStatus>>;
 
   // Step 5: readiness check (auto-transitions VERIFYING -> SANDBOX_READY when ready).
   getWizardReadiness(merchantId: string): Promise<ApiResult<WizardReadinessSummary>>;
@@ -353,6 +364,17 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       request<WizardPaymentConnectionStatus>(
         "GET",
         `/merchant-applications/${merchantId}/payment-connection`,
+      ),
+    connectWallet: (merchantId, req) =>
+      request<WizardWalletConnectionStatus>(
+        "POST",
+        `/merchant-applications/${merchantId}/wallet-connection`,
+        req,
+      ),
+    getWalletConnection: (merchantId) =>
+      request<WizardWalletConnectionStatus>(
+        "GET",
+        `/merchant-applications/${merchantId}/wallet-connection`,
       ),
     getWizardReadiness: (merchantId) =>
       request<WizardReadinessSummary>("GET", `/merchant-applications/${merchantId}/readiness`),

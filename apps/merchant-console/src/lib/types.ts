@@ -152,6 +152,24 @@ export interface RazorpayConnectRequest {
   readonly keySecret: string;
 }
 
+/**
+ * POST/GET .../wallet-connection — hackathon-scoped "where do I receive
+ * crypto payments" step. See merchant-wallet-connection-store.ts's header
+ * for the real scope boundary: format validation only, no live on-chain
+ * verification yet.
+ */
+export interface WizardWalletConnectionStatus {
+  readonly connected: boolean;
+  readonly chain?: "solana-devnet";
+  readonly address?: string;
+  readonly connectedAt?: string;
+}
+
+export interface WalletConnectRequest {
+  readonly chain: "solana-devnet";
+  readonly address: string;
+}
+
 /** Mirrors readiness-types.ts's ReadinessStatus severities exactly. */
 export type WizardReadinessCheckStatus =
   | "Blocking"

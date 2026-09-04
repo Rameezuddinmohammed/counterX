@@ -41,6 +41,8 @@ import { merchantApplicationRoutesPlugin } from "./merchant-application-routes.j
 import type { MerchantApplicationProvisionerLike } from "./merchant-application-store.js";
 import { merchantPaymentConnectionRoutesPlugin } from "./merchant-payment-connection-routes.js";
 import type { MerchantPaymentConnectionStoreLike } from "./merchant-payment-connection-store.js";
+import { merchantWalletConnectionRoutesPlugin } from "./merchant-wallet-connection-routes.js";
+import type { MerchantWalletConnectionStoreLike } from "./merchant-wallet-connection-store.js";
 import { merchantWebhookEndpointRoutesPlugin } from "./merchant-webhook-endpoint-routes.js";
 import type { MerchantWebhookEndpointStoreLike } from "./merchant-webhook-endpoint-store.js";
 import { buyerNotificationRoutesPlugin } from "./buyer-notification-routes.js";
@@ -188,6 +190,13 @@ export interface CreateServerOptions {
    * same optional-feature pattern as merchantApplicationProvisioner.
    */
   readonly merchantPaymentConnectionStore?: MerchantPaymentConnectionStoreLike | undefined;
+  /**
+   * Only when present is /control/v1/merchant-applications/:merchantId/
+   * wallet-connection registered — hackathon-scoped "where do I receive
+   * crypto payments" step, same optional-feature pattern as
+   * merchantPaymentConnectionStore.
+   */
+  readonly merchantWalletConnectionStore?: MerchantWalletConnectionStoreLike | undefined;
   /**
    * Only when present is /control/v1/merchants/:merchantId/webhook-endpoint
    * registered — Phase 2 of the remote-MCP plan (notifications backbone):
@@ -370,6 +379,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.merchantPaymentConnectionStore !== undefined) {
     void server.register(merchantPaymentConnectionRoutesPlugin, {
       store: options.merchantPaymentConnectionStore,
+    });
+  }
+
+  // Hackathon-scoped onboarding: "where do I receive crypto payments" —
+  // only registered when a store is wired.
+  if (options?.merchantWalletConnectionStore !== undefined) {
+    void server.register(merchantWalletConnectionRoutesPlugin, {
+      store: options.merchantWalletConnectionStore,
     });
   }
 

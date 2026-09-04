@@ -43,6 +43,7 @@ import {
 import { RefundRequestStore } from "./refund-request-store.js";
 import { MerchantApplicationProvisioner } from "./merchant-application-store.js";
 import { MerchantPaymentConnectionStore } from "./merchant-payment-connection-store.js";
+import { MerchantWalletConnectionStore } from "./merchant-wallet-connection-store.js";
 import { MerchantWebhookEndpointStore } from "./merchant-webhook-endpoint-store.js";
 import { createFulfillmentWebhookHandler } from "./fulfillment-webhook-handler.js";
 import { MerchantReadinessService } from "./merchant-readiness-store.js";
@@ -395,6 +396,10 @@ const serverOptions: CreateServerOptions = {
               ? { baseUrl: process.env["RAZORPAY_BASE_URL"] }
               : {}),
           },
+        ),
+        merchantWalletConnectionStore: new MerchantWalletConnectionStore(
+          database,
+          runtimeEnvironment,
         ),
         merchantWebhookEndpointStore: new MerchantWebhookEndpointStore(
           database,
