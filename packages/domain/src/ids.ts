@@ -1,4 +1,3 @@
-import { randomBytes as nodeRandomBytes } from "node:crypto";
 import type { Brand } from "./brand.js";
 import { createCanonicalError } from "./errors.js";
 import { err, ok, type Result } from "./result.js";
@@ -227,7 +226,12 @@ export function createExternalReference(
   return ok(Object.freeze({ source, value }));
 }
 
-const systemRandomBytes: RandomByteSource = (length) => nodeRandomBytes(length);
+// Web Crypto's getRandomValues — a standard global in both Node (18+) and
+// every browser, unlike node:crypto's randomBytes — so CryptoIdGenerator
+// runs unmodified in a browser bundle (Mandate Pivot Phase 1.3 needs this:
+// generating a mandate id client-side alongside the buyer's own signing).
+const systemRandomBytes: RandomByteSource = (length) =>
+  crypto.getRandomValues(new Uint8Array(length));
 
 export class CryptoIdGenerator implements IdGenerator {
   readonly #randomByteSource: RandomByteSource;

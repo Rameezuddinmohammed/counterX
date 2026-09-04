@@ -1,0 +1,3 @@
+{
+  "buildCommand": "cd ../.. && pnpm --filter @counter/wallet-console... build"
+}

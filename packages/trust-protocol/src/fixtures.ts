@@ -17,6 +17,7 @@ import type { KeyRecord } from "./keys.js";
 import type { CtpEnvironment, Nonce, UnsignedCtpEnvelope } from "./types.js";
 import { CTP_SIGNATURE_ALGORITHM, CTP_VERSION } from "./types.js";
 import { computePayloadDigest } from "./canonicalize.js";
+import { bytesToBase64Url } from "./base64url.js";
 import { InMemorySigner } from "./sign.js";
 
 // ---------------------------------------------------------------------------
@@ -55,7 +56,7 @@ export const TEST_KEY_RECORD_A: KeyRecord = Object.freeze({
   kid: TEST_KID_A,
   use: "sign" as const,
   alg: "EdDSA" as const,
-  publicKey: Buffer.from(TEST_KEY_A_PUBLIC).toString("base64url"),
+  publicKey: bytesToBase64Url(TEST_KEY_A_PUBLIC),
   status: "active" as const,
   validFrom: "2024-01-01T00:00:00.000Z",
   validUntil: "2030-12-31T23:59:59.999Z",
@@ -66,7 +67,7 @@ export const TEST_KEY_RECORD_B: KeyRecord = Object.freeze({
   kid: TEST_KID_B,
   use: "sign" as const,
   alg: "EdDSA" as const,
-  publicKey: Buffer.from(TEST_KEY_B_PUBLIC).toString("base64url"),
+  publicKey: bytesToBase64Url(TEST_KEY_B_PUBLIC),
   status: "active" as const,
   validFrom: "2024-01-01T00:00:00.000Z",
   validUntil: "2030-12-31T23:59:59.999Z",

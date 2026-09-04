@@ -1,11 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import {
-  selectPaymentAuthorizationPort,
-  createDeterministicPaymentAuthorizationPort,
-  resolveSpendLimitConfig,
-  pilotMerchantId,
-} from "./boot.js";
 import {
   DEFAULT_SPEND_LIMIT_CONFIG,
   type PolicyConfigEntry,
@@ -13,6 +7,29 @@ import {
 } from "@counter/data";
 import type { EnvironmentBag } from "./connector-env.js";
 import { createCounterId, type CounterId } from "@counter/domain";
+import type * as RazorpayAdapterModule from "@counter/razorpay-adapter";
+
+const recurringMandateProviderCalls: Array<{ keyId: string; keySecret: string }> = [];
+
+vi.mock("@counter/razorpay-adapter", async () => {
+  const actual = await vi.importActual<typeof RazorpayAdapterModule>("@counter/razorpay-adapter");
+  return {
+    ...actual,
+    createRealRazorpayRecurringMandateProvider: (
+      config: Parameters<typeof actual.createRealRazorpayRecurringMandateProvider>[0],
+    ) => {
+      recurringMandateProviderCalls.push({ keyId: config.keyId, keySecret: config.keySecret });
+      return actual.createRealRazorpayRecurringMandateProvider(config);
+    },
+  };
+});
+
+const {
+  selectPaymentAuthorizationPort,
+  createDeterministicPaymentAuthorizationPort,
+  resolveSpendLimitConfig,
+  pilotMerchantId,
+} = await import("./boot.js");
 
 function txnId(fill: number): CounterId<"transaction"> {
   const r = createCounterId("transaction", new Uint8Array(16).fill(fill));
@@ -80,6 +97,34 @@ describe("selectPaymentAuthorizationPort", () => {
       paymentConnectionStore: store,
     });
     expect(selection.mode).toBe("real");
+  });
+
+  it("routes recurring-mandate charges through the SAME merchant-resolved credentials as the one-shot order path, not the raw platform env pair", async () => {
+    recurringMandateProviderCalls.length = 0;
+    const env: EnvironmentBag = {
+      COUNTER_ENV: "test",
+      SHOPIFY_STORE_DOMAIN: "counter-commerce-agent.myshopify.com",
+      SHOPIFY_ACCESS_TOKEN: "shpat_fake",
+      RAZORPAY_KEY_ID: "rzp_test_platform_shared",
+      RAZORPAY_KEY_SECRET: "secret_platform_shared",
+      RAZORPAY_WEBHOOK_SECRET: "whsecret_fake",
+    };
+    const store = {
+      findByMerchantId: async () => ({
+        keyId: "rzp_test_merchant_own",
+        keySecret: "secret_merchant_own",
+        verifiedAt: "2026-01-01T00:00:00.000Z",
+      }),
+    } as unknown as PostgresPaymentConnectionReadStore;
+
+    const selection = await selectPaymentAuthorizationPort(env, undefined, {
+      paymentConnectionStore: store,
+    });
+    expect(selection.mode).toBe("real");
+
+    expect(recurringMandateProviderCalls).toEqual([
+      { keyId: "rzp_test_merchant_own", keySecret: "secret_merchant_own" },
+    ]);
   });
 
   it("fails loud (never falls back to the shared credential) when the merchant has no connected gateway", async () => {

@@ -108,13 +108,17 @@ async function signedMandateEnvelope(payloadOverrides: Partial<MandatePayload> =
   return signedResult.value;
 }
 
-function buildService(recurringMandates: readonly RecurringMandateSummary[]) {
+function buildService(
+  recurringMandates: readonly RecurringMandateSummary[],
+  agentOwnershipCheck: (walletId: string, agentId: string) => Promise<boolean> = async () => true,
+) {
   const mandateRepo = new InMemoryMandateRepository();
   const keyRegistry = new InMemoryKeyRegistry([TEST_KEY_RECORD_A]);
   const service = new MandateBindingService(
     mandateRepo,
     keyRegistry,
     new FakeRecurringMandates(recurringMandates),
+    agentOwnershipCheck,
   );
   return { service, mandateRepo };
 }
@@ -135,6 +139,31 @@ describe("MandateBindingService.bind", () => {
     const persisted = await mandateRepo.findById(MANDATE_ID as WalletMandate["mandateId"]);
     expect(persisted?.status).toBe("active");
     expect(persisted?.constraints.amountLimits.perTransactionMaxPaise).toBe(100_000n);
+  });
+
+  it("passes walletId and payload.agent_id to the agent-ownership check", async () => {
+    const calls: Array<{ walletId: string; agentId: string }> = [];
+    const { service } = buildService([activeProviderMandate()], async (walletId, agentId) => {
+      calls.push({ walletId, agentId });
+      return true;
+    });
+    const envelope = await signedMandateEnvelope();
+
+    await service.bind(WALLET_ID, envelope, new Date("2025-06-15T00:00:00.000Z"));
+
+    expect(calls).toEqual([{ walletId: WALLET_ID, agentId: AGENT_ID }]);
+  });
+
+  it("rejects a mandate naming an agent_id that is not a real, active agent owned by this wallet", async () => {
+    const { service } = buildService([activeProviderMandate()], async () => false);
+    const envelope = await signedMandateEnvelope();
+
+    const result = await service.bind(WALLET_ID, envelope, new Date("2025-06-15T00:00:00.000Z"));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("AGENT_NOT_OWNED");
+    }
   });
 
   it("rejects a tampered envelope (signature no longer matches the payload)", async () => {
@@ -175,19 +204,25 @@ describe("MandateBindingService.bind", () => {
     }
   });
 
-  it("fails closed when there is no active provider mandate for the referenced payment_authorization_ref", async () => {
-    const { service } = buildService([]); // no recurring mandates at all
-    const envelope = await signedMandateEnvelope();
+  it("INTERIM (Mandate Pivot Phase 1.3): binds a mandate with NO provider mandate claimed at all, trusting the envelope's own declared limits", async () => {
+    const { service, mandateRepo } = buildService([]); // no recurring mandates at all
+    const envelope = await signedMandateEnvelope({
+      payment_authorization_ref: "ctr_payment-reference_self-consent-001",
+    });
 
     const result = await service.bind(WALLET_ID, envelope, new Date("2025-06-15T00:00:00.000Z"));
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("NO_ACTIVE_PROVIDER_MANDATE");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.mandateId).toBe(MANDATE_ID);
+      expect(result.value.status).toBe("active");
     }
+    const persisted = await mandateRepo.findById(MANDATE_ID as WalletMandate["mandateId"]);
+    expect(persisted?.status).toBe("active");
+    expect(persisted?.constraints.amountLimits.perTransactionMaxPaise).toBe(100_000n);
   });
 
-  it("fails closed when the provider mandate exists but is only 'pending' (not yet human-confirmed)", async () => {
+  it("fails closed when the referenced payment_authorization_ref DOES resolve to a provider mandate, but it is only 'pending' (not yet human-confirmed)", async () => {
     const { service } = buildService([activeProviderMandate({ status: "pending" })]);
     const envelope = await signedMandateEnvelope();
 

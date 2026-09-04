@@ -101,6 +101,7 @@ function buildBindingService(): MandateBindingService {
     new InMemoryMandateRepository(),
     new InMemoryKeyRegistry([TEST_KEY_RECORD_A]),
     new FakeRecurringMandates(),
+    async () => true,
   );
 }
 

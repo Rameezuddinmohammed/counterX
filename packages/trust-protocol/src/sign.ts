@@ -16,6 +16,7 @@ import "./crypto-setup.js";
 import * as ed from "@noble/ed25519";
 import { type Result, ok, err, createCanonicalError } from "@counter/domain";
 import { canonicalizeUnsignedEnvelope } from "./canonicalize.js";
+import { bytesToBase64Url } from "./base64url.js";
 import type { CtpEnvelope, SignatureValue, UnsignedCtpEnvelope } from "./types.js";
 import { CTP_SIGNATURE_ALGORITHM } from "./types.js";
 
@@ -100,7 +101,7 @@ export async function signEnvelope<Payload>(
   const signatureBytes = await signer.sign(canonicalBytes);
 
   // Encode signature as base64url without padding
-  const signatureValue = Buffer.from(signatureBytes).toString("base64url") as SignatureValue;
+  const signatureValue = bytesToBase64Url(signatureBytes) as SignatureValue;
 
   // Step 5: Immutable signed artifact
   const signed: CtpEnvelope<Payload> = {
@@ -121,5 +122,5 @@ export async function signEnvelope<Payload>(
  */
 export function derivePublicKey(privateKey: Uint8Array): string {
   const publicKeyBytes = ed.getPublicKey(privateKey);
-  return Buffer.from(publicKeyBytes).toString("base64url");
+  return bytesToBase64Url(publicKeyBytes);
 }

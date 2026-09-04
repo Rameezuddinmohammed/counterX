@@ -1,8 +1,13 @@
 /**
  * Wallet-mandate binding route: durably persists a Counter-native
  * WalletMandate from an already-signed CTP counter.mandate.v1 envelope
- * (built and signed client-side, e.g. by apps/local-mcp holding the
- * buyer's own key), bound to an active, human-authorized provider mandate.
+ * (built and signed client-side, e.g. by apps/local-mcp or wallet-console
+ * holding the buyer's own key). If the envelope claims a real provider
+ * mandate (e.g. a confirmed Razorpay UPI Autopay registration), binding is
+ * clamped to it; otherwise the mandate is accepted directly on the
+ * strength of the buyer's own step-up-authenticated signature — see
+ * mandate-binding-store.ts's header (INTERIM BINDING RULE) for the full
+ * rationale.
  *
  * Requires a wallet-owner-authenticated session (or a platform-scoped
  * actor) — mirrors recurring-mandate-routes.ts's verifyWalletAccess
@@ -53,6 +58,7 @@ const ERROR_STATUS: Record<string, number> = {
   INVALID_ENVELOPE: 400,
   SIGNATURE_INVALID: 401,
   WALLET_MISMATCH: 400,
+  AGENT_NOT_OWNED: 400,
   NO_ACTIVE_PROVIDER_MANDATE: 409,
   EXCEEDS_PROVIDER_MANDATE: 422,
   PERSIST_FAILED: 502,

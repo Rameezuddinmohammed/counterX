@@ -91,13 +91,17 @@ export type {
 } from "./agent-registration.js";
 
 // Mandate service
-export { MandateService } from "./mandate-service.js";
+export { MandateService, buildMandateEnvelope } from "./mandate-service.js";
 
 export type {
   MandateIssuanceParams,
   MandateIssuanceOutput,
   MandateIssuanceError,
   MandateIssuanceResult,
+  MandateEnvelopeParams,
+  MandateEnvelopeOutput,
+  MandateEnvelopeError,
+  MandateEnvelopeResult,
   AgentLookup,
   ConsentDigestValidator,
 } from "./mandate-service.js";
