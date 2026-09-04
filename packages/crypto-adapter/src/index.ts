@@ -62,6 +62,15 @@ export type {
 export { encodeSolanaMetadata, decodeSolanaMetadata } from "./metadata-codec.js";
 export type { SolanaSettlementMetadata } from "./metadata-codec.js";
 
+// Payment-reference codec (threads FixedDelegationCoordinates through a
+// mandate's own payment_reference_id — see this file's own header for why)
+export {
+  SOLANA_PAYMENT_REFERENCE_PREFIX,
+  encodeSolanaPaymentReference,
+  isSolanaPaymentReference,
+  decodeSolanaPaymentReference,
+} from "./payment-reference-codec.js";
+
 // The PaymentProvider implementation
 export { SolanaSettlementProvider } from "./solana-settlement-provider.js";
 export type { SolanaSettlementProviderConfig } from "./solana-settlement-provider.js";
