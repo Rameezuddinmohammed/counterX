@@ -27,7 +27,7 @@ async function getTestKeys(): Promise<TestKeyPair> {
   return testKeys;
 }
 
-async function createWalletOwnerToken(walletId: string): Promise<string> {
+async function createWalletOwnerToken(walletId: string, assurance = "session"): Promise<string> {
   const { privateKey } = await getTestKeys();
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({
@@ -36,7 +36,7 @@ async function createWalletOwnerToken(walletId: string): Promise<string> {
     [`${CLAIMS_NAMESPACE}environment`]: "test",
     [`${CLAIMS_NAMESPACE}scope`]: { kind: "wallet", walletId },
     [`${CLAIMS_NAMESPACE}roles`]: ["wallet.owner"],
-    [`${CLAIMS_NAMESPACE}assurance`]: "session",
+    [`${CLAIMS_NAMESPACE}assurance`]: assurance,
   })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuer(TEST_ISSUER)
@@ -46,16 +46,41 @@ async function createWalletOwnerToken(walletId: string): Promise<string> {
     .sign(privateKey);
 }
 
-/** A minimal fake matching the one method this route calls. */
-class FakeMandateRepository implements Pick<MandateRepository, "findActive"> {
+/** A minimal fake matching the methods this route's handlers call. */
+class FakeMandateRepository
+  implements Pick<MandateRepository, "findActive" | "findById" | "updateStatus">
+{
   #byWallet = new Map<string, WalletMandate[]>();
+  #byId = new Map<string, WalletMandate>();
 
   seed(walletId: string, mandates: readonly WalletMandate[]): void {
     this.#byWallet.set(walletId, [...mandates]);
+    for (const m of mandates) this.#byId.set(m.mandateId, m);
   }
 
   async findActive(walletId: CounterId<"wallet">): Promise<readonly WalletMandate[]> {
-    return this.#byWallet.get(walletId) ?? [];
+    return (this.#byWallet.get(walletId) ?? []).filter((m) => m.status === "active");
+  }
+
+  async findById(mandateId: CounterId<"mandate">): Promise<WalletMandate | undefined> {
+    return this.#byId.get(mandateId);
+  }
+
+  async updateStatus(
+    mandateId: CounterId<"mandate">,
+    status: WalletMandate["status"],
+  ): Promise<void> {
+    const existing = this.#byId.get(mandateId);
+    if (existing === undefined) return;
+    const updated = { ...existing, status };
+    this.#byId.set(mandateId, updated);
+    for (const [walletId, list] of this.#byWallet) {
+      const idx = list.findIndex((m) => m.mandateId === mandateId);
+      if (idx >= 0) {
+        list[idx] = updated;
+        this.#byWallet.set(walletId, list);
+      }
+    }
   }
 }
 
@@ -184,6 +209,167 @@ describe("wallet-mandate routes", () => {
     const response = await server.inject({
       method: "GET",
       url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates`,
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+});
+
+describe("wallet-mandate revoke route", () => {
+  let server: FastifyInstance | undefined;
+
+  afterEach(async () => {
+    await server?.close();
+    server = undefined;
+  });
+
+  it("revokes an active mandate (200) with step-up assurance", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    repo.seed(TEST_WALLET_ID, [mandate()]);
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(TEST_WALLET_ID, "step_up");
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates/ctr_mandate_AAAAAAAAAAAAAAAAAAAAAA/revoke`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as { mandate: { status: string } };
+    expect(body.mandate.status).toBe("revoked");
+
+    // Takes effect immediately against the SAME read path checkMandateAuthority uses.
+    const active = await repo.findActive(TEST_WALLET_ID as CounterId<"wallet">);
+    expect(active).toHaveLength(0);
+  });
+
+  it("rejects a plain session token — revoke requires the same step-up bar as issuing a mandate (403)", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    repo.seed(TEST_WALLET_ID, [mandate()]);
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(TEST_WALLET_ID, "session");
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates/ctr_mandate_AAAAAAAAAAAAAAAAAAAAAA/revoke`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(403);
+    const active = await repo.findActive(TEST_WALLET_ID as CounterId<"wallet">);
+    expect(active).toHaveLength(1);
+  });
+
+  it("returns 409 for a mandate that is already revoked, without erasing its status", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    repo.seed(TEST_WALLET_ID, [mandate({ status: "revoked" })]);
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(TEST_WALLET_ID, "step_up");
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates/ctr_mandate_AAAAAAAAAAAAAAAAAAAAAA/revoke`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it("returns 409 for an expired mandate rather than silently relabeling it revoked", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    repo.seed(TEST_WALLET_ID, [mandate({ status: "expired" })]);
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(TEST_WALLET_ID, "step_up");
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates/ctr_mandate_AAAAAAAAAAAAAAAAAAAAAA/revoke`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it("a mandate id that belongs to a DIFFERENT wallet gets 404, not 403 (existence-hiding)", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    repo.seed(TEST_WALLET_ID, [mandate()]);
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(OTHER_WALLET_ID, "step_up");
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${OTHER_WALLET_ID}/mandates/ctr_mandate_AAAAAAAAAAAAAAAAAAAAAA/revoke`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("an unknown mandate id gets 404", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(TEST_WALLET_ID, "step_up");
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates/ctr_mandate_doesnotexist000000000/revoke`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("requires authentication (401)", async () => {
+    const { jwks } = await getTestKeys();
+    const repo = new FakeMandateRepository();
+    repo.seed(TEST_WALLET_ID, [mandate()]);
+    server = createServer({
+      jwks,
+      environment: "test",
+      mandateRepository: repo as unknown as MandateRepository,
+    });
+    await server.ready();
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/mandates/ctr_mandate_AAAAAAAAAAAAAAAAAAAAAA/revoke`,
     });
 
     expect(response.statusCode).toBe(401);
