@@ -1,6 +1,7 @@
 import type { Brand } from "./brand.js";
 import { createCanonicalError } from "./errors.js";
 import { err, ok, type Result } from "./result.js";
+import { bytesToBase64Url, base64UrlToBytes } from "./base64url.js";
 
 export const COUNTER_ID_ENTROPY_BYTES = 16;
 export const COUNTER_ID_PREFIX = "ctr";
@@ -53,11 +54,13 @@ function containsControlCharacter(value: string): boolean {
 }
 
 function hasCanonicalEntropyEncoding(encoded: string): boolean {
-  const decoded = Buffer.from(encoded, "base64url");
-  return (
-    decoded.byteLength === COUNTER_ID_ENTROPY_BYTES &&
-    Buffer.from(decoded).toString("base64url") === encoded
-  );
+  let decoded: Uint8Array;
+  try {
+    decoded = base64UrlToBytes(encoded);
+  } catch {
+    return false;
+  }
+  return decoded.byteLength === COUNTER_ID_ENTROPY_BYTES && bytesToBase64Url(decoded) === encoded;
 }
 
 export type CounterId<Kind extends CounterIdKind = CounterIdKind> = Brand<
@@ -120,7 +123,7 @@ export function createCounterId<Kind extends CounterIdKind>(
     );
   }
 
-  const encoded = Buffer.from(entropy).toString("base64url");
+  const encoded = bytesToBase64Url(entropy);
   return ok(`${COUNTER_ID_PREFIX}_${kind}_${encoded}` as CounterId<Kind>);
 }
 
