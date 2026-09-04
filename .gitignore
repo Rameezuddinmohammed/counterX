@@ -45,3 +45,9 @@ Thumbs.db
 
 # Secret-scan report artifacts
 gitleaks-report.json
+
+# Local-only tooling unrelated to this project (the "impeccable" design
+# skill and its cache) — kept functional on this machine, never committed.
+.impeccable/
+.claude/skills/impeccable/
+.claude/agents/impeccable-*.md

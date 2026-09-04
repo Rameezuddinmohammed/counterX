@@ -5,9 +5,7 @@
  * https://api.counter.dev audience — the same audience control-plane-api's
  * JWT verification actually checks (apps/control-plane-api/src/index.ts,
  * AUTH_AUDIENCE) — so the access token stored in the session is a JWT
- * control-plane-api will accept, not an opaque default token. The old
- * per-app audience in ./auth.ts's (dead, unused) AUTH0_CONFIG was never
- * wired to anything and does not match what the API actually verifies.
+ * control-plane-api will accept, not an opaque default token.
  */
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
 
