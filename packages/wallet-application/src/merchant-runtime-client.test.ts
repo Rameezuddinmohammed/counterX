@@ -423,4 +423,70 @@ describe("InMemoryMerchantRuntimeClient", () => {
       }
     });
   });
+
+  describe("listMerchants", () => {
+    it("with nothing configured, returns an empty directory rather than erroring", async () => {
+      const result = await client.listMerchants();
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toEqual({ merchants: [], total: 0 });
+      }
+    });
+
+    it("lists everything configured when no query is given", async () => {
+      client.setDirectoryResponse({
+        merchants: [
+          { merchantId: "m1", displayName: "Alpha Store", goodsTypes: [], capabilities: [] },
+          { merchantId: "m2", displayName: "Beta Traders", goodsTypes: [], capabilities: [] },
+        ],
+        total: 2,
+      });
+
+      const result = await client.listMerchants();
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.total).toBe(2);
+        expect(result.value.merchants.map((m) => m.merchantId)).toEqual(["m1", "m2"]);
+      }
+    });
+
+    it("filters by query, case-insensitively, against displayName", async () => {
+      client.setDirectoryResponse({
+        merchants: [
+          { merchantId: "m1", displayName: "Alpha Store", goodsTypes: [], capabilities: [] },
+          { merchantId: "m2", displayName: "Beta Traders", goodsTypes: [], capabilities: [] },
+        ],
+        total: 2,
+      });
+
+      const result = await client.listMerchants("ALPHA");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.merchants.map((m) => m.merchantId)).toEqual(["m1"]);
+        expect(result.value.total).toBe(1);
+      }
+    });
+
+    it("respects limit", async () => {
+      client.setDirectoryResponse({
+        merchants: [
+          { merchantId: "m1", displayName: "Alpha Store", goodsTypes: [], capabilities: [] },
+          { merchantId: "m2", displayName: "Beta Traders", goodsTypes: [], capabilities: [] },
+        ],
+        total: 2,
+      });
+
+      const result = await client.listMerchants(undefined, 1);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.merchants).toHaveLength(1);
+      }
+    });
+
+    it("respects a simulated failure like every other method", async () => {
+      client.simulateFailure("network_error");
+      const result = await client.listMerchants();
+      expect(result.ok).toBe(false);
+    });
+  });
 });

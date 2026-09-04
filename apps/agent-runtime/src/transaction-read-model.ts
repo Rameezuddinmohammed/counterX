@@ -69,6 +69,21 @@ function readAuthorityAmount(authorityContext: unknown): number | undefined {
 }
 
 /**
+ * The buyer wallet id bound to this transaction at creation time (see
+ * `walletId: buyerWalletId ?? ctx.merchantId` in transactionCreate's job
+ * payload — a transaction created without a real signed buyer envelope has
+ * no genuine buyer wallet and falls back to the merchant id, which can
+ * never match a real caller's wallet id).
+ */
+function readAuthorityWalletId(authorityContext: unknown): string | undefined {
+  if (authorityContext === null || typeof authorityContext !== "object") {
+    return undefined;
+  }
+  const value = (authorityContext as Record<string, unknown>)["walletId"];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
  * Derives the merchant-facing status from the intent status plus the
  * per-step outcomes. A declined step or a failed intent both surface as
  * "cancelled" — this handler contract has no distinct "failed" status; see
@@ -113,7 +128,20 @@ export class TransactionReadModel {
     return result.rows;
   }
 
-  async get(transactionId: string, merchantId: string): Promise<TransactionRecord | undefined> {
+  /**
+   * `callerWalletId`, when provided (i.e. the request is from a
+   * wallet-scoped buyer, not a merchant/platform caller), must match the
+   * transaction's own bound buyer wallet id or this returns `undefined` —
+   * identical to a genuinely nonexistent transaction. This is what stops
+   * one buyer from reading or acting on another buyer's transaction merely
+   * by knowing/guessing its id, now that `verifyTenantAccess` lets any
+   * wallet call a merchant's transaction routes.
+   */
+  async get(
+    transactionId: string,
+    merchantId: string,
+    callerWalletId?: string,
+  ): Promise<TransactionRecord | undefined> {
     const intents = await this.database.query<IntentRow>(
       `SELECT transaction_id, scope_id, status, authority_context, created_at
          FROM runtime.workflow_intents
@@ -124,6 +152,12 @@ export class TransactionReadModel {
     );
     const intent = intents.rows[0];
     if (intent === undefined) {
+      return undefined;
+    }
+    if (
+      callerWalletId !== undefined &&
+      readAuthorityWalletId(intent.authority_context) !== callerWalletId
+    ) {
       return undefined;
     }
     const steps = await this.loadSteps(transactionId);

@@ -8,6 +8,7 @@
 
 import type {
   CancelResponse,
+  DirectoryListResponse,
   ProductResponse,
   QuoteResponse,
   ReceiptResponse,
@@ -76,6 +77,13 @@ export interface PaginationParams {
  * without collapsing it to a generic failure.
  */
 export interface MerchantRuntimeClient {
+  /**
+   * Lists/searches the merchant directory — NOT scoped to a single
+   * merchantId, unlike every other method here. This is how a buyer agent
+   * finds a merchantId before it can call any of the methods below.
+   */
+  listMerchants(query?: string, limit?: number): Promise<ClientResult<DirectoryListResponse>>;
+
   /**
    * Verifies the merchant's signed capability manifest.
    * Checks signature, environment, domain ownership, India geography

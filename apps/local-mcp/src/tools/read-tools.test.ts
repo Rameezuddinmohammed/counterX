@@ -144,6 +144,61 @@ describe("read-tools: real client wiring", () => {
     expect((parsed["product"] as { title: string }).title).toBe("Real Product");
   });
 
+  it("merchant.list returns real directory data from the client", async () => {
+    const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
+    merchantClient.setDirectoryResponse({
+      merchants: [
+        {
+          merchantId: "merchant-1",
+          displayName: "Real Merchant",
+          goodsTypes: [],
+          capabilities: [],
+        },
+      ],
+      total: 1,
+    });
+
+    const { client } = await connectedClient({ merchantClient });
+    const result = textOf(
+      await client.callTool({ name: "merchant.list", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["total"]).toBe(1);
+    expect((result["merchants"] as Array<{ merchantId: string }>)[0]?.merchantId).toBe(
+      "merchant-1",
+    );
+  });
+
+  it("merchant.search filters real directory data by query and category", async () => {
+    const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
+    merchantClient.setDirectoryResponse({
+      merchants: [
+        {
+          merchantId: "merchant-1",
+          displayName: "Alpha Apparel",
+          goodsTypes: ["fulfillment.physical.ship"],
+          capabilities: [],
+        },
+        {
+          merchantId: "merchant-2",
+          displayName: "Alpha Digital",
+          goodsTypes: ["fulfillment.digital.deliver"],
+          capabilities: [],
+        },
+      ],
+      total: 2,
+    });
+
+    const { client } = await connectedClient({ merchantClient });
+    const result = textOf(
+      await client.callTool({
+        name: "merchant.search",
+        arguments: { wallet_id: "wallet-1", query: "alpha", category: "fulfillment.physical.ship" },
+      }),
+    );
+    expect(result["total"]).toBe(1);
+    expect((result["results"] as Array<{ merchantId: string }>)[0]?.merchantId).toBe("merchant-1");
+  });
+
   it("quote.get returns real data from the client", async () => {
     const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
     merchantClient.setManifest("merchant-1", {
@@ -259,14 +314,9 @@ describe("read-tools: real client wiring", () => {
 });
 
 describe("read-tools: honest fallback for structurally-unreachable tools", () => {
-  it("merchant.list and pending-actions.list stay honestly stubbed even with a real client", async () => {
+  it("pending-actions.list stays honestly stubbed even with a real client (no durable pending-approval concept exists)", async () => {
     const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
     const { client } = await connectedClient({ merchantClient });
-
-    const merchantList = textOf(
-      await client.callTool({ name: "merchant.list", arguments: { wallet_id: "wallet-1" } }),
-    );
-    expect(merchantList["merchants"]).toEqual([]);
 
     const pendingActions = textOf(
       await client.callTool({
@@ -275,6 +325,15 @@ describe("read-tools: honest fallback for structurally-unreachable tools", () =>
       }),
     );
     expect(pendingActions["pending_actions"]).toEqual([]);
+  });
+
+  it("merchant.list falls back to an honest empty directory with no merchantClient", async () => {
+    const { client } = await connectedClient(undefined);
+    const merchantList = textOf(
+      await client.callTool({ name: "merchant.list", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(merchantList["merchants"]).toEqual([]);
+    expect(merchantList["total"]).toBe(0);
   });
 
   it("every tool still works with no deps at all (backward compatible)", async () => {

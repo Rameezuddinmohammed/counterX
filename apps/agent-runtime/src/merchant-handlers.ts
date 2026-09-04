@@ -18,6 +18,16 @@ export interface HandlerContext {
   readonly correlationId: string;
   readonly idempotencyKey: string | undefined;
   readonly version: string | undefined;
+  /**
+   * The calling buyer's wallet id, present only when the authenticated
+   * caller is a wallet-scoped agent (never for merchant/platform callers).
+   * Transaction-specific handlers (status/cancel/refund/receipt) use this
+   * to confirm the caller owns the transaction before returning it —
+   * otherwise any wallet that discovered/guessed a transactionId for a
+   * merchant it's allowed to call could read or act on another buyer's
+   * transaction.
+   */
+  readonly callerWalletId: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +340,40 @@ export interface ReceiptHandler {
 }
 
 // ---------------------------------------------------------------------------
+// Directory Handler (merchant discovery — not scoped to one merchantId)
+// ---------------------------------------------------------------------------
+
+export interface DirectoryListInput {
+  readonly query: string | undefined;
+  readonly limit: number | undefined;
+}
+
+export interface DirectoryEntry {
+  readonly merchantId: string;
+  readonly displayName: string;
+  readonly goodsTypes: readonly string[];
+  readonly capabilities: readonly string[];
+}
+
+export interface DirectoryResult {
+  readonly merchants: readonly DirectoryEntry[];
+  readonly total: number;
+}
+
+/**
+ * Unlike every other handler port, this one is NOT scoped to a single
+ * merchantId (there's no `:merchantId` in its route) — it's the merchant
+ * directory itself. Any authenticated caller may list/search it; no
+ * per-merchant tenant check applies (see directory-routes.ts).
+ */
+export interface DirectoryHandler {
+  handle(
+    ctx: Omit<HandlerContext, "merchantId">,
+    input: DirectoryListInput,
+  ): Promise<Result<DirectoryResult, HandlerError>>;
+}
+
+// ---------------------------------------------------------------------------
 // Handler Registry (all ports for the merchant runtime)
 // ---------------------------------------------------------------------------
 
@@ -344,6 +388,7 @@ export interface MerchantHandlers {
   readonly cancel: CancelHandler;
   readonly refund: RefundHandler;
   readonly receipt: ReceiptHandler;
+  readonly directory: DirectoryHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -583,6 +628,26 @@ export function createMockHandlers(options: MockHandlerOptions = {}): MerchantHa
           total: { amount: "10.00", currency: "USD" },
           signature: "sig_receipt_test_001",
         });
+      },
+    },
+    directory: {
+      async handle(ctx, input) {
+        if (behavior === "indeterminate") {
+          return errResult(makeIndeterminate(ctx.correlationId));
+        }
+        const all: readonly DirectoryEntry[] = [
+          {
+            merchantId: "ctr_merchant_AAAAAAAAAAAAAAAAAAAAAA",
+            displayName: "Test Merchant",
+            goodsTypes: ["fulfillment.physical.ship"],
+            capabilities: ["search", "quote", "transaction", "refund"],
+          },
+        ];
+        const filtered =
+          input.query !== undefined && input.query.trim().length > 0
+            ? all.filter((m) => m.displayName.toLowerCase().includes(input.query!.toLowerCase()))
+            : all;
+        return okResult({ merchants: filtered, total: filtered.length });
       },
     },
   };

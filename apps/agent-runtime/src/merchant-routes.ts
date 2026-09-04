@@ -27,8 +27,10 @@ import type { RuntimeIdempotencyStore } from "./idempotency-store.js";
 
 const MERCHANT_PERMISSION = "identity.scope.read" as const;
 const ROUTE_PREFIX = "/runtime/v1/merchants/:merchantId";
+const DIRECTORY_ROUTE = "/runtime/v1/merchants";
 
 const ROUTES_TO_REGISTER = [
+  `GET:${DIRECTORY_ROUTE}`,
   `GET:${ROUTE_PREFIX}/capabilities`,
   `POST:${ROUTE_PREFIX}/search`,
   `GET:${ROUTE_PREFIX}/products/:variantId`,
@@ -51,12 +53,18 @@ function buildContext(request: FastifyRequest): HandlerContext {
   const idempotencyKey = getIdempotencyKey(request);
   const versionHeader = request.headers["if-match"];
   const version = typeof versionHeader === "string" ? versionHeader : undefined;
+  const actorContext = getActorContext(request);
+  const callerWalletId =
+    actorContext !== undefined && actorContext.scope.kind === "wallet"
+      ? actorContext.scope.walletId
+      : undefined;
 
   return Object.freeze({
     merchantId: params["merchantId"] ?? "",
     correlationId,
     idempotencyKey,
     version,
+    callerWalletId,
   });
 }
 
@@ -163,8 +171,18 @@ function verifyTenantAccess(request: FastifyRequest, merchantId: string): boolea
   if (scope.kind === "merchant") {
     return scope.merchantId === merchantId;
   }
-  // Wallet scope does not have merchant access
-  return false;
+  // Wallet scope: any authenticated buyer wallet may call a merchant's
+  // catalog/checkout routes — these routes exist specifically for buyer
+  // agents to browse and purchase from merchants they don't own. This is
+  // NOT a merchant-data leak: catalog/search/quote/transaction-create never
+  // return another buyer's data, and the transaction-specific routes
+  // (status/cancel/refund/receipt) separately verify the caller's
+  // callerWalletId owns the transaction (see TransactionReadModel.get and
+  // its callers) before returning anything — a wallet cannot read or act on
+  // another wallet's transaction just by knowing its id. Real spend
+  // authority for consequential actions is still enforced independently by
+  // the CTP-signed envelope + mandate check in the handlers themselves.
+  return scope.kind === "wallet";
 }
 
 function sendForbiddenError(reply: FastifyReply): void {
@@ -634,4 +652,30 @@ export async function merchantRoutesPlugin(
       void reply.send(result.value);
     },
   );
+
+  // --- Directory Route (merchant discovery — NOT scoped to one merchantId) ---
+  // Any authenticated actor (wallet/merchant/platform) may list/search the
+  // merchant directory: it exists specifically for a buyer agent to find a
+  // merchantId before it can call any of the per-merchant routes above, so
+  // no tenant check applies here — the same reasoning already covers
+  // search/quotes/transaction-create for wallet-scoped callers, see
+  // verifyTenantAccess's comment.
+  fastify.get(DIRECTORY_ROUTE, async (request: FastifyRequest, reply: FastifyReply) => {
+    const correlationId = getCorrelationId(request);
+    const queryParams = request.query as Record<string, string | undefined>;
+    const rawLimit = queryParams["limit"];
+    const parsedLimit = rawLimit !== undefined ? Number.parseInt(rawLimit, 10) : undefined;
+    const result = await handlers.directory.handle(
+      { correlationId, idempotencyKey: undefined, version: undefined, callerWalletId: undefined },
+      {
+        query: queryParams["q"],
+        limit: parsedLimit !== undefined && Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      },
+    );
+    if (!result.ok) {
+      sendHandlerError(reply, result.error, correlationId);
+      return;
+    }
+    void reply.send(result.value);
+  });
 }

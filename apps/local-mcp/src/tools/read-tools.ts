@@ -8,25 +8,25 @@
  * - Cancellation support
  *
  * REAL vs. STRUCTURALLY-UNREACHABLE, as of this pass: `deps.merchantClient`
- * (MerchantRuntimeClient) only reaches agent-runtime's merchant-scoped
- * `/runtime/v1/merchants/:merchantId/...` routes. product.details, quote.get,
- * transaction.status, and receipt.verify all map 1:1 onto real methods on
- * that client and are wired for real below. `deps.walletClient`
- * (WalletRuntimeClient) reaches control-plane-api's wallet-scoped routes;
- * notifications.list/invoices.get (Phase 2) and, as of Phase 4
- * (wallet-dashboard backend), wallet.status (via getMandates, reading real
- * wallet.mandates rows) are wired for real below. merchant.list and
- * pending-actions.list are WALLET-scoped operations with no client in this
- * app that can reach them at all (not just "no route" - there is no
- * merchant-directory client, and no durable "pending approval" concept
- * exists anywhere in the runtime yet - `requiresApproval` is a policy
- * config field that is never persisted as a queryable transaction state);
- * they keep returning their previous honest "unavailable" shape rather than
- * fabricate data. merchant.search, as designed ("search merchants by
- * name/category"), doesn't match any real capability either - the one real
- * search method on MerchantRuntimeClient searches PRODUCTS within one
- * already-known merchant, not merchants themselves - so it also stays
- * stubbed rather than being wired to the wrong thing.
+ * (MerchantRuntimeClient) reaches agent-runtime's merchant-scoped
+ * `/runtime/v1/merchants/:merchantId/...` routes, plus (as of this pass)
+ * `GET /runtime/v1/merchants`, the merchant directory — NOT scoped to one
+ * merchantId. merchant.list and merchant.search are now wired to
+ * `merchantClient.listMerchants()` for real below: "discoverable" there
+ * means a merchant with both an active Shopify connection AND a confirmed
+ * Capability Manifest (see MerchantDirectoryStore's own header in
+ * agent-runtime for why that's an honest interim proxy, not the same as the
+ * still-unbuilt operator-reviewed ACTIVATION_REVIEW -> ACTIVE gate).
+ * product.details, quote.get, transaction.status, and receipt.verify all
+ * map 1:1 onto real methods on that client and are wired for real below.
+ * `deps.walletClient` (WalletRuntimeClient) reaches control-plane-api's
+ * wallet-scoped routes; notifications.list/invoices.get (Phase 2) and, as of
+ * Phase 4 (wallet-dashboard backend), wallet.status (via getMandates,
+ * reading real wallet.mandates rows) are wired for real below.
+ * pending-actions.list has no durable "pending approval" concept anywhere in
+ * the runtime yet (`requiresApproval` is a policy config field, never
+ * persisted as a queryable transaction state), so it keeps its previous
+ * honest "unavailable" shape rather than fabricate data.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -185,12 +185,42 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
     async ({ wallet_id, limit, offset }) => {
       try {
         return await withTimeout(async (_signal) => {
+          const effectiveLimit = limit ?? 20;
+          const effectiveOffset = offset ?? 0;
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              wallet_id,
+              merchants: [],
+              total: 0,
+              limit: effectiveLimit,
+              offset: effectiveOffset,
+            });
+          }
+          // The directory store has no server-side offset — fetch enough
+          // rows to cover this page and slice client-side rather than
+          // silently ignoring `offset` (which would make every page look
+          // like page one).
+          const result = await merchantClient.listMerchants(
+            undefined,
+            effectiveOffset + effectiveLimit,
+          );
+          if (!result.ok) {
+            return jsonResponse({
+              wallet_id,
+              merchants: [],
+              total: 0,
+              limit: effectiveLimit,
+              offset: effectiveOffset,
+              status: result.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              reason: result.error.kind,
+            });
+          }
           return jsonResponse({
             wallet_id,
-            merchants: [],
-            total: 0,
-            limit: limit ?? 20,
-            offset: offset ?? 0,
+            merchants: result.value.merchants.slice(effectiveOffset),
+            total: result.value.total,
+            limit: effectiveLimit,
+            offset: effectiveOffset,
           });
         });
       } catch (error) {
@@ -212,13 +242,49 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
     async ({ wallet_id, query, category, limit }) => {
       try {
         return await withTimeout(async (_signal) => {
+          const effectiveLimit = limit ?? 10;
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              wallet_id,
+              query,
+              category,
+              results: [],
+              total: 0,
+              limit: effectiveLimit,
+            });
+          }
+          // The directory only searches by display name server-side (see
+          // MerchantDirectoryStore.list) — `category`, when given, is
+          // applied here against each result's own goodsTypes, an exact
+          // match against a FulfillmentCapability string (e.g.
+          // "fulfillment.physical.ship"), not a fuzzy product-keyword search.
+          const result = await merchantClient.listMerchants(
+            query,
+            category !== undefined ? 50 : effectiveLimit,
+          );
+          if (!result.ok) {
+            return jsonResponse({
+              wallet_id,
+              query,
+              category,
+              results: [],
+              total: 0,
+              limit: effectiveLimit,
+              status: result.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              reason: result.error.kind,
+            });
+          }
+          const filtered =
+            category !== undefined
+              ? result.value.merchants.filter((m) => m.goodsTypes.includes(category))
+              : result.value.merchants;
           return jsonResponse({
             wallet_id,
             query,
             category,
-            results: [],
-            total: 0,
-            limit: limit ?? 10,
+            results: filtered.slice(0, effectiveLimit),
+            total: filtered.length,
+            limit: effectiveLimit,
           });
         });
       } catch (error) {

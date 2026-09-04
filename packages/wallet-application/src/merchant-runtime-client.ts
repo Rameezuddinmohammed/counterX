@@ -12,6 +12,7 @@
 import type {
   CancelResponse,
   CapabilityResponse,
+  DirectoryListResponse,
   ProductResponse,
   QuoteResponse,
   ReceiptResponse,
@@ -89,6 +90,32 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     this.#manifestCache = manifestCache;
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#environment = options.environment;
+  }
+
+  /**
+   * NOT scoped to one merchantId, and doesn't verify a manifest first (there
+   * isn't one merchant to verify) — this is how a caller finds a merchantId
+   * to call every other method here with.
+   */
+  async listMerchants(
+    query?: string,
+    limit?: number,
+  ): Promise<ClientResult<DirectoryListResponse>> {
+    const params = new URLSearchParams();
+    if (query !== undefined && query.length > 0) {
+      params.set("q", query);
+    }
+    if (limit !== undefined) {
+      params.set("limit", String(limit));
+    }
+    const qs = params.toString();
+    const url = `${this.#baseUrl}/runtime/v1/merchants${qs.length > 0 ? `?${qs}` : ""}`;
+
+    const response = await this.#safeFetch(url);
+    if (!response.ok) {
+      return response;
+    }
+    return { ok: true, value: response.value as DirectoryListResponse };
   }
 
   async verifyManifest(merchantId: string): Promise<ClientResult<ManifestVerificationResult>> {
@@ -449,6 +476,7 @@ interface RecordedCreateTransactionCall {
 }
 
 export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
+  #directoryResponse: DirectoryListResponse = { merchants: [], total: 0 };
   #manifests = new Map<string, ManifestVerificationResult>();
   #searchResponses = new Map<string, SearchResponse>();
   #productResponses = new Map<string, ProductResponse>();
@@ -477,6 +505,10 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
 
   setManifest(merchantId: string, manifest: ManifestVerificationResult): void {
     this.#manifests.set(merchantId, manifest);
+  }
+
+  setDirectoryResponse(response: DirectoryListResponse): void {
+    this.#directoryResponse = response;
   }
 
   setSearchResponse(merchantId: string, response: SearchResponse): void {
@@ -518,6 +550,29 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
   // ---------------------------------------------------------------------------
   // MerchantRuntimeClient Implementation
   // ---------------------------------------------------------------------------
+
+  async listMerchants(
+    query?: string,
+    limit?: number,
+  ): Promise<ClientResult<DirectoryListResponse>> {
+    const failure = this.#checkSimulatedFailure();
+    if (failure) {
+      return failure;
+    }
+    const trimmed = query?.trim();
+    if (trimmed === undefined || trimmed.length === 0) {
+      const merchants =
+        limit !== undefined
+          ? this.#directoryResponse.merchants.slice(0, limit)
+          : this.#directoryResponse.merchants;
+      return { ok: true, value: { merchants, total: this.#directoryResponse.total } };
+    }
+    const filtered = this.#directoryResponse.merchants.filter((m) =>
+      m.displayName.toLowerCase().includes(trimmed.toLowerCase()),
+    );
+    const merchants = limit !== undefined ? filtered.slice(0, limit) : filtered;
+    return { ok: true, value: { merchants, total: filtered.length } };
+  }
 
   async verifyManifest(merchantId: string): Promise<ClientResult<ManifestVerificationResult>> {
     const failure = this.#checkSimulatedFailure();
