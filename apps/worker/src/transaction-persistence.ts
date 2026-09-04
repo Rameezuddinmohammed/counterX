@@ -58,14 +58,25 @@ function authorityContext(input: TransactionProjectionInput): Record<string, unk
  * read model and the worker's writes always agree on partition.
  */
 export class PostgresTransactionProjectionStore implements TransactionProjectionStore {
+  /**
+   * `defaultMerchantId` is a FALLBACK only, used when an input's own
+   * `authority.authorizedMerchantId` is absent — never the sole source. Each
+   * transaction is projected under ITS OWN authorized merchant (see
+   * `start()`) so a second real merchant's transactions are never written
+   * into (or invisible from) another merchant's console view — the exact
+   * cross-tenant leak a single constructor-bound merchantId would otherwise
+   * create now that the worker's payment port resolves credentials
+   * per-merchant (see boot.ts's createMultiTenantPaymentAuthorizationPort).
+   */
   constructor(
     private readonly database: TransactionalDatabase,
     private readonly environment: Environment,
-    private readonly merchantId: string,
+    private readonly defaultMerchantId: string,
   ) {}
 
   async start(input: TransactionProjectionInput): Promise<void> {
     const digest = commandDigest(input);
+    const merchantId = input.authority?.authorizedMerchantId ?? this.defaultMerchantId;
     await this.database.query(
       `INSERT INTO runtime.workflow_intents (
          id, transaction_id, environment, scope_kind, scope_id, command_type,
@@ -80,7 +91,7 @@ export class PostgresTransactionProjectionStore implements TransactionProjection
         intentId(input),
         input.transactionId,
         this.environment,
-        this.merchantId,
+        merchantId,
         COMMAND_TYPE,
         digest,
         JSON.stringify(authorityContext(input)),

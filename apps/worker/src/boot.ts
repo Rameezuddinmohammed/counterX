@@ -65,7 +65,9 @@ import {
   requireRazorpayCredentials,
   requireCounterTestPaymentSigner,
   type EnvironmentBag,
+  type ShopifyCredentials,
 } from "./connector-env.js";
+import type { MerchantShopifyConnectionReadStore } from "./merchant-shopify-connection-store.js";
 import { createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
 import { createProductionPolicy } from "./lifecycle-policy.js";
 import type {
@@ -137,6 +139,19 @@ export interface DurableStores {
    */
   readonly paymentConnectionStore?: PostgresPaymentConnectionReadStore | undefined;
   /**
+   * Read-only lookup of the operating merchant's OWN self-serve-connected
+   * Shopify store (merchant.shopify_connections — see
+   * merchant-shopify-connection-store.ts). Same "never fall back to a
+   * shared/wrong credential" contract as `paymentConnectionStore`, with one
+   * carve-out verified against the real database: the legacy pilot merchant
+   * (`pilotMerchantId()`) has NO row in merchant.shopify_connections today —
+   * it was wired up purely via env vars before the self-serve OAuth flow
+   * existed — so it alone still falls back to the env-configured store; any
+   * OTHER merchant with no row fails loud. Optional so unit tests can omit
+   * it and exercise the legacy single-store path for every merchant.
+   */
+  readonly merchantShopifyConnectionStore?: MerchantShopifyConnectionReadStore | undefined;
+  /**
    * Durable, cross-service revocation record (packages/wallet-application's
    * WalletRevocationService / packages/data's PostgresRevocationStore). When
    * present, the production policy independently re-verifies the wallet on
@@ -179,45 +194,34 @@ export async function selectPaymentAuthorizationPort(
 ): Promise<SelectedPaymentPort> {
   // Fail loud in prod-like environments when credentials are missing; return
   // null (mock-eligible) in local/test.
-  const shopifyCreds = requireShopifyCredentials(env);
-  const razorpayCreds = requireRazorpayCredentials(env);
+  const resolvedShopifyCreds = requireShopifyCredentials(env);
+  const resolvedRazorpayCreds = requireRazorpayCredentials(env);
 
-  if (shopifyCreds === null || razorpayCreds === null) {
+  if (resolvedShopifyCreds === null || resolvedRazorpayCreds === null) {
     return { mode: "deterministic", port: createDeterministicPaymentAuthorizationPort() };
   }
+  // Rebound to a non-null-typed const: TypeScript's narrowing from the guard
+  // above doesn't carry into the nested `buildConfigForMerchant` function
+  // declaration below.
+  const shopifyCreds: ShopifyCredentials = resolvedShopifyCreds;
+  const razorpayCreds: NonNullable<ReturnType<typeof requireRazorpayCredentials>> =
+    resolvedRazorpayCreds;
 
-  // Resolve the ACTUAL keyId/keySecret to charge with before building the
-  // connector bundle: the operating merchant's own verified credentials when
-  // a paymentConnectionStore is wired in, never a shared platform pair — see
-  // resolveRazorpayCredentialsForMerchant. buildRealConnectorBundle itself
-  // stays synchronous and env-credential-shaped so every existing caller
-  // (adversarial/reliability integration tests included) is unaffected.
-  const effectiveRazorpayCreds = await resolveRazorpayCredentialsForMerchant(
-    pilotMerchantId(),
-    razorpayCreds,
-    stores?.paymentConnectionStore,
-  );
-
-  const bundle = buildRealConnectorBundle(shopifyCreds, effectiveRazorpayCreds, env);
-
-  // Durable stores (Postgres-backed) resolved at the deployment entrypoint are
-  // preferred over any explicit override. An explicit override still wins over
-  // the store so tests can inject a double.
+  // Everything below this point is shared across every merchant this worker
+  // operates — none of it is keyed by merchantId internally (the step ledger
+  // keys on (environment, transactionId); the spend ledger and revocation
+  // checks key on walletId/mandateId; recurring-mandate lookup keys on
+  // referenceId; the prepaid-balance signer is Counter's own deployment key,
+  // not a merchant secret) — so it's built once, not per merchant.
   const durableStepLedger =
     stores?.stepLedger !== undefined ? createPostgresStepLedgerPort(stores.stepLedger) : undefined;
-  const durableKillSwitch =
-    stores?.killSwitchStore !== undefined
-      ? createPostgresKillSwitchGatePort(stores.killSwitchStore, bundle.merchantId)
-      : undefined;
-
   const stepLedger = overrides?.stepLedger ?? durableStepLedger;
-  const killSwitch = overrides?.killSwitch ?? durableKillSwitch;
 
   // Default the money-seam policy to the REAL production policy (limits +
   // amount-vs-quote + authorization/mandate expiry + revocation + merchant
-  // scope), scoped to this worker's operating merchant. An explicit override
-  // still wins so tests can inject a bespoke policy. This closes the gap where
-  // the deployed seam fell back to ALLOW_ALL (review issues 2 and 5).
+  // scope). An explicit override still wins so tests can inject a bespoke
+  // policy. This closes the gap where the deployed seam fell back to
+  // ALLOW_ALL (review issues 2 and 5).
   const durableReserveSpend =
     stores?.spendLedger !== undefined
       ? async (input: {
@@ -236,42 +240,24 @@ export async function selectPaymentAuthorizationPort(
         }
       : undefined;
 
-  // Recurring payment mandates (UPI Autopay / e-mandate): uses
-  // effectiveRazorpayCreds — the SAME merchant-resolved credentials the
-  // one-shot order path resolved above via resolveRazorpayCredentialsForMerchant
-  // — not the raw env-level pair. This worker instance operates exactly ONE
-  // merchant per boot (bundle.merchantId = pilotMerchantId(); see
-  // selectPaymentAuthorizationPort's single call site in main.ts, and
-  // lifecycle-policy.ts's recurring-mandate check, which is scoped to this
-  // same single config.operatingMerchantId) — there is no per-job/per-charge
-  // merchant dispatch anywhere in this worker today, so a boot-time resolve
-  // is correct and sufficient. If a second operating merchant is ever added
-  // (a second worker deployment, or per-job merchant routing), this needs to
-  // move from boot-time to charge-time, keyed off the mandate's own merchant
-  // scope, same as everything else that reads bundle.merchantId today.
-  //
-  // NOTE (adjacent, NOT fixed here — out of scope for this credential-routing
-  // fix): recurring-mandate REGISTRATION, in
+  // NOTE (adjacent, NOT fixed here — out of scope for this multi-tenant
+  // routing fix): recurring-mandate REGISTRATION, in
   // apps/control-plane-api/src/recurring-mandate-routes.ts via main.ts's
   // razorpayRecurringProvider, always uses the raw platform-level
   // RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET env pair — it is not routed through
-  // merchant.payment_connections at all. Today this is harmless because the
-  // pilot merchant's own connected gateway (merchant.payment_connections)
-  // happens to hold that exact same key pair (verified directly against the
-  // real database this session). The moment a merchant connects a DIFFERENT
-  // Razorpay gateway, any recurring mandate registered for them would still
-  // create its customer/token under the PLATFORM account while this charge
-  // call would (correctly, per the fix above) attempt to charge it via that
-  // merchant's OWN account — a real cross-account mismatch. Registration
-  // would need the same merchant-scoped credential resolution added here.
-  // Both the policy gate and the actual charge call independently re-read the
-  // mandate's durable state — never trusting the job payload, and never
-  // sharing a single read between the two seams.
+  // merchant.payment_connections at all. Today this is harmless for the
+  // pilot merchant because its own connected gateway happens to hold that
+  // exact same key pair (verified directly against the real database this
+  // session). The moment a merchant connects a DIFFERENT Razorpay gateway,
+  // any recurring mandate registered for them would still create its
+  // customer/token under the PLATFORM account while this charge call would
+  // (correctly) attempt to charge it via that merchant's OWN account — a
+  // real cross-account mismatch. Registration would need the same
+  // merchant-scoped credential resolution added there.
   const recurringMandateLookup =
     stores?.recurringMandateStore !== undefined
       ? (referenceId: string) => stores.recurringMandateStore!.findByReferenceId(referenceId)
       : undefined;
-  const recurringPayments = createRealRazorpayRecurringMandateProvider(effectiveRazorpayCreds);
 
   // Durable wallet-level revocation: independently re-verifies authority.walletId
   // against the durable revocation store, rather than trusting the job payload's
@@ -289,23 +275,9 @@ export async function selectPaymentAuthorizationPort(
       ? (mandateId: string) => stores.revocationStore!.isRevoked("mandate", mandateId)
       : undefined;
 
-  const policy =
-    overrides?.policy ??
-    createProductionPolicy({
-      operatingMerchantId: bundle.merchantId,
-      ...(durableReserveSpend !== undefined ? { reserveSpend: durableReserveSpend } : {}),
-      ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
-      ...(walletRevocationCheck !== undefined ? { walletRevocationCheck } : {}),
-      ...(mandateRevocationCheck !== undefined ? { mandateRevocationCheck } : {}),
-    });
-
   // Prepaid wallet balance (fund-once, spend-many — see boot.ts's
   // DurableStores.walletBalanceStore doc and packages/data's
-  // PostgresWalletBalanceStore header). Re-resolves the SAME CTP signer
-  // buildRealConnectorBundle already resolved for the unattended payment
-  // provider (requireCounterTestPaymentSigner is a pure derivation from env,
-  // safe to call again), so prepaid-balance evidence is signed with the
-  // same, real deployment-specific key.
+  // PostgresWalletBalanceStore header).
   const walletBalanceSigning =
     stores?.walletBalanceStore !== undefined
       ? (() => {
@@ -317,29 +289,154 @@ export async function selectPaymentAuthorizationPort(
         })()
       : undefined;
 
-  const config: RealLifecycleConfig = {
-    shopify: bundle.shopify,
-    razorpay: bundle.razorpay,
-    payments: bundle.payments,
-    merchantId: bundle.merchantId,
-    policy,
-    recurringPayments,
-    ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
-    ...(stores?.walletBalanceStore !== undefined
-      ? { walletBalanceStore: stores.walletBalanceStore }
-      : {}),
-    ...(walletBalanceSigning !== undefined ? { walletBalanceSigning } : {}),
-    ...(overrides?.variantResolver !== undefined
-      ? { variantResolver: overrides.variantResolver }
-      : {}),
-    ...(overrides?.actionTimeoutMs !== undefined
-      ? { actionTimeoutMs: overrides.actionTimeoutMs }
-      : {}),
-    ...(stepLedger !== undefined ? { stepLedger } : {}),
-    ...(killSwitch !== undefined ? { killSwitch } : {}),
-  };
+  // Builds the FULL RealLifecycleConfig for one specific operating merchant.
+  // Called once below for the pilot merchant (preserving every existing
+  // caller's exact behavior — see the returned `bundle`, still pilot-only),
+  // and lazily per-merchant by the multi-tenant wrapper port for any OTHER
+  // merchant a job claims to be for (see
+  // createMultiTenantPaymentAuthorizationPort). Shopify/Razorpay credentials,
+  // the kill-switch scope, and the production policy's operatingMerchantId
+  // are the only genuinely per-merchant pieces — see
+  // resolveShopifyCredentialsForMerchant / resolveRazorpayCredentialsForMerchant
+  // for why each fails loud rather than silently reusing another merchant's
+  // credentials, instead of the wrong-merchant-scope policy denial this
+  // replaces (that denial existed only because credentials used to be fixed
+  // at boot for a single merchant; now that they're resolved per the job's
+  // own claimed merchant, the real safety boundary is "does this merchant
+  // have real verified credentials in our system", not "does it match a
+  // hardcoded identity").
+  async function buildBundleAndConfigForMerchant(
+    merchantId: MerchantId,
+  ): Promise<{ readonly bundle: RealConnectorBundle; readonly config: RealLifecycleConfig }> {
+    const effectiveRazorpayCreds = await resolveRazorpayCredentialsForMerchant(
+      merchantId,
+      razorpayCreds,
+      stores?.paymentConnectionStore,
+    );
+    const effectiveShopifyCreds = await resolveShopifyCredentialsForMerchant(
+      merchantId,
+      shopifyCreds,
+      stores?.merchantShopifyConnectionStore,
+    );
+    const bundle = buildRealConnectorBundle(effectiveShopifyCreds, effectiveRazorpayCreds, env);
+    const killSwitch =
+      overrides?.killSwitch ??
+      (stores?.killSwitchStore !== undefined
+        ? createPostgresKillSwitchGatePort(stores.killSwitchStore, merchantId)
+        : undefined);
+    const policy =
+      overrides?.policy ??
+      createProductionPolicy({
+        operatingMerchantId: merchantId,
+        ...(durableReserveSpend !== undefined ? { reserveSpend: durableReserveSpend } : {}),
+        ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
+        ...(walletRevocationCheck !== undefined ? { walletRevocationCheck } : {}),
+        ...(mandateRevocationCheck !== undefined ? { mandateRevocationCheck } : {}),
+      });
+    // Recurring payment mandates (UPI Autopay / e-mandate): uses
+    // effectiveRazorpayCreds — the SAME merchant-resolved credentials the
+    // one-shot order path resolved above — not the raw env-level pair.
+    const recurringPayments = createRealRazorpayRecurringMandateProvider(effectiveRazorpayCreds);
 
-  return { mode: "real", port: createRealPaymentAuthorizationPort(config), bundle };
+    const config: RealLifecycleConfig = {
+      shopify: bundle.shopify,
+      razorpay: bundle.razorpay,
+      payments: bundle.payments,
+      merchantId,
+      policy,
+      recurringPayments,
+      ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
+      ...(stores?.walletBalanceStore !== undefined
+        ? { walletBalanceStore: stores.walletBalanceStore }
+        : {}),
+      ...(walletBalanceSigning !== undefined ? { walletBalanceSigning } : {}),
+      ...(overrides?.variantResolver !== undefined
+        ? { variantResolver: overrides.variantResolver }
+        : {}),
+      ...(overrides?.actionTimeoutMs !== undefined
+        ? { actionTimeoutMs: overrides.actionTimeoutMs }
+        : {}),
+      ...(stepLedger !== undefined ? { stepLedger } : {}),
+      ...(killSwitch !== undefined ? { killSwitch } : {}),
+    };
+    return { bundle, config };
+  }
+
+  async function buildConfigForMerchant(merchantId: MerchantId): Promise<RealLifecycleConfig> {
+    const { config } = await buildBundleAndConfigForMerchant(merchantId);
+    return config;
+  }
+
+  // Eagerly build the pilot merchant's bundle/config (exactly today's
+  // boot-time behavior, same credentials, same everything) so `bundle` —
+  // still consumed by main.ts for the transaction-projection store's
+  // fallback scope and periodic reconciliation, NEITHER of which this change
+  // makes multi-tenant (see their own call sites for why that's an explicit,
+  // separate, lower-risk follow-up, not silently skipped) — stays available
+  // synchronously to every existing caller.
+  const { bundle, config: pilotConfig } = await buildBundleAndConfigForMerchant(pilotMerchantId());
+
+  const port = createMultiTenantPaymentAuthorizationPort(
+    buildConfigForMerchant,
+    pilotMerchantId(),
+    pilotConfig,
+  );
+
+  return { mode: "real", port, bundle };
+}
+
+/**
+ * Wraps createRealPaymentAuthorizationPort with per-merchant resolution: each
+ * `authorizeAndCapture` call resolves the operating merchant from
+ * `request.authority.authorizedMerchantId` (falling back to `fallbackMerchantId`
+ * — the pilot merchant — when absent, matching every existing caller that
+ * omits it) and dispatches to that merchant's own real port, built lazily via
+ * `buildConfigForMerchant` and cached for the life of the process.
+ *
+ * The cache is not just an optimization: createRealPaymentAuthorizationPort's
+ * own per-transaction outcome cache (see real-lifecycle.ts) lives inside ONE
+ * port instance, so a merchant's retries must keep hitting the SAME instance
+ * for that in-process fast-path dedup to work (the durable step ledger is
+ * still the cross-restart source of truth regardless).
+ */
+function createMultiTenantPaymentAuthorizationPort(
+  buildConfigForMerchant: (merchantId: MerchantId) => Promise<RealLifecycleConfig>,
+  fallbackMerchantId: MerchantId,
+  precomputedFallbackConfig: RealLifecycleConfig,
+): PaymentAuthorizationPort {
+  const portCache = new Map<string, PaymentAuthorizationPort>();
+  portCache.set(fallbackMerchantId, createRealPaymentAuthorizationPort(precomputedFallbackConfig));
+
+  async function resolvePort(merchantId: MerchantId): Promise<PaymentAuthorizationPort> {
+    const cached = portCache.get(merchantId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const config = await buildConfigForMerchant(merchantId);
+    const port = createRealPaymentAuthorizationPort(config);
+    portCache.set(merchantId, port);
+    return port;
+  }
+
+  return {
+    async authorizeAndCapture(
+      request: PaymentAuthorizationRequest,
+    ): Promise<PaymentAuthorizationResult> {
+      const requested = request.authority?.authorizedMerchantId;
+      let merchantId: MerchantId = fallbackMerchantId;
+      if (requested !== undefined) {
+        const parsed = parseCounterId(requested, "merchant");
+        if (!parsed.ok) {
+          throw new Error(
+            `authority.authorizedMerchantId is not a valid merchant CounterId: ${requested}`,
+          );
+        }
+        merchantId = parsed.value;
+      }
+      const port = await resolvePort(merchantId);
+      return port.authorizeAndCapture(request);
+    },
+  };
 }
 
 // ─── Real connector bundle ───────────────────────────────────────────────────
@@ -400,6 +497,47 @@ export async function resolveRazorpayCredentialsForMerchant(
     );
   }
   return { ...envRazorpayCreds, keyId: connection.keyId, keySecret: connection.keySecret };
+}
+
+/**
+ * Resolves the FULL Shopify credential set actually used to draft/finalize
+ * orders for `merchantId` — same shape {@link requireShopifyCredentials}
+ * returns, so it drops straight into {@link buildRealConnectorBundle}
+ * unchanged.
+ *
+ * Mirrors {@link resolveRazorpayCredentialsForMerchant}'s contract with ONE
+ * carve-out, verified directly against the real database this session:
+ * `merchant.shopify_connections` has ZERO rows today, because the pilot
+ * merchant (`pilotMerchantId()`) was wired up purely via env vars before the
+ * self-serve Shopify OAuth flow existed. So the pilot merchant alone falls
+ * back to the env-configured store when it has no connection row; any OTHER
+ * merchant with no row fails loud rather than silently drafting an order in
+ * the pilot's (or any other merchant's) store — the exact bug this closes.
+ */
+export async function resolveShopifyCredentialsForMerchant(
+  merchantId: MerchantId,
+  envShopifyCreds: ShopifyCredentials,
+  shopifyConnectionStore: MerchantShopifyConnectionReadStore | undefined,
+): Promise<ShopifyCredentials> {
+  const connection =
+    shopifyConnectionStore !== undefined
+      ? await shopifyConnectionStore.findActiveByMerchantId(merchantId)
+      : undefined;
+  if (connection !== undefined) {
+    return {
+      shopDomain: connection.shopDomain,
+      accessToken: connection.accessToken,
+      apiVersion: envShopifyCreds.apiVersion,
+    };
+  }
+  if (merchantId === pilotMerchantId()) {
+    return envShopifyCreds;
+  }
+  throw new Error(
+    `Merchant ${merchantId} has not connected a Shopify store. Refusing to ` +
+      `fall back to a shared/different merchant's store credentials — ` +
+      `complete the catalog-connect step in the merchant onboarding wizard first.`,
+  );
 }
 
 /**

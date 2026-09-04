@@ -44,6 +44,7 @@ import {
 } from "@counter/data";
 import { APP_NAME } from "./index.js";
 import { PostgresTransactionProjectionStore } from "./transaction-persistence.js";
+import { PostgresMerchantShopifyConnectionReadStore } from "./merchant-shopify-connection-store.js";
 import { createWorkerLoop, type LoopConfig, type TickLogger } from "./worker-loop.js";
 import { createOutboxDispatcherLoop, type OutboxDispatcherConfig } from "./outbox-dispatcher.js";
 import {
@@ -254,6 +255,10 @@ async function main(): Promise<void> {
     spendLedger: new PostgresSpendLedger(database, runtimeEnvironment, spendLimitConfig),
     recurringMandateStore: new PostgresRecurringMandateReadStore(database, runtimeEnvironment),
     paymentConnectionStore: new PostgresPaymentConnectionReadStore(database, runtimeEnvironment),
+    merchantShopifyConnectionStore: new PostgresMerchantShopifyConnectionReadStore(
+      database,
+      runtimeEnvironment,
+    ),
     revocationStore: new PostgresRevocationStore(database, runtimeEnvironment),
     walletBalanceStore: new PostgresWalletBalanceStore(database, runtimeEnvironment),
   });
