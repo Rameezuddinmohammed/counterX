@@ -243,8 +243,13 @@ export async function walletTopupRoutesPlugin(
       return;
     }
 
-    pendingTopups.delete(razorpayOrderId);
-
+    // Only drop the pending-order correlation once the credit has actually
+    // landed. If store.topUp() throws (e.g. a transient DB error) or
+    // returns !ok, this record must survive so a retried confirm can still
+    // find it and safely re-attempt — topUp() is idempotent by
+    // (environment, wallet_id, reference), so re-attempting never
+    // double-credits. Deleting it unconditionally here would strand an
+    // already-captured Razorpay payment with no way to recover the credit.
     const outcome = await store.topUp({
       walletId,
       reference: razorpayPaymentId,
@@ -257,6 +262,8 @@ export async function walletTopupRoutesPlugin(
       void reply.status(502).send({ error: outcome.error });
       return;
     }
+
+    pendingTopups.delete(razorpayOrderId);
 
     void reply.status(200).send({
       balanceMinor: outcome.value.balanceMinor.toString(),

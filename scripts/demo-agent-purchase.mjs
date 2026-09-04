@@ -100,7 +100,12 @@ const mandateId = args["mandate-id"] ?? "ctr_mandate_IHEvoD9s4cPpZKEOClq_Gg";
 const kid = args["kid"] ?? "ctr_key_WdLItEYm1hWWlk4xyWRbXg";
 const merchantId = args["merchant-id"] ?? "ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw";
 const ceilingMinor = BigInt(args["ceiling-minor"] ?? "500000");
-const amountMinor = args.decline ? 300000 : Number.parseInt(args["amount-minor"] ?? "50000", 10);
+// --decline's amount is resolved against the wallet's REAL live balance
+// inside main() (not hardcoded here) — a stale hardcoded "over budget"
+// figure could accidentally succeed if the wallet was topped up since,
+// which would silently defeat the exact safety property this mode exists
+// to demonstrate.
+let amountMinor = Number.parseInt(args["amount-minor"] ?? "50000", 10);
 
 const keyStorePath = process.env.COUNTER_WALLET_KEYSTORE_PATH;
 let passphrase = process.env.COUNTER_WALLET_KEYSTORE_PASSPHRASE;
@@ -122,7 +127,6 @@ async function main() {
   console.log(`  wallet:   ${walletId}`);
   console.log(`  agent:    ${agentId}`);
   console.log(`  mandate:  ${mandateId}`);
-  console.log(`  amount:   ${amountMinor} paise (Rs.${(amountMinor / 100).toFixed(2)})`);
 
   // ─── Gate on real credentials, same discipline as verify-real-transaction.mjs ───
   const worker = await importFromRepo("apps/worker/dist/index.js");
@@ -146,6 +150,23 @@ async function main() {
     walletApplication;
   const { verifyEnvelope, InMemoryKeyRegistry } = trustProtocol;
   const { createShopifyConnectorFromConfig } = shopifyConnector;
+
+  // ─── --decline: resolve against the wallet's REAL live balance, never a
+  // hardcoded guess — a stale "over budget" figure could accidentally
+  // succeed if the wallet was topped up since, silently defeating the exact
+  // safety property this mode exists to demonstrate. ───
+  if (args.decline) {
+    const balanceStoreForCheck = new data.PostgresWalletBalanceStore(
+      new data.PostgresDatabase(databaseUrl),
+      process.env.COUNTER_ENV ?? "test",
+    );
+    const currentBalanceMinor = await balanceStoreForCheck.getBalance(walletId);
+    amountMinor = Number(currentBalanceMinor) + 100;
+    console.log(
+      `  (--decline) current real balance: ${currentBalanceMinor} paise; using amount ${amountMinor} paise to guarantee over-budget`,
+    );
+  }
+  console.log(`  amount:   ${amountMinor} paise (Rs.${(amountMinor / 100).toFixed(2)})`);
 
   function nowInstant() {
     const result = instantFromEpochMilliseconds(Date.now());

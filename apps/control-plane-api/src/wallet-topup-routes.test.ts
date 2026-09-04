@@ -70,6 +70,8 @@ async function createWalletOwnerToken(walletId: string, assurance = "session"): 
 class FakeWalletBalanceStore {
   #balances = new Map<string, bigint>();
   #applied = new Set<string>();
+  /** When set, the NEXT topUp() call throws this instead of applying — consumed once. */
+  failNextCallWith: Error | undefined;
 
   async topUp(request: {
     walletId: string;
@@ -78,6 +80,11 @@ class FakeWalletBalanceStore {
     currency: string;
     providerPaymentId: string;
   }): Promise<Result<{ alreadyApplied: boolean; balanceMinor: bigint }, CanonicalError>> {
+    if (this.failNextCallWith !== undefined) {
+      const error = this.failNextCallWith;
+      this.failNextCallWith = undefined;
+      throw error;
+    }
     const key = `${request.walletId}:${request.reference}`;
     if (this.#applied.has(key)) {
       return {
@@ -365,6 +372,69 @@ describe("wallet-topup routes", () => {
     };
     expect(confirmed.balanceMinor).toBe("200000");
     expect(confirmed.alreadyApplied).toBe(false);
+    expect(store.balanceFor(TEST_WALLET_ID)).toBe(200000n);
+  });
+
+  it("a transient credit failure during confirm never strands the payment — a retry still succeeds", async () => {
+    const { jwks } = await getTestKeys();
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(makeOrder({ id: "order_retry", amount: 200000 }));
+    http.onQueryPayment(
+      "pay_retry",
+      makePayment({ id: "pay_retry", order_id: "order_retry", amount: 200000 }),
+    );
+    const razorpayProvider = new RazorpayTestProvider({
+      config: RAZORPAY_CONFIG,
+      httpClient: http,
+    });
+    const store = new FakeWalletBalanceStore();
+
+    server = createServer({
+      jwks,
+      environment: "test",
+      walletTopupRoutes: {
+        store: store as any,
+        razorpayProvider,
+        merchantId: "ctr_merchant_test" as any,
+      },
+    });
+    await server.ready();
+
+    const token = await createWalletOwnerToken(TEST_WALLET_ID, "step_up");
+    await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/topup/order`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { amountMinor: "200000" },
+    });
+
+    const signature = computeSignature("order_retry", "pay_retry");
+    const confirmPayload = {
+      razorpayOrderId: "order_retry",
+      razorpayPaymentId: "pay_retry",
+      razorpaySignature: signature,
+    };
+
+    // Simulate a transient DB error (e.g. a dropped connection) on the credit step.
+    store.failNextCallWith = new Error("connection reset");
+    const firstAttempt = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/topup/confirm`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: confirmPayload,
+    });
+    expect(firstAttempt.statusCode).toBe(500);
+    expect(store.balanceFor(TEST_WALLET_ID)).toBe(0n);
+
+    // Retrying the SAME confirm must still find the pending order (not 409
+    // TOPUP_NOT_FOUND) and this time actually credit the balance.
+    const retry = await server.inject({
+      method: "POST",
+      url: `/control/v1/wallets/${TEST_WALLET_ID}/topup/confirm`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: confirmPayload,
+    });
+    expect(retry.statusCode).toBe(200);
     expect(store.balanceFor(TEST_WALLET_ID)).toBe(200000n);
   });
 
