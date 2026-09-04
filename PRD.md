@@ -287,6 +287,18 @@ The pilot has two explicitly separate test-payment paths:
 
 Live money, UPI Reserve Pay, unattended delegated UPI, and cross-merchant authorization remain unavailable until provider eligibility, behavior, legal roles, and approvals are verified.
 
+### 14.1 Mandate-based authorization
+
+The concrete mechanism that satisfies the non-custodial rule above is a signed spending mandate, not a funded account:
+
+- a principal authorizes a bounded ceiling, merchant allowlist, and expiry once, cryptographically signed under the registered agent key bound to that principal;
+- every consequential purchase is evaluated against that signed authority before the external effect, never against a Counter-held balance;
+- authority is bounded, revocable, and expiring; it is not stored value, cannot be topped up or transferred, and is never a destination for a refund.
+
+The mandate is rail-agnostic. The intended settlement direction is a direct buyer-to-merchant crypto transfer, with UPI Autopay as a later second rail. Neither rail is built; the two test-payment paths above remain the only ones available.
+
+A prepaid Counter-held balance was prototyped during pilot engineering and has been retired. No product code path funds, reads, or debits it. Its schema (migration `0021-wallet-prepaid-balance`) is retained as repository history and is a retired experiment, not current guidance.
+
 ## 15. Verification and remediation
 
 Verification compares, where available:
