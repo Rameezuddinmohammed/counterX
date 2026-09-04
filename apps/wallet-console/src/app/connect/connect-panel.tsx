@@ -15,17 +15,13 @@ import { buildMandateEnvelope } from "@counter/wallet-application/mandate-servic
 import type { BuyerPolicyConstraints } from "@counter/wallet-domain";
 
 const API_AUDIENCE = "https://api.counter.dev";
-// Must match apps/wallet-console/src/lib/auth0.ts's own login scope exactly.
-// The Post-Login Action ("Counter Console: provision merchant/wallet + stamp
-// session") only stamps wallet-owner claims — including the real step-up
-// assurance this whole flow depends on — when it sees "wallet:read" in
-// event.transaction.requested_scopes. Without an explicit scope here,
-// challengeWithPopup's re-auth request carries no scope at all (confirmed
-// live via Auth0 logs: the resulting token exchange showed scope: null),
-// so the Action bails out early and the "elevated" token comes back with NO
-// wallet identity whatsoever — surfacing as a flat 403 UNAUTHORIZED from
-// control-plane-api, not as any kind of MFA/popup error.
-const STEP_UP_SCOPE = "openid profile email wallet:read wallet:write";
+// Deliberately NOT passing an explicit `scope` to challengeWithPopup: the
+// SDK's own source (client/mfa/index.js) documents that omitting it makes
+// the popup inherit the app's global scope config (which already includes
+// wallet:read wallet:write, via lib/auth0.ts) AND keeps getAccessToken()'s
+// post-popup cache lookup using the SAME default key — passing an explicit
+// scope here once caused a real AccessTokenError from a cache-key mismatch
+// between what the popup stored and what the lookup afterward searched for.
 
 type Step =
   | { status: "idle" }
@@ -79,14 +75,6 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
   const busy = step.status !== "idle" && step.status !== "error" && step.status !== "done";
 
   async function handleAuthorize() {
-    if (agentId.trim().length === 0) {
-      setStep({
-        status: "error",
-        message:
-          "Enter the agent ID printed by register-agent-self-serve.mjs after you connected your AI tool.",
-      });
-      return;
-    }
     const ceilingMinor = Math.round(Number(ceilingRupees) * 100);
     if (!Number.isFinite(ceilingMinor) || ceilingMinor <= 0) {
       setStep({ status: "error", message: "Enter a valid spend ceiling greater than zero." });
@@ -109,7 +97,7 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       // request below.
       setStep({ status: "step-up", label: "Confirming it's really you…" });
       try {
-        await mfa.challengeWithPopup({ audience: API_AUDIENCE, scope: STEP_UP_SCOPE });
+        await mfa.challengeWithPopup({ audience: API_AUDIENCE });
       } catch (stepUpError) {
         console.error("[connect] step-up failed:", stepUpError);
         const name = stepUpError instanceof Error ? stepUpError.name : "UnknownError";
@@ -155,6 +143,17 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
         setStep({ status: "error", message: registerResult.message });
         return;
       }
+      // Registering the consent key above also mints a real, active,
+      // wallet-owned agent (control-plane-api's registerAgentKey). When the
+      // buyer hasn't already run register-agent-self-serve.mjs on their own
+      // machine, that agent IS the one to authorize — otherwise this page
+      // couldn't be used at all without first running a CLI script, which is
+      // exactly the engineer-in-the-loop dependency it exists to remove.
+      // Either way the server independently checks payload.agent_id is a
+      // real, active agent owned by this wallet (mandate-binding-store.ts's
+      // agentOwnershipCheck), so a typed-in value is never taken on trust.
+      const effectiveAgentId =
+        agentId.trim().length > 0 ? agentId.trim() : registerResult.value.agentId;
 
       // 4. Build + sign the mandate envelope. Signing happens ENTIRELY in
       // this browser tab with the consent key generated in step 2 — the
@@ -184,14 +183,20 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       // (unlike the mandate signature itself, which it does verify).
       const consentAttestationDigest = computeSha256Digest(
         new TextEncoder().encode(
-          JSON.stringify({ walletId, agentId, ceilingMinor, allowedMerchantIds, validUntil }),
+          JSON.stringify({
+            walletId,
+            agentId: effectiveAgentId,
+            ceilingMinor,
+            allowedMerchantIds,
+            validUntil,
+          }),
         ),
       );
 
       const envelopeResult = buildMandateEnvelope({
         walletId: walletId as CounterId<"wallet">,
         principalId: derivePrincipalId(walletId) as CounterId<"actor">,
-        agentId: agentId.trim() as CounterId<"agent">,
+        agentId: effectiveAgentId as CounterId<"agent">,
         kid,
         constraints,
         paymentReferenceId,
@@ -226,7 +231,11 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
         return;
       }
 
-      setStep({ status: "done", mandateId: submitResult.value.mandateId, agentId: agentId.trim() });
+      setStep({
+        status: "done",
+        mandateId: submitResult.value.mandateId,
+        agentId: effectiveAgentId,
+      });
     } catch (unexpectedError) {
       console.error("[connect] unexpected failure:", unexpectedError);
       const name = unexpectedError instanceof Error ? unexpectedError.name : "UnknownError";
@@ -279,7 +288,7 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       <CardContent className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-[var(--foreground)]">
-            Agent ID
+            Agent ID <span className="font-normal text-[var(--foreground-muted)]">(optional)</span>
           </label>
           <Input
             value={agentId}
@@ -290,7 +299,8 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
             disabled={busy}
           />
           <p className="mt-1 text-xs text-[var(--foreground-muted)]">
-            Printed by <code>register-agent-self-serve.mjs</code> after you connected your AI tool.
+            Printed by <code>register-agent-self-serve.mjs</code> if you already connected your AI
+            tool. Leave blank to authorize the agent this page registers for you.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4">

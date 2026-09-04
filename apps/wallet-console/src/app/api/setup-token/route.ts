@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { decodeIdTokenClaims } from "@/lib/id-token-claims";
+import { getStepUpAccessToken } from "@/lib/step-up-token";
 
 const CONTROL_PLANE_URL =
   process.env["CONTROL_PLANE_URL"] ?? "https://counter-control-plane-api.fly.dev";
@@ -36,7 +37,10 @@ export async function POST() {
     );
   }
 
-  const { token } = await auth0.getAccessToken();
+  // NOT auth0.getAccessToken() — that returns the login-time token, never the
+  // step-up one the popup just produced. See lib/step-up-token.ts.
+  const { token, source, assurance } = await getStepUpAccessToken(session);
+  console.info(`[setup-token] token source=${source} assurance=${assurance}`);
 
   const upstream = await fetch(
     `${CONTROL_PLANE_URL}/control/v1/wallet-users/${encodeURIComponent(walletId)}/setup-tokens`,
