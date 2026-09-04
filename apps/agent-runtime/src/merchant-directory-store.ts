@@ -2,17 +2,16 @@
  * Real merchant discovery: lists/searches merchants that have completed
  * self-serve onboarding far enough to be worth showing to a buyer agent.
  *
- * "Discoverable" here means: an active Shopify connection (a real, live
- * store, see merchant.shopify_connections, migration 0013) AND a generated
- * Capability Manifest (merchant.capability_manifests, migration 0016 — the
- * wizard's own final "manifest" step). This is an HONEST INTERIM PROXY, not
- * the canonical `ACTIVATION_REVIEW -> ACTIVE` operator-reviewed activation
- * gate from packages/merchant-application/src/lifecycle.ts — that gate has
- * no implementation anywhere yet (see lastleg.md / this session's own
- * findings). Once that gate exists, this query should also require
- * lifecycle_state = 'ACTIVE' and this comment should be updated. Until then,
- * this is the narrowest defensible bar: a merchant who dropped off
- * mid-wizard, has no live store, or never confirmed a manifest is excluded.
+ * "Discoverable" here means all three: an active Shopify connection (a
+ * real, live store, see merchant.shopify_connections, migration 0013), a
+ * generated Capability Manifest (merchant.capability_manifests, migration
+ * 0016 — the wizard's own final "manifest" step), AND
+ * lifecycle_state = 'ACTIVE' — the canonical `ACTIVATION_REVIEW -> ACTIVE`
+ * operator-reviewed activation gate from packages/merchant-application/src/
+ * lifecycle.ts, applied via the real state machine in
+ * apps/control-plane-api/src/merchant-activation-store.ts. A merchant who
+ * dropped off mid-wizard, has no live store, never confirmed a manifest, or
+ * is still awaiting operator review in ACTIVATION_REVIEW is excluded.
  */
 import type { TransactionalDatabase } from "@counter/data";
 import type { Environment } from "@counter/domain";
@@ -58,6 +57,7 @@ export class MerchantDirectoryStore {
          JOIN merchant.capability_manifests m
            ON m.environment = a.environment AND m.merchant_id = a.merchant_id
         WHERE a.environment = $1
+          AND a.lifecycle_state = 'ACTIVE'
           AND ($2::text IS NULL OR a.legal_entity_name ILIKE $2)
         ORDER BY m.generated_at DESC
         LIMIT $3`,

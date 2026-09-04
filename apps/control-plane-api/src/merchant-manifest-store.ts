@@ -13,12 +13,26 @@
  * time (not cached from an earlier readiness check) — so the manifest
  * always reflects the connector/policy/payment/protocol versions actually
  * in effect right now, not a stale snapshot.
+ *
+ * As of this pass, confirming the manifest is ALSO the moment a merchant
+ * leaves SANDBOX_READY: this method transitions SANDBOX_READY ->
+ * ACTIVATION_REVIEW through the real state machine
+ * (transitionMerchantLifecycle), in the SAME database transaction as the
+ * manifest write, so there is never a window where a manifest exists but
+ * the lifecycle state wasn't advanced. Idempotent: a merchant already at
+ * ACTIVATION_REVIEW or later just gets its manifest regenerated in place —
+ * no re-transition is attempted (and none would be allowed; see
+ * LIFECYCLE_TRANSITIONS in packages/merchant-application/src/lifecycle.ts,
+ * which has no ACTIVATION_REVIEW -> ACTIVATION_REVIEW edge). Moving from
+ * ACTIVATION_REVIEW to ACTIVE is a separate, operator-authenticated step —
+ * see merchant-activation-routes.ts.
  */
-import type { Environment, MerchantId } from "@counter/domain";
+import type { Environment, MerchantId, MerchantUserId } from "@counter/domain";
 import { instantFromEpochMilliseconds, parseCounterId, type Instant } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
 import {
   generateManifest,
+  transitionMerchantLifecycle,
   PILOT_CAPABILITIES,
   isFulfillmentCapability,
   isMerchantLifecycleState,
@@ -75,87 +89,142 @@ export class MerchantManifestStore implements MerchantManifestStoreLike {
       throw new MerchantManifestError(`Invalid merchantId: ${parsedMerchantId.error.message}`);
     }
 
-    const appRow = await this.database.query<{
-      lifecycle_state: string;
-      goods_types: readonly string[] | null;
-    }>(
-      `SELECT lifecycle_state, goods_types FROM merchant.onboarding_applications
-        WHERE environment = $1 AND merchant_id = $2`,
-      [this.environment, merchantId],
-    );
-    const application = appRow.rows[0];
-    if (application === undefined) {
-      throw new MerchantManifestError(`No such merchant application: ${merchantId}`);
-    }
-    if (!isMerchantLifecycleState(application.lifecycle_state)) {
-      throw new Error("Corrupt onboarding application row: invalid lifecycle_state");
-    }
-
-    const SANDBOX_READY_OR_LATER: ReadonlySet<string> = new Set([
-      "SANDBOX_READY",
-      "ACTIVATION_REVIEW",
-      "ACTIVE",
-      "ACTIVE_DEGRADED",
-      "SUSPENDED",
-      "OFFBOARDING",
-      "CLOSED",
-    ]);
-    if (!SANDBOX_READY_OR_LATER.has(application.lifecycle_state)) {
-      throw new MerchantManifestError(
-        `Merchant is not SANDBOX_READY yet (currently ${application.lifecycle_state}) — pass the readiness check first`,
+    return this.database.transaction(async (session) => {
+      // FOR UPDATE: this row's lifecycle_state/lifecycle_version are read
+      // AND (conditionally) written by this same transaction below, so the
+      // read must be locked against a concurrent confirm-manifest call for
+      // the same merchant.
+      const appRow = await session.query<{
+        lifecycle_state: string;
+        lifecycle_version: number;
+        goods_types: readonly string[] | null;
+        merchant_user_actor_id: string;
+      }>(
+        `SELECT lifecycle_state, lifecycle_version, goods_types, merchant_user_actor_id
+           FROM merchant.onboarding_applications
+          WHERE environment = $1 AND merchant_id = $2
+          FOR UPDATE`,
+        [this.environment, merchantId],
       );
-    }
+      const application = appRow.rows[0];
+      if (application === undefined) {
+        throw new MerchantManifestError(`No such merchant application: ${merchantId}`);
+      }
+      if (!isMerchantLifecycleState(application.lifecycle_state)) {
+        throw new Error("Corrupt onboarding application row: invalid lifecycle_state");
+      }
 
-    // Fresh readiness evaluation for up-to-date version bindings — never a
-    // stale cached snapshot. Uses the SAME evaluate() this merchant already
-    // passed to reach SANDBOX_READY, so this call is a no-op transition-wise
-    // (already past VERIFYING) and just re-derives the evidence.
-    const readiness = await this.readinessService.evaluate(merchantId);
+      const SANDBOX_READY_OR_LATER: ReadonlySet<string> = new Set([
+        "SANDBOX_READY",
+        "ACTIVATION_REVIEW",
+        "ACTIVE",
+        "ACTIVE_DEGRADED",
+        "SUSPENDED",
+        "OFFBOARDING",
+        "CLOSED",
+      ]);
+      if (!SANDBOX_READY_OR_LATER.has(application.lifecycle_state)) {
+        throw new MerchantManifestError(
+          `Merchant is not SANDBOX_READY yet (currently ${application.lifecycle_state}) — pass the readiness check first`,
+        );
+      }
 
-    const fulfillmentCapabilities: FulfillmentCapability[] = (application.goods_types ?? []).filter(
-      isFulfillmentCapability,
-    );
+      // Fresh readiness evaluation for up-to-date version bindings — never a
+      // stale cached snapshot. Uses the SAME evaluate() this merchant already
+      // passed to reach SANDBOX_READY, so this call is a no-op transition-wise
+      // (already past VERIFYING, confirmed by the FOR-UPDATE-locked read
+      // above) and just re-derives the evidence. Deliberately called on
+      // this.database (its own connection), not on `session`: it does its
+      // own independent reads/writes and only ever mutates this same row
+      // when lifecycle_state is VERIFYING, which the check above has
+      // already ruled out — so there is no lock contention with the FOR
+      // UPDATE held here.
+      const readiness = await this.readinessService.evaluate(merchantId);
 
-    const manifestResult = generateManifest({
-      merchantId: parsedMerchantId.value as MerchantId,
-      manifestVersion: MANIFEST_VERSION,
-      capabilities: [...PILOT_CAPABILITIES],
-      fulfillmentCapabilities,
-      versionBindings: readiness.versionBindings,
-      generatedAt: nowInstant(),
+      const fulfillmentCapabilities: FulfillmentCapability[] = (
+        application.goods_types ?? []
+      ).filter(isFulfillmentCapability);
+
+      const manifestResult = generateManifest({
+        merchantId: parsedMerchantId.value as MerchantId,
+        manifestVersion: MANIFEST_VERSION,
+        capabilities: [...PILOT_CAPABILITIES],
+        fulfillmentCapabilities,
+        versionBindings: readiness.versionBindings,
+        generatedAt: nowInstant(),
+      });
+      if (!manifestResult.ok) {
+        throw new MerchantManifestError(manifestResult.error.message);
+      }
+      const manifest: CapabilityManifest = manifestResult.value;
+
+      const now = new Date().toISOString();
+      await session.query(
+        `INSERT INTO merchant.capability_manifests
+           (environment, merchant_id, manifest_version, capabilities, fulfillment_capabilities,
+            version_bindings, generated_at, signature_digest, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (environment, merchant_id) DO UPDATE
+           SET manifest_version = EXCLUDED.manifest_version,
+               capabilities = EXCLUDED.capabilities,
+               fulfillment_capabilities = EXCLUDED.fulfillment_capabilities,
+               version_bindings = EXCLUDED.version_bindings,
+               generated_at = EXCLUDED.generated_at,
+               signature_digest = EXCLUDED.signature_digest`,
+        [
+          this.environment,
+          merchantId,
+          manifest.manifestVersion,
+          manifest.capabilities,
+          manifest.fulfillmentCapabilities ?? [],
+          JSON.stringify(manifest.versionBindings),
+          new Date(manifest.generatedAt).toISOString(),
+          manifest.signatureDigest,
+          now,
+        ],
+      );
+
+      // SANDBOX_READY -> ACTIVATION_REVIEW, in the SAME transaction as the
+      // manifest write above — no window where the manifest is confirmed
+      // but the lifecycle state wasn't advanced. Idempotent: a merchant
+      // already at ACTIVATION_REVIEW or later (e.g. regenerating its
+      // manifest after an operator sent it back to SANDBOX_READY and it
+      // reconfirmed) is left alone — LIFECYCLE_TRANSITIONS has no
+      // self-transition for ACTIVATION_REVIEW anyway.
+      if (application.lifecycle_state === "SANDBOX_READY") {
+        const parsedActorId = parseCounterId(application.merchant_user_actor_id, "merchant-user");
+        if (!parsedActorId.ok) {
+          throw new Error("Corrupt onboarding application row: invalid merchant_user_actor_id");
+        }
+        const transition = transitionMerchantLifecycle({
+          merchantId: parsedMerchantId.value as MerchantId,
+          currentState: application.lifecycle_state,
+          targetState: "ACTIVATION_REVIEW",
+          actor: { kind: "merchant_user", id: parsedActorId.value as MerchantUserId },
+          reason: "capability manifest confirmed",
+          occurredAt: nowInstant(),
+          evidenceDigest: manifest.signatureDigest,
+          currentVersion: application.lifecycle_version,
+        });
+        if (!transition.ok) {
+          // Unreachable given the FOR-UPDATE-locked state check above (no
+          // concurrent writer can have moved this row between the read and
+          // here), but never silently persist a manifest without its
+          // matching state advance if this invariant is ever violated.
+          throw new Error(
+            `Failed to transition merchant ${merchantId} to ACTIVATION_REVIEW after manifest confirmation: ${transition.error.message}`,
+          );
+        }
+        await session.query(
+          `UPDATE merchant.onboarding_applications
+              SET lifecycle_state = $3, lifecycle_version = $4, updated_at = $5
+            WHERE environment = $1 AND merchant_id = $2`,
+          [this.environment, merchantId, transition.value.toState, transition.value.version, now],
+        );
+      }
+
+      return this.#toPersisted(manifest);
     });
-    if (!manifestResult.ok) {
-      throw new MerchantManifestError(manifestResult.error.message);
-    }
-    const manifest: CapabilityManifest = manifestResult.value;
-
-    const now = new Date().toISOString();
-    await this.database.query(
-      `INSERT INTO merchant.capability_manifests
-         (environment, merchant_id, manifest_version, capabilities, fulfillment_capabilities,
-          version_bindings, generated_at, signature_digest, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (environment, merchant_id) DO UPDATE
-         SET manifest_version = EXCLUDED.manifest_version,
-             capabilities = EXCLUDED.capabilities,
-             fulfillment_capabilities = EXCLUDED.fulfillment_capabilities,
-             version_bindings = EXCLUDED.version_bindings,
-             generated_at = EXCLUDED.generated_at,
-             signature_digest = EXCLUDED.signature_digest`,
-      [
-        this.environment,
-        merchantId,
-        manifest.manifestVersion,
-        manifest.capabilities,
-        manifest.fulfillmentCapabilities ?? [],
-        JSON.stringify(manifest.versionBindings),
-        new Date(manifest.generatedAt).toISOString(),
-        manifest.signatureDigest,
-        now,
-      ],
-    );
-
-    return this.#toPersisted(manifest);
   }
 
   async getManifest(merchantId: string): Promise<PersistedManifest | undefined> {

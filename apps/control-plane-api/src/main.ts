@@ -55,6 +55,7 @@ import { MerchantWebhookEndpointStore } from "./merchant-webhook-endpoint-store.
 import { createFulfillmentWebhookHandler } from "./fulfillment-webhook-handler.js";
 import { MerchantReadinessService } from "./merchant-readiness-store.js";
 import { MerchantManifestStore } from "./merchant-manifest-store.js";
+import { MerchantActivationStore } from "./merchant-activation-store.js";
 import { requireControlPlaneSigner } from "./control-plane-signer-env.js";
 import { MandateBindingService } from "./mandate-binding-store.js";
 import { PrepaidBalanceMandateBindingService } from "./prepaid-balance-mandate-binding-store.js";
@@ -455,6 +456,7 @@ const serverOptions: CreateServerOptions = {
           database,
           runtimeEnvironment,
         ),
+        merchantActivationStore: new MerchantActivationStore(database, runtimeEnvironment),
         merchantPaymentConnectionStore: new MerchantPaymentConnectionStore(
           database,
           runtimeEnvironment,

@@ -55,6 +55,8 @@ import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
 import type { MerchantReadinessServiceLike } from "./merchant-readiness-store.js";
 import { merchantManifestRoutesPlugin } from "./merchant-manifest-routes.js";
 import type { MerchantManifestStoreLike } from "./merchant-manifest-store.js";
+import { merchantActivationRoutesPlugin } from "./merchant-activation-routes.js";
+import type { MerchantActivationStoreLike } from "./merchant-activation-store.js";
 import { webhookRoutesPlugin, type WebhookRoutesOptions } from "./webhook-routes.js";
 
 export const APP_NAME = "@counter/control-plane-api";
@@ -249,6 +251,12 @@ export interface CreateServerOptions {
    * manifest registered — Step 6, same optional-feature pattern.
    */
   readonly merchantManifestStore?: MerchantManifestStoreLike | undefined;
+  /**
+   * Only when present is POST /control/v1/merchant-applications/:merchantId/
+   * approve registered — the operator-only ACTIVATION_REVIEW -> ACTIVE
+   * gate, same optional-feature pattern as merchantManifestStore.
+   */
+  readonly merchantActivationStore?: MerchantActivationStoreLike | undefined;
   /**
    * Only when present is POST /webhooks/v1/{shopify,razorpay} registered —
    * real HMAC-verified webhook ingress for both providers, same
@@ -461,6 +469,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.merchantManifestStore !== undefined) {
     void server.register(merchantManifestRoutesPlugin, {
       store: options.merchantManifestStore,
+    });
+  }
+
+  // Operator-only merchant activation gate (ACTIVATION_REVIEW -> ACTIVE) —
+  // only registered when a store is wired.
+  if (options?.merchantActivationStore !== undefined) {
+    void server.register(merchantActivationRoutesPlugin, {
+      store: options.merchantActivationStore,
     });
   }
 
