@@ -87,6 +87,35 @@ export interface IndeterminateError {
 }
 
 // ---------------------------------------------------------------------------
+// Route: Merchant Directory (GET /runtime/v1/merchants)
+// ---------------------------------------------------------------------------
+
+/**
+ * NOT scoped to a single merchantId — this is the only merchant-runtime
+ * route without a `:merchantId` path segment. It's how a buyer agent finds
+ * a merchantId in the first place, before calling any other route below.
+ */
+export interface DirectoryListRequest {
+  readonly headers: AuthorizationHeader & CorrelationHeader;
+  readonly query: {
+    readonly q?: string;
+    readonly limit?: number;
+  };
+}
+
+export interface DirectoryEntry {
+  readonly merchantId: string;
+  readonly displayName: string;
+  readonly goodsTypes: readonly string[];
+  readonly capabilities: readonly string[];
+}
+
+export interface DirectoryListResponse {
+  readonly merchants: readonly DirectoryEntry[];
+  readonly total: number;
+}
+
+// ---------------------------------------------------------------------------
 // Route: Capability (GET /runtime/v1/merchants/:merchantId/capabilities)
 // ---------------------------------------------------------------------------
 
@@ -391,6 +420,15 @@ export interface RouteContract {
 }
 
 export const MERCHANT_ROUTES: readonly RouteContract[] = Object.freeze([
+  Object.freeze({
+    method: "GET" as const,
+    path: "/runtime/v1/merchants",
+    description: "List/search the merchant directory (not scoped to one merchantId)",
+    requiresAuth: true as const,
+    requiresIdempotency: false,
+    requiresVersion: false,
+    errorResponses: [401],
+  }),
   Object.freeze({
     method: "GET" as const,
     path: "/runtime/v1/merchants/:merchantId/capabilities",

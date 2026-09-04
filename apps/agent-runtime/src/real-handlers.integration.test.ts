@@ -292,6 +292,7 @@ databaseDescribe(
             correlationId: "corr-1",
             idempotencyKey: undefined,
             version: "v1",
+            callerWalletId: undefined,
           },
           { quoteId, paymentMethod: "upi", billingAddress: undefined, ctpEnvelope: envelope },
         );
@@ -339,6 +340,7 @@ databaseDescribe(
             correlationId: "corr-2",
             idempotencyKey: undefined,
             version: "v1",
+            callerWalletId: undefined,
           },
           {
             quoteId,
@@ -388,6 +390,7 @@ databaseDescribe(
             correlationId: "corr-3",
             idempotencyKey: undefined,
             version: "v1",
+            callerWalletId: undefined,
           },
           { quoteId, paymentMethod: "upi", billingAddress: undefined, ctpEnvelope: envelope },
         );
@@ -421,6 +424,7 @@ databaseDescribe(
             correlationId: "corr-4",
             idempotencyKey: undefined,
             version: "v1",
+            callerWalletId: undefined,
           },
           { quoteId, paymentMethod: "upi", billingAddress: undefined, ctpEnvelope: envelope },
         );
@@ -459,6 +463,7 @@ databaseDescribe(
             correlationId: "corr-5",
             idempotencyKey: undefined,
             version: "v1",
+            callerWalletId: undefined,
           },
           { quoteId, paymentMethod: "upi", billingAddress: undefined, ctpEnvelope: envelope },
         );

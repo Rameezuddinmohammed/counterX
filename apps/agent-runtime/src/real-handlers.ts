@@ -42,9 +42,11 @@ import { getCatalogVariant, searchCatalog } from "./shopify-catalog.js";
 import { buildQuote } from "./quote-builder.js";
 import { PostgresCtpKeyRegistry } from "@counter/data";
 import { TransactionReadModel, STEP_CANCEL, STEP_MARK_PAID } from "./transaction-read-model.js";
+import { MerchantDirectoryStore } from "./merchant-directory-store.js";
 import type {
   CancelHandler,
   CapabilityHandler,
+  DirectoryHandler,
   MerchantHandlers,
   PaymentActionResultHandler,
   ProductHandler,
@@ -491,7 +493,7 @@ function createTransactionCreateHandler(
 function createTransactionStatusHandler(readModel: TransactionReadModel): TransactionStatusHandler {
   return {
     async handle(ctx, transactionId) {
-      const record = await readModel.get(transactionId, ctx.merchantId);
+      const record = await readModel.get(transactionId, ctx.merchantId, ctx.callerWalletId);
       if (record === undefined) {
         return errResult({ kind: "not_found" as const });
       }
@@ -524,9 +526,20 @@ function createPaymentActionResultHandler(
   environment: Environment,
 ): PaymentActionResultHandler {
   const outbox = new PostgresOutboxRepository(database, environment);
+  const readModel = new TransactionReadModel(database, environment);
 
   return {
     async handle(ctx, transactionId, input) {
+      // Existence + ownership check: without this, any wallet-scoped caller
+      // (now allowed onto this route by verifyTenantAccess) could inject an
+      // arbitrary "payment succeeded/failed" audit event against a
+      // transaction id it doesn't own, or one that doesn't exist at all —
+      // polluting the durable evidence trail. Existence-hiding: a mismatch
+      // and a genuinely absent transaction return the identical error.
+      const record = await readModel.get(transactionId, ctx.merchantId, ctx.callerWalletId);
+      if (record === undefined) {
+        return errResult({ kind: "not_found" as const });
+      }
       const status: "confirmed" | "failed" | "pending" =
         input.outcome === "success"
           ? "confirmed"
@@ -585,7 +598,7 @@ function createCancelHandler(
 
   return {
     async handle(ctx, transactionId, input) {
-      const record = await readModel.get(transactionId, ctx.merchantId);
+      const record = await readModel.get(transactionId, ctx.merchantId, ctx.callerWalletId);
       if (record === undefined) {
         return errResult({ kind: "not_found" as const });
       }
@@ -663,7 +676,7 @@ function createRefundHandler(
 
   return {
     async handle(ctx, transactionId, input) {
-      const record = await readModel.get(transactionId, ctx.merchantId);
+      const record = await readModel.get(transactionId, ctx.merchantId, ctx.callerWalletId);
       if (record === undefined) {
         return errResult({ kind: "not_found" as const });
       }
@@ -753,7 +766,7 @@ function createReceiptHandler(
 
   return {
     async handle(ctx, transactionId) {
-      const record = await readModel.get(transactionId, ctx.merchantId);
+      const record = await readModel.get(transactionId, ctx.merchantId, ctx.callerWalletId);
       if (record === undefined) {
         return errResult({ kind: "not_found" as const });
       }
@@ -797,6 +810,25 @@ function createReceiptHandler(
   };
 }
 
+// ─── Directory (merchant discovery, not scoped to one merchantId) ─────────────
+
+const DEFAULT_DIRECTORY_LIMIT = 20;
+const MAX_DIRECTORY_LIMIT = 50;
+
+function createDirectoryHandler(store: MerchantDirectoryStore): DirectoryHandler {
+  return {
+    async handle(_ctx, input) {
+      const requested = input.limit;
+      const limit =
+        requested !== undefined && Number.isInteger(requested) && requested > 0
+          ? Math.min(requested, MAX_DIRECTORY_LIMIT)
+          : DEFAULT_DIRECTORY_LIMIT;
+      const merchants = await store.list(input.query, limit);
+      return okResult({ merchants, total: merchants.length });
+    },
+  };
+}
+
 // ─── Factory ─────────────────────────────────────────────────────────────────
 
 export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
@@ -820,6 +852,7 @@ export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
     cancel: createCancelHandler(deps.database, deps.environment, deps.shopify),
     refund: createRefundHandler(deps.database, deps.environment),
     receipt: createReceiptHandler(deps.database, deps.environment),
+    directory: createDirectoryHandler(new MerchantDirectoryStore(deps.database, deps.environment)),
   };
 }
 

@@ -76,7 +76,7 @@ describe("@counter/merchant-contracts", () => {
 
   describe("route schemas", () => {
     it("defines all pilot route contracts", () => {
-      expect(MERCHANT_ROUTES).toHaveLength(10);
+      expect(MERCHANT_ROUTES).toHaveLength(11);
     });
 
     it("all routes require authentication", () => {

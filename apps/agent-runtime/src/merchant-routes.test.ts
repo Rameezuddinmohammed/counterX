@@ -874,4 +874,113 @@ describe("merchant routes", () => {
       expect(body.error.message).toContain("Access denied");
     });
   });
+
+  describe("wallet-scoped access", () => {
+    // Regression coverage for a real bug: verifyTenantAccess used to deny
+    // every wallet-scoped caller outright, so no buyer agent could ever
+    // search a merchant's catalog, get a quote, or create a transaction —
+    // the exact routes these exist for. A wallet-scoped caller now passes
+    // this route-level gate; per-transaction ownership (a wallet reading
+    // only ITS OWN transaction) is enforced separately and is covered in
+    // transaction-read-model.integration.test.ts.
+    async function createWalletToken(walletId: string): Promise<string> {
+      return createTestToken({
+        [`${CLAIMS_NAMESPACE}actor_kind`]: "wallet_user",
+        [`${CLAIMS_NAMESPACE}scope`]: { kind: "wallet", walletId },
+        [`${CLAIMS_NAMESPACE}roles`]: ["wallet.owner"],
+      });
+    }
+
+    it("wallet-scoped token can call GET /capabilities (previously always 403)", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createWalletToken("ctr_wallet_AAAAAAAAAAAAAAAAAAAAAAA");
+      const response = await server.inject({
+        method: "GET",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/capabilities`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(200);
+    });
+
+    it("wallet-scoped token can call POST /search (previously always 403)", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createWalletToken("ctr_wallet_AAAAAAAAAAAAAAAAAAAAAAA");
+      const response = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/search`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: { query: "test" },
+      });
+      expect(response.statusCode).toBe(200);
+    });
+
+    it("wallet-scoped token can create a transaction (previously always 403)", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createWalletToken("ctr_wallet_AAAAAAAAAAAAAAAAAAAAAAA");
+      const response = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/transactions`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: { quoteId: "quote_001", paymentMethod: "card" },
+      });
+      expect(response.statusCode).toBe(200);
+    });
+  });
+
+  describe("merchant directory (GET /runtime/v1/merchants)", () => {
+    it("unauthenticated request is refused, same as every other route", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const response = await server.inject({ method: "GET", url: `/runtime/v1/merchants` });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it("a wallet-scoped caller can list the directory with no merchantId in the URL", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createTestToken({
+        [`${CLAIMS_NAMESPACE}actor_kind`]: "wallet_user",
+        [`${CLAIMS_NAMESPACE}scope`]: {
+          kind: "wallet",
+          walletId: "ctr_wallet_AAAAAAAAAAAAAAAAAAAAAAA",
+        },
+        [`${CLAIMS_NAMESPACE}roles`]: ["wallet.owner"],
+      });
+      const response = await server.inject({
+        method: "GET",
+        url: `/runtime/v1/merchants`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body) as { merchants: unknown[]; total: number };
+      expect(Array.isArray(body.merchants)).toBe(true);
+    });
+
+    it("a merchant-scoped caller (its own console) can also list the directory", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createTestToken();
+      const response = await server.inject({
+        method: "GET",
+        url: `/runtime/v1/merchants?q=Test`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(response.statusCode).toBe(200);
+    });
+  });
 });
