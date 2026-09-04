@@ -8,7 +8,14 @@
  * local/test/development the in-memory store is used unless DATABASE_URL is
  * provided.
  */
-import { resolveCounterEnvironment, type Environment, type IsoCurrencyCode } from "@counter/domain";
+import {
+  resolveCounterEnvironment,
+  createCounterId,
+  parseCounterId,
+  type Environment,
+  type IsoCurrencyCode,
+  type MerchantId,
+} from "@counter/domain";
 import {
   PostgresDatabase,
   PostgresCursorStore,
@@ -347,6 +354,46 @@ const mandateBindingService =
 const walletBalanceStore =
   database !== undefined ? new PostgresWalletBalanceStore(database, runtimeEnvironment) : undefined;
 
+/**
+ * Resolves the pilot MerchantId to attach to a wallet top-up's Razorpay
+ * order — CreatePaymentInstruction requires a merchantId even though a
+ * top-up isn't a purchase from any particular merchant (it's the buyer
+ * funding their own Counter-held balance). Same derivation as
+ * apps/worker/src/boot.ts's pilotMerchantId(): PILOT_MERCHANT_ID when set,
+ * else the same fixed fallback value, so both processes agree without
+ * either needing the env var. Not imported from apps/worker directly —
+ * apps never import other apps in this repo's dependency graph.
+ */
+function pilotMerchantId(): MerchantId {
+  const configured = process.env["PILOT_MERCHANT_ID"];
+  if (configured !== undefined && configured.trim().length > 0) {
+    const parsed = parseCounterId(configured.trim(), "merchant");
+    if (!parsed.ok) {
+      throw new Error(`PILOT_MERCHANT_ID is not a valid merchant CounterId: ${configured}`);
+    }
+    return parsed.value;
+  }
+  const entropy = new Uint8Array(16).fill(7);
+  const result = createCounterId("merchant", entropy);
+  if (!result.ok) {
+    throw new Error("Failed to derive pilot merchant id");
+  }
+  return result.value;
+}
+
+// Real self-serve wallet top-up needs the SAME one-shot Razorpay provider as
+// refunds (razorpayRefundProvider) — reused, not a third instance — plus the
+// wallet balance store it credits. Missing either degrades gracefully, same
+// optional-feature pattern as every other route in this file.
+const walletTopupRoutes =
+  walletBalanceStore !== undefined && razorpayRefundProvider !== undefined
+    ? {
+        store: walletBalanceStore,
+        razorpayProvider: razorpayRefundProvider,
+        merchantId: pilotMerchantId(),
+      }
+    : undefined;
+
 const prepaidBalanceMandateBindingService =
   database !== undefined && mandateRepo !== undefined && walletBalanceStore !== undefined
     ? new PrepaidBalanceMandateBindingService(
@@ -428,6 +475,7 @@ const serverOptions: CreateServerOptions = {
         // and revocation-cascade paths respectively) — reused here, not a
         // second instance.
         ...(walletBalanceStore !== undefined ? { walletBalanceStore } : {}),
+        ...(walletTopupRoutes !== undefined ? { walletTopupRoutes } : {}),
         ...(mandateRepo !== undefined ? { mandateRepository: mandateRepo } : {}),
         ...(readinessService !== undefined
           ? {
