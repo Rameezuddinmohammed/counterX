@@ -7,7 +7,9 @@
  * (apps/control-plane-api/src/buyer-notification-routes.ts), and
  * wallet.status, reading the real
  * GET /control/v1/wallets/:walletId/mandates route
- * (apps/control-plane-api/src/wallet-mandate-routes.ts).
+ * (apps/control-plane-api/src/wallet-mandate-routes.ts) and the real
+ * GET /control/v1/wallets/:walletId/balance route
+ * (apps/control-plane-api/src/wallet-balance-routes.ts).
  *
  * Deliberately much simpler than HttpMerchantRuntimeClient
  * (@counter/wallet-application): no manifest-verification step (there is
@@ -56,6 +58,14 @@ export interface WalletMandatesResult {
   readonly total: number;
 }
 
+/** Wire shape of wallet-balance-routes.ts's response — balanceMinor already stringified. */
+export interface WalletBalanceResult {
+  readonly walletId: string;
+  readonly hasBalanceAccount: boolean;
+  readonly balanceMinor: string;
+  readonly currency: string;
+}
+
 export type WalletClientErrorKind =
   | "network"
   | "timeout"
@@ -79,6 +89,8 @@ export interface WalletRuntimeClient {
   ): Promise<WalletClientResult<WalletNotificationsResult>>;
   /** Currently-active mandates for a wallet — backs the wallet.status MCP tool. */
   getMandates(walletId: string): Promise<WalletClientResult<WalletMandatesResult>>;
+  /** Real prepaid balance for a wallet — backs the wallet.status MCP tool. */
+  getBalance(walletId: string): Promise<WalletClientResult<WalletBalanceResult>>;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -110,6 +122,12 @@ export class HttpWalletRuntimeClient implements WalletRuntimeClient {
   async getMandates(walletId: string): Promise<WalletClientResult<WalletMandatesResult>> {
     return this.#get<WalletMandatesResult>(
       `/control/v1/wallets/${encodeURIComponent(walletId)}/mandates`,
+    );
+  }
+
+  async getBalance(walletId: string): Promise<WalletClientResult<WalletBalanceResult>> {
+    return this.#get<WalletBalanceResult>(
+      `/control/v1/wallets/${encodeURIComponent(walletId)}/balance`,
     );
   }
 

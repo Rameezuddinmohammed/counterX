@@ -17,6 +17,7 @@ import { InMemoryMerchantRuntimeClient } from "@counter/wallet-application";
 import type { ReadToolDependencies } from "./read-tools.js";
 import { registerReadTools } from "./read-tools.js";
 import type {
+  WalletBalanceResult,
   WalletClientResult,
   WalletMandatesResult,
   WalletNotificationsResult,
@@ -27,12 +28,15 @@ import type {
 class FakeWalletRuntimeClient implements WalletRuntimeClient {
   #responses = new Map<string, WalletNotificationsResult>();
   #mandateResponses = new Map<string, WalletMandatesResult>();
+  #balanceResponses = new Map<string, WalletBalanceResult>();
   failWith: WalletClientResult<WalletNotificationsResult> | undefined;
   mandatesFailWith: WalletClientResult<WalletMandatesResult> | undefined;
+  balanceFailWith: WalletClientResult<WalletBalanceResult> | undefined;
   lastCall:
     | { walletId: string; options?: { limit?: number; notificationType?: string } }
     | undefined;
   lastMandatesCall: { walletId: string } | undefined;
+  lastBalanceCall: { walletId: string } | undefined;
 
   setResponse(walletId: string, response: WalletNotificationsResult): void {
     this.#responses.set(walletId, response);
@@ -40,6 +44,10 @@ class FakeWalletRuntimeClient implements WalletRuntimeClient {
 
   setMandatesResponse(walletId: string, response: WalletMandatesResult): void {
     this.#mandateResponses.set(walletId, response);
+  }
+
+  setBalanceResponse(walletId: string, response: WalletBalanceResult): void {
+    this.#balanceResponses.set(walletId, response);
   }
 
   async listNotifications(
@@ -61,6 +69,18 @@ class FakeWalletRuntimeClient implements WalletRuntimeClient {
     return response !== undefined
       ? { ok: true, value: response }
       : { ok: true, value: { walletId, mandates: [], total: 0 } };
+  }
+
+  async getBalance(walletId: string): Promise<WalletClientResult<WalletBalanceResult>> {
+    this.lastBalanceCall = { walletId };
+    if (this.balanceFailWith !== undefined) return this.balanceFailWith;
+    const response = this.#balanceResponses.get(walletId);
+    return response !== undefined
+      ? { ok: true, value: response }
+      : {
+          ok: true,
+          value: { walletId, hasBalanceAccount: false, balanceMinor: "0", currency: "INR" },
+        };
   }
 }
 
@@ -290,6 +310,7 @@ describe("read-tools: honest fallback for structurally-unreachable tools", () =>
     );
     expect(walletStatus["status"]).toBe("unavailable");
     expect(walletStatus["mandates"]).toEqual([]);
+    expect(walletStatus["balance"]).toBeNull();
   });
 });
 
@@ -385,6 +406,62 @@ describe("read-tools: wallet.status (Phase 4)", () => {
       await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
     );
     expect(result2["status"]).toBe("unavailable");
+  });
+
+  it("includes the wallet's real prepaid balance", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.setBalanceResponse("wallet-1", {
+      walletId: "wallet-1",
+      hasBalanceAccount: true,
+      balanceMinor: "150000",
+      currency: "INR",
+    });
+
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["balance"]).toEqual({
+      hasBalanceAccount: true,
+      balanceMinor: "150000",
+      currency: "INR",
+    });
+    expect(walletClient.lastBalanceCall?.walletId).toBe("wallet-1");
+  });
+
+  it("reports mandates normally even when the balance fetch fails — one failure never masks the other", async () => {
+    const walletClient = new FakeWalletRuntimeClient();
+    walletClient.setMandatesResponse("wallet-1", {
+      walletId: "wallet-1",
+      mandates: [
+        {
+          mandateId: "ctr_mandate_1",
+          agentId: "ctr_agent_1",
+          principalId: "ctr_actor_1",
+          kid: "kid-1",
+          paymentReferenceId: "prepaid-balance:wallet-1",
+          validFrom: new Date().toISOString(),
+          validUntil: new Date(Date.now() + 3_600_000).toISOString(),
+          issuedAt: new Date().toISOString(),
+          status: "active",
+          policyVersionId: "v1",
+          constraints: {},
+        },
+      ],
+      total: 1,
+    });
+    walletClient.balanceFailWith = {
+      ok: false,
+      error: { kind: "network", message: "Network request failed" },
+    };
+
+    const { client } = await connectedClient({ walletClient });
+    const result = textOf(
+      await client.callTool({ name: "wallet.status", arguments: { wallet_id: "wallet-1" } }),
+    );
+    expect(result["status"]).toBe("active");
+    expect((result["mandates"] as unknown[]).length).toBe(1);
+    expect(result["balance"]).toBeNull();
   });
 });
 

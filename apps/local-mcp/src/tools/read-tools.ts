@@ -115,7 +115,7 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
   // wallet.status - Retrieve wallet status
   server.tool(
     "wallet.status",
-    "Retrieve the current status of a wallet by ID, including lifecycle state and active mandates.",
+    "Retrieve the current status of a wallet by ID, including lifecycle state, active mandates, and prepaid balance.",
     { wallet_id: z.string().min(1).describe("The wallet ID to query") },
     async ({ wallet_id }) => {
       try {
@@ -125,15 +125,33 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
               wallet_id,
               status: "unavailable",
               mandates: [],
+              balance: null,
             });
           }
-          const result = await walletClient.getMandates(wallet_id);
-          if (!result.ok) {
+          // Independent calls, run together — a balance-fetch failure must
+          // never mask real mandate data (or vice versa). Each result is
+          // reported honestly on its own; neither is fabricated from the
+          // other.
+          const [mandatesResult, balanceResult] = await Promise.all([
+            walletClient.getMandates(wallet_id),
+            walletClient.getBalance(wallet_id),
+          ]);
+
+          const balance = balanceResult.ok
+            ? {
+                hasBalanceAccount: balanceResult.value.hasBalanceAccount,
+                balanceMinor: balanceResult.value.balanceMinor,
+                currency: balanceResult.value.currency,
+              }
+            : null;
+
+          if (!mandatesResult.ok) {
             return jsonResponse({
               wallet_id,
-              status: result.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              status: mandatesResult.error.kind === "timeout" ? "indeterminate" : "unavailable",
               mandates: [],
-              reason: result.error.kind,
+              balance,
+              reason: mandatesResult.error.kind,
             });
           }
           // "active" here means "at least one active mandate exists" - the
@@ -144,8 +162,9 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
           // as "active".
           return jsonResponse({
             wallet_id,
-            status: result.value.total > 0 ? "active" : "no_active_mandate",
-            mandates: result.value.mandates,
+            status: mandatesResult.value.total > 0 ? "active" : "no_active_mandate",
+            mandates: mandatesResult.value.mandates,
+            balance,
           });
         });
       } catch (error) {
