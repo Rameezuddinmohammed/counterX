@@ -50,8 +50,14 @@
  * ledger, which stores references and terminal status only.
  */
 
-import { createCanonicalError } from "@counter/domain";
-import type { IsoCurrencyCode, MerchantId, Money } from "@counter/domain";
+import { randomBytes } from "node:crypto";
+
+import {
+  createCanonicalError,
+  instantFromEpochMilliseconds,
+  serializeInstant,
+} from "@counter/domain";
+import type { CanonicalError, IsoCurrencyCode, MerchantId, Money, Result } from "@counter/domain";
 import type { ActionOutcome } from "@counter/connector-sdk";
 import type { ShopifyConnector } from "@counter/shopify-connector";
 import type {
@@ -60,6 +66,8 @@ import type {
   ProviderPaymentEvidence,
 } from "@counter/payment-sdk";
 import type { ChargeRecurringParams } from "@counter/razorpay-adapter";
+import type { CtpEnvelope, EvidencePayload, Signer } from "@counter/trust-protocol";
+import { buildUnsignedEnvelope, generateNonce, signEnvelope } from "@counter/trust-protocol";
 import type { LifecyclePolicyPort, RecurringMandateLookupResult } from "./lifecycle-types.js";
 
 import type {
@@ -228,6 +236,38 @@ export interface RealLifecycleConfig {
   readonly recurringMandateLookup?:
     | ((referenceId: string) => Promise<RecurringMandateLookupResult | undefined>)
     | undefined;
+  /**
+   * Prepaid wallet balance (fund-once, spend-many): when configured AND the
+   * job's authority envelope carries a walletId, an ordinary one-shot
+   * purchase (no paymentReferenceId) draws down this ALREADY-COLLECTED
+   * balance atomically instead of creating a fresh Razorpay order — see
+   * packages/data/src/wallet-balance-store.ts's header for the full
+   * rationale. Structural interface (not the concrete
+   * PostgresWalletBalanceStore class) so tests can inject a double.
+   * walletBalanceSigning provides the CTP signer this evidence is signed
+   * with — same signer boot.ts already resolves for the unattended provider.
+   */
+  readonly walletBalanceStore?:
+    | {
+        debit(request: {
+          readonly walletId: string;
+          readonly reference: string;
+          readonly amountMinor: bigint;
+          readonly currency: string;
+        }): Promise<
+          Result<
+            | {
+                readonly allowed: true;
+                readonly alreadyDebited: boolean;
+                readonly balanceMinor: bigint;
+              }
+            | { readonly allowed: false; readonly code: string; readonly reason: string },
+            CanonicalError
+          >
+        >;
+      }
+    | undefined;
+  readonly walletBalanceSigning?: { readonly signer: Signer; readonly kid: string } | undefined;
 }
 
 const DEFAULT_ACTION_TIMEOUT_MS = 15_000;
@@ -477,6 +517,42 @@ export function createRealPaymentAuthorizationPort(
         authorized = {
           kind: "captured",
           evidence: chargeResult.evidence,
+          capturedMinor: request.amountMinor,
+        };
+      } else if (
+        config.walletBalanceStore !== undefined &&
+        request.authority?.walletId !== undefined
+      ) {
+        // 4+5 (prepaid balance branch). The wallet was funded once via a REAL
+        // Razorpay TEST MODE one-time payment (see
+        // packages/data/src/wallet-balance-store.ts's header for the full
+        // rationale); this purchase draws down that ALREADY-COLLECTED
+        // balance atomically instead of creating a fresh Razorpay order — no
+        // further payment-provider round trip per purchase. razorpayOrderId
+        // stays undefined; no order exists in this path.
+        const debitResult = await config.walletBalanceStore.debit({
+          walletId: request.authority.walletId,
+          reference: key,
+          amountMinor: BigInt(request.amountMinor),
+          currency: request.currency,
+        });
+        if (!debitResult.ok) {
+          return indeterminate("wallet-balance.debit.error", `balance:${key}`);
+        }
+        if (!debitResult.value.allowed) {
+          return declined(`balance-insufficient:${key}`);
+        }
+        const evidence = await buildPrepaidBalanceEvidence(
+          config.walletBalanceSigning,
+          request.authority.walletId,
+          key,
+          request.amountMinor,
+          request.currency,
+          debitResult.value.balanceMinor,
+        );
+        authorized = {
+          kind: "captured" as const,
+          evidence,
           capturedMinor: request.amountMinor,
         };
       } else {
@@ -823,6 +899,106 @@ function buildReference(
     parts.push(`razorpay_order:${razorpayOrderId}`);
   }
   return parts.join("|");
+}
+
+// ─── Prepaid wallet balance evidence ──────────────────────────────────────────
+
+/**
+ * Builds CTP-signed evidence for a prepaid-balance debit (no per-transaction
+ * Razorpay call — the money was already collected once at top-up time; see
+ * packages/data/src/wallet-balance-store.ts's header). Same signing pipeline
+ * as CounterTestPaymentProvider / RazorpayOrderVerificationProvider's
+ * evidence, but the canonical_claim reflects the internal, already-real
+ * debit rather than a fresh provider payment. `funded_via` +
+ * `test_mode: true` keep this honestly labeled as backed by real Razorpay
+ * TEST MODE money collected at top-up, not a live payment.
+ */
+async function buildPrepaidBalanceEvidence(
+  signing: { readonly signer: Signer; readonly kid: string } | undefined,
+  walletId: string,
+  key: string,
+  amountMinor: number,
+  currency: string,
+  remainingBalanceMinor: bigint,
+): Promise<ProviderPaymentEvidence> {
+  const reference = `wallet-balance-debit:${key}` as ProviderPaymentEvidence["reference"];
+  const nowResult = instantFromEpochMilliseconds(Date.now());
+  const now = nowResult.ok ? nowResult.value : undefined;
+
+  const baseProviderData = Object.freeze({
+    walletId,
+    amountMinor,
+    currency,
+    remainingBalanceMinor: remainingBalanceMinor.toString(),
+    fundedVia: "razorpay-test-mode-topup",
+    testMode: true,
+  });
+
+  if (signing === undefined || now === undefined) {
+    return Object.freeze({
+      reference,
+      status: "confirmed" as const,
+      ...(now !== undefined ? { confirmedAt: now } : {}),
+      providerData: baseProviderData,
+    });
+  }
+
+  const issuedAtIso = serializeInstant(now);
+  const nonce = generateNonce((length: number) => randomBytes(length));
+  const expiresAtResult = instantFromEpochMilliseconds(Date.now() + 3_600_000);
+  const expiresAtIso = expiresAtResult.ok ? serializeInstant(expiresAtResult.value) : issuedAtIso;
+
+  const payload: EvidencePayload = {
+    evidence_id: `ctr_evidence_${key}`,
+    source_type: "payment_provider",
+    source_id: "counter-prepaid-wallet-balance",
+    observation_method: "direct",
+    observation_time: issuedAtIso,
+    data_classification: "internal",
+    retention: "standard",
+    canonical_claim: {
+      reference,
+      status: "confirmed",
+      wallet_id: walletId,
+      amount_minor: amountMinor,
+      currency,
+      remaining_balance_minor: remainingBalanceMinor.toString(),
+      funded_via: "razorpay-test-mode-topup",
+      test_mode: true,
+    },
+  };
+
+  const unsignedResult = buildUnsignedEnvelope<EvidencePayload>({
+    type: "counter.evidence.v1",
+    id: `ctr_evidence_${key}`,
+    issuer: "counter://wallet/prepaid-balance",
+    subject: `counter://wallet/${walletId}/debit/${key}`,
+    audience: ["counter://test/orchestrator"],
+    environment: "sandbox",
+    issued_at: issuedAtIso,
+    not_before: issuedAtIso,
+    expires_at: expiresAtIso,
+    nonce,
+    correlation_id: `ctr_correlation_${key}`,
+    payload,
+    kid: signing.kid,
+  });
+
+  let envelope: CtpEnvelope<EvidencePayload> | undefined;
+  if (unsignedResult.ok) {
+    const signedResult = await signEnvelope(unsignedResult.value, signing.signer);
+    envelope = signedResult.ok ? signedResult.value : undefined;
+  }
+
+  return Object.freeze({
+    reference,
+    status: "confirmed" as const,
+    confirmedAt: now,
+    providerData: Object.freeze({
+      ...(envelope !== undefined ? { envelope } : {}),
+      ...baseProviderData,
+    }),
+  });
 }
 
 /**

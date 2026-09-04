@@ -43,11 +43,9 @@
  * gated by payment.mandate.manage, which requires step-up assurance
  * (packages/authorization/src/assurance.ts) — a human, not just a session,
  * authorized this. The resulting WalletMandate is currently inert for real
- * money movement: Phase 2 HAS now retired the only rail that could act on
- * one without a provider mandate (the prepaid balance — its routes, its
- * binding service, and the worker's own debit branch in the money seam are
- * all gone), and Phase 3 has not yet built the crypto rail's own settlement
- * path. A reference that DOES match
+ * money movement: Phase 2 retires the only rail that could act on one
+ * without a provider mandate (the prepaid balance), and Phase 3 has not yet
+ * built the crypto rail's own settlement path. A reference that DOES match
  * a RecurringMandateSummary but isn't active (revoked/pending/failed) is
  * still a hard deny — that's a real, broken provider-mandate claim, not an
  * absent one, and silently accepting it would grant authority the human

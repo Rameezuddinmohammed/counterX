@@ -123,10 +123,6 @@ Wallet states are `INVITED`, `ENROLLED`, `VERIFIED`, `ACTIVE`, `SUSPENDED`, `REC
 11. The Counter test provider SHALL be rejected outside test environments and SHALL NOT establish Razorpay or payment-rail compatibility.
 12. Razorpay hosted checkout SHALL return `PAYMENT_ACTION_REQUIRED`; MCP SHALL NOT automate OTP, PIN, bank approval, or payment details.
 13. Live UPI, Reserve Pay, loaded funds, real-money unattended spending, and cross-merchant payment authority SHALL remain unavailable until separate legal/provider/technical gates pass.
-14. Purchasing authority SHALL be a signed bounded mandate — ceiling, merchant allowlist, expiry, re-evaluated before every consequential effect — and this is the concrete mechanism by which W3 non-custody is satisfied.
-15. A mandate SHALL be authority to spend from a source Counter does not control; it SHALL NOT be funded, displayed, or accounted for as a Counter-held balance.
-16. The mandate SHALL remain rail-agnostic. Direct buyer-to-merchant crypto settlement is the intended future rail and UPI Autopay a later second one; neither is built, and neither SHALL be represented as available.
-17. The prepaid Counter-held balance prototyped during pilot engineering is retired. No runtime code path funds, reads, or debits it; its schema (migration `0021-wallet-prepaid-balance`) is retained only as repository history and SHALL NOT be treated as current design guidance.
 
 ## 9. Agent interfaces and MCP safety
 
