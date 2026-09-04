@@ -129,9 +129,7 @@ x402 is a candidate payment-negotiation adapter for later API/digital commerce. 
 
 Returning HTTP 402 or accepting an x402-shaped request does not prove payment completion, interoperability, compliant custody, India regulatory suitability, or refund support. The adapter requires a pinned profile, approved rail/facilitator, settlement-finality mapping, remediation model, and evidence.
 
-**Status (2026-09-04): actively building, no longer parked.** Counter has retired its prepaid custodial balance experiment and selected direct buyer-to-merchant crypto settlement as the payment direction it is building toward. That changes intent, not evidence. None of the five requirements in the paragraph above is met: no profile is pinned, no rail or facilitator is approved, no settlement-finality mapping or remediation model exists, no adapter has been written, and the chain itself is an open decision. Design work is not an implementation and grants no conformance, compatibility, or runtime-availability claim.
-
-x402 remains Deferred for the private retail pilot, which stays on Razorpay Standard Checkout test mode and the Counter test provider. A crypto settlement adapter occupies the payment-execution role in §4, distinct from x402's payment-negotiation role; if the two converge, the x402 profile must still be pinned and evidenced on its own under §11.
+x402 is Deferred for the private retail pilot.
 
 Reference: https://docs.cdp.coinbase.com/x402/core-concepts/how-it-works
 
@@ -221,7 +219,7 @@ Released additionally requires enablement for a named cohort, monitoring, docume
 | ACP adapter | Deferred from pilot | Pinned strict subset plus independent client evidence |
 | AP2 adapter | Deferred; design-aligned | Pinned trust profile plus independent evidence |
 | NPCI UAP adapter | Watch-only/Deferred | Canonical spec, access, approvals, certification evidence |
-| x402 / crypto settlement rail | Planned; actively being designed, Deferred from pilot | Chain and profile selection, approved rail/facilitator, settlement-finality and remediation mapping, then §11 evidence |
+| x402 adapter | Deferred | Approved use case/rail/profile and evidence |
 | Counter test payment provider | Planned test substitution | Deterministic test-only invariant suite; rejected outside test environments; no external compatibility claim |
 | Razorpay adapter | Planned test mode | Pinned human-present Standard Checkout test contract; no live/autonomy claim |
 | Shopify connector | Planned | Pilot Connector Contract evidence |

@@ -19,6 +19,7 @@ import {
   PostgresRevocationStore,
   PostgresMandateRepository,
   PostgresCtpKeyRegistry,
+  PostgresWalletBalanceStore,
   PostgresBuyerNotificationStore,
 } from "@counter/data";
 import { createHttpGraphQLClient, CatalogSyncService } from "@counter/shopify-connector";
@@ -49,6 +50,7 @@ import { MerchantReadinessService } from "./merchant-readiness-store.js";
 import { MerchantManifestStore } from "./merchant-manifest-store.js";
 import { requireControlPlaneSigner } from "./control-plane-signer-env.js";
 import { MandateBindingService } from "./mandate-binding-store.js";
+import { PrepaidBalanceMandateBindingService } from "./prepaid-balance-mandate-binding-store.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
 const environment = process.env["NODE_ENV"] || "production";
@@ -335,6 +337,25 @@ const mandateBindingService =
       )
     : undefined;
 
+// Prepaid-balance-backed wallet-mandate binding: the SAME durable
+// WalletMandate table, but authority is derived from "this wallet has a
+// prepaid balance account" instead of an active Razorpay recurring
+// mandate — see prepaid-balance-mandate-binding-store.ts's header. A
+// wholly separate service instance from mandateBindingService above; the
+// recurring path is never touched by this. Only resolved when a durable
+// mandate repo AND a wallet balance store are configured.
+const walletBalanceStore =
+  database !== undefined ? new PostgresWalletBalanceStore(database, runtimeEnvironment) : undefined;
+
+const prepaidBalanceMandateBindingService =
+  database !== undefined && mandateRepo !== undefined && walletBalanceStore !== undefined
+    ? new PrepaidBalanceMandateBindingService(
+        mandateRepo,
+        new PostgresCtpKeyRegistry(database, runtimeEnvironment),
+        walletBalanceStore,
+      )
+    : undefined;
+
 // Real webhook ingress (Shopify + Razorpay) — registered only when BOTH real
 // secrets are configured, fail-closed rather than registering one adapter
 // with an insecure empty-string secret. Shopify signs webhooks with the
@@ -401,10 +422,12 @@ const serverOptions: CreateServerOptions = {
           runtimeEnvironment,
         ),
         buyerNotificationStore: new PostgresBuyerNotificationStore(database, runtimeEnvironment),
-        // Phase 4 (wallet-dashboard backend): mandateRepo above already
-        // exists unconditionally whenever database is present (constructed
-        // earlier for the revocation-cascade path) — reused here, not a
+        // Phase 4 (wallet-dashboard backend): both walletBalanceStore and
+        // mandateRepo above already exist unconditionally whenever database
+        // is present (constructed earlier for the prepaid-mandate-binding
+        // and revocation-cascade paths respectively) — reused here, not a
         // second instance.
+        ...(walletBalanceStore !== undefined ? { walletBalanceStore } : {}),
         ...(mandateRepo !== undefined ? { mandateRepository: mandateRepo } : {}),
         ...(readinessService !== undefined
           ? {
@@ -418,6 +441,9 @@ const serverOptions: CreateServerOptions = {
           : {}),
         ...(recurringMandateProvisioner !== undefined ? { recurringMandateProvisioner } : {}),
         ...(mandateBindingService !== undefined ? { mandateBindingService } : {}),
+        ...(prepaidBalanceMandateBindingService !== undefined
+          ? { prepaidBalanceMandateBindingService }
+          : {}),
         ...(shopifyOAuthConfig !== undefined
           ? {
               shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(

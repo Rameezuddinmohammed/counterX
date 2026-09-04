@@ -38,6 +38,7 @@ import {
   PostgresRecurringMandateReadStore,
   PostgresPaymentConnectionReadStore,
   PostgresRevocationStore,
+  PostgresWalletBalanceStore,
   PostgresWebhookEndpointReadStore,
   PostgresBuyerNotificationStore,
 } from "@counter/data";
@@ -254,6 +255,7 @@ async function main(): Promise<void> {
     recurringMandateStore: new PostgresRecurringMandateReadStore(database, runtimeEnvironment),
     paymentConnectionStore: new PostgresPaymentConnectionReadStore(database, runtimeEnvironment),
     revocationStore: new PostgresRevocationStore(database, runtimeEnvironment),
+    walletBalanceStore: new PostgresWalletBalanceStore(database, runtimeEnvironment),
   });
   logger.info("payment connector selected", {
     mode: selection.mode,

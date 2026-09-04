@@ -86,14 +86,6 @@ All cohort identities and environments are allowlisted server-side. Product/oper
 - no live charge, settlement, Reserve Pay, delegated UPI, cross-merchant payment mandate, Counter balance, top-up, custody, or raw credential storage;
 - “UPI,” “Reserve Pay,” “NPCI-approved,” and “agentic UPI” SHALL NOT appear as available unless Profile 1.0 is superseded after separate evidence/approval.
 
-### Payment authority
-
-- purchasing authority is a signed bounded mandate — ceiling, merchant allowlist, expiry — re-evaluated before every consequential effect; this is the concrete mechanism satisfying the no-custody rule above;
-- a mandate is authority to spend from a source Counter does not control; it is not stored value, and there is nothing behind it to top up, transfer, or refund into;
-- the mandate is rail-agnostic; direct buyer-to-merchant crypto settlement is the intended future rail and UPI Autopay a later second one, but neither is built and neither is in Profile 1.0;
-- a prepaid Counter-held balance was prototyped during pilot engineering and is retired; no runtime code path funds, reads, or debits it, and migration `0021-wallet-prepaid-balance` is retained only as repository history;
-- a Counter-held balance SHALL NOT be reintroduced into this profile without a Profile version change and Gate approval.
-
 ### Default technical limits
 
 These are server-enforced test limits, not representations of provider-approved real-money limits:
