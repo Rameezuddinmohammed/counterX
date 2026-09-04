@@ -15,6 +15,17 @@ import { buildMandateEnvelope } from "@counter/wallet-application/mandate-servic
 import type { BuyerPolicyConstraints } from "@counter/wallet-domain";
 
 const API_AUDIENCE = "https://api.counter.dev";
+// Must match apps/wallet-console/src/lib/auth0.ts's own login scope exactly.
+// The Post-Login Action ("Counter Console: provision merchant/wallet + stamp
+// session") only stamps wallet-owner claims — including the real step-up
+// assurance this whole flow depends on — when it sees "wallet:read" in
+// event.transaction.requested_scopes. Without an explicit scope here,
+// challengeWithPopup's re-auth request carries no scope at all (confirmed
+// live via Auth0 logs: the resulting token exchange showed scope: null),
+// so the Action bails out early and the "elevated" token comes back with NO
+// wallet identity whatsoever — surfacing as a flat 403 UNAUTHORIZED from
+// control-plane-api, not as any kind of MFA/popup error.
+const STEP_UP_SCOPE = "openid profile email wallet:read wallet:write";
 
 type Step =
   | { status: "idle" }
@@ -98,7 +109,7 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       // request below.
       setStep({ status: "step-up", label: "Confirming it's really you…" });
       try {
-        await mfa.challengeWithPopup({ audience: API_AUDIENCE });
+        await mfa.challengeWithPopup({ audience: API_AUDIENCE, scope: STEP_UP_SCOPE });
       } catch (stepUpError) {
         console.error("[connect] step-up failed:", stepUpError);
         const name = stepUpError instanceof Error ? stepUpError.name : "UnknownError";
