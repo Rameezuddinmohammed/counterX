@@ -182,6 +182,12 @@ export function useApi<T>(
     } finally {
       setLoading(false);
     }
+    // `deps` is this hook's own explicit refetch-trigger contract, supplied
+    // by the caller — `fetcher` is deliberately excluded because every call
+    // site passes a fresh inline closure per render; including it here would
+    // recreate fetchData (and therefore refetch, via the effect below) on
+    // every render instead of only when `deps` actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   useEffect(() => {

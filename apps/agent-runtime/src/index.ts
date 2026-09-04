@@ -29,8 +29,25 @@ export const APP_NAME = "@counter/agent-runtime";
 
 const DEFAULT_VERSION = "0.1.0";
 const DEFAULT_ENVIRONMENT = "local";
-const AUTH_ISSUER = "https://dev-jzw3etjxnn3svs56.us.auth0.com/";
-const AUTH_AUDIENCE = "https://api.counter.dev";
+
+// AUTH0_DOMAIN (this app's actual deployed secret name — confirmed against
+// `flyctl secrets list`) / AUTH0_AUDIENCE — this app previously hardcoded
+// its own dev tenant here with no env override at all, so a different Auth0
+// tenant required a source change instead of an env flip. The dev-tenant
+// string stays as the fallback default so nothing breaks when unset.
+//
+// The JWKS URL below is built by string concatenation
+// (`${AUTH_ISSUER}.well-known/jwks.json`) and the Auth0 issuer claim itself
+// is conventionally slash-terminated — normalize to exactly one trailing
+// slash regardless of how the operator sets AUTH0_DOMAIN.
+function withTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
+const AUTH_ISSUER = withTrailingSlash(
+  `https://${process.env["AUTH0_DOMAIN"] ?? "dev-jzw3etjxnn3svs56.us.auth0.com"}`,
+);
+const AUTH_AUDIENCE = process.env["AUTH0_AUDIENCE"] ?? "https://api.counter.dev";
 
 export interface CreateServerOptions {
   readonly version?: string | undefined;
