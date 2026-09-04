@@ -8,9 +8,17 @@
  * used unless DATABASE_URL is provided.
  *
  * Real merchant handlers (search/quote/transaction/cancel/refund/receipt) are
- * wired from real Shopify credentials when present, via real-handlers.ts.
- * Without a database + Shopify credentials, mock handlers are used and ONLY
- * permitted in local/test/development — see index.ts's resolveMerchantHandlers.
+ * wired whenever a database is configured, via real-handlers.ts. EACH
+ * merchant's OWN Shopify connector is resolved per-request from their
+ * durable connection (merchant.shopify_connections, written by the real
+ * OAuth flow in apps/control-plane-api/src/shopify-connection-store.ts) —
+ * NOT a single global SHOPIFY_STORE_DOMAIN/SHOPIFY_ACCESS_TOKEN pair built
+ * once at boot. (That used to be a real cross-tenant bug: every merchant's
+ * search/quote/product/cancel calls silently returned whichever ONE store
+ * happened to be configured in env vars, regardless of :merchantId in the
+ * URL — see real-handlers.ts's MerchantShopifyConnectorResolver.) Without a
+ * database, mock handlers are used and ONLY permitted in
+ * local/test/development — see index.ts's resolveMerchantHandlers.
  *
  * Razorpay credentials are NOT read here: refund is a relay, not an
  * immediate execution (see real-handlers.ts's createRefundHandler), so this
@@ -20,9 +28,7 @@
  */
 import { resolveCounterEnvironment, type Environment } from "@counter/domain";
 import { PostgresDatabase, PostgresIdempotencyStore, PostgresJobRepository } from "@counter/data";
-import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import { createServer, APP_NAME, type CreateServerOptions } from "./index.js";
-import { requireShopifyCredentials } from "./connector-env.js";
 import { createRealHandlers } from "./real-handlers.js";
 
 const port = parseInt(process.env["PORT"] || "8080", 10);
@@ -66,34 +72,29 @@ if (hasDatabaseUrl) {
   database = new PostgresDatabase(databaseUrl as string);
 }
 
-// Real handlers require both a database (to enqueue jobs / read the
-// transaction spine / store quotes) and Shopify credentials (to serve real
-// catalog data). Razorpay credentials are not needed here — see this file's
+// Real handlers require a database (to enqueue jobs / read the transaction
+// spine / store quotes / look up each merchant's own Shopify connection).
+// Shopify credentials are no longer a boot-time global requirement — each
+// merchant's own connection is resolved per-request from Postgres (see
+// real-handlers.ts's MerchantShopifyConnectorResolver and this file's
+// header). Razorpay credentials are not needed here — see this file's
 // header for why.
 let merchantHandlers: CreateServerOptions["merchantHandlers"];
 if (database !== undefined) {
-  const shopifyCreds = requireShopifyCredentials(process.env, !isNonProduction);
-  if (shopifyCreds !== null) {
-    const shopify = createShopifyConnectorFromConfig({
-      shopDomain: shopifyCreds.shopDomain,
-      accessToken: shopifyCreds.accessToken,
-      apiVersion: shopifyCreds.apiVersion,
-    });
-    merchantHandlers = createRealHandlers({
-      database,
-      environment: runtimeEnvironment,
-      shopify,
-      jobRepository: new PostgresJobRepository(database, runtimeEnvironment),
-    });
-    console.log(`[${APP_NAME}] real merchant handlers wired`, { shopify: true });
-  }
+  merchantHandlers = createRealHandlers({
+    database,
+    environment: runtimeEnvironment,
+    jobRepository: new PostgresJobRepository(database, runtimeEnvironment),
+    shopifyApiVersion: process.env["SHOPIFY_API_VERSION"],
+  });
+  console.log(`[${APP_NAME}] real merchant handlers wired`, { perMerchantShopify: true });
 }
 
 // Mock merchant handlers are only acceptable for local development / test,
-// and only when real handlers were not wired above (no DATABASE_URL or no
-// Shopify credentials). In production-like environments createServer will
-// throw when no real handlers are supplied, so the process fails loudly at
-// startup rather than silently serving mocked execution paths.
+// and only when real handlers were not wired above (no DATABASE_URL). In
+// production-like environments createServer will throw when no real
+// handlers are supplied, so the process fails loudly at startup rather than
+// silently serving mocked execution paths.
 const allowMockHandlers = isNonProduction && merchantHandlers === undefined;
 
 const serverOptions: CreateServerOptions = {
