@@ -9,6 +9,7 @@ import {
   Zap,
   Wallet,
   Download,
+  Coins,
 } from "lucide-react";
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
@@ -33,6 +34,13 @@ const QUICK_ACTIONS = [
     description: "Pending authorization requests",
   },
   { label: "Export Data", href: "/export", icon: Download, description: "Download wallet records" },
+  {
+    label: "Crypto Settlement",
+    href: undefined,
+    icon: Coins,
+    description: "Coming soon — non-custodial on-chain settlement",
+    disabled: true,
+  },
 ];
 
 export default function DashboardPage() {
@@ -106,16 +114,29 @@ export default function DashboardPage() {
         <div>
           <h2 className="mb-4 text-lg font-semibold text-[var(--foreground)]">Quick Actions</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {QUICK_ACTIONS.map((action) => (
-              <Link key={action.href} href={action.href} className="no-underline">
-                <Card className="h-full transition-all duration-200 hover:border-[var(--brand-orange)]/30 hover:shadow-lg hover:shadow-[var(--brand-orange)]/5 cursor-pointer">
+            {QUICK_ACTIONS.map((action) => {
+              const cardBody = (
+                <Card
+                  className={
+                    action.disabled
+                      ? "h-full opacity-50"
+                      : "h-full transition-all duration-200 hover:border-[var(--brand-orange)]/30 hover:shadow-lg hover:shadow-[var(--brand-orange)]/5 cursor-pointer"
+                  }
+                >
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3">
                       <div className="rounded-lg bg-[var(--brand-orange)]/10 p-2">
                         <action.icon className="h-4 w-4 text-[var(--brand-orange)]" />
                       </div>
                       <div>
-                        <p className="font-medium text-[var(--foreground)]">{action.label}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-[var(--foreground)]">{action.label}</p>
+                          {action.disabled && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Soon
+                            </Badge>
+                          )}
+                        </div>
                         <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
                           {action.description}
                         </p>
@@ -123,8 +144,17 @@ export default function DashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </Link>
-            ))}
+              );
+              return action.disabled || action.href === undefined ? (
+                <div key={action.label} aria-disabled="true">
+                  {cardBody}
+                </div>
+              ) : (
+                <Link key={action.href} href={action.href} className="no-underline">
+                  {cardBody}
+                </Link>
+              );
+            })}
           </div>
         </div>
 

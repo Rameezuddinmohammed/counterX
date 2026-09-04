@@ -44,6 +44,7 @@ const NAV_SECTIONS = [
       { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
       { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
       { href: "/mandates", label: "Mandates", icon: FileText },
+      { href: "/wallet/topup", label: "Add Funds", icon: Wallet },
     ],
   },
   {

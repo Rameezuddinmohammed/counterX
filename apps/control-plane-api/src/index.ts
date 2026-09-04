@@ -48,6 +48,7 @@ import type { MerchantWebhookEndpointStoreLike } from "./merchant-webhook-endpoi
 import { buyerNotificationRoutesPlugin } from "./buyer-notification-routes.js";
 import type { PostgresBuyerNotificationStore, PostgresWalletBalanceStore } from "@counter/data";
 import { walletBalanceRoutesPlugin } from "./wallet-balance-routes.js";
+import { walletTopupRoutesPlugin, type WalletTopupRoutesOptions } from "./wallet-topup-routes.js";
 import { walletMandateRoutesPlugin } from "./wallet-mandate-routes.js";
 import type { MandateRepository } from "@counter/wallet-domain";
 import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
@@ -221,6 +222,14 @@ export interface CreateServerOptions {
    * pattern as buyerNotificationStore.
    */
   readonly walletBalanceStore?: PostgresWalletBalanceStore | undefined;
+  /**
+   * Only when present are /control/v1/wallets/:walletId/topup/order and
+   * .../topup/confirm registered — real self-serve Razorpay top-up of a
+   * wallet's prepaid balance (the demo-scoped revival of Phase 2's
+   * custodial model; see revert/phase2-prepaid-balance's PR description).
+   * Same optional-feature pattern as walletBalanceStore.
+   */
+  readonly walletTopupRoutes?: WalletTopupRoutesOptions | undefined;
   /**
    * Only when present is /control/v1/wallets/:walletId/mandates (GET)
    * registered — Phase 4 of the remote-MCP plan: a wallet's currently-active
@@ -423,6 +432,12 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     void server.register(walletBalanceRoutesPlugin, {
       store: options.walletBalanceStore,
     });
+  }
+
+  // Real self-serve Razorpay wallet top-up — only registered when wired
+  // (see CreateServerOptions.walletTopupRoutes).
+  if (options?.walletTopupRoutes !== undefined) {
+    void server.register(walletTopupRoutesPlugin, options.walletTopupRoutes);
   }
 
   // Buyer-facing active-mandates listing (Phase 4, wallet-dashboard
