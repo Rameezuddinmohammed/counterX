@@ -6,7 +6,8 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./mandate-service": "./dist/mandate-service.js"
   },
   "types": "./dist/index.d.ts",
   "scripts": {

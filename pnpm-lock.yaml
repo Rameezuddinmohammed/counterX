@@ -450,9 +450,21 @@ importers:
       '@auth0/nextjs-auth0':
         specifier: ^4.5.1
         version: 4.27.0(next@16.3.3(@opentelemetry/api@1.9.0)(@types/node@22.13.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@counter/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@counter/trust-protocol':
+        specifier: workspace:*
+        version: link:../../packages/trust-protocol
       '@counter/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@counter/wallet-application':
+        specifier: workspace:*
+        version: link:../../packages/wallet-application
+      '@counter/wallet-domain':
+        specifier: workspace:*
+        version: link:../../packages/wallet-domain
       cmdk:
         specifier: ^1.0.4
         version: 1.1.1(@types/react-dom@19.0.3(@types/react@19.0.8))(@types/react@19.0.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -667,6 +679,10 @@ importers:
         version: 3.0.7(@types/node@22.13.1)(jiti@2.7.0)(lightningcss@1.32.0)
 
   packages/domain:
+    dependencies:
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
     devDependencies:
       fast-check:
         specifier: 4.0.0
@@ -949,6 +965,9 @@ importers:
       '@noble/ed25519':
         specifier: 2.2.3
         version: 2.2.3
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
       json-canonicalize:
         specifier: 1.1.1
         version: 1.1.1
@@ -1933,6 +1952,10 @@ packages:
 
   '@noble/ed25519@2.2.3':
     resolution: {integrity: sha512-iHV8eI2mRcUmOx159QNrU8vTpQ/Xm70yJ2cTk3Trc86++02usfqFoNl6x0p3JN81ZDS/1gx6xiK0OwrgqCT43g==}
+
+  '@noble/hashes@2.4.0':
+    resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
+    engines: {node: '>= 20.19.0'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -5679,6 +5702,8 @@ snapshots:
     optional: true
 
   '@noble/ed25519@2.2.3': {}
+
+  '@noble/hashes@2.4.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

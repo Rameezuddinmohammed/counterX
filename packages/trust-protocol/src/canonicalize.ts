@@ -2,10 +2,13 @@
  * Deterministic canonicalization and digest computation for CTP envelopes.
  *
  * Uses RFC 8785 (JSON Canonicalization Scheme) via json-canonicalize@1.1.1
- * and SHA-256 digest via Node.js crypto module (ADR-0002).
+ * and SHA-256 digest via @noble/hashes (ADR-0002) — a pure-JS, isomorphic
+ * implementation, not node:crypto, so this runs unmodified in a browser
+ * (Mandate Pivot Phase 1.3: signing happens client-side).
  */
 
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { canonicalize } from "json-canonicalize";
 import type { CtpEnvelope, UnsignedCtpEnvelope } from "./types.js";
 
@@ -54,7 +57,7 @@ export function canonicalBytesForVerification(envelope: CtpEnvelope): Uint8Array
  * Returns the hex digest string prefixed with "sha256:".
  */
 export function computeSha256Digest(bytes: Uint8Array): string {
-  const hex = createHash("sha256").update(bytes).digest("hex");
+  const hex = bytesToHex(sha256(bytes));
   return `sha256:${hex}`;
 }
 

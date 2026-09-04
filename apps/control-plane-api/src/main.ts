@@ -304,6 +304,23 @@ const recurringMandateProvisioner =
       )
     : undefined;
 
+// Independent check that payload.agent_id is a real, active agent
+// registered under the target wallet — required as of the Mandate Pivot's
+// consent-key/operating-key separation (see mandate-binding-store.ts's
+// AgentOwnershipCheck doc for why this can no longer be assumed from the
+// envelope's own signature).
+function checkAgentOwnership(db: PostgresDatabase, env: Environment) {
+  return async (walletId: string, agentId: string): Promise<boolean> => {
+    const result = await db.query(
+      `SELECT 1 FROM identity.actors
+        WHERE environment = $1 AND actor_kind = 'registered_agent' AND actor_id = $2
+          AND owner_scope_kind = 'wallet' AND owner_scope_id = $3 AND status = 'active'`,
+      [env, agentId, walletId],
+    );
+    return result.rows.length > 0;
+  };
+}
+
 // Wallet-mandate binding: verifies an already-signed counter.mandate.v1
 // envelope (built client-side, where the buyer's own key lives) and durably
 // persists it, bound to an active, human-authorized recurringMandateProvisioner
@@ -316,6 +333,7 @@ const mandateBindingService =
         mandateRepo,
         new PostgresCtpKeyRegistry(database, runtimeEnvironment),
         recurringMandateProvisioner,
+        checkAgentOwnership(database, runtimeEnvironment),
       )
     : undefined;
 

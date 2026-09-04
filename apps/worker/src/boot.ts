@@ -236,17 +236,42 @@ export async function selectPaymentAuthorizationPort(
         }
       : undefined;
 
-  // Recurring payment mandates (UPI Autopay / e-mandate): reuses the SAME
-  // Razorpay credentials already resolved above (one Razorpay account,
-  // whether the charge is a one-shot order or a recurring draw). Both the
-  // policy gate and the actual charge call independently re-read the
+  // Recurring payment mandates (UPI Autopay / e-mandate): uses
+  // effectiveRazorpayCreds — the SAME merchant-resolved credentials the
+  // one-shot order path resolved above via resolveRazorpayCredentialsForMerchant
+  // — not the raw env-level pair. This worker instance operates exactly ONE
+  // merchant per boot (bundle.merchantId = pilotMerchantId(); see
+  // selectPaymentAuthorizationPort's single call site in main.ts, and
+  // lifecycle-policy.ts's recurring-mandate check, which is scoped to this
+  // same single config.operatingMerchantId) — there is no per-job/per-charge
+  // merchant dispatch anywhere in this worker today, so a boot-time resolve
+  // is correct and sufficient. If a second operating merchant is ever added
+  // (a second worker deployment, or per-job merchant routing), this needs to
+  // move from boot-time to charge-time, keyed off the mandate's own merchant
+  // scope, same as everything else that reads bundle.merchantId today.
+  //
+  // NOTE (adjacent, NOT fixed here — out of scope for this credential-routing
+  // fix): recurring-mandate REGISTRATION, in
+  // apps/control-plane-api/src/recurring-mandate-routes.ts via main.ts's
+  // razorpayRecurringProvider, always uses the raw platform-level
+  // RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET env pair — it is not routed through
+  // merchant.payment_connections at all. Today this is harmless because the
+  // pilot merchant's own connected gateway (merchant.payment_connections)
+  // happens to hold that exact same key pair (verified directly against the
+  // real database this session). The moment a merchant connects a DIFFERENT
+  // Razorpay gateway, any recurring mandate registered for them would still
+  // create its customer/token under the PLATFORM account while this charge
+  // call would (correctly, per the fix above) attempt to charge it via that
+  // merchant's OWN account — a real cross-account mismatch. Registration
+  // would need the same merchant-scoped credential resolution added here.
+  // Both the policy gate and the actual charge call independently re-read the
   // mandate's durable state — never trusting the job payload, and never
   // sharing a single read between the two seams.
   const recurringMandateLookup =
     stores?.recurringMandateStore !== undefined
       ? (referenceId: string) => stores.recurringMandateStore!.findByReferenceId(referenceId)
       : undefined;
-  const recurringPayments = createRealRazorpayRecurringMandateProvider(razorpayCreds);
+  const recurringPayments = createRealRazorpayRecurringMandateProvider(effectiveRazorpayCreds);
 
   // Durable wallet-level revocation: independently re-verifies authority.walletId
   // against the durable revocation store, rather than trusting the job payload's

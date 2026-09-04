@@ -1,8 +1,10 @@
 /**
  * Server-side verification + durable persistence for a Counter-native
- * WalletMandate, binding it to an already human-authorized provider
- * mandate (a RecurringMandateSummary — e.g. a confirmed Razorpay UPI
- * Autopay registration).
+ * WalletMandate. When the envelope's payment_authorization_ref claims a
+ * real provider mandate (a RecurringMandateSummary — e.g. a confirmed
+ * Razorpay UPI Autopay registration), binding is clamped to that provider
+ * mandate's own limits. See INTERIM BINDING RULE below for the case where
+ * no provider mandate is being claimed at all.
  *
  * WHY THIS LIVES HERE, NOT IN wallet-application's MandateService:
  * MandateService.issue() is a CLIENT-SIDE orchestrator — it assumes the
@@ -12,21 +14,42 @@
  * which this codebase's key-custody model explicitly forbids. So the
  * server's job is the other half: given an ALREADY-SIGNED envelope, verify
  * it cryptographically (against the agent's registered public key), verify
- * it's bound to a real, active, human-authorized provider mandate for this
- * wallet, verify the requested authority doesn't exceed what that provider
- * mandate actually grants, and only then durably persist it — the same
- * split as recurring-mandate-store.ts's confirmRegistration (client
- * proves; server verifies + persists; never signs on the buyer's behalf).
+ * any CLAIMED provider mandate for this wallet is real and active, verify
+ * the requested authority doesn't exceed what that provider mandate
+ * actually grants, and only then durably persist it — the same split as
+ * recurring-mandate-store.ts's confirmRegistration (client proves; server
+ * verifies + persists; never signs on the buyer's behalf).
  *
- * BINDING RULE (the core of "a human-authorized provider mandate becomes a
- * durable Counter payment authority"): a WalletMandate MAY ONLY be issued
- * against a RecurringMandateSummary that is (a) for this same wallet and
- * (b) currently status === "active" — i.e. a human has already completed
- * the Razorpay registration checkout. The issued mandate's per-transaction
- * ceiling, eligible merchants, and validity window are clamped to be no
- * more permissive than that provider mandate's own limits — an agent can
- * never be granted more authority than the human actually authorized at
- * the payment rail.
+ * BINDING RULE when a provider mandate IS claimed (payment_authorization_ref
+ * matches a real RecurringMandateSummary for this wallet): it MUST be
+ * status === "active" — i.e. a human has already completed the Razorpay
+ * registration checkout — and the issued mandate's per-transaction ceiling,
+ * eligible merchants, and validity window are clamped to be no more
+ * permissive than that provider mandate's own limits. An agent can never be
+ * granted more authority than the human actually authorized at the payment
+ * rail. Unchanged, and still the ONLY path once a real provider mandate is
+ * in play (e.g. Phase 6's UPI Autopay flip).
+ *
+ * INTERIM BINDING RULE (Mandate Pivot Phase 1.3, until Phase 3's crypto
+ * rail lands — see ~/.claude/plans/the-mandate-pivot.md): when
+ * payment_authorization_ref does NOT match ANY RecurringMandateSummary for
+ * this wallet, no provider mandate is being claimed at all — this is not a
+ * bogus reference, it is the buyer opting into the mandate-first design the
+ * pivot describes (a signed spending mandate IS the human authorization;
+ * a payment rail is no longer a precondition of granting it). This route
+ * accepts the envelope's own declared limits directly, on the strength of
+ * what is ALREADY independently verified: (1) the signature, against the
+ * agent's own registered key; (2) wallet ownership; (3) this route is
+ * gated by payment.mandate.manage, which requires step-up assurance
+ * (packages/authorization/src/assurance.ts) — a human, not just a session,
+ * authorized this. The resulting WalletMandate is currently inert for real
+ * money movement: Phase 2 retires the only rail that could act on one
+ * without a provider mandate (the prepaid balance), and Phase 3 has not yet
+ * built the crypto rail's own settlement path. A reference that DOES match
+ * a RecurringMandateSummary but isn't active (revoked/pending/failed) is
+ * still a hard deny — that's a real, broken provider-mandate claim, not an
+ * absent one, and silently accepting it would grant authority the human
+ * explicitly hasn't (or no longer) approved at that rail.
  *
  * SECURITY: never reads or logs a private key. The envelope's signature is
  * verified against the agent's REGISTERED public key (identity
@@ -50,11 +73,30 @@ export interface MandateBindingError {
     | "INVALID_ENVELOPE"
     | "SIGNATURE_INVALID"
     | "WALLET_MISMATCH"
+    | "AGENT_NOT_OWNED"
     | "NO_ACTIVE_PROVIDER_MANDATE"
     | "EXCEEDS_PROVIDER_MANDATE"
     | "PERSIST_FAILED";
   readonly message: string;
 }
+
+/**
+ * Checks that `agentId` is a real, active agent registered under `walletId`
+ * — independent of which key actually SIGNED the envelope. Required as of
+ * the Mandate Pivot's "separate consent key from operating key" decision
+ * (Phase 1.3, 2026-09-04, see ~/.claude/plans/the-mandate-pivot.md): the CTP
+ * signature only proves the envelope's `kid` is a real, active, registered
+ * key — it says nothing about whether `payload.agent_id` is real or
+ * wallet-owned, since that's ordinary payload data, not something
+ * verifyEnvelope's cryptographic check touches. Before this pivot every
+ * real caller happened to sign with the SAME agent the mandate named, so
+ * the gap was latent; once a dedicated consent key (registered as its own
+ * agent record) can sign on a DIFFERENT agent's behalf, it becomes load-
+ * bearing — without this, any wallet owner with any one registered key
+ * could mint a mandate claiming to grant spending authority to an
+ * arbitrary agent_id, including one they never registered.
+ */
+export type AgentOwnershipCheck = (walletId: string, agentId: string) => Promise<boolean>;
 
 export interface MandateBindingResult {
   readonly mandateId: string;
@@ -141,6 +183,7 @@ export class MandateBindingService {
     private readonly mandateRepo: MandateRepository,
     private readonly keyRegistry: KeyRegistry,
     private readonly recurringMandates: RecurringMandateProvisionerLike,
+    private readonly agentOwnershipCheck: AgentOwnershipCheck,
   ) {}
 
   async bind(
@@ -192,69 +235,93 @@ export class MandateBindingService {
       };
     }
 
-    // The provider mandate this authority is derived from MUST already be
+    // The signature proves payload.kid is a real, active, registered key —
+    // it says nothing about payload.agent_id, which is ordinary payload
+    // data. Independently verify the target agent is real and wallet-owned
+    // — see AgentOwnershipCheck's own doc for why this is required, not
+    // optional, now that a dedicated consent key can sign for a different
+    // agent than itself.
+    const agentOwned = await this.agentOwnershipCheck(walletId, payload.agent_id);
+    if (!agentOwned) {
+      return {
+        ok: false,
+        error: {
+          code: "AGENT_NOT_OWNED",
+          message: "payload.agent_id is not a real, active agent registered under this wallet",
+        },
+      };
+    }
+
+    // If a provider mandate IS being claimed, it MUST already be
     // human-confirmed for THIS wallet — never trust the envelope's own
-    // claim about what it's bound to; independently re-verify.
+    // claim about what it's bound to; independently re-verify. See the
+    // INTERIM BINDING RULE in this file's header for the (currently
+    // expected, not an error) case where no provider mandate is claimed
+    // at all.
     const recurringMandates = await this.recurringMandates.list(walletId);
     const providerMandate = recurringMandates.find(
       (m) => m.referenceId === payload.payment_authorization_ref,
     );
-    if (providerMandate === undefined || providerMandate.status !== "active") {
+    if (providerMandate !== undefined && providerMandate.status !== "active") {
       return {
         ok: false,
         error: {
           code: "NO_ACTIVE_PROVIDER_MANDATE",
           message:
-            "payment_authorization_ref does not resolve to an active, human-authorized provider mandate for this wallet",
+            "payment_authorization_ref resolves to a provider mandate for this wallet, but it is not active",
         },
       };
     }
 
-    const requestedCeiling = moneyAmountToPaise(payload.per_transaction_limit);
-    const providerCeiling = BigInt(providerMandate.ceilingMinor);
-    if (requestedCeiling > providerCeiling) {
-      return {
-        ok: false,
-        error: {
-          code: "EXCEEDS_PROVIDER_MANDATE",
-          message: `Requested per-transaction ceiling (${requestedCeiling}) exceeds the provider mandate's own ceiling (${providerCeiling})`,
-        },
-      };
-    }
-    if (
-      providerMandate.eligibleMerchants.length > 0 &&
-      !payload.allowed_merchants.every((m) => providerMandate.eligibleMerchants.includes(m))
-    ) {
-      return {
-        ok: false,
-        error: {
-          code: "EXCEEDS_PROVIDER_MANDATE",
-          message:
-            "Requested merchant allowlist is not a subset of the provider mandate's eligible merchants",
-        },
-      };
-    }
-    if (
-      providerMandate.eligibleOperations.length > 0 &&
-      !payload.allowed_operations.every((o) => providerMandate.eligibleOperations.includes(o))
-    ) {
-      return {
-        ok: false,
-        error: {
-          code: "EXCEEDS_PROVIDER_MANDATE",
-          message:
-            "Requested operations are not a subset of the provider mandate's eligible operations",
-        },
-      };
-    }
-    if (new Date(payload.validity_end).getTime() > new Date(providerMandate.validUntil).getTime()) {
-      return {
-        ok: false,
-        error: {
-          code: "EXCEEDS_PROVIDER_MANDATE",
-          message: "Requested validity extends beyond the provider mandate's own validUntil",
-        },
-      };
+    if (providerMandate !== undefined) {
+      const requestedCeiling = moneyAmountToPaise(payload.per_transaction_limit);
+      const providerCeiling = BigInt(providerMandate.ceilingMinor);
+      if (requestedCeiling > providerCeiling) {
+        return {
+          ok: false,
+          error: {
+            code: "EXCEEDS_PROVIDER_MANDATE",
+            message: `Requested per-transaction ceiling (${requestedCeiling}) exceeds the provider mandate's own ceiling (${providerCeiling})`,
+          },
+        };
+      }
+      if (
+        providerMandate.eligibleMerchants.length > 0 &&
+        !payload.allowed_merchants.every((m) => providerMandate.eligibleMerchants.includes(m))
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: "EXCEEDS_PROVIDER_MANDATE",
+            message:
+              "Requested merchant allowlist is not a subset of the provider mandate's eligible merchants",
+          },
+        };
+      }
+      if (
+        providerMandate.eligibleOperations.length > 0 &&
+        !payload.allowed_operations.every((o) => providerMandate.eligibleOperations.includes(o))
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: "EXCEEDS_PROVIDER_MANDATE",
+            message:
+              "Requested operations are not a subset of the provider mandate's eligible operations",
+          },
+        };
+      }
+      if (
+        new Date(payload.validity_end).getTime() > new Date(providerMandate.validUntil).getTime()
+      ) {
+        return {
+          ok: false,
+          error: {
+            code: "EXCEEDS_PROVIDER_MANDATE",
+            message: "Requested validity extends beyond the provider mandate's own validUntil",
+          },
+        };
+      }
     }
 
     const mandate: WalletMandate = {

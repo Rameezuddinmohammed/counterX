@@ -7,6 +7,7 @@
 
 import { type Result, ok, err, createCanonicalError } from "@counter/domain";
 import { computePayloadDigest } from "./canonicalize.js";
+import { bytesToBase64Url } from "./base64url.js";
 import type {
   CtpEnvelope,
   CtpEnvironment,
@@ -140,7 +141,7 @@ export function buildUnsignedEnvelope<Payload>(
  */
 export function generateNonce(randomBytes: (length: number) => Uint8Array): Nonce {
   const bytes = randomBytes(16);
-  return Buffer.from(bytes).toString("base64url") as Nonce;
+  return bytesToBase64Url(bytes) as Nonce;
 }
 
 /**

@@ -16,6 +16,7 @@ import "./crypto-setup.js";
 import * as ed from "@noble/ed25519";
 import { type Result, ok, err, createCanonicalError } from "@counter/domain";
 import { canonicalBytesForVerification, computePayloadDigest } from "./canonicalize.js";
+import { base64UrlToBytes } from "./base64url.js";
 import type { KeyRecord, KeyRegistry } from "./keys.js";
 import { validateKeyForVerification } from "./keys.js";
 import type { CtpEnvelope } from "./types.js";
@@ -314,8 +315,8 @@ export async function verifyEnvelope(
 
   // 13. Ed25519 signature verification
   const canonicalBytes = canonicalBytesForVerification(envelope);
-  const signatureBytes = Buffer.from(envelope.signature.value, "base64url");
-  const publicKeyBytes = Buffer.from(keyRecord.publicKey, "base64url");
+  const signatureBytes = base64UrlToBytes(envelope.signature.value);
+  const publicKeyBytes = base64UrlToBytes(keyRecord.publicKey);
 
   const valid = await verifyEd25519Signature(signatureBytes, canonicalBytes, publicKeyBytes);
   if (!valid) {
