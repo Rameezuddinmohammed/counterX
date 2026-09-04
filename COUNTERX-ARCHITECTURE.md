@@ -2,6 +2,7 @@
 
 **Status:** Living document reflecting the *verified, running* system, not the aspirational design.
 **Basis:** Static source audit + runtime execution (build/test/boot/HTTP probes) against commit `0e7dc36` / `96d64b3` on `main`, on 2026-08-29. Every claim below was either read directly from source or observed by actually running the code — see §8 for the exact commands. Where documentation and code disagree, code wins and the disagreement is called out.
+**Known-stale as of 2026-09-04:** the "Auth0 is a stub on every console" / "wallet-console is 100% MockWalletClient" claims below (§1, §5) are now false for `wallet-console` specifically — real Auth0 login, step-up MFA, and a self-serve `/connect` flow were built this week (Phase 1 of `~/.claude/plans/the-mandate-pivot.md`). See `HANDOFF.md` for current, verified status; don't trust this file's console/Auth0 sections until someone re-audits and rewrites them.
 **Not covered here:** business/product rationale (see `PRD.md`), delivery sequencing (see `PLAN.md`), the full CTP object schema (see `TRUST-PROTOCOL.md`).
 
 ---

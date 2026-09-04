@@ -7,12 +7,14 @@
  *
  * Gated by payment.mandate.manage server-side, which requires step-up
  * assurance — the caller must have completed mfa.challengeWithPopup()
- * earlier in the same flow (see connect-panel.tsx); the resulting elevated
- * token is what auth0.getAccessToken() returns here.
+ * earlier in the same flow (see connect-panel.tsx); lib/step-up-token.ts
+ * explains why that elevated token is NOT what auth0.getAccessToken()
+ * returns, and where it actually lives.
  */
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
 import { decodeIdTokenClaims } from "@/lib/id-token-claims";
+import { getStepUpAccessToken } from "@/lib/step-up-token";
 
 const CONTROL_PLANE_URL =
   process.env["CONTROL_PLANE_URL"] ?? "https://counter-control-plane-api.fly.dev";
@@ -45,7 +47,17 @@ export async function POST(request: Request) {
     );
   }
 
-  const { token } = await auth0.getAccessToken();
+  // NOT auth0.getAccessToken() — same reason as setup-token/route.ts; the
+  // step-up token lives in session.accessTokens[]. See lib/step-up-token.ts.
+  const { token, source, assurance } = await getStepUpAccessToken(session);
+  // agent_id is the one field the server can reject for reasons the buyer
+  // can't see (it must be an active agent owned by THIS wallet), so log which
+  // agent the browser actually asked to authorize. Public identifiers only.
+  const submittedAgentId = (body.envelope as { payload?: { agent_id?: unknown } } | undefined)
+    ?.payload?.agent_id;
+  console.info(
+    `[mandates] token source=${source} assurance=${assurance} wallet=${walletId} agent=${String(submittedAgentId)}`,
+  );
 
   const upstream = await fetch(
     `${CONTROL_PLANE_URL}/control/v1/wallets/${encodeURIComponent(walletId)}/mandates`,
