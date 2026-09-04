@@ -174,4 +174,57 @@ databaseDescribe("PostgresSpendLedger - atomic concurrency + idempotency (DB-gat
     },
     databaseHookTimeout,
   );
+
+  it(
+    "serializes concurrent reserves on a BRAND-NEW (empty) window, not just an existing one — " +
+      "regression for the 2026-09-04 fix: FOR UPDATE alone cannot lock rows that don't exist yet",
+    async () => {
+      // A wallet with NO prior rows — the case the OTHER test in this file
+      // doesn't cover, because its window is pre-loaded before the race
+      // starts. That matters: FOR UPDATE genuinely does serialize two
+      // racers against EXISTING rows, which is why that test always passed.
+      // It cannot lock rows that don't exist yet. Before the
+      // pg_advisory_xact_lock fix, THIS scenario reproduced deterministically
+      // (5/5 runs against a real Postgres): three concurrent racers, each
+      // individually and pairwise under the cap, ALL THREE succeeded —
+      // committed total 1_200_000 against a 1_000_000 cap.
+      const emptyWindowWalletId = `${walletId}-empty-window`;
+      const amount = 400_000n; // <= per-tx ceiling (500_000); 3x > rolling cap (1_000_000).
+
+      try {
+        const results = await Promise.all(
+          [0, 1, 2].map((i) =>
+            ledger.reserveSpend({
+              walletId: emptyWindowWalletId,
+              reference: `${emptyWindowWalletId}-race-${i}`,
+              amountMinor: amount,
+              currency: "INR",
+              nowMs,
+            }),
+          ),
+        );
+
+        for (const r of results) {
+          expect(r.ok).toBe(true);
+        }
+        const outcomes = results.map((r) => (r.ok ? r.value : undefined));
+        const allowedCount = outcomes.filter((o) => o?.allowed === true).length;
+        const total = await ledger.windowTotalMinor(emptyWindowWalletId, nowMs);
+
+        // The invariant that actually matters: committed total never exceeds
+        // the cap, and every allowed outcome is reflected in that total (no
+        // phantom allows that didn't actually commit, and no silent drops).
+        expect(total).toBeLessThanOrEqual(DEFAULT_SPEND_LIMIT_CONFIG.maxRolling24hTotalMinor);
+        expect(BigInt(allowedCount) * amount).toBe(total);
+        // With three 400_000 racers against a 1_000_000 cap, exactly two can
+        // fit (800_000); the third must be denied.
+        expect(allowedCount).toBe(2);
+      } finally {
+        await database.query(`DELETE FROM runtime.spend_ledger WHERE wallet_id = $1`, [
+          emptyWindowWalletId,
+        ]);
+      }
+    },
+    databaseHookTimeout,
+  );
 });
