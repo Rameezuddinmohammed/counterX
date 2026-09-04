@@ -44,7 +44,6 @@ import {
   PostgresSpendLedger,
   PostgresRevocationStore,
 } from "@counter/data";
-import type { PostgresWalletBalanceStore } from "@counter/data";
 import type {
   PostgresRecurringMandateReadStore,
   PostgresPaymentConnectionReadStore,
@@ -145,17 +144,6 @@ export interface DurableStores {
    * tests can omit it and exercise the legacy payload-only path.
    */
   readonly revocationStore?: PostgresRevocationStore | undefined;
-  /**
-   * Durable prepaid wallet balance (packages/data's PostgresWalletBalanceStore
-   * — see its header for the full rationale: fund once via a real Razorpay
-   * TEST MODE one-time payment, spend many times under Counter's own policy
-   * checks with no further per-purchase provider round trip). When present
-   * AND the job's authority envelope carries a walletId, an ordinary
-   * one-shot purchase draws down this balance instead of creating a fresh
-   * Razorpay order. Optional so unit tests / deployments without this
-   * feature enabled are unaffected and take the existing real-Razorpay path.
-   */
-  readonly walletBalanceStore?: PostgresWalletBalanceStore | undefined;
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
@@ -299,24 +287,6 @@ export async function selectPaymentAuthorizationPort(
       ...(mandateRevocationCheck !== undefined ? { mandateRevocationCheck } : {}),
     });
 
-  // Prepaid wallet balance (fund-once, spend-many — see boot.ts's
-  // DurableStores.walletBalanceStore doc and packages/data's
-  // PostgresWalletBalanceStore header). Re-resolves the SAME CTP signer
-  // buildRealConnectorBundle already resolved for the unattended payment
-  // provider (requireCounterTestPaymentSigner is a pure derivation from env,
-  // safe to call again), so prepaid-balance evidence is signed with the
-  // same, real deployment-specific key.
-  const walletBalanceSigning =
-    stores?.walletBalanceStore !== undefined
-      ? (() => {
-          const prepaidSigner = requireCounterTestPaymentSigner(env);
-          return {
-            signer: new InMemorySigner(prepaidSigner.kid, prepaidSigner.seed),
-            kid: prepaidSigner.kid,
-          };
-        })()
-      : undefined;
-
   const config: RealLifecycleConfig = {
     shopify: bundle.shopify,
     razorpay: bundle.razorpay,
@@ -325,10 +295,6 @@ export async function selectPaymentAuthorizationPort(
     policy,
     recurringPayments,
     ...(recurringMandateLookup !== undefined ? { recurringMandateLookup } : {}),
-    ...(stores?.walletBalanceStore !== undefined
-      ? { walletBalanceStore: stores.walletBalanceStore }
-      : {}),
-    ...(walletBalanceSigning !== undefined ? { walletBalanceSigning } : {}),
     ...(overrides?.variantResolver !== undefined
       ? { variantResolver: overrides.variantResolver }
       : {}),

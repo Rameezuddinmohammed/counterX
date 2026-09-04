@@ -205,6 +205,11 @@ cloud provider. Mitigations:
   buyer, not one shared key), spend ceilings and merchant allowlists enforced by `checkMandateAuthority`
   and `createProductionPolicy` (unchanged by this phase — signing a bad intent still can't spend past
   policy), real-time balance checks at debit time, and instant mandate revocation.
+  <br>**Superseded 2026-09-04:** "real-time balance checks at debit time" is no longer one of these
+  layers — the prepaid-balance debit branch was removed from the worker's money seam when the
+  custodial balance was retired (see "Payment authority: signed mandate, not stored balance").
+  The remaining layers in this bullet are unchanged and still hold. Left in place rather than
+  rewritten, because this bullet is part of a dated decision record.
 - A Vault outage degrades to "no new signatures" (fail closed), not "signatures with a stale or wrong
   key" — Vault returns an error, not silently-wrong output, when sealed or when a key is revoked.
 
@@ -272,6 +277,14 @@ The Wallet Console creates immutable policy versions supporting:
 Hosted shared Policy Engine is authoritative for Counter execution. The local signer also verifies the signed current policy/mandate and performs a conservative precheck before signing. If local and hosted results disagree, the most restrictive outcome wins. An expired/stale policy cache fails closed for consequential tools but may allow safe reads.
 
 Cumulative limits are reserved atomically on the hosted service. Local counters are advisory defense-in-depth, not the sole control.
+
+## Payment authority: signed mandate, not stored balance
+
+The concrete mechanism satisfying W3 non-custody (`requirements.md` §8, §14) is the signed bounded mandate — ceiling, merchant allowlist, expiry — verified and re-evaluated before every consequential effect. A mandate is authority to spend from a source Counter does not control. It is not a funded account, and no Counter-held balance backs it.
+
+The mandate is rail-agnostic: the same signed artifact is intended to map onto direct buyer-to-merchant crypto settlement (the intended next rail) or onto UPI Autopay recurring registration (later, gated on provider and regulatory availability). Neither rail exists in this codebase today. The executing paths remain the deterministic Counter test provider and human-present Razorpay Standard Checkout test mode described below.
+
+A prepaid Counter-held balance was prototyped during pilot engineering as a workaround for Razorpay UPI Autopay not being self-service-enabled; the fullest record of that decision is the header comment of migration `0021-wallet-prepaid-balance`. It is retired: the balance-read route, the prepaid mandate-binding path, and the worker's balance-debit branch in the money seam have all been removed, so no runtime code path funds, reads, or debits a Counter-held balance. `PostgresWalletBalanceStore` (`packages/data/src/wallet-balance-store.ts`), its export, and its integration test are deliberately kept but are now wired to nothing; the `wallet.balances`/`wallet.balance_events` tables, their rows, and migration `0021` are likewise left in place as repository history. Dropping them is a separate later decision. Treat `0021` as a retired experiment, not current design guidance.
 
 ## Mandate lifecycle
 
