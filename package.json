@@ -47,5 +47,14 @@
   },
   "engines": {
     "node": ">=22.14.0"
+  },
+  "pnpm": {
+    "packageExtensions": {
+      "@solana-program/token@0.15.0": {
+        "engines": {
+          "node": ">=20.18.0"
+        }
+      }
+    }
   }
 }
