@@ -1,15 +1,23 @@
 /**
- * Thin server-side proxy: submits an already-signed counter.mandate.v1
- * envelope (built and signed client-side in connect-panel.tsx, using a
- * disposable consent key that never leaves the browser) to
- * control-plane-api's real verify-and-persist route. The browser never
- * sees the Auth0 access token — only whether the submission succeeded.
+ * Server-side proxy for the wallet's own mandates.
  *
- * Gated by payment.mandate.manage server-side, which requires step-up
- * assurance — the caller must have completed mfa.challengeWithPopup()
- * earlier in the same flow (see connect-panel.tsx); lib/step-up-token.ts
- * explains why that elevated token is NOT what auth0.getAccessToken()
- * returns, and where it actually lives.
+ * GET  — lists this wallet's currently-active mandates
+ *   (control-plane-api's GET /control/v1/wallets/:walletId/mandates). Gated
+ *   there by identity.scope.read only (packages/authorization/src/assurance.ts
+ *   — authenticatedAssurances), so a plain session token is enough; no
+ *   step-up popup needed just to look at what already exists.
+ *
+ * POST — submits an already-signed counter.mandate.v1 envelope (built and
+ *   signed client-side in connect-panel.tsx, using a disposable consent key
+ *   that never leaves the browser) to control-plane-api's real
+ *   verify-and-persist route. The browser never sees the Auth0 access
+ *   token — only whether the submission succeeded.
+ *
+ *   Gated by payment.mandate.manage server-side, which requires step-up
+ *   assurance — the caller must have completed mfa.challengeWithPopup()
+ *   earlier in the same flow (see connect-panel.tsx); lib/step-up-token.ts
+ *   explains why that elevated token is NOT what auth0.getAccessToken()
+ *   returns, and where it actually lives.
  */
 import { NextResponse } from "next/server";
 import { auth0 } from "@/lib/auth0";
@@ -20,6 +28,41 @@ const CONTROL_PLANE_URL =
   process.env["CONTROL_PLANE_URL"] ?? "https://counter-control-plane-api.fly.dev";
 const NAMESPACE = "https://counter.dev/";
 
+function resolveWalletId(idToken: string | undefined): string | undefined {
+  const claims = decodeIdTokenClaims(idToken);
+  const scope = claims[`${NAMESPACE}scope`] as { walletId?: string } | undefined;
+  return scope?.walletId;
+}
+
+export async function GET() {
+  const session = await auth0.getSession();
+  if (session === null) {
+    return NextResponse.json(
+      { error: { code: "UNAUTHENTICATED", message: "Please log in first." } },
+      { status: 401 },
+    );
+  }
+
+  const walletId = resolveWalletId(session.tokenSet.idToken);
+  if (walletId === undefined) {
+    return NextResponse.json(
+      { error: { code: "NO_WALLET", message: "No wallet is associated with this session." } },
+      { status: 400 },
+    );
+  }
+
+  // Plain session token is enough — see this file's header.
+  const { token } = await auth0.getAccessToken();
+
+  const upstream = await fetch(
+    `${CONTROL_PLANE_URL}/control/v1/wallets/${encodeURIComponent(walletId)}/mandates`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+
+  const result = await upstream.json().catch(() => ({}));
+  return NextResponse.json(result, { status: upstream.status });
+}
+
 export async function POST(request: Request) {
   const session = await auth0.getSession();
   if (session === null) {
@@ -29,9 +72,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const claims = decodeIdTokenClaims(session.tokenSet.idToken);
-  const scope = claims[`${NAMESPACE}scope`] as { walletId?: string } | undefined;
-  const walletId = scope?.walletId;
+  const walletId = resolveWalletId(session.tokenSet.idToken);
   if (walletId === undefined) {
     return NextResponse.json(
       { error: { code: "NO_WALLET", message: "No wallet is associated with this session." } },
