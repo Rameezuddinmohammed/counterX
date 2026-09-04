@@ -33,8 +33,6 @@ import { recurringMandateRoutesPlugin } from "./recurring-mandate-routes.js";
 import type { RecurringMandateProvisionerLike } from "./recurring-mandate-store.js";
 import { mandateBindingRoutesPlugin } from "./mandate-binding-routes.js";
 import type { MandateBindingService } from "./mandate-binding-store.js";
-import { prepaidBalanceMandateBindingRoutesPlugin } from "./prepaid-balance-mandate-binding-routes.js";
-import type { PrepaidBalanceMandateBindingService } from "./prepaid-balance-mandate-binding-store.js";
 import { shopifyConnectRoutesPlugin } from "./shopify-connect-routes.js";
 import type { ShopifyConnectionProvisionerLike } from "./shopify-connection-store.js";
 import { refundRequestRoutesPlugin } from "./refund-request-routes.js";
@@ -46,8 +44,7 @@ import type { MerchantPaymentConnectionStoreLike } from "./merchant-payment-conn
 import { merchantWebhookEndpointRoutesPlugin } from "./merchant-webhook-endpoint-routes.js";
 import type { MerchantWebhookEndpointStoreLike } from "./merchant-webhook-endpoint-store.js";
 import { buyerNotificationRoutesPlugin } from "./buyer-notification-routes.js";
-import type { PostgresBuyerNotificationStore, PostgresWalletBalanceStore } from "@counter/data";
-import { walletBalanceRoutesPlugin } from "./wallet-balance-routes.js";
+import type { PostgresBuyerNotificationStore } from "@counter/data";
 import { walletMandateRoutesPlugin } from "./wallet-mandate-routes.js";
 import type { MandateRepository } from "@counter/wallet-domain";
 import { merchantReadinessRoutesPlugin } from "./merchant-readiness-routes.js";
@@ -170,15 +167,6 @@ export interface CreateServerOptions {
    */
   readonly mandateBindingService?: MandateBindingService | undefined;
   /**
-   * Only when present is /control/v1/wallets/*\/prepaid-mandates
-   * registered — same optional-feature pattern as mandateBindingService,
-   * but for the prepaid-balance-backed authority model (see
-   * prepaid-balance-mandate-binding-store.ts's header). A wholly separate
-   * route from mandateBindingService's — the two authority models never
-   * share a code path.
-   */
-  readonly prepaidBalanceMandateBindingService?: PrepaidBalanceMandateBindingService | undefined;
-  /**
    * Only when present is /control/v1/merchants/:merchantId/shopify/*
    * registered — a new, optional feature (self-serve Shopify OAuth), not
    * one every deployment of this app needs.
@@ -214,13 +202,6 @@ export interface CreateServerOptions {
    * optional-feature pattern as merchantWebhookEndpointStore.
    */
   readonly buyerNotificationStore?: PostgresBuyerNotificationStore | undefined;
-  /**
-   * Only when present is /control/v1/wallets/:walletId/balance registered —
-   * Phase 4 of the remote-MCP plan (wallet-dashboard backend): real prepaid
-   * balance + recent balance_events for a wallet. Same optional-feature
-   * pattern as buyerNotificationStore.
-   */
-  readonly walletBalanceStore?: PostgresWalletBalanceStore | undefined;
   /**
    * Only when present is /control/v1/wallets/:walletId/mandates (GET)
    * registered — Phase 4 of the remote-MCP plan: a wallet's currently-active
@@ -360,15 +341,6 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     });
   }
 
-  // Prepaid-balance-backed wallet-mandate binding route — only registered
-  // when a binding service is wired (see
-  // CreateServerOptions.prepaidBalanceMandateBindingService).
-  if (options?.prepaidBalanceMandateBindingService !== undefined) {
-    void server.register(prepaidBalanceMandateBindingRoutesPlugin, {
-      bindingService: options.prepaidBalanceMandateBindingService,
-    });
-  }
-
   // Self-serve Shopify OAuth routes — only registered when a provisioner is
   // wired (see CreateServerOptions.shopifyConnectionProvisioner).
   if (options?.shopifyConnectionProvisioner !== undefined) {
@@ -414,14 +386,6 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.buyerNotificationStore !== undefined) {
     void server.register(buyerNotificationRoutesPlugin, {
       store: options.buyerNotificationStore,
-    });
-  }
-
-  // Buyer-facing wallet balance (Phase 4, wallet-dashboard backend) — only
-  // registered when a store is wired.
-  if (options?.walletBalanceStore !== undefined) {
-    void server.register(walletBalanceRoutesPlugin, {
-      store: options.walletBalanceStore,
     });
   }
 
