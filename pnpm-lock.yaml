@@ -519,6 +519,9 @@ importers:
       '@counter/connector-sdk':
         specifier: workspace:0.1.0
         version: link:../../packages/connector-sdk
+      '@counter/crypto-adapter':
+        specifier: workspace:0.1.0
+        version: link:../../packages/crypto-adapter
       '@counter/data':
         specifier: workspace:0.1.0
         version: link:../../packages/data

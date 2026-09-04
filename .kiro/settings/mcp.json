@@ -1,16 +1,19 @@
 {
   "mcpServers": {
     "shopify-storefront-dev": {
-      "url": "https://counter-test-store-rswqyftp.myshopify.com/api/ucp/mcp"
+      "url": "https://counter-test-store-rswqyftp.myshopify.com/api/ucp/mcp",
+      "disabled": true
     },
     "razorpay-test": {
       "url": "https://mcp.razorpay.com/mcp",
       "headers": {
         "Authorization": "Basic ${RAZORPAY_TEST_MERCHANT_TOKEN}"
-      }
+      },
+      "disabled": true
     },
     "aws-mcp": {
-      "url": "https://aws-mcp.us-east-1.api.aws/mcp"
+      "url": "https://aws-mcp.us-east-1.api.aws/mcp",
+      "disabled": true
     }
   }
 }

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@counter/connector-sdk": "workspace:0.1.0",
+    "@counter/crypto-adapter": "workspace:0.1.0",
     "@counter/data": "workspace:0.1.0",
     "@counter/domain": "workspace:0.1.0",
     "@counter/payment-sdk": "workspace:0.1.0",

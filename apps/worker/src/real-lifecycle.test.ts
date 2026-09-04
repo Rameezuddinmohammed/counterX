@@ -25,6 +25,13 @@ import {
   type RazorpayOrder,
 } from "@counter/razorpay-adapter";
 import { CounterTestPaymentProvider } from "@counter/payment-sdk";
+import {
+  SolanaSettlementProvider,
+  encodeSolanaPaymentReference,
+  type FixedDelegationCoordinates,
+  type SolanaSettlementPort,
+  type SolanaTransferOutcome,
+} from "@counter/crypto-adapter";
 
 import { createInMemoryStepLedger, createRealPaymentAuthorizationPort } from "./real-lifecycle.js";
 import {
@@ -1050,5 +1057,208 @@ describe("real connector lifecycle — recurring payment mandate branch", () => 
 
     const result = await port.authorizeAndCapture(recurringRequest());
     expect(result.status).toBe("declined");
+  });
+});
+
+describe("real connector lifecycle — Solana devnet settlement branch", () => {
+  const coordinates: FixedDelegationCoordinates = {
+    subscriptionAuthorityPda: "DjmxNyCj9ahQRPD1zU4zNZmEXbafCeEpruMHFmkTzBo",
+    fixedDelegationPda: "DjmxNyCj9ahQRPD1zU4zNZmEXbafCeEpruMHFmkTzBo",
+    delegatorAddress: "DjmxNyCj9ahQRPD1zU4zNZmEXbafCeEpruMHFmkTzBo",
+    delegatorAta: "DjmxNyCj9ahQRPD1zU4zNZmEXbafCeEpruMHFmkTzBo",
+    delegateeAddress: "DjmxNyCj9ahQRPD1zU4zNZmEXbafCeEpruMHFmkTzBo",
+    tokenMint: "So11111111111111111111111111111111111111112",
+  };
+  const merchantReceivingAddress = "DjmxNyCj9ahQRPD1zU4zNZmEXbafCeEpruMHFmkTzBo";
+
+  function solanaRequest(overrides: Record<string, unknown> = {}) {
+    return {
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(11));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "solana-order-abc",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+      paymentReferenceId: encodeSolanaPaymentReference(coordinates),
+      ...overrides,
+    };
+  }
+
+  function mockSolanaPort(outcome: SolanaTransferOutcome): SolanaSettlementPort {
+    return {
+      transferFixed: async () => outcome,
+      getSignatureStatus: async () => "confirmed",
+    };
+  }
+
+  it("settles via the Solana provider instead of creating a Razorpay order, and still completes the real Shopify flow", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp(); // no /v1/orders handler configured — proves it's never called
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      solanaSettlement: {
+        provider: new SolanaSettlementProvider({
+          port: mockSolanaPort({ kind: "landed", signature: "5xyzSignatureFake" }),
+        }),
+        merchantReceivingAddress,
+      },
+    });
+
+    const result = await port.authorizeAndCapture(solanaRequest());
+
+    expect(result.status).toBe("captured");
+    // No fresh Razorpay order was ever created for this branch.
+    expect(http.requests.filter((r) => r.path === "/v1/orders")).toHaveLength(0);
+    // The real Shopify draft still happened — this branch only replaces the
+    // payment step, not the rest of the pipeline.
+    const drafts = shopifyClient.callHistory.filter(
+      (c) => c.operation === DRAFT_ORDER_CREATE_MUTATION,
+    );
+    expect(drafts).toHaveLength(1);
+  });
+
+  it("declines when no Solana settlement provider is configured at all (fails closed)", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      // solanaSettlement intentionally omitted
+    });
+
+    const result = await port.authorizeAndCapture(solanaRequest());
+    expect(result.status).toBe("declined");
+  });
+
+  it("declines when the payment reference decodes to nothing (malformed/foreign reference)", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      solanaSettlement: {
+        provider: new SolanaSettlementProvider({
+          port: mockSolanaPort({ kind: "landed", signature: "should-never-be-called" }),
+        }),
+        merchantReceivingAddress,
+      },
+    });
+
+    const result = await port.authorizeAndCapture(
+      solanaRequest({ paymentReferenceId: "solana-mandate:not-valid-base64json!!!" }),
+    );
+    expect(result.status).toBe("declined");
+  });
+
+  it("declines when the on-chain transfer is declined (e.g. exceeds the remaining cap)", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      solanaSettlement: {
+        provider: new SolanaSettlementProvider({
+          port: mockSolanaPort({ kind: "declined", reason: "AMOUNT_EXCEEDS_LIMIT" }),
+        }),
+        merchantReceivingAddress,
+      },
+    });
+
+    const result = await port.authorizeAndCapture(solanaRequest());
+    expect(result.status).toBe("declined");
+  });
+
+  it("returns indeterminate (never declined) when the transfer's outcome is uncertain", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      solanaSettlement: {
+        provider: new SolanaSettlementProvider({
+          port: mockSolanaPort({ kind: "indeterminate", reason: "RPC transport error" }),
+        }),
+        merchantReceivingAddress,
+      },
+    });
+
+    const result = await port.authorizeAndCapture(solanaRequest());
+    expect(result.status).toBe("indeterminate");
+  });
+
+  it("a plain Razorpay one-shot request (no paymentReferenceId) is completely unaffected", async () => {
+    const shopifyClient = createMockGraphQLClient();
+    configureShopifySuccess(shopifyClient);
+    const http = new MockRazorpayHttp();
+    http.onCreateOrder(razorpayOrder("order_rzp_1"));
+
+    let solanaCalls = 0;
+    const port = createRealPaymentAuthorizationPort({
+      shopify: buildShopifyConnector(shopifyClient),
+      razorpay: buildRazorpay(http),
+      payments: buildPayments(),
+      merchantId: merchantId(),
+      actionTimeoutMs: 5_000,
+      solanaSettlement: {
+        provider: new SolanaSettlementProvider({
+          port: {
+            transferFixed: async () => {
+              solanaCalls += 1;
+              return { kind: "landed", signature: "must-not-be-called" };
+            },
+            getSignatureStatus: async () => "confirmed",
+          },
+        }),
+        merchantReceivingAddress,
+      },
+    });
+
+    await port.authorizeAndCapture({
+      transactionId: (() => {
+        const r = createCounterId("transaction", new Uint8Array(16).fill(12));
+        if (!r.ok) throw new Error("bad txn id");
+        return r.value;
+      })(),
+      amountMinor: 4999,
+      currency: "INR",
+      idempotencyKey: "plain-razorpay-order",
+      variantId: "gid://shopify/ProductVariant/100",
+      quantity: 1,
+      // paymentReferenceId intentionally omitted — this is the existing
+      // one-shot Razorpay path, must route there exactly as before.
+    });
+
+    expect(solanaCalls).toBe(0);
+    expect(http.requests.filter((r) => r.path === "/v1/orders")).toHaveLength(1);
   });
 });

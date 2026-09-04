@@ -60,6 +60,12 @@ import type {
   ProviderPaymentEvidence,
 } from "@counter/payment-sdk";
 import type { ChargeRecurringParams } from "@counter/razorpay-adapter";
+import {
+  decodeSolanaPaymentReference,
+  deriveAssociatedTokenAddress,
+  encodeSolanaMetadata,
+  isSolanaPaymentReference,
+} from "@counter/crypto-adapter";
 import type { LifecyclePolicyPort, RecurringMandateLookupResult } from "./lifecycle-types.js";
 
 import type {
@@ -227,6 +233,30 @@ export interface RealLifecycleConfig {
    */
   readonly recurringMandateLookup?:
     | ((referenceId: string) => Promise<RecurringMandateLookupResult | undefined>)
+    | undefined;
+  /**
+   * Solana devnet settlement rail (Mandate Pivot Phase 3, hackathon-scoped
+   * — see packages/crypto-adapter's own header for what's deliberately
+   * simplified). Selected instead of the recurring/Razorpay branches when
+   * request.paymentReferenceId decodes as a Solana on-chain delegation
+   * (isSolanaPaymentReference/decodeSolanaPaymentReference) — see
+   * payment-reference-codec.ts for why that decode needs no separate
+   * lookup call.
+   *
+   * merchantReceivingAddress is a DEMO-SCOPED shortcut, not the intended
+   * design: it names ONE wallet address for the whole worker instance,
+   * the same single-pilot-merchant pattern boot.ts already uses for
+   * Razorpay credentials (see resolveRazorpayCredentialsForMerchant's own
+   * header) — resolved once at boot, not per-charge. A real multi-merchant
+   * version MUST resolve this per-charge from merchant.wallet_connections
+   * (apps/control-plane-api/src/merchant-wallet-connection-store.ts),
+   * keyed off the transaction's own merchant, exactly like the Phase 3
+   * plan's own write-up warns: a boot-time resolution here would misdirect
+   * every merchant's settlement to one address the moment there's a
+   * second merchant.
+   */
+  readonly solanaSettlement?:
+    | { readonly provider: PaymentProvider; readonly merchantReceivingAddress: string }
     | undefined;
 }
 
@@ -437,7 +467,55 @@ export function createRealPaymentAuthorizationPort(
       let razorpayOrderId: string | undefined;
       let authorized: AuthorizeCaptureOutcome;
 
-      if (request.paymentReferenceId !== undefined) {
+      if (
+        request.paymentReferenceId !== undefined &&
+        isSolanaPaymentReference(request.paymentReferenceId)
+      ) {
+        // 4+5 (Solana devnet branch — Mandate Pivot Phase 3, hackathon-scoped).
+        // No Shopify/Razorpay "order" exists in this path; razorpayOrderId
+        // stays undefined, same as the recurring branch below. Coordinates
+        // are decoded straight out of the reference — see
+        // payment-reference-codec.ts's header for why that needs no async
+        // lookup — never trusted from anywhere else, decoded fresh here for
+        // the actual money-moving call.
+        if (config.solanaSettlement === undefined) {
+          return declined(`solana-settlement-not-configured:${key}`);
+        }
+        const coordinates = decodeSolanaPaymentReference(request.paymentReferenceId);
+        if (coordinates === undefined) {
+          return declined(`solana-delegation-malformed:${key}`);
+        }
+        const receiverAta = await deriveAssociatedTokenAddress(
+          config.solanaSettlement.merchantReceivingAddress,
+          coordinates.tokenMint,
+        );
+        const solanaResult = await config.solanaSettlement.provider.createInstruction({
+          authorizationRef: key,
+          amount: toMoney(request.amountMinor, request.currency),
+          currency: request.currency as IsoCurrencyCode,
+          merchantId: config.merchantId,
+          idempotencyKey: key,
+          metadata: encodeSolanaMetadata({ coordinates, receiverAta }),
+        });
+        if (solanaResult.kind === "declined") {
+          return declined(`solana-declined:${key}`);
+        }
+        if (solanaResult.kind === "indeterminate") {
+          return indeterminate("solana.settlement.indeterminate", `solana:${key}`);
+        }
+        if (solanaResult.kind !== "confirmed") {
+          // action_required/pending are not reachable outcomes of a
+          // direct_capture provider's createInstruction (see
+          // solana-settlement-provider.ts) — handled explicitly rather than
+          // assumed away, same discipline the recurring branch below uses.
+          return indeterminate("solana.settlement.unexpected-outcome", `solana:${key}`);
+        }
+        authorized = {
+          kind: "captured",
+          evidence: solanaResult.evidence,
+          capturedMinor: request.amountMinor,
+        };
+      } else if (request.paymentReferenceId !== undefined) {
         // 4+5 (recurring branch). Charge against an already-authorized
         // recurring payment mandate instead of creating a fresh one-shot
         // order — no Razorpay "order" exists in this path, so

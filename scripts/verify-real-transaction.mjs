@@ -198,7 +198,7 @@ async function main() {
   // connector + real Razorpay provider + CTP-signed CounterTestPaymentProvider,
   // returning the exact PaymentAuthorizationPort the worker drives. Steps 2-8
   // happen INSIDE authorizeAndCapture -- we do not re-implement them here.
-  const selected = selectPaymentAuthorizationPort(env);
+  const selected = await selectPaymentAuthorizationPort(env);
   if (selected.mode !== "real") {
     throw new Error(
       `Expected the worker to select the REAL connector port but it selected '${selected.mode}'.`,

@@ -9,6 +9,9 @@
       "path": "../../packages/connector-sdk/tsconfig.build.json"
     },
     {
+      "path": "../../packages/crypto-adapter/tsconfig.build.json"
+    },
+    {
       "path": "../../packages/data/tsconfig.build.json"
     },
     {
