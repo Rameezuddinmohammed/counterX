@@ -45,6 +45,9 @@ export type {
 // Real port (talks to actual devnet — see its header for verification status)
 export { createRealSolanaSettlementPort } from "./real-solana-port.js";
 
+// Charge-time ATA derivation (merchant receiving address -> token account)
+export { deriveAssociatedTokenAddress } from "./associated-token.js";
+
 // Mandate-issuance-time helpers
 export { initSubscriptionAuthority, createOnChainDelegation } from "./mandate-delegation.js";
 export type {
