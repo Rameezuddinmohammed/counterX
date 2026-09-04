@@ -34,7 +34,7 @@ import {
   PostgresRevocationStore,
 } from "@counter/data";
 import type { AsyncJobRepository } from "@counter/data";
-import type { ShopifyGraphQLPort } from "@counter/shopify-connector";
+import { createShopifyConnectorFromConfig } from "@counter/shopify-connector";
 import type { ShopifyConnector } from "@counter/shopify-connector";
 import { isCtpEnvelope, verifyEnvelope } from "@counter/trust-protocol";
 import type { WalletMandate } from "@counter/wallet-domain";
@@ -43,6 +43,11 @@ import { buildQuote } from "./quote-builder.js";
 import { PostgresCtpKeyRegistry } from "@counter/data";
 import { TransactionReadModel, STEP_CANCEL, STEP_MARK_PAID } from "./transaction-read-model.js";
 import { MerchantDirectoryStore } from "./merchant-directory-store.js";
+import {
+  MerchantShopifyConnectionStore,
+  type MerchantShopifyConnectionStoreLike,
+} from "./merchant-shopify-connection-store.js";
+import { DEFAULT_SHOPIFY_API_VERSION } from "./connector-env.js";
 import type {
   CancelHandler,
   CapabilityHandler,
@@ -61,8 +66,64 @@ import type {
 export interface RealHandlerDeps {
   readonly database: TransactionalDatabase;
   readonly environment: Environment;
-  readonly shopify: ShopifyConnector;
   readonly jobRepository: AsyncJobRepository;
+  /**
+   * Shopify Admin API version used when constructing a per-merchant
+   * connector (see connector-env.ts's DEFAULT_SHOPIFY_API_VERSION, used
+   * when this is absent/blank). NOT merchant-specific: each merchant's own
+   * credential (shop domain + access token) lives in
+   * merchant.shopify_connections and is resolved per request — API version
+   * is a platform-wide config knob, not a secret, so one value covers every
+   * merchant.
+   */
+  readonly shopifyApiVersion?: string | undefined;
+}
+
+// ─── Shopify connector resolution (per-merchant, per-request) ─────────────────
+
+/**
+ * Resolves the ShopifyConnector for ONE merchant, fresh, from that
+ * merchant's own durable connection — never a shared/global connector. This
+ * is what fixes the cross-tenant catalog bug this module used to have: a
+ * single ShopifyConnector built once at boot (from
+ * SHOPIFY_STORE_DOMAIN/SHOPIFY_ACCESS_TOKEN) and handed to every
+ * merchantId's search/product/quote/capability/cancel handlers regardless
+ * of which merchant was actually in the URL.
+ */
+export interface ShopifyConnectorResolver {
+  /** `undefined` when the merchant has no active Shopify connection — callers must return `not_found`/`indeterminate`, never fall back to another merchant's connector. */
+  resolve(merchantId: string): Promise<ShopifyConnector | undefined>;
+}
+
+/**
+ * Deliberately UNCACHED. Constructing a ShopifyConnector performs no
+ * network I/O itself (createShopifyConnectorFromConfig just builds a thin
+ * GraphQL-client wrapper — see its header) and the store lookup is a single
+ * indexed primary-key read, both negligible at pilot scale (a handful of
+ * merchants, low request volume). A cache would trade that negligible cost
+ * for a real correctness risk instead: a merchant who reconnects (new
+ * token) or revokes their connection would keep being served the stale
+ * cached connector until the cache's TTL expired — silently using a dead or
+ * wrong credential. Revisit only if per-request DB load is ever measured to
+ * actually matter.
+ */
+class MerchantShopifyConnectorResolver implements ShopifyConnectorResolver {
+  constructor(
+    private readonly store: MerchantShopifyConnectionStoreLike,
+    private readonly apiVersion: string,
+  ) {}
+
+  async resolve(merchantId: string): Promise<ShopifyConnector | undefined> {
+    const connection = await this.store.getActive(merchantId);
+    if (connection === undefined) {
+      return undefined;
+    }
+    return createShopifyConnectorFromConfig({
+      shopDomain: connection.shopDomain,
+      accessToken: connection.accessToken,
+      apiVersion: this.apiVersion,
+    });
+  }
 }
 
 // ─── Shared formatting helpers ────────────────────────────────────────────────
@@ -94,9 +155,13 @@ async function freshJobId() {
 
 // ─── Capability ────────────────────────────────────────────────────────────────
 
-function createCapabilityHandler(shopify: ShopifyConnector): CapabilityHandler {
+function createCapabilityHandler(resolver: ShopifyConnectorResolver): CapabilityHandler {
   return {
     async handle(ctx) {
+      const shopify = await resolver.resolve(ctx.merchantId);
+      if (shopify === undefined) {
+        return errResult({ kind: "not_found" as const });
+      }
       let connectorStatus: "connected" | "disconnected" | "degraded" = "connected";
       if (shopify.health !== undefined) {
         try {
@@ -124,11 +189,15 @@ function createCapabilityHandler(shopify: ShopifyConnector): CapabilityHandler {
 
 // ─── Search / Product ──────────────────────────────────────────────────────────
 
-function createSearchHandler(client: ShopifyGraphQLPort): SearchHandler {
+function createSearchHandler(resolver: ShopifyConnectorResolver): SearchHandler {
   return {
     async handle(ctx, input) {
+      const shopify = await resolver.resolve(ctx.merchantId);
+      if (shopify === undefined) {
+        return errResult({ kind: "not_found" as const });
+      }
       const limit = input.pagination?.limit ?? 10;
-      const variants = await searchCatalog(client, input.query, limit);
+      const variants = await searchCatalog(shopify.client, input.query, limit);
       return okResult({
         merchantId: ctx.merchantId,
         results: variants.map((variant) => ({
@@ -144,10 +213,14 @@ function createSearchHandler(client: ShopifyGraphQLPort): SearchHandler {
   };
 }
 
-function createProductHandler(client: ShopifyGraphQLPort): ProductHandler {
+function createProductHandler(resolver: ShopifyConnectorResolver): ProductHandler {
   return {
     async handle(ctx, variantId) {
-      const variant = await getCatalogVariant(client, variantId);
+      const shopify = await resolver.resolve(ctx.merchantId);
+      if (shopify === undefined) {
+        return errResult({ kind: "not_found" as const });
+      }
+      const variant = await getCatalogVariant(shopify.client, variantId);
       if (variant === undefined) {
         return errResult({ kind: "not_found" as const });
       }
@@ -168,12 +241,16 @@ function createProductHandler(client: ShopifyGraphQLPort): ProductHandler {
 // ─── Quote ───────────────────────────────────────────────────────────────────
 
 function createQuoteHandler(
-  client: ShopifyGraphQLPort,
+  resolver: ShopifyConnectorResolver,
   quoteStore: PostgresQuoteStore,
 ): QuoteHandler {
   return {
     async handle(ctx, input) {
-      const variant = await getCatalogVariant(client, input.variantId);
+      const shopify = await resolver.resolve(ctx.merchantId);
+      if (shopify === undefined) {
+        return errResult({ kind: "not_found" as const });
+      }
+      const variant = await getCatalogVariant(shopify.client, input.variantId);
       if (variant === undefined) {
         return errResult({ kind: "not_found" as const });
       }
@@ -591,7 +668,7 @@ function createPaymentActionResultHandler(
 function createCancelHandler(
   database: TransactionalDatabase,
   environment: Environment,
-  shopify: ShopifyConnector,
+  resolver: ShopifyConnectorResolver,
 ): CancelHandler {
   const readModel = new TransactionReadModel(database, environment);
   const stepLedger = new PostgresStepLedger(database, environment);
@@ -605,6 +682,20 @@ function createCancelHandler(
 
       const orderId = await readModel.stepReference(transactionId, STEP_MARK_PAID);
       if (orderId !== undefined) {
+        // The transaction genuinely exists and reached a paid Shopify order —
+        // a missing connector here is an operational gap (e.g. the
+        // merchant's connection was revoked after the order was placed), NOT
+        // "this transaction doesn't exist". indeterminate is the honest
+        // shape: we cannot confirm-or-deny the cancel against Shopify right
+        // now, and the caller should query-before-retry rather than assume
+        // failure or fall back to a different merchant's connector.
+        const shopify = await resolver.resolve(ctx.merchantId);
+        if (shopify === undefined) {
+          return errResult({
+            kind: "indeterminate" as const,
+            correlationId: ctx.correlationId,
+          });
+        }
         const outcome = await shopify.orderCancel.execute({
           payload: {
             orderId,
@@ -832,12 +923,16 @@ function createDirectoryHandler(store: MerchantDirectoryStore): DirectoryHandler
 // ─── Factory ─────────────────────────────────────────────────────────────────
 
 export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
+  const connectionStore = new MerchantShopifyConnectionStore(deps.database, deps.environment);
+  const apiVersion = deps.shopifyApiVersion?.trim() || DEFAULT_SHOPIFY_API_VERSION;
+  const shopifyResolver = new MerchantShopifyConnectorResolver(connectionStore, apiVersion);
+
   return {
-    capability: createCapabilityHandler(deps.shopify),
-    search: createSearchHandler(deps.shopify.client),
-    product: createProductHandler(deps.shopify.client),
+    capability: createCapabilityHandler(shopifyResolver),
+    search: createSearchHandler(shopifyResolver),
+    product: createProductHandler(shopifyResolver),
     quote: createQuoteHandler(
-      deps.shopify.client,
+      shopifyResolver,
       new PostgresQuoteStore(deps.database, deps.environment),
     ),
     transactionCreate: createTransactionCreateHandler(
@@ -849,15 +944,24 @@ export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
       new TransactionReadModel(deps.database, deps.environment),
     ),
     paymentActionResult: createPaymentActionResultHandler(deps.database, deps.environment),
-    cancel: createCancelHandler(deps.database, deps.environment, deps.shopify),
+    cancel: createCancelHandler(deps.database, deps.environment, shopifyResolver),
     refund: createRefundHandler(deps.database, deps.environment),
     receipt: createReceiptHandler(deps.database, deps.environment),
     directory: createDirectoryHandler(new MerchantDirectoryStore(deps.database, deps.environment)),
   };
 }
 
-/** Test-only surface: lets integration tests exercise transactionCreate's
- * durable mandate-authority enforcement directly, without needing a real
- * Shopify connector (which the other handlers in this bundle require but
- * transactionCreate itself does not). */
-export const __testing = Object.freeze({ createTransactionCreateHandler });
+/** Test-only surface: lets tests exercise individual handler factories
+ * directly — transactionCreate's durable mandate-authority enforcement
+ * against real Postgres (no Shopify connector needed for that one), and the
+ * Shopify-dependent handlers' per-merchant connector resolution against a
+ * fake ShopifyConnectorResolver (no real Postgres or Shopify network calls
+ * needed for that). */
+export const __testing = Object.freeze({
+  createTransactionCreateHandler,
+  createCapabilityHandler,
+  createSearchHandler,
+  createProductHandler,
+  createQuoteHandler,
+  createCancelHandler,
+});

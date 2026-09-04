@@ -69,16 +69,24 @@ databaseDescribe("MerchantDirectoryStore (real Postgres)", () => {
     }
   }, databaseHookTimeout);
 
-  /** Seeds a full merchant fixture, optionally with a live Shopify connection and/or a confirmed manifest. */
+  /**
+   * Seeds a full merchant fixture, optionally with a live Shopify
+   * connection and/or a confirmed manifest, at a caller-chosen
+   * lifecycle_state. Defaults to 'ACTIVE' — the real discoverability gate
+   * this store now enforces — so callers that only care about the
+   * Shopify/manifest dimensions don't have to think about lifecycle state.
+   */
   async function seedMerchant(options: {
     readonly legalEntityName: string;
     readonly withShopifyConnection: boolean;
     readonly withManifest: boolean;
+    readonly lifecycleState?: string;
   }): Promise<string> {
     const merchantId = freshMerchantId();
     const actorId = freshActorId();
     const subject = `merchant-directory-test|${randomBytes(6).toString("hex")}`;
     const now = new Date().toISOString();
+    const lifecycleState = options.lifecycleState ?? "ACTIVE";
     seededMerchantIds.push(merchantId);
 
     await database.query(
@@ -101,8 +109,8 @@ databaseDescribe("MerchantDirectoryStore (real Postgres)", () => {
       `INSERT INTO merchant.onboarding_applications
          (environment, merchant_id, auth0_subject, merchant_user_actor_id,
           legal_entity_name, approval_status, lifecycle_state, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'pending', 'SANDBOX_READY', $6, $6)`,
-      [ENVIRONMENT, merchantId, subject, actorId, options.legalEntityName, now],
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $7)`,
+      [ENVIRONMENT, merchantId, subject, actorId, options.legalEntityName, lifecycleState, now],
     );
     if (options.withShopifyConnection) {
       const suffix = randomBytes(4).toString("hex");
@@ -127,16 +135,37 @@ databaseDescribe("MerchantDirectoryStore (real Postgres)", () => {
   }
 
   it(
-    "lists a merchant with an active Shopify connection AND a confirmed manifest",
+    "lists a merchant with an active Shopify connection, a confirmed manifest, AND lifecycle_state = 'ACTIVE'",
     async () => {
       const merchantId = await seedMerchant({
         legalEntityName: "Directory Test Fully Onboarded",
         withShopifyConnection: true,
         withManifest: true,
+        lifecycleState: "ACTIVE",
       });
 
       const results = await store.list(undefined, 50);
       expect(results.some((m) => m.merchantId === merchantId)).toBe(true);
+    },
+    databaseHookTimeout,
+  );
+
+  it(
+    // The actual thing "make a merchant genuinely go live" cashes out to
+    // for a buyer: a merchant that finished the wizard (Shopify connected,
+    // manifest confirmed) but has NOT yet been operator-approved out of
+    // ACTIVATION_REVIEW must never be shown to a buyer agent.
+    "excludes a merchant sitting in ACTIVATION_REVIEW (manifest confirmed, Shopify connected, not yet operator-approved)",
+    async () => {
+      const merchantId = await seedMerchant({
+        legalEntityName: "Directory Test Pending Operator Review",
+        withShopifyConnection: true,
+        withManifest: true,
+        lifecycleState: "ACTIVATION_REVIEW",
+      });
+
+      const results = await store.list(undefined, 50);
+      expect(results.some((m) => m.merchantId === merchantId)).toBe(false);
     },
     databaseHookTimeout,
   );
@@ -172,6 +201,22 @@ databaseDescribe("MerchantDirectoryStore (real Postgres)", () => {
   );
 
   it(
+    "excludes a merchant with Shopify + manifest that is still SANDBOX_READY (readiness passed, manifest not yet confirmed)",
+    async () => {
+      const merchantId = await seedMerchant({
+        legalEntityName: "Directory Test Sandbox Ready Only",
+        withShopifyConnection: true,
+        withManifest: true,
+        lifecycleState: "SANDBOX_READY",
+      });
+
+      const results = await store.list(undefined, 50);
+      expect(results.some((m) => m.merchantId === merchantId)).toBe(false);
+    },
+    databaseHookTimeout,
+  );
+
+  it(
     "search query filters by display name, case-insensitively",
     async () => {
       const uniqueToken = randomBytes(4).toString("hex");
@@ -179,6 +224,7 @@ databaseDescribe("MerchantDirectoryStore (real Postgres)", () => {
         legalEntityName: `Zephyr Traders ${uniqueToken}`,
         withShopifyConnection: true,
         withManifest: true,
+        lifecycleState: "ACTIVE",
       });
 
       const matched = await store.list(`zephyr traders ${uniqueToken}`.toUpperCase(), 50);
