@@ -214,15 +214,15 @@ Released additionally requires enablement for a named cohort, monitoring, docume
 |---|---|---|
 | Counter Trust Protocol | Planned | Counter v0.x schemas and invariant suite |
 | Counter Native API | Planned | Published Counter contract and E2E evidence |
-| Counter Agent Wallet | Planned | Wallet requirements and pilot evidence |
-| MCP tool adapter | Planned | Pinned MCP profile plus Counter tool contract |
+| Counter Agent Wallet | In Progress | Core loop (fund balance, sign mandate, agent-bounded purchase, over-limit decline) verified live end to end — see `HANDOFF.md`; full wallet-requirements evidence bundle (§11) not yet formally assembled |
+| MCP tool adapter | In Progress | Real wallet-status/quote/purchase tool calls proven live against deployed infrastructure; full pinned-profile evidence bundle not yet formally assembled |
 | ACP adapter | Deferred from pilot | Pinned strict subset plus independent client evidence |
 | AP2 adapter | Deferred; design-aligned | Pinned trust profile plus independent evidence |
 | NPCI UAP adapter | Watch-only/Deferred | Canonical spec, access, approvals, certification evidence |
 | x402 adapter | Deferred | Approved use case/rail/profile and evidence |
 | Counter test payment provider | Planned test substitution | Deterministic test-only invariant suite; rejected outside test environments; no external compatibility claim |
-| Razorpay adapter | Planned test mode | Pinned human-present Standard Checkout test contract; no live/autonomy claim |
-| Shopify connector | Planned | Pilot Connector Contract evidence |
+| Razorpay adapter | In Progress | Real order creation, hosted checkout, HMAC + authoritative payment verification proven live — see `HANDOFF.md`; full pinned-contract evidence bundle not yet formally assembled |
+| Shopify connector | In Progress | Real draft-order creation, finalize, and mark-paid proven live repeatedly — see `HANDOFF.md`; full Pilot Connector Contract evidence bundle not yet formally assembled |
 | Generic REST connector | Planned reference | Reference fixtures/certification; not pilot merchant support |
 | Other connectors/rails | Deferred | Separate manifest and gates |
 
@@ -241,7 +241,7 @@ Before release and periodically thereafter, Counter checks canonical sources and
 - Provider test mode is not a live payment rail.
 - Hosted Razorpay checkout is not ACP, AP2, UAP, or x402 compatibility.
 - “NPCI UAP-ready,” “Reserve Pay supported,” and “agentic UPI” are prohibited without a defined profile, access, approvals, and evidence.
-- Counter Agent Wallet is not a bank/payment account or stored-value balance.
+- Counter Agent Wallet's spending balance is not a bank account or a general-purpose stored-value product — it is single-user, single-purpose, and scoped to that one user's own agent spending.
 - A local record, redirect, merchant claim, or model output is not payment truth.
 - A connector read capability is not write certification.
 - Universal architecture is not universal released support.

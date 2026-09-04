@@ -1,5 +1,8 @@
 # Requirements Document
 
+> **RETIRED — historical planning artifact.** Written during early feature planning, before implementation. `CLAUDE.md`'s own source-of-truth hierarchy already marks `.kiro/specs/**/tasks.md` as stale for completion status; this applies to this whole spec bundle. For current, verified state, see `HANDOFF.md` and `README.md`.
+
+
 **Feature:** Counter Platform Foundation  
 **Spec:** `counter-platform-foundation`  
 **Version:** 3.1  

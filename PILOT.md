@@ -191,7 +191,7 @@ Required before implementation composition:
 - exact Shopify/Razorpay/MCP/crypto/schema versions pinned;
 - CTP schemas and four core interfaces frozen for implementation;
 - cohort, owners, limits, retention, support, and data flow approved;
-- threat models and legal/privacy/payment review find no blocker for test-only non-custodial pilot.
+- threat models and legal/privacy/payment review find no blocker for a test-only pilot with a single-user, single-purpose spending balance.
 
 ## 7. Gate B — No-money and autonomous Counter-test end to end
 

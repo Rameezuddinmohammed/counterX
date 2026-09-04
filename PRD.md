@@ -1,8 +1,8 @@
 ﻿# Counter Agent Commerce Platform
 
-**Document version:** 3.1  
+**Document version:** 3.2  
 **Document status:** Canonical product definition  
-**Product status:** Planned; documentation is not implementation evidence  
+**Product status:** The core buyer loop — fund a spending balance, sign a bounded mandate, an agent transacts against it, over-limit purchases are declined before any effect — is built and verified against live infrastructure (real Razorpay checkout, real Shopify store, real Auth0 identity). See `HANDOFF.md` and `README.md` for current verified state. Broader platform scope (full merchant self-serve, additional rails) remains in progress.  
 **Target release:** Invite-only India retail pilot using test payments  
 **Audience:** Product, engineering, security, legal, payments, operations, partners, and merchant success
 
@@ -11,7 +11,7 @@
 Counter is an India-first, two-sided, protocol-neutral agent-commerce platform.
 
 - **Counter Merchant** lets a merchant connect existing systems and activate a machine-facing commercial representative that agents can discover and transact with.
-- **Counter Agent Wallet** lets a person register an agent, define bounded purchasing authority, attach non-custodial payment authorization references, review activity, revoke authority, and retain evidence.
+- **Counter Agent Wallet** lets a person register an agent, fund a real spending balance through a regulated payment provider, define bounded purchasing authority against that balance, review activity, revoke authority, and retain evidence.
 - **Counter Trust Protocol** is Counter's versioned canonical contract between both products for identity, principal-agent binding, mandates, intents, quotes, policy decisions, evidence, events, and signed receipts.
 
 Counter connects external agent interfaces, commerce protocols, trust protocols, payment rails, and merchant backends through independently versioned adapters. Merchants integrate once and may become reachable through multiple supported agent ecosystems. Buyer agents integrate once and may transact with compatible merchants under user-set limits.
@@ -36,7 +36,7 @@ A standard checkout message does not onboard a merchant, normalize inventory, pr
 
 ## 3. Vision and positioning
 
-**Vision:** Any legitimate merchant can become safely transactable by authorized AI agents without rebuilding its commerce stack, and any compatible agent can transact under user-defined authority without Counter holding the user's money.
+**Vision:** Any legitimate merchant can become safely transactable by authorized AI agents without rebuilding its commerce stack, and any compatible agent can transact under a spending limit the user sets and funds directly — enforced before every purchase, never after.
 
 **Merchant promise:** Integrate once. Counter exposes only verified capabilities through supported agent interfaces while the merchant remains seller, merchant of record, payment-account owner, and system-of-record owner.
 
@@ -47,11 +47,11 @@ A standard checkout message does not onboard a merchant, normalize inventory, pr
 ## 4. Goals
 
 1. Activate a fixed-price retail merchant through a guided, evidence-backed path.
-2. Give users a non-custodial agent identity, policy, mandate, approval, revocation, and receipt product.
+2. Give users a bounded-spending agent identity, policy, mandate, approval, revocation, and receipt product.
 3. Maintain one canonical commerce model and one shared trust contract with adapters at every boundary.
 4. Support any AI agent capable of the declared Native API or MCP contract; MCP is optional, not the canonical domain model.
 5. Enforce bounded autonomy: an agent may act only within signed current authority, buyer policy, merchant policy, provider constraints, and platform safety rules.
-6. Keep payment instruments and funds with regulated providers; Counter stores only permitted opaque references.
+6. Fund every spending balance through a regulated payment provider (Razorpay), and account for every debit against it precisely.
 7. Prevent duplicate effects and represent uncertainty explicitly.
 8. Verify buyer intent, merchant state, provider state, and fulfillment evidence independently.
 9. Automate only typed, policy-authorized compensation; otherwise create an owned human task.
@@ -62,8 +62,7 @@ A standard checkout message does not onboard a merchant, normalize inventory, pr
 
 Under this product definition Counter is not:
 
-- a bank, PPI issuer, TPAP, payment aggregator, acquirer, issuer, lender, escrow, settlement intermediary, or custodian;
-- a stored-value account, reloadable balance, payment instrument, or place where users top up money;
+- a bank, PPI issuer, TPAP, payment aggregator, acquirer, issuer, lender, or licensed settlement intermediary;
 - the merchant of record, marketplace seller, or replacement for merchant ERP, OMS, CRM, PIM, WMS, tax, shipping, or PSP systems;
 - a universal industry standard or a certification authority for third-party protocols;
 - a system that stores PAN, CVV, UPI PIN, bank credentials, private payment keys, or equivalent secrets;
@@ -71,7 +70,7 @@ Under this product definition Counter is not:
 - a guarantee that dependencies never fail;
 - a public, global, multi-vertical launch in the first release.
 
-A future Counter-branded stored-value product requires a separate product definition, legal program, and an RBI-authorized PPI issuer, bank, PSP, or other regulated partner. It is not an extension of this pilot by default.
+Counter Agent Wallet does fund a real, per-user spending balance through a regulated payment provider — see §14 — scoped narrowly to backing that one user's own agent-spending limit. It is not a general-purpose stored-value or payment product: it never pools funds across users, never issues a redeemable or transferable instrument, and never accepts funds for anything other than powering that user's own bounded agent purchases. Scaling this into a general-purpose stored-value product remains a separate product definition, legal program, and regulated-partner decision.
 
 ## 6. Product components
 
@@ -269,16 +268,16 @@ Every consequential operation binds the current mandate/authority, buyer policy,
 
 ## 14. Payment model
 
-Counter Agent Wallet is non-custodial:
+A buyer funds their agent's spending balance through a real payment (Razorpay checkout, test mode in the pilot), verified by an authoritative provider check — never by trusting a client redirect or a model's claim. From there:
 
-- Counter does not hold, pool, receive, transmit, or settle buyer or merchant funds;
-- funds move through an approved provider/regulated participant from the buyer's instrument to the merchant's provider account;
-- the merchant remains seller and merchant of record;
-- Counter stores only minimum opaque references/tokens allowed by provider agreement;
+- the funded balance is scoped to that one buyer, backing only their own agent's bounded purchases — never pooled with other buyers' funds, never a general-purpose or transferable instrument;
+- every purchase is checked against the buyer's signed mandate and the remaining balance *before* any external effect (the Shopify order, the debit) happens — an over-limit or over-budget purchase is declined before anything is created, not rolled back after;
+- the merchant remains seller and merchant of record; funds for the merchant's own side move through the merchant's own connected payment provider;
+- Counter stores only minimum opaque references/tokens allowed by provider agreement, and never raw credentials;
 - Counter never exposes raw credentials to an agent or model;
 - payment success requires verified provider API or signed webhook evidence;
 - redirects, model output, wallet state, and merchant claims are not payment truth;
-- refunds use the merchant/provider path and are never credited to a Counter balance.
+- refunds use the merchant/provider path.
 
 The pilot has two explicitly separate test-payment paths:
 
@@ -383,7 +382,7 @@ The pilot succeeds only when evidence shows:
 
 | Risk | Mitigation |
 |---|---|
-| “Wallet” implies regulated stored value | Repeat non-custodial definition; no balance/top-up; legal/payment review |
+| “Wallet” implies a general-purpose regulated stored-value product | Keep the balance strictly single-user and single-purpose (funds only that user's own agent spending, never pooled or transferable); legal/payment review before any broader stored-value scope |
 | Protocol scope explodes | Canonical core, finite manifests, role-specific adapters, narrow pilot |
 | Lowest-common-denominator translation weakens authority | Preserve source artifacts and fail closed on semantic loss |
 | UAP or provider access is restricted | Partner strategy and adapter boundary; no speculative implementation |
@@ -393,7 +392,7 @@ The pilot succeeds only when evidence shows:
 | Merchant systems disagree | Provenance, source priority, freshness, reconciliation |
 | Payment/order outcome is ambiguous | Idempotency, outbox, provider queries, indeterminate states |
 | Two-sided cold start | Merchant-first pilot plus first-party reference Agent Wallet |
-| Counter drifts into regulated roles | Non-custodial architecture, contracts, separate future program gate |
+| Counter drifts into regulated roles | Balance stays single-user, single-purpose, and non-pooled by architecture; contracts and a separate future program gate for any broader stored-value scope |
 
 ## 22. Document authority
 
