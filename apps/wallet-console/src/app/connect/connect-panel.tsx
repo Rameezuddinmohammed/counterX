@@ -97,7 +97,18 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       // step-up assurance — trigger it once, up front, covering every
       // request below.
       setStep({ status: "step-up", label: "Confirming it's really you…" });
-      await mfa.challengeWithPopup({ audience: API_AUDIENCE });
+      try {
+        await mfa.challengeWithPopup({ audience: API_AUDIENCE });
+      } catch (stepUpError) {
+        console.error("[connect] step-up failed:", stepUpError);
+        const name = stepUpError instanceof Error ? stepUpError.name : "UnknownError";
+        const detail = stepUpError instanceof Error ? stepUpError.message : String(stepUpError);
+        setStep({
+          status: "error",
+          message: `Verification step failed (${name}): ${detail}`,
+        });
+        return;
+      }
 
       // 2. Generate a disposable "consent" keypair — its ONLY job is to
       // sign this mandate, proving a human (not just a session) approved
@@ -205,11 +216,14 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       }
 
       setStep({ status: "done", mandateId: submitResult.value.mandateId, agentId: agentId.trim() });
-    } catch {
+    } catch (unexpectedError) {
+      console.error("[connect] unexpected failure:", unexpectedError);
+      const name = unexpectedError instanceof Error ? unexpectedError.name : "UnknownError";
+      const detail =
+        unexpectedError instanceof Error ? unexpectedError.message : String(unexpectedError);
       setStep({
         status: "error",
-        message:
-          "Something went wrong — make sure pop-ups are allowed for this site, then try again.",
+        message: `Unexpected error (${name}): ${detail}`,
       });
     }
   }
