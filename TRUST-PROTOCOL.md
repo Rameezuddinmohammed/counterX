@@ -2,7 +2,7 @@
 
 **Protocol version:** 0.1 design baseline  
 **Document version:** 3.1  
-**Status:** Canonical Counter-owned contract; Planned  
+**Status:** Canonical Counter-owned contract. Core mechanics (signed mandate envelopes, agent-signed purchase intents, independent signature re-verification) are proven live — see `HANDOFF.md`. The full CTP 0.1 invariant suite (§19) is not yet formally verified end to end.  
 **Scope:** Counter Merchant ↔ Counter Agent Wallet ↔ shared execution/verification services
 
 ## 1. Purpose and status

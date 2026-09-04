@@ -1,5 +1,9 @@
 ﻿# Counter v3.1 Delivery Plan
 
+> **RETIRED — historical.** This was the original delivery sequence, written before most of the platform existed. It's superseded by everything that's actually shipped since (see `HANDOFF.md` for current state and `README.md` for the product as built). Kept as a record of the original plan, not as current guidance.
+
+
+
 **Document version:** 3.1  
 **Status:** Canonical delivery sequence  
 **Current state:** Foundation tasks 1–3 have repository implementation; the shared foundation is In Progress, while merchant, Wallet, adapter, protocol, and provider capabilities remain Planned with no external-provider run evidence  
