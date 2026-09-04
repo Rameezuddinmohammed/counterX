@@ -7,13 +7,33 @@
  * their own check and together exceed the cap.
  *
  * This ledger performs an ATOMIC check-and-reserve inside a single database
- * transaction. It locks the wallet's windowed rows FOR UPDATE, sums the
- * committed spend + attempt count in the rolling window, rejects if the new
- * amount would breach the per-transaction ceiling, the attempt ceiling, or the
- * rolling total, and otherwise INSERTs the reservation — all before the lock is
- * released. Two concurrent reservations serialize on the lock, so the second
- * observes the first's committed row and is correctly rejected. The guarantee
- * is enforced by Postgres, not by application control flow.
+ * transaction: acquire a per-wallet advisory lock, sum the committed spend +
+ * attempt count in the rolling window, reject if the new amount would breach
+ * the per-transaction ceiling, the attempt ceiling, or the rolling total, and
+ * otherwise INSERT the reservation — all before the lock is released at
+ * COMMIT/ROLLBACK. Two concurrent reservations for the SAME wallet serialize
+ * on the advisory lock (different wallets never block each other), so the
+ * second observes the first's committed row before computing its own total.
+ *
+ * CORRECTED 2026-09-04 (previously documented here, and in this table's own
+ * migration comment, as already guaranteed — it was not): the prior
+ * implementation relied on `SELECT ... FOR UPDATE` over the windowed rows
+ * instead of an explicit lock. `FOR UPDATE` can only lock rows that already
+ * exist; on a wallet's FIRST reservation (empty window) there is nothing to
+ * lock, so two concurrent first-ever reservations both observed zero rows
+ * and both inserted. Verified against a real Postgres instance: three
+ * concurrent 400,000-minor reservations against a 1,000,000 cap, empty
+ * window, ALL THREE succeeded — committed total 1,200,000, a 20% breach.
+ * This was exactly the risk COUNTERX-ARCHITECTURE.md §7.8 had already
+ * flagged as real-but-unverified; it is now verified, and fixed by the
+ * pg_advisory_xact_lock below, which serializes on the wallet regardless of
+ * whether its window is empty. (A second, broader claim from the same
+ * investigation — that a NON-empty window also breaches — could not be
+ * reproduced: the pre-existing integration test below exercises exactly
+ * that scenario and passed 5/5 runs before this fix, because `FOR UPDATE`
+ * over rows that DO already exist genuinely does serialize correctly. Take
+ * every "verified" claim in this history at face value only as far as its
+ * own reproduction went.)
  *
  * Idempotency: the reference is UNIQUE per (environment, wallet); a retry of the
  * same transaction reference is a no-op (ON CONFLICT DO NOTHING) and returns the
@@ -23,6 +43,7 @@
  * currency code, and timestamps. No credentials or secrets are ever touched.
  */
 
+import { createHash } from "node:crypto";
 import {
   createCanonicalError,
   err,
@@ -88,6 +109,23 @@ interface ExistingRow extends QueryResultRow {
   readonly reference: string;
 }
 
+/**
+ * Deterministic signed-64-bit key for `pg_advisory_xact_lock`, derived from
+ * (environment, walletId). SHA-256 rather than a 32-bit hash (e.g.
+ * `hashtext`) to keep the collision domain large enough that this repo never
+ * has to reason about two different wallets sharing a lock — the tenant
+ * count here is small today, but there is no reason to leave that as an
+ * assumption. asIntN(64, ...) reinterprets the top 8 bytes as Postgres's
+ * signed int8; the specific sign/bit-pattern carries no meaning, only
+ * determinism and spread matter for an advisory lock key.
+ */
+function walletLockKey(environment: Environment, walletId: string): bigint {
+  const digest = createHash("sha256").update(`${environment}:${walletId}`, "utf8").digest();
+  const top8Bytes = digest.subarray(0, 8);
+  const unsigned = top8Bytes.readBigUInt64BE(0);
+  return BigInt.asIntN(64, unsigned);
+}
+
 // ─── Postgres spend ledger ──────────────────────────────────────────────────────
 
 export class PostgresSpendLedger {
@@ -143,8 +181,20 @@ export class PostgresSpendLedger {
     }
 
     const windowStartIso = new Date(request.nowMs - cfg.windowMs).toISOString();
+    const lockKey = walletLockKey(this.environment, request.walletId);
 
     return this.database.transaction(async (session) => {
+      // Serialize every reserveSpend for THIS wallet, first statement in the
+      // transaction, before anything is read. pg_advisory_xact_lock blocks a
+      // concurrent caller for the same wallet until this transaction commits
+      // or rolls back (auto-released either way — no separate unlock call
+      // needed, so an early return or a thrown error can never leak it).
+      // Unlike `SELECT ... FOR UPDATE` on the windowed rows (this file's
+      // history above), this lock exists and can be acquired even when the
+      // wallet has never reserved anything before — closing the empty-window
+      // gap that let concurrent first-ever reservations both see zero rows.
+      await session.query("SELECT pg_advisory_xact_lock($1)", [lockKey.toString()]);
+
       // Idempotency: if this reference is already reserved for the wallet, treat
       // it as an allowed no-op (do NOT re-count it against the window).
       const existing = await session.query<ExistingRow>(
@@ -156,8 +206,10 @@ export class PostgresSpendLedger {
         return ok(Object.freeze({ allowed: true as const, alreadyReserved: true }));
       }
 
-      // Lock the wallet's windowed rows so a concurrent reserve for the same
-      // wallet serializes behind this transaction and observes our INSERT.
+      // Serialization for a concurrent reserve on this wallet is now the
+      // advisory lock above, not this FOR UPDATE — kept anyway as harmless
+      // defense-in-depth (and it still does lock these rows against a
+      // concurrent WRITER outside reserveSpend, if one is ever added).
       const agg = await session.query<WindowAggRow>(
         `SELECT count(*)::text AS attempt_count, sum(amount_minor)::text AS total_minor
            FROM (
