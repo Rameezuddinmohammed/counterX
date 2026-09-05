@@ -89,6 +89,33 @@ class FakeShopifyConnectionProvisioner implements ShopifyConnectionProvisionerLi
     return this.nextCompleteResult;
   }
 
+  readonly connectWithTokenCalls: Array<{
+    merchantId: string;
+    shopDomain: string;
+    accessToken: string;
+  }> = [];
+  nextConnectWithTokenResult: CompleteAuthorizationResult | Error = {
+    merchantId: TEST_MERCHANT_ID,
+    shopDomain: TEST_SHOP_DOMAIN,
+  };
+
+  async connectWithToken(
+    merchantId: string,
+    shopDomain: string,
+    accessToken: string,
+  ): Promise<CompleteAuthorizationResult> {
+    this.connectWithTokenCalls.push({ merchantId, shopDomain, accessToken });
+    if (this.nextConnectWithTokenResult instanceof Error) {
+      throw this.nextConnectWithTokenResult;
+    }
+    this.connectionStatuses.set(merchantId, {
+      connected: true,
+      shopDomain,
+      connectedAt: "2026-09-05T00:00:00.000Z",
+    });
+    return this.nextConnectWithTokenResult;
+  }
+
   async getConnectionStatus(merchantId: string): Promise<ShopifyConnectionStatus> {
     return this.connectionStatuses.get(merchantId) ?? { connected: false };
   }
@@ -321,7 +348,7 @@ describe("shopify-connect routes", () => {
         headers: { authorization: `Bearer ${token}` },
       });
       expect(response.statusCode).toBe(200);
-      expect(JSON.parse(response.body)).toEqual({ connected: false });
+      expect(JSON.parse(response.body)).toEqual({ connected: false, oauthAvailable: true });
     });
 
     it("reports the connected store once one is recorded", async () => {
@@ -348,9 +375,178 @@ describe("shopify-connect routes", () => {
       expect(response.statusCode).toBe(200);
       expect(JSON.parse(response.body)).toEqual({
         connected: true,
+        oauthAvailable: true,
         shopDomain: TEST_SHOP_DOMAIN,
         connectedAt: "2026-01-01T00:00:00.000Z",
       });
+    });
+  });
+  describe("GET /control/v1/shopify/callback (merchant-independent redirect URL)", () => {
+    it("completes the connection with no Authorization header at all", async () => {
+      // This is the URL registered with Shopify. It must work unauthenticated
+      // (the merchant's browser arrives from Shopify carrying no Counter
+      // session) and must NOT live under /merchants/:merchantId/, because
+      // Shopify matches redirect_uri exactly against one fixed list and no
+      // single registered URL can contain a per-merchant path.
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/shopify/callback?code=abc&shop=${TEST_SHOP_DOMAIN}&state=xyz&hmac=deadbeef`,
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers["location"]).toContain("shopify=connected");
+    });
+
+    it("redirects with an error flag rather than rendering raw JSON to a browser tab", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      provisioner.nextCompleteResult = new ShopifyOAuthError("Callback HMAC verification failed");
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/shopify/callback?code=abc&shop=${TEST_SHOP_DOMAIN}&state=xyz&hmac=bad`,
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers["location"]).toContain("shopify=error");
+    });
+  });
+
+  describe("POST /shopify/connection (merchant-supplied Admin API token)", () => {
+    it("stores the connection and reports it connected", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const token = await createMerchantUserToken(TEST_MERCHANT_ID, ["merchant.owner"]);
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/shopify/connection`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { shopDomain: TEST_SHOP_DOMAIN, accessToken: "shpat_example_token" },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ connected: true, shopDomain: TEST_SHOP_DOMAIN });
+      expect(provisioner.connectWithTokenCalls).toEqual([
+        {
+          merchantId: TEST_MERCHANT_ID,
+          shopDomain: TEST_SHOP_DOMAIN,
+          accessToken: "shpat_example_token",
+        },
+      ]);
+    });
+
+    it("surfaces a rejected/under-scoped token as an actionable 400, and stores nothing", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      provisioner.nextConnectWithTokenResult = new ShopifyOAuthError(
+        "This token is missing required Admin API access: write_orders.",
+      );
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const token = await createMerchantUserToken(TEST_MERCHANT_ID, ["merchant.owner"]);
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/shopify/connection`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { shopDomain: TEST_SHOP_DOMAIN, accessToken: "shpat_under_scoped" },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const errorBody = response.json() as { error: { message: string } };
+      expect(errorBody.error.message).toContain("write_orders");
+      expect(await provisioner.getConnectionStatus(TEST_MERCHANT_ID)).toEqual({ connected: false });
+    });
+
+    it("a merchant-scoped token for a DIFFERENT merchant gets 404, not 403 (existence-hiding)", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const token = await createMerchantUserToken("ctr_merchant_someoneelse", ["merchant.owner"]);
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/shopify/connection`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { shopDomain: TEST_SHOP_DOMAIN, accessToken: "shpat_example_token" },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(provisioner.connectWithTokenCalls).toEqual([]);
+    });
+
+    it("rejects a missing access token before calling the provisioner", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const token = await createMerchantUserToken(TEST_MERCHANT_ID, ["merchant.owner"]);
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/shopify/connection`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { shopDomain: TEST_SHOP_DOMAIN, accessToken: "   " },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(provisioner.connectWithTokenCalls).toEqual([]);
+    });
+
+    it("reports oauthAvailable:false so the console offers the token path instead", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: new FakeShopifyConnectionProvisioner(),
+        shopifyOAuthAvailable: false,
+      });
+      await server.ready();
+
+      const token = await createMerchantUserToken(TEST_MERCHANT_ID, ["merchant.owner"]);
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/shopify/connection`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ connected: false, oauthAvailable: false });
     });
   });
 });

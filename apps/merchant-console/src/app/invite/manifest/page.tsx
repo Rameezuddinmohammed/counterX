@@ -1,49 +1,42 @@
 "use client";
 
 /**
- * Onboarding wizard Step 6: manifest confirmation — the last step this
- * wizard builds. Once SANDBOX_READY, generates and persists the merchant's
- * CapabilityManifest (the record of exactly what this merchant is set up to
- * do), then shows it back in plain language.
+ * Onboarding wizard Step 5: manifest confirmation & launch.
  *
- * This is a NEW page for the self-serve wizard, distinct from
- * apps/merchant-console/src/app/manifest/page.tsx (the OLD operator-facing
- * demo view) — different concern, not touched here.
+ * Once SANDBOX_READY, generates and persists the merchant's CapabilityManifest.
+ * With MERCHANT_AUTO_ACTIVATE enabled (default), the merchant is immediately
+ * transitioned to ACTIVE and is live for AI-agent purchases.
  */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Skeleton } from "@counter/ui";
-import { FileCheck2, PartyPopper } from "lucide-react";
+import { FileCheck2, PartyPopper, ArrowRight, LayoutDashboard, ShoppingBag } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient } from "@/hooks/use-api";
-import { getStoredMerchantId } from "@/lib/merchant-application-storage";
+import { OnboardingStepper } from "@/components/onboarding-stepper";
+import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { pilotCapabilityLabel, fulfillmentCapabilityLabel } from "@/lib/onboarding-labels";
 import type { WizardManifest } from "@/lib/types";
 
 const PERMISSIONS_NOT_READY_MESSAGE =
-  "Your session doesn't have merchant permissions yet. This step needs a one-time Auth0 " +
-  "configuration change on Counter's side (not yet done) before it can save — this is a known, " +
-  "tracked gap.";
+  "Your session isn't authorized for this merchant account. Sign out and sign back in — " +
+  "merchant permissions are attached at login, so a session that started before your account " +
+  "was set up won't have them until you log in again.";
 
 export default function ManifestPage() {
-  const [merchantId, setMerchantId] = useState<string | undefined>(undefined);
-  const [checkedStorage, setCheckedStorage] = useState(false);
+  const { merchantId, loading: merchantLoading } = useWizardMerchantId();
   const [manifest, setManifest] = useState<WizardManifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = getStoredMerchantId();
-    setMerchantId(id);
-    setCheckedStorage(true);
-    if (id !== undefined) {
-      void loadManifest(id);
-    } else {
+    if (merchantId !== undefined) {
+      void loadManifest(merchantId);
+    } else if (!merchantLoading) {
       setLoading(false);
     }
-  }, []);
+  }, [merchantId, merchantLoading]);
 
   async function loadManifest(id: string) {
     setLoading(true);
@@ -52,12 +45,18 @@ export default function ManifestPage() {
     if (result.ok) {
       setManifest(result.data);
     }
-    // A 404 here just means no manifest yet — not an error state, the
-    // "Confirm your capabilities" button below is the expected next action.
   }
 
   async function handleGenerate() {
     if (merchantId === undefined) return;
+
+    try {
+      await ensureStepUp();
+    } catch {
+      setError("Verification was not completed, so nothing was saved. Please try again.");
+      return;
+    }
+
     setGenerating(true);
     setError(null);
     const result = await getApiClient().confirmWizardManifest(merchantId);
@@ -74,7 +73,7 @@ export default function ManifestPage() {
     setManifest(result.data);
   }
 
-  if (checkedStorage && merchantId === undefined) {
+  if (!merchantLoading && merchantId === undefined) {
     return (
       <PageWrapper>
         <Card>
@@ -93,6 +92,8 @@ export default function ManifestPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
+        <OnboardingStepper currentStep={5} />
+
         <div className="border-b border-[var(--border-secondary)] pb-5">
           <p
             className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
@@ -101,34 +102,45 @@ export default function ManifestPage() {
             Onboarding · Step 5 of 5
           </p>
           <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
-            Confirm what you can do
+            Confirm capabilities &amp; launch
           </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
-            This is the record of exactly what your store is set up to handle.
+            Review your store&apos;s capabilities and activate your AI-agent merchant presence.
           </p>
         </div>
 
         {loading ? (
           <Skeleton className="h-40 w-full" />
         ) : manifest !== null ? (
-          <>
+          <div className="space-y-6">
             <Card>
-              <CardContent className="flex items-center gap-4 p-6">
-                <div className="border border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 p-3">
-                  <PartyPopper className="h-6 w-6 text-[var(--clearance-teal)]" />
-                </div>
-                <div>
-                  <p className="font-semibold text-[var(--foreground)]">You&apos;re set up</p>
-                  <p className="text-sm text-[var(--foreground-muted)]">
-                    Confirmed {new Date(manifest.generatedAt).toLocaleString("en-IN")}
-                  </p>
+              <CardContent className="flex items-center justify-between p-6">
+                <div className="flex items-center gap-4">
+                  <div className="border border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 p-3">
+                    <PartyPopper className="h-6 w-6 text-[var(--clearance-teal)]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-lg text-[var(--foreground)]">
+                        You&apos;re Live on Counter!
+                      </p>
+                      <Badge variant="success">Active</Badge>
+                    </div>
+                    <p className="text-sm text-[var(--foreground-secondary)] mt-1">
+                      Your store is active and AI agents can now discover and purchase your
+                      products.
+                    </p>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                      Manifest generated on {new Date(manifest.generatedAt).toLocaleString("en-IN")}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>What you can do</CardTitle>
+                <CardTitle>Supported Capabilities</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {manifest.capabilities.map((capability) => (
@@ -142,7 +154,7 @@ export default function ManifestPage() {
             {manifest.fulfillmentCapabilities.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle>How you fulfill orders</CardTitle>
+                  <CardTitle>Order Fulfillment Methods</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2">
                   {manifest.fulfillmentCapabilities.map((capability) => (
@@ -154,28 +166,40 @@ export default function ManifestPage() {
               </Card>
             )}
 
-            <p className="text-xs text-[var(--foreground-muted)]">
-              Counter will review your account next before you can accept real, live purchases —
-              you&apos;ll hear from us.
-            </p>
-          </>
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Link href="/" className="no-underline">
+                <Button>
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Go to Merchant Dashboard
+                </Button>
+              </Link>
+              <Link href="/shopify" className="no-underline">
+                <Button variant="outline">
+                  <ShoppingBag className="mr-2 h-4 w-4" />
+                  View Shopify Integration
+                </Button>
+              </Link>
+            </div>
+          </div>
         ) : (
           <Card>
             <CardHeader>
               <CardTitle>
                 <div className="flex items-center gap-2">
                   <FileCheck2 className="h-4 w-4 text-[var(--brand-red)]" />
-                  Ready to confirm
+                  Ready to launch
                 </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-[var(--foreground-secondary)]">
-                You&apos;ve passed the readiness check. Confirm to generate your capability record.
+                All readiness checks have passed. Confirm your capabilities to generate your agent
+                manifest and activate your store live on Counter.
               </p>
               {error && <p className="text-sm text-[var(--brand-red)]">{error}</p>}
               <Button onClick={() => void handleGenerate()} disabled={generating}>
-                {generating ? "Confirming…" : "Confirm your capabilities"}
+                {generating ? "Activating store…" : "Confirm & Launch Store"}
+                <ArrowRight className="ml-2 h-3.5 w-3.5" />
               </Button>
             </CardContent>
           </Card>

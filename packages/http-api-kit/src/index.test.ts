@@ -554,6 +554,9 @@ describe("scopeEnforcementPlugin", () => {
 
     registerRoutePermission("GET:/allowed", { permission: "identity.scope.read" });
     registerRoutePermission("GET:/restricted", { permission: "identity.support_grant.issue" });
+    // A permission the default test actor (merchant.owner) DOES hold, but
+    // which assurance.ts gates behind a tenant-mutation assurance tier.
+    registerRoutePermission("GET:/needs-step-up", { permission: "identity.scope.manage" });
 
     server.get("/allowed", async (_request, reply) => {
       void reply.send({ ok: true });
@@ -562,6 +565,9 @@ describe("scopeEnforcementPlugin", () => {
       void reply.send({ ok: true });
     });
     server.get("/no-permission-defined", async (_request, reply) => {
+      void reply.send({ ok: true });
+    });
+    server.get("/needs-step-up", async (_request, reply) => {
       void reply.send({ ok: true });
     });
     await server.ready();
@@ -602,6 +608,53 @@ describe("scopeEnforcementPlugin", () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(response.statusCode).toBe(403);
+  });
+
+  it("tells an actor who HAS the permission but signed in too weakly to re-authenticate", async () => {
+    // The default test actor is merchant.owner with assurance "session" —
+    // exactly a brand-new merchant after a plain social login. They really
+    // do hold identity.scope.manage; only their sign-in strength is short.
+    // Reported distinctly so the console can say "sign in again" instead of
+    // an opaque "Access denied" that reads as a broken permission system.
+    const token = await createTestToken();
+    const response = await server.inject({
+      method: "GET",
+      url: "/needs-step-up",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(403);
+    const body = JSON.parse(response.body) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("STEP_UP_REQUIRED");
+    expect(body.error.message).toContain("Sign out and sign in again");
+  });
+
+  it("allows the same actor through once their session carries step-up assurance", async () => {
+    const token = await createTestToken({
+      [`${CLAIMS_NAMESPACE}assurance`]: "step_up",
+    });
+    const response = await server.inject({
+      method: "GET",
+      url: "/needs-step-up",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("lets a request that matched NO route reach the 404 handler instead of denying it", async () => {
+    // Deny-by-default exists to stop a REGISTERED route from being served
+    // without a declared permission (covered above). A request that matched
+    // no route at all has no handler that could ever run, so answering 403
+    // "not authorized" only misreported a path that does not exist —
+    // notably making an optional, unconfigured feature look like a
+    // permissions bug. Pinned here so the distinction cannot silently
+    // regress.
+    const token = await createTestToken();
+    const response = await server.inject({
+      method: "GET",
+      url: "/this-route-was-never-registered",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   it("returns same 403 error format regardless of existence (anti-leak)", async () => {

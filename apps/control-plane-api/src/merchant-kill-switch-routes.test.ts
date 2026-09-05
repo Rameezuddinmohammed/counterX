@@ -255,7 +255,7 @@ describe("merchant-kill-switch routes", () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it("the route is not registered at all when no store is configured (deny-by-default, not a 404)", async () => {
+  it("reports a plain 404 when no store is configured, since the route does not exist", async () => {
     const { jwks } = await getTestKeys();
     server = createServer({ jwks, environment: "test" });
     await server.ready();
@@ -266,9 +266,16 @@ describe("merchant-kill-switch routes", () => {
       url: `/control/v1/merchants/${TEST_MERCHANT_ID}/kill-switch`,
       headers: { authorization: `Bearer ${token}` },
     });
-    // Same convention as every other unregistered route in this codebase:
-    // scope-enforcement's global onRequest hook denies-by-default (403)
-    // before Fastify's router ever gets to report a plain 404.
-    expect(response.statusCode).toBe(403);
+    // Changed deliberately on 2026-09-05 (was 403). scope-enforcement's
+    // global onRequest hook used to deny-by-default before Fastify's router
+    // could report a plain 404, so an optional feature that simply isn't
+    // configured on a deployment looked like a permissions failure on a
+    // route that was working fine — that exact ambiguity sent a live
+    // investigation of the unconfigured Shopify connect routes down the
+    // wrong path. Nothing is weakened: no route matched, so no handler
+    // could run, and deny-by-default still returns 403 for a route that DOES
+    // exist but declares no permission (see http-api-kit's
+    // scopeEnforcementPlugin tests, "/no-permission-defined").
+    expect(response.statusCode).toBe(404);
   });
 });

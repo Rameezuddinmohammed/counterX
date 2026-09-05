@@ -7,35 +7,34 @@
  * transitions the application DRAFT -> CONNECTING through the real
  * lifecycle state machine (packages/merchant-application/src/lifecycle.ts).
  *
- * KNOWN LIMITATION, disclosed rather than papered over (see
- * merchant-application-routes.ts's header): this route requires a REAL
- * merchant-scoped, step-up-assured session token — unlike Step 0's
- * provision route, it is not self-authorizing. A freshly-provisioned
- * merchant_user does not yet have merchant scope claims on their JWT
- * (no Auth0 Post-Login Action stamps them for merchant users today), so a
- * 401/403 here is an EXPECTED outcome until that Auth0-side wiring lands,
- * not a bug — the UI below surfaces that plainly rather than a raw error.
+ * This route requires a REAL merchant-scoped, step-up-assured session token
+ * — unlike Step 0's provision route, it is not self-authorizing. The Auth0
+ * Post-Login Action that stamps merchant_user claims IS live (verified
+ * against the real tenant, 2026-09-05), so a normal login reaches here with
+ * working claims; a 401/403 now means a genuinely unauthorized session
+ * (typically one that predates the account's setup), which is what
+ * PERMISSIONS_NOT_READY_MESSAGE below tells the merchant to resolve by
+ * signing in again.
  */
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from "@counter/ui";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient } from "@/hooks/use-api";
-import { getStoredMerchantId } from "@/lib/merchant-application-storage";
+import { OnboardingStepper } from "@/components/onboarding-stepper";
+import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { FULFILLMENT_CAPABILITY_OPTIONS } from "@/lib/onboarding-labels";
 import type { FulfillmentCapability } from "@/lib/types";
 
 const PERMISSIONS_NOT_READY_MESSAGE =
-  "Your session doesn't have merchant permissions yet. This step needs a one-time Auth0 " +
-  "configuration change on Counter's side (not yet done) before it can save — this is a known, " +
-  "tracked gap, not something wrong with what you entered.";
+  "Your session isn't authorized for this merchant account. Sign out and sign back in — " +
+  "merchant permissions are attached at login, so a session that started before your account " +
+  "was set up won't have them until you log in again.";
 
 export default function BusinessBasicsPage() {
   const router = useRouter();
-  const [merchantId, setMerchantId] = useState<string | undefined>(undefined);
-  const [checkedStorage, setCheckedStorage] = useState(false);
+  const { merchantId, loading: merchantLoading } = useWizardMerchantId();
   const [legalEntityName, setLegalEntityName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -43,12 +42,7 @@ export default function BusinessBasicsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setMerchantId(getStoredMerchantId());
-    setCheckedStorage(true);
-  }, []);
-
-  if (checkedStorage && merchantId === undefined) {
+  if (!merchantLoading && merchantId === undefined) {
     return (
       <PageWrapper>
         <Card>
@@ -97,6 +91,17 @@ export default function BusinessBasicsPage() {
       return;
     }
 
+    // Raise the session's assurance before the write. Every save here is a
+    // tenant mutation, which the API gates behind a second factor; without
+    // this a normal login is refused with no way forward. Must precede any
+    // other await so the popup stays attributable to the user's click.
+    try {
+      await ensureStepUp();
+    } catch {
+      setError("Verification was not completed, so nothing was saved. Please try again.");
+
+      return;
+    }
     setSubmitting(true);
     const result = await getApiClient().updateBusinessBasics(merchantId, {
       legalEntityName: legalEntityName.trim(),
@@ -120,6 +125,8 @@ export default function BusinessBasicsPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
+        <OnboardingStepper currentStep={1} />
+
         <div className="border-b border-[var(--border-secondary)] pb-5">
           <p
             className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"

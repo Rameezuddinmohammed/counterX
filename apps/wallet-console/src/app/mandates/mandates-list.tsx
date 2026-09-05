@@ -188,8 +188,12 @@ export function MandatesList() {
                   <div>
                     <p className="text-[var(--foreground-muted)]">Merchant allowlist</p>
                     <p className="text-[var(--foreground)]">
+                      {/* Empty is deny-all, not "not configured yet" — see
+                          connect-panel.tsx. Saying "None yet" made a mandate
+                          that can authorize nothing read as merely
+                          unfinished. */}
                       {m.constraints.merchantAllowlist.allowedMerchantIds.length === 0
-                        ? "None yet"
+                        ? "None — blocks all purchases"
                         : `${m.constraints.merchantAllowlist.allowedMerchantIds.length} merchant(s)`}
                     </p>
                   </div>

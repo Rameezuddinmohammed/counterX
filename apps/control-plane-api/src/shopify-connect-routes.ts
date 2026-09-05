@@ -26,7 +26,18 @@
  *   GET /control/v1/merchants/:merchantId/shopify/connection
  *     Read-only status the merchant console polls after being redirected
  *     back, to reflect "Connected" without a manual page refresh. Same
- *     access check as the authorize route.
+ *     access check as the authorize route. Also reports whether one-click
+ *     OAuth connect is available on this deployment, so the console can
+ *     show the right path instead of offering a button that cannot work.
+ *
+ *   POST /control/v1/merchants/:merchantId/shopify/connection
+ *     Connects a store using an Admin API access token the merchant created
+ *     themselves in their own Shopify admin ("custom app"). This is the path
+ *     that works with NO Shopify Partner app configured on Counter's side —
+ *     the one-click routes above additionally require
+ *     SHOPIFY_OAUTH_CLIENT_ID/SECRET/REDIRECT_URI. The token is proven
+ *     against Shopify's real Admin API, and its scopes checked, BEFORE
+ *     anything is stored; see connectWithToken.
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getActorContext, registerRoutePermission } from "@counter/http-api-kit";
@@ -42,6 +53,12 @@ export interface ShopifyConnectRoutesOptions {
    * origin without hardcoding one.
    */
   readonly consoleReturnUrl?: string;
+  /**
+   * Whether this deployment has a Shopify OAuth app configured. Defaults to
+   * true purely for backwards compatibility with existing callers/tests;
+   * main.ts passes the real value.
+   */
+  readonly oauthAvailable?: boolean;
 }
 
 const DEFAULT_RETURN_PATH = "/shopify";
@@ -77,12 +94,42 @@ export async function shopifyConnectRoutesPlugin(
 ): Promise<void> {
   const { provisioner } = options;
   const returnUrl = options.consoleReturnUrl ?? DEFAULT_RETURN_PATH;
+  // Reported to the console so it renders the connect path that can
+  // actually succeed on this deployment, rather than a one-click button
+  // that 400s because no Shopify app is configured.
+  const oauthAvailable = options.oauthAvailable ?? true;
+
+  async function handleShopifyCallback(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const rawQuery = request.query as Record<string, unknown>;
+    const query: Record<string, string | undefined> = {};
+    for (const key of Object.keys(rawQuery)) {
+      query[key] = firstQueryValue(rawQuery[key]);
+    }
+
+    try {
+      await provisioner.completeAuthorization(query);
+      void reply.redirect(`${returnUrl}?shopify=connected`, 302);
+    } catch (error) {
+      if (error instanceof ShopifyOAuthError) {
+        request.log.warn({ err: error }, "Shopify OAuth callback rejected");
+        void reply.redirect(`${returnUrl}?shopify=error`, 302);
+        return;
+      }
+      throw error;
+    }
+  }
 
   registerRoutePermission("GET:/control/v1/merchants/:merchantId/shopify/authorize", {
     permission: "identity.service_identity.manage",
   });
   registerRoutePermission("GET:/control/v1/merchants/:merchantId/shopify/connection", {
     permission: "identity.service_identity.read",
+  });
+  registerRoutePermission("POST:/control/v1/merchants/:merchantId/shopify/connection", {
+    permission: "identity.service_identity.manage",
   });
 
   fastify.get(
@@ -118,26 +165,28 @@ export async function shopifyConnectRoutesPlugin(
     },
   );
 
+  // Shopify requires redirect_uri to EXACTLY match one of the app's
+  // registered redirect URLs, and an app has one fixed list — it cannot
+  // contain a per-merchant path. The original callback below sits under
+  // /merchants/:merchantId/, which no single registered URL can match, so
+  // one-click connect could never have completed even with credentials
+  // configured. This merchant-independent path is the one to register with
+  // Shopify. Nothing is lost: the handler never used :merchantId anyway —
+  // the merchant is resolved from the single-use `state` nonce, which is
+  // also what makes that safe (a caller cannot name the merchant).
+  fastify.get(
+    "/control/v1/shopify/callback",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      await handleShopifyCallback(request, reply);
+    },
+  );
+
+  // Retained so an app already registered against the older per-merchant
+  // URL keeps working. Both funnel into the same handler.
   fastify.get(
     "/control/v1/merchants/:merchantId/shopify/callback",
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const rawQuery = request.query as Record<string, unknown>;
-      const query: Record<string, string | undefined> = {};
-      for (const key of Object.keys(rawQuery)) {
-        query[key] = firstQueryValue(rawQuery[key]);
-      }
-
-      try {
-        await provisioner.completeAuthorization(query);
-        void reply.redirect(`${returnUrl}?shopify=connected`, 302);
-      } catch (error) {
-        if (error instanceof ShopifyOAuthError) {
-          request.log.warn({ err: error }, "Shopify OAuth callback rejected");
-          void reply.redirect(`${returnUrl}?shopify=error`, 302);
-          return;
-        }
-        throw error;
-      }
+      await handleShopifyCallback(request, reply);
     },
   );
 
@@ -155,7 +204,49 @@ export async function shopifyConnectRoutesPlugin(
       }
 
       const status = await provisioner.getConnectionStatus(merchantId);
-      void reply.status(200).send(status);
+      void reply.status(200).send({ ...status, oauthAvailable });
+    },
+  );
+
+  fastify.post(
+    "/control/v1/merchants/:merchantId/shopify/connection",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = request.params as Record<string, string>;
+      const merchantId = params["merchantId"] ?? "";
+
+      if (!verifyMerchantAccess(request, merchantId)) {
+        void reply.status(404).send({
+          error: { code: "NOT_FOUND", message: "The requested resource was not found" },
+        });
+        return;
+      }
+
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const shopDomain = typeof body["shopDomain"] === "string" ? body["shopDomain"].trim() : "";
+      const accessToken = typeof body["accessToken"] === "string" ? body["accessToken"] : "";
+      if (shopDomain.length === 0) {
+        sendValidationError(reply, "'shopDomain' is required");
+        return;
+      }
+      if (accessToken.trim().length === 0) {
+        sendValidationError(reply, "'accessToken' is required");
+        return;
+      }
+
+      try {
+        const result = await provisioner.connectWithToken(merchantId, shopDomain, accessToken);
+        const status = await provisioner.getConnectionStatus(result.merchantId);
+        void reply.status(200).send({ ...status, oauthAvailable });
+      } catch (error) {
+        if (error instanceof ShopifyOAuthError) {
+          // The merchant can act on every one of these messages (wrong
+          // token, wrong store, missing scopes) — surfaced verbatim rather
+          // than flattened into a generic failure. Never echoes the token.
+          sendValidationError(reply, error.message);
+          return;
+        }
+        throw error;
+      }
     },
   );
 }

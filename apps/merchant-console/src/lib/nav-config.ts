@@ -59,4 +59,9 @@ export const NAV_ITEMS: readonly NavItem[] = NAV_SECTIONS.flatMap((section) => s
 export const ROUTE_LABELS: Record<string, string> = {
   ...Object.fromEntries(NAV_ITEMS.map((item) => [item.href, item.label])),
   "/profile": "Profile",
+  "/invite/business-basics": "Business details",
+  "/invite/catalog-connect": "Connect catalog",
+  "/invite/catalog-review": "Review catalog",
+  "/invite/readiness": "Readiness check",
+  "/invite/manifest": "Confirm capabilities",
 };

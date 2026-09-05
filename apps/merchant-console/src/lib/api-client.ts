@@ -26,6 +26,7 @@ import type {
   RazorpayConnectRequest,
   ReadinessStatus,
   ShopifyConnectionStatus,
+  ConnectShopifyWithTokenRequest,
   SettlementSummary,
   ShopifySetupStatus,
   SuspensionStatus,
@@ -168,6 +169,16 @@ export interface MerchantApiClient {
   getShopifyStatus(merchantId: string): Promise<ApiResult<ShopifySetupStatus>>;
   /** The REAL self-serve OAuth connection status — see ShopifyConnectionStatus's docs. */
   getShopifyConnectionStatus(merchantId: string): Promise<ApiResult<ShopifyConnectionStatus>>;
+  /**
+   * Connects a store with an Admin API access token the merchant created in
+   * their own Shopify admin. The server proves the token against Shopify
+   * before storing anything, so a failure here is a real, actionable reason
+   * (wrong token, wrong store, missing scopes) — surface its message.
+   */
+  connectShopifyWithToken(
+    merchantId: string,
+    req: ConnectShopifyWithTokenRequest,
+  ): Promise<ApiResult<ShopifyConnectionStatus>>;
 
   // Mapping
   getMappingPreview(merchantId: string): Promise<ApiResult<MappingPreview>>;
@@ -319,11 +330,32 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
         };
       }
       if (!response.ok) {
+        // control-plane-api answers a rejected request with a canonical
+        // `{ error: { code, message } }` body whose message is written for
+        // the person reading it (which Shopify scope is missing, why a token
+        // was refused, which field failed validation). Surfacing a bare
+        // "HTTP 400" instead threw all of that away and left the merchant
+        // with a dead end — seen for real on the Shopify connect form,
+        // 2026-09-05. Falls back to the status line only when the body
+        // isn't the canonical shape.
+        let message = `HTTP ${response.status}`;
+        try {
+          const parsed = (await response.json()) as { error?: { message?: string } };
+          if (typeof parsed.error?.message === "string" && parsed.error.message.length > 0) {
+            message = parsed.error.message;
+          }
+        } catch {
+          // Body wasn't JSON — keep the status-line fallback.
+        }
+        // The transport-level status decides the code (the union here is
+        // this client's own vocabulary, not the server's error taxonomy);
+        // the server's prose is what the merchant actually needs.
+        const code: ApiErrorCode = response.status >= 500 ? "SERVER_ERROR" : "VALIDATION";
         return {
           ok: false,
           error: {
-            code: "SERVER_ERROR",
-            message: `HTTP ${response.status}`,
+            code,
+            message,
             retryable: response.status >= 500,
           },
         };
@@ -397,6 +429,8 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       request<ShopifySetupStatus>("GET", `/merchants/${merchantId}/shopify`),
     getShopifyConnectionStatus: (merchantId) =>
       request<ShopifyConnectionStatus>("GET", `/merchants/${merchantId}/shopify/connection`),
+    connectShopifyWithToken: (merchantId, req) =>
+      request<ShopifyConnectionStatus>("POST", `/merchants/${merchantId}/shopify/connection`, req),
     getMappingPreview: (merchantId) =>
       request<MappingPreview>("GET", `/merchants/${merchantId}/mapping`),
     runPolicySimulation: (req) =>

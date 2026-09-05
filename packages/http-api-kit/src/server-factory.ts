@@ -79,6 +79,25 @@ export interface ServerFactoryOptions {
   readonly cors?: { readonly origin: boolean | string | readonly string[] };
 }
 
+/**
+ * Methods advertised in the CORS preflight's `Access-Control-Allow-Methods`.
+ *
+ * MUST be set explicitly: @fastify/cors v11 defaults this to `GET,HEAD,POST`
+ * only, so a browser silently refuses to send any PATCH/PUT/DELETE — the
+ * real request never leaves the browser, and the app sees a bare
+ * "Failed to fetch" with nothing in our own server logs. That is exactly
+ * what killed the merchant onboarding wizard: every step submits a PATCH
+ * (business-basics, catalog, catalog-review, manifest), so a real merchant
+ * could fill in the form and click Continue forever with no server ever
+ * being contacted. Found by clicking through the real console in a browser
+ * against the real API, 2026-09-05.
+ *
+ * This only widens which methods a browser is ALLOWED to attempt — every
+ * request still passes the same auth, scope-enforcement and route-permission
+ * checks it always did.
+ */
+const CORS_ALLOWED_METHODS = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"];
+
 export function createHttpServer(options: ServerFactoryOptions): FastifyInstance {
   const skipRoutes = [
     "/health",
@@ -110,7 +129,7 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     const corsOrigin: boolean | string | string[] = Array.isArray(origin)
       ? [...origin]
       : (origin as boolean | string);
-    void server.register(fastifyCors, { origin: corsOrigin });
+    void server.register(fastifyCors, { origin: corsOrigin, methods: CORS_ALLOWED_METHODS });
   }
   void server.register(errorHandlerPlugin);
   void server.register(correlationPlugin);

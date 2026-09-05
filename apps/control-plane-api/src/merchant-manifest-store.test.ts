@@ -157,6 +157,55 @@ describe("MerchantManifestStore", () => {
     expect(database.app?.lifecycle_version).toBe(5);
   });
 
+  it("goes straight to ACTIVE in the same write when auto-activation is on", async () => {
+    // The founder-chosen pilot behaviour: finishing the wizard makes a
+    // merchant live with no human approval step, because the operator gate
+    // it replaces had no reachable implementation. Still the real state
+    // machine, still one transaction — SANDBOX_READY -> ACTIVATION_REVIEW
+    // -> ACTIVE, so the audited path to ACTIVE is unchanged.
+    const database = new FakeDatabase();
+    database.app = {
+      lifecycle_state: "SANDBOX_READY",
+      lifecycle_version: 4,
+      goods_types: ["fulfillment.physical.ship"],
+      merchant_user_actor_id: TEST_MERCHANT_USER_ACTOR_ID,
+    };
+    const store = new MerchantManifestStore(
+      database as never,
+      "test",
+      new FakeReadinessService(),
+      true,
+    );
+
+    await store.generateAndPersist(TEST_MERCHANT_ID);
+
+    expect(database.upsertCalls).toBe(1);
+    expect(database.app?.lifecycle_state).toBe("ACTIVE");
+    // Two real transitions were applied, so the version advanced twice.
+    expect(database.app?.lifecycle_version).toBe(6);
+  });
+
+  it("stops at ACTIVATION_REVIEW when auto-activation is off, preserving manual review", async () => {
+    const database = new FakeDatabase();
+    database.app = {
+      lifecycle_state: "SANDBOX_READY",
+      lifecycle_version: 4,
+      goods_types: ["fulfillment.physical.ship"],
+      merchant_user_actor_id: TEST_MERCHANT_USER_ACTOR_ID,
+    };
+    const store = new MerchantManifestStore(
+      database as never,
+      "test",
+      new FakeReadinessService(),
+      false,
+    );
+
+    await store.generateAndPersist(TEST_MERCHANT_ID);
+
+    expect(database.app?.lifecycle_state).toBe("ACTIVATION_REVIEW");
+    expect(database.app?.lifecycle_version).toBe(5);
+  });
+
   it("is idempotent: regenerating a manifest at ACTIVATION_REVIEW or later does not re-transition", async () => {
     const database = new FakeDatabase();
     database.app = {

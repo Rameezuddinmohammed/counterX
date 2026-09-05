@@ -50,7 +50,10 @@ import {
   type ShopifyOAuthConfig,
 } from "./shopify-connection-store.js";
 import { RefundRequestStore } from "./refund-request-store.js";
-import { MerchantApplicationProvisioner } from "./merchant-application-store.js";
+import {
+  MerchantApplicationProvisioner,
+  type MerchantApplicationProvisionerLike,
+} from "./merchant-application-store.js";
 import { MerchantPaymentConnectionStore } from "./merchant-payment-connection-store.js";
 import { MerchantWebhookEndpointStore } from "./merchant-webhook-endpoint-store.js";
 import { createFulfillmentWebhookHandler } from "./fulfillment-webhook-handler.js";
@@ -144,9 +147,10 @@ const razorpayRecurringProvider =
  * DATABASE_URL, this is never treated as a fail-loud requirement in
  * production, because that would take the ENTIRE control-plane-api down
  * (policy/transaction routes included) over one still-optional feature.
- * Absent config simply means /control/v1/merchants/:merchantId/shopify/*
- * is not registered at all (see index.ts's shopifyConnectionProvisioner
- * option) — the same graceful-absence shape as walletUserProvisioner.
+ * Absent config now only disables the one-click OAuth pair
+ * (authorize/callback). The connection-status route and the
+ * merchant-supplied-token connect route stay registered, because neither
+ * needs a Shopify app — see index.ts's shopifyConnectionProvisioner option.
  */
 const DEFAULT_SHOPIFY_OAUTH_SCOPES = "read_products,read_orders,write_orders";
 
@@ -158,16 +162,40 @@ function resolveShopifyOAuthConfig(): ShopifyOAuthConfig | undefined {
 
   if (!clientId || !clientSecret || !redirectUri) {
     console.log(
-      `[${APP_NAME}] Shopify OAuth app credentials not configured ` +
-        `(SHOPIFY_OAUTH_CLIENT_ID/SHOPIFY_OAUTH_CLIENT_SECRET/SHOPIFY_OAUTH_REDIRECT_URI) — ` +
-        `self-serve Shopify connect routes are not registered.`,
+      `[${APP_NAME}] No Shopify OAuth app configured ` +
+        `(SHOPIFY_OAUTH_CLIENT_ID/SHOPIFY_OAUTH_CLIENT_SECRET/SHOPIFY_OAUTH_REDIRECT_URI), ` +
+        `so one-click "Connect with Shopify" is unavailable. Merchants can still connect a ` +
+        `store with their own Admin API access token — those routes ARE registered.`,
     );
     return undefined;
   }
   return { clientId, clientSecret, redirectUri, scopes };
 }
 
+/**
+ * Whether finishing the onboarding wizard makes a merchant live immediately,
+ * with no human approval step. Defaults to ON.
+ *
+ * Founder decision, 2026-09-05. The operator-approval gate it replaces had
+ * no reachable implementation — nothing issues operator-kind claims, so the
+ * approve route was uncallable from any screen and the only way to make a
+ * merchant live was running scripts/approve-merchant-activation.mjs by
+ * hand. That made "sign up and be live in one sitting" impossible.
+ *
+ * Set MERCHANT_AUTO_ACTIVATE=false to restore manual review: merchants then
+ * stop at ACTIVATION_REVIEW exactly as before, and an operator (today, that
+ * script) approves them. Worth doing before signup is opened beyond a
+ * controlled pilot — with this on, anyone who completes the wizard can sell.
+ */
+const merchantAutoActivate =
+  (process.env["MERCHANT_AUTO_ACTIVATE"]?.trim().toLowerCase() ?? "true") !== "false";
+
 const shopifyOAuthConfig = resolveShopifyOAuthConfig();
+
+// Admin API version used for the merchant-token connect path's live
+// verification calls. Same env var the worker's connector already reads, so
+// one deployment never talks to two different Shopify API versions.
+const shopifyApiVersion = process.env["SHOPIFY_API_VERSION"]?.trim() || "2025-07";
 
 // Optional: approving a refund request (the merchant-facing relay decision)
 // needs the SAME Razorpay credentials — reusing razorpayKeyId/razorpayKeySecret
@@ -218,6 +246,7 @@ const readinessService =
 function createShopifyConnectedHandler(
   postgresDatabase: PostgresDatabase,
   targetEnvironment: Environment,
+  merchantApplicationProvisioner?: MerchantApplicationProvisionerLike,
 ): (input: { merchantId: string; shopDomain: string; accessToken: string }) => void {
   const cursorStore = new PostgresCursorStore(postgresDatabase, targetEnvironment);
   const productRepo = new PostgresProductRepository(postgresDatabase, targetEnvironment);
@@ -226,6 +255,17 @@ function createShopifyConnectedHandler(
   const inventoryRepo = new PostgresInventoryRepository(postgresDatabase, targetEnvironment);
 
   return (input): void => {
+    // Advance the onboarding wizard application from CONNECTING -> MAPPING if
+    // one exists and is currently in CONNECTING state. Safe and idempotent:
+    // markCatalogConnected checks that a real active connection exists, and
+    // no-ops if already past CONNECTING.
+    if (merchantApplicationProvisioner !== undefined) {
+      void merchantApplicationProvisioner
+        .markCatalogConnected(input.merchantId)
+        .catch((_error: unknown) => {
+          // Safe to ignore if merchant has no onboarding application or is already past CONNECTING.
+        });
+    }
     const client = createHttpGraphQLClient({
       shopDomain: input.shopDomain,
       accessToken: input.accessToken,
@@ -441,6 +481,11 @@ if (webhookRoutesOptions === undefined) {
   );
 }
 
+const merchantApplicationProvisioner =
+  database !== undefined
+    ? new MerchantApplicationProvisioner(database, runtimeEnvironment)
+    : undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -454,10 +499,7 @@ const serverOptions: CreateServerOptions = {
           runtimeEnvironment,
           runtimeCredentialConfig,
         ),
-        merchantApplicationProvisioner: new MerchantApplicationProvisioner(
-          database,
-          runtimeEnvironment,
-        ),
+        ...(merchantApplicationProvisioner !== undefined ? { merchantApplicationProvisioner } : {}),
         merchantActivationStore: new MerchantActivationStore(database, runtimeEnvironment),
         merchantPaymentConnectionStore: new MerchantPaymentConnectionStore(
           database,
@@ -489,6 +531,7 @@ const serverOptions: CreateServerOptions = {
                 database,
                 runtimeEnvironment,
                 readinessService,
+                merchantAutoActivate,
               ),
             }
           : {}),
@@ -497,16 +540,26 @@ const serverOptions: CreateServerOptions = {
         ...(prepaidBalanceMandateBindingService !== undefined
           ? { prepaidBalanceMandateBindingService }
           : {}),
-        ...(shopifyOAuthConfig !== undefined
-          ? {
-              shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(
-                database,
-                runtimeEnvironment,
-                shopifyOAuthConfig,
-                createShopifyConnectedHandler(database, runtimeEnvironment),
-              ),
-            }
-          : {}),
+        // Registered whenever a database exists — NOT only when a Shopify
+        // OAuth app is configured. The merchant-supplied-token connect path
+        // and the read-only status route need no OAuth app at all, and
+        // gating the whole plugin on one meant a merchant with no Shopify
+        // app configured hit an unexplained 404 on the Shopify page with
+        // no way to connect a store (the state this deployment was
+        // actually in, found 2026-09-05). beginAuthorization/callback still
+        // fail loudly and specifically when no OAuth app is configured.
+        shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(
+          database,
+          runtimeEnvironment,
+          shopifyOAuthConfig,
+          createShopifyConnectedHandler(
+            database,
+            runtimeEnvironment,
+            merchantApplicationProvisioner,
+          ),
+          shopifyApiVersion,
+        ),
+        shopifyOAuthAvailable: shopifyOAuthConfig !== undefined,
         ...(razorpayRefundProvider !== undefined
           ? {
               refundRequestStore: new RefundRequestStore(

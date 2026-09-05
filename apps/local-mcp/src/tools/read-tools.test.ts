@@ -199,6 +199,87 @@ describe("read-tools: real client wiring", () => {
     expect((result["results"] as Array<{ merchantId: string }>)[0]?.merchantId).toBe("merchant-1");
   });
 
+  it("product.search returns a merchant's real catalog from the client", async () => {
+    const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
+    merchantClient.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: [],
+      healthStatus: "healthy",
+    });
+    merchantClient.setSearchResponse("merchant-1", {
+      merchantId: "merchant-1",
+      results: [
+        {
+          variantId: "variant-1",
+          title: "Real Shirt",
+          price: { amount: "1999", currency: "INR" },
+          available: true,
+        },
+      ],
+      nextCursor: null,
+      totalCount: 1,
+    });
+
+    const { client } = await connectedClient({ merchantClient });
+    const result = textOf(
+      await client.callTool({
+        name: "product.search",
+        arguments: { wallet_id: "wallet-1", merchant_id: "merchant-1" },
+      }),
+    );
+    expect(result["total_count"]).toBe(1);
+    expect((result["results"] as Array<{ title: string }>)[0]?.title).toBe("Real Shirt");
+  });
+
+  it("catalog.search and catalog.list work as aliases for product.search", async () => {
+    const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
+    merchantClient.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: [],
+      healthStatus: "healthy",
+    });
+    merchantClient.setSearchResponse("merchant-1", {
+      merchantId: "merchant-1",
+      results: [
+        {
+          variantId: "variant-1",
+          title: "Catalog Pants",
+          price: { amount: "2999", currency: "INR" },
+          available: true,
+        },
+      ],
+      nextCursor: null,
+      totalCount: 1,
+    });
+
+    const { client } = await connectedClient({ merchantClient });
+    const searchRes = textOf(
+      await client.callTool({
+        name: "catalog.search",
+        arguments: { wallet_id: "wallet-1", merchant_id: "merchant-1" },
+      }),
+    );
+    expect(searchRes["total_count"]).toBe(1);
+    expect((searchRes["results"] as Array<{ title: string }>)[0]?.title).toBe("Catalog Pants");
+
+    const listRes = textOf(
+      await client.callTool({
+        name: "catalog.list",
+        arguments: { wallet_id: "wallet-1", merchant_id: "merchant-1" },
+      }),
+    );
+    expect(listRes["total_count"]).toBe(1);
+    expect((listRes["results"] as Array<{ title: string }>)[0]?.title).toBe("Catalog Pants");
+  });
+
   it("quote.get returns real data from the client", async () => {
     const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
     merchantClient.setManifest("merchant-1", {
@@ -334,6 +415,18 @@ describe("read-tools: honest fallback for structurally-unreachable tools", () =>
     );
     expect(merchantList["merchants"]).toEqual([]);
     expect(merchantList["total"]).toBe(0);
+  });
+
+  it("product.search falls back to an honest empty catalog with no merchantClient", async () => {
+    const { client } = await connectedClient(undefined);
+    const result = textOf(
+      await client.callTool({
+        name: "product.search",
+        arguments: { wallet_id: "wallet-1", merchant_id: "merchant-1" },
+      }),
+    );
+    expect(result["results"]).toEqual([]);
+    expect(result["total_count"]).toBe(0);
   });
 
   it("every tool still works with no deps at all (backward compatible)", async () => {

@@ -190,10 +190,16 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
       return manifestCheck;
     }
 
+    // When query is empty, whitespace, or omitted, normalize to "*" so both older
+    // deployed runtimes (which require a non-empty `query` field) and Shopify's
+    // catalog search return the full product catalog without a 400 validation error.
+    const normalizedQuery =
+      typeof query === "string" && query.trim().length > 0 ? query.trim() : "*";
+
     const url = `${this.#baseUrl}/runtime/v1/merchants/${encodeURIComponent(merchantId)}/search`;
     const response = await this.#safeFetch(url, {
       method: "POST",
-      body: JSON.stringify({ query, filters, pagination }),
+      body: JSON.stringify({ query: normalizedQuery, filters, pagination }),
     });
 
     if (!response.ok) {
