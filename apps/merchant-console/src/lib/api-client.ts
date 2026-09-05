@@ -24,7 +24,6 @@ import type {
   SavePolicyRequest,
   ProvisionMerchantApplicationResponse,
   RazorpayConnectRequest,
-  RazorpayStatus,
   ReadinessStatus,
   ShopifyConnectionStatus,
   SettlementSummary,
@@ -190,9 +189,6 @@ export interface MerchantApiClient {
     req: SavePolicyRequest,
     expectedVersion?: number,
   ): Promise<ApiResult<PolicySaveResult>>;
-
-  // Razorpay
-  getRazorpayStatus(merchantId: string): Promise<ApiResult<RazorpayStatus>>;
 
   // Readiness
   getReadinessStatus(merchantId: string): Promise<ApiResult<ReadinessStatus>>;
@@ -436,8 +432,6 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
         req,
         expectedVersion !== undefined ? { "If-Match": String(expectedVersion) } : undefined,
       ),
-    getRazorpayStatus: (merchantId) =>
-      request<RazorpayStatus>("GET", `/merchants/${merchantId}/razorpay`),
     getReadinessStatus: (merchantId) =>
       request<ReadinessStatus>("GET", `/merchants/${merchantId}/readiness`),
     runReadinessCheck: (req) =>

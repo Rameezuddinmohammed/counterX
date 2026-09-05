@@ -40,7 +40,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   {
     title: "Payments",
     items: [
-      { href: "/razorpay", label: "Settlement account", icon: Landmark },
+      { href: "/razorpay", label: "Payment configuration", icon: Landmark },
       { href: "/transactions", label: "Transactions", icon: Receipt },
     ],
   },
