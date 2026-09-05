@@ -118,7 +118,10 @@ export default function InvitePage() {
     <PageWrapper>
       <div className="space-y-6">
         <div className="border-b border-[var(--border-secondary)] pb-5">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
             Onboarding
           </p>
           <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
@@ -163,7 +166,10 @@ export default function InvitePage() {
                     </div>
                     <div>
                       <p className="font-semibold text-[var(--foreground)]">Your application</p>
-                      <p className="text-sm text-[var(--foreground-muted)] font-mono" data-manifest-figure>
+                      <p
+                        className="text-sm text-[var(--foreground-muted)] font-mono"
+                        data-manifest-figure
+                      >
                         {status.merchantId}
                       </p>
                     </div>

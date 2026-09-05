@@ -6,10 +6,12 @@ import { Menu, X } from "lucide-react";
 
 const MERCHANT_CONSOLE_URL =
   process.env["NEXT_PUBLIC_MERCHANT_CONSOLE_URL"] ?? "http://localhost:3000";
-const WALLET_CONSOLE_URL =
-  process.env["NEXT_PUBLIC_WALLET_CONSOLE_URL"] ?? "http://localhost:3001";
+const WALLET_CONSOLE_URL = process.env["NEXT_PUBLIC_WALLET_CONSOLE_URL"] ?? "http://localhost:3001";
 
-const NAV_LINKS = [{ href: "#how-it-clears", label: "How it clears" }, { href: "/docs", label: "Docs" }] as const;
+const NAV_LINKS = [
+  { href: "#how-it-clears", label: "How it clears" },
+  { href: "/docs", label: "Docs" },
+] as const;
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

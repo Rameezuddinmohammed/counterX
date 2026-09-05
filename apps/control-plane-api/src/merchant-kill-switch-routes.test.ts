@@ -73,7 +73,10 @@ class FakeKillSwitchStore implements AsyncKillSwitchStore {
     now: Instant,
   ): Promise<{ ok: true; value: KillSwitchRow } | { ok: false; error: CanonicalError }> {
     if (this.rejectNextCall) {
-      return { ok: false, error: { kind: "canonical_error", code: "INTERNAL", category: "internal", message: "boom" } };
+      return {
+        ok: false,
+        error: { kind: "canonical_error", code: "INTERNAL", category: "internal", message: "boom" },
+      };
     }
     const row: KillSwitchRow = {
       scope: input.scope,
@@ -121,7 +124,11 @@ describe("merchant-kill-switch routes", () => {
 
   it("GET reports inactive before any activation", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", merchantKillSwitchStore: new FakeKillSwitchStore() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      merchantKillSwitchStore: new FakeKillSwitchStore(),
+    });
     await server.ready();
 
     const token = await createMerchantOwnerToken(TEST_MERCHANT_ID);
@@ -136,7 +143,11 @@ describe("merchant-kill-switch routes", () => {
 
   it("POST activate then GET reports active with the given reason", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", merchantKillSwitchStore: new FakeKillSwitchStore() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      merchantKillSwitchStore: new FakeKillSwitchStore(),
+    });
     await server.ready();
 
     const token = await createMerchantOwnerToken(TEST_MERCHANT_ID);
@@ -163,7 +174,11 @@ describe("merchant-kill-switch routes", () => {
 
   it("POST deactivate turns it back off", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", merchantKillSwitchStore: new FakeKillSwitchStore() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      merchantKillSwitchStore: new FakeKillSwitchStore(),
+    });
     await server.ready();
 
     const token = await createMerchantOwnerToken(TEST_MERCHANT_ID);
@@ -180,12 +195,20 @@ describe("merchant-kill-switch routes", () => {
       payload: { active: false },
     });
     expect(deactivateResponse.statusCode).toBe(200);
-    expect(JSON.parse(deactivateResponse.body)).toEqual({ active: false, reason: null, activatedAt: null });
+    expect(JSON.parse(deactivateResponse.body)).toEqual({
+      active: false,
+      reason: null,
+      activatedAt: null,
+    });
   });
 
   it("rejects a body with a non-boolean 'active' field (400)", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", merchantKillSwitchStore: new FakeKillSwitchStore() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      merchantKillSwitchStore: new FakeKillSwitchStore(),
+    });
     await server.ready();
 
     const token = await createMerchantOwnerToken(TEST_MERCHANT_ID);
@@ -200,7 +223,11 @@ describe("merchant-kill-switch routes", () => {
 
   it("a DIFFERENT merchant's token gets 403, never touching this merchant's switch", async () => {
     const { jwks } = await getTestKeys();
-    server = createServer({ jwks, environment: "test", merchantKillSwitchStore: new FakeKillSwitchStore() });
+    server = createServer({
+      jwks,
+      environment: "test",
+      merchantKillSwitchStore: new FakeKillSwitchStore(),
+    });
     await server.ready();
 
     const token = await createMerchantOwnerToken(OTHER_MERCHANT_ID);

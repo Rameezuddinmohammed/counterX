@@ -104,7 +104,10 @@ export default function ShopifyPage() {
     <PageWrapper>
       <div className="space-y-6">
         <div className="border-b border-[var(--border-secondary)] pb-5">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
             Commerce
           </p>
           <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
@@ -138,7 +141,10 @@ export default function ShopifyPage() {
                   <ShoppingBag className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="font-semibold text-[var(--foreground)] font-mono" data-manifest-figure>
+                  <p
+                    className="font-semibold text-[var(--foreground)] font-mono"
+                    data-manifest-figure
+                  >
                     {data.shopDomain}
                   </p>
                   <div className="mt-1 flex items-center gap-2">

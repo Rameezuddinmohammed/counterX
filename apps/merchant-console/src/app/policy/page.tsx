@@ -320,7 +320,10 @@ export default function PolicyPage() {
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--border-secondary)] pb-5">
           <div>
-            <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+            <p
+              className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+              data-manifest-figure
+            >
               Controls
             </p>
             <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
@@ -331,7 +334,11 @@ export default function PolicyPage() {
               save. These rules are enforced for real at checkout.
             </p>
           </div>
-          <Button onClick={() => void handleSave()} disabled={saving || loading} className="shrink-0">
+          <Button
+            onClick={() => void handleSave()}
+            disabled={saving || loading}
+            className="shrink-0"
+          >
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Saving…" : "Save policy"}
           </Button>

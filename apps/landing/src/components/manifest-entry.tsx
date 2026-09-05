@@ -3,8 +3,7 @@
 import { Button } from "@counter/ui";
 import { ArrowRight, CheckCircle2, XCircle } from "lucide-react";
 
-const WALLET_CONSOLE_URL =
-  process.env["NEXT_PUBLIC_WALLET_CONSOLE_URL"] ?? "http://localhost:3001";
+const WALLET_CONSOLE_URL = process.env["NEXT_PUBLIC_WALLET_CONSOLE_URL"] ?? "http://localhost:3001";
 const MERCHANT_CONSOLE_URL =
   process.env["NEXT_PUBLIC_MERCHANT_CONSOLE_URL"] ?? "http://localhost:3000";
 
@@ -26,7 +25,12 @@ function ManifestField({
       <span className="text-xs uppercase tracking-wider text-[var(--foreground-muted)]">
         {label}
       </span>
-      <span className={mono ? "font-mono text-sm text-[var(--foreground)]" : "text-sm text-[var(--foreground)]"} data-manifest-figure={mono || undefined}>
+      <span
+        className={
+          mono ? "font-mono text-sm text-[var(--foreground)]" : "text-sm text-[var(--foreground)]"
+        }
+        data-manifest-figure={mono || undefined}
+      >
         {value}
       </span>
     </div>
@@ -90,15 +94,18 @@ export function ManifestEntry() {
         {/* Header row — the headline lives inside the manifest's own header,
             not in a separate hero block above it. */}
         <div className="mb-10 border-b border-[var(--border-secondary)] pb-6">
-          <p className="mb-3 font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)]" data-manifest-figure>
+          <p
+            className="mb-3 font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)]"
+            data-manifest-figure
+          >
             Declared · Sealed · Cleared
           </p>
           <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.05] tracking-tight text-[var(--foreground)]">
             A mandate is a manifest.
           </h1>
           <p className="mt-4 max-w-xl text-base sm:text-lg text-[var(--foreground-secondary)]">
-            Every purchase your agent makes clears a declared ceiling before it happens — or it
-            is stamped declined before an order ever exists.
+            Every purchase your agent makes clears a declared ceiling before it happens — or it is
+            stamped declined before an order ever exists.
           </p>
         </div>
 

@@ -95,7 +95,10 @@ export default function ReadinessPage() {
     <PageWrapper>
       <div className="space-y-6">
         <div className="border-b border-[var(--border-secondary)] pb-5">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
             Onboarding · Step 4 of 5
           </p>
           <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">

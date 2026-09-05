@@ -55,7 +55,10 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-[var(--brand-red)]/15 text-[var(--brand-red)] text-xs font-mono" data-manifest-figure>
+            <AvatarFallback
+              className="bg-[var(--brand-red)]/15 text-[var(--brand-red)] text-xs font-mono"
+              data-manifest-figure
+            >
               MC
             </AvatarFallback>
           </Avatar>

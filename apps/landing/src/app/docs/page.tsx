@@ -42,7 +42,10 @@ export default function DocsPage() {
       <main className="pt-28 pb-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 border-b border-[var(--border-secondary)] pb-6">
-            <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-3" data-manifest-figure>
+            <p
+              className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-3"
+              data-manifest-figure
+            >
               Documentation
             </p>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mb-4">

@@ -29,7 +29,10 @@ export function HowItClears() {
     <section id="how-it-clears" className="relative py-20 sm:py-28 border-t border-[var(--border)]">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="mb-14 max-w-2xl">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-3" data-manifest-figure>
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-3"
+            data-manifest-figure
+          >
             How it clears
           </p>
           <h2 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-[var(--foreground)]">
@@ -43,7 +46,10 @@ export function HowItClears() {
               key={step.number}
               className="grid grid-cols-[auto_auto_1fr] items-start gap-5 py-8 first:pt-0 last:pb-0"
             >
-              <span className="font-mono text-sm text-[var(--foreground-muted)] pt-1" data-manifest-figure>
+              <span
+                className="font-mono text-sm text-[var(--foreground-muted)] pt-1"
+                data-manifest-figure
+              >
                 {step.number}
               </span>
               <div className="flex h-10 w-10 items-center justify-center border border-[var(--border)] text-[var(--brand-red)]">

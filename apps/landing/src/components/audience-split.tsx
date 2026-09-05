@@ -3,8 +3,7 @@ import { ArrowRight, Store, Wallet } from "lucide-react";
 
 const MERCHANT_CONSOLE_URL =
   process.env["NEXT_PUBLIC_MERCHANT_CONSOLE_URL"] ?? "http://localhost:3000";
-const WALLET_CONSOLE_URL =
-  process.env["NEXT_PUBLIC_WALLET_CONSOLE_URL"] ?? "http://localhost:3001";
+const WALLET_CONSOLE_URL = process.env["NEXT_PUBLIC_WALLET_CONSOLE_URL"] ?? "http://localhost:3001";
 
 const MERCHANT_LINES = [
   "Connect your Shopify store and a Razorpay test-mode account",
@@ -40,7 +39,10 @@ function AudienceColumn({
           <Icon size={16} />
         </div>
         <div>
-          <p className="font-mono text-[11px] uppercase tracking-widest text-[var(--foreground-muted)]" data-manifest-figure>
+          <p
+            className="font-mono text-[11px] uppercase tracking-widest text-[var(--foreground-muted)]"
+            data-manifest-figure
+          >
             {eyebrow}
           </p>
           <h3 className="text-lg font-semibold text-[var(--foreground)]">{title}</h3>
@@ -48,7 +50,10 @@ function AudienceColumn({
       </div>
       <ul className="flex-1 px-6 py-5 space-y-3">
         {lines.map((line) => (
-          <li key={line} className="text-sm text-[var(--foreground-secondary)] leading-relaxed pl-4 border-l border-[var(--border-secondary)]">
+          <li
+            key={line}
+            className="text-sm text-[var(--foreground-secondary)] leading-relaxed pl-4 border-l border-[var(--border-secondary)]"
+          >
             {line}
           </li>
         ))}
@@ -70,7 +75,10 @@ export function AudienceSplit() {
     <section className="relative py-20 sm:py-28 border-t border-[var(--border)]">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <div className="mb-14 max-w-2xl">
-          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-3" data-manifest-figure>
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-3"
+            data-manifest-figure
+          >
             Two sides, one mandate
           </p>
           <h2 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-[var(--foreground)]">

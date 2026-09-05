@@ -30,10 +30,7 @@ describe("WalletUserProvisioner.mintRuntimeCredential", () => {
       runtimeUrl: "https://counter-agent-runtime.fly.dev",
     });
 
-    const result = await provisioner.mintRuntimeCredential(
-      "ctr_wallet_abc123",
-      "ctr_agent_xyz789",
-    );
+    const result = await provisioner.mintRuntimeCredential("ctr_wallet_abc123", "ctr_agent_xyz789");
 
     expect(result.runtimeUrl).toBe("https://counter-agent-runtime.fly.dev");
     expect(new Date(result.expiresAt).getTime()).toBeGreaterThan(Date.now());
@@ -102,9 +99,9 @@ describe("resolveRuntimeTokenSigner", () => {
   });
 
   it("resolves a real signer from valid env vars", () => {
-    const privateKeyBase64 = Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----").toString(
-      "base64",
-    );
+    const privateKeyBase64 = Buffer.from(
+      "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+    ).toString("base64");
     const resolved = resolveRuntimeTokenSigner({
       RUNTIME_TOKEN_SIGNER_KID: "real-kid",
       RUNTIME_TOKEN_SIGNER_PRIVATE_KEY_BASE64: privateKeyBase64,

@@ -98,7 +98,9 @@ export default function KillSwitchPage() {
                 <div
                   className={`rounded-lg p-2 ${active ? "bg-red-500/10" : "bg-[var(--surface-secondary)]"}`}
                 >
-                  <Power className={`h-5 w-5 ${active ? "text-red-500" : "text-[var(--foreground-muted)]"}`} />
+                  <Power
+                    className={`h-5 w-5 ${active ? "text-red-500" : "text-[var(--foreground-muted)]"}`}
+                  />
                 </div>
                 <div>
                   <p className="font-medium text-[var(--foreground)]">
@@ -146,7 +148,11 @@ export default function KillSwitchPage() {
               <Button variant="outline" onClick={() => setConfirmOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="destructive" disabled={saving} onClick={() => void applyToggle(true)}>
+              <Button
+                variant="destructive"
+                disabled={saving}
+                onClick={() => void applyToggle(true)}
+              >
                 Activate
               </Button>
             </DialogFooter>

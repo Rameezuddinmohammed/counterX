@@ -9,9 +9,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import { importSPKI, type JWTVerifyGetKey } from "jose";
-import {
-  RUNTIME_TOKEN_TEST_PUBLIC_KEY_PEM,
-} from "@counter/domain";
+import { RUNTIME_TOKEN_TEST_PUBLIC_KEY_PEM } from "@counter/domain";
 import {
   createHttpServer,
   attachGracefulShutdown,
@@ -61,7 +59,8 @@ const AUTH_AUDIENCE = process.env["AUTH0_AUDIENCE"] ?? "https://api.counter.dev"
 // control-plane-api's signer falls back to, so a local dev loop or test
 // server works with zero configuration — see
 // packages/domain/src/runtime-token-test-fixture.ts's docs.
-const RUNTIME_TOKEN_ISSUER = process.env["COUNTER_RUNTIME_TOKEN_ISSUER"] || "https://runtime.counter.dev/";
+const RUNTIME_TOKEN_ISSUER =
+  process.env["COUNTER_RUNTIME_TOKEN_ISSUER"] || "https://runtime.counter.dev/";
 
 /** Resolves the runtime-token public key: real key when configured, the public test fixture only outside production. */
 function resolveRuntimeTokenPublicKeyPem(environment: string): string | undefined {

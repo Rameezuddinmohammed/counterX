@@ -18,10 +18,7 @@
  * instead of silently signing real buyer credentials with the public test
  * fixture.
  */
-import {
-  RUNTIME_TOKEN_TEST_KID,
-  RUNTIME_TOKEN_TEST_PRIVATE_KEY_PEM,
-} from "@counter/domain";
+import { RUNTIME_TOKEN_TEST_KID, RUNTIME_TOKEN_TEST_PRIVATE_KEY_PEM } from "@counter/domain";
 
 export interface RuntimeTokenSigner {
   readonly kid: string;

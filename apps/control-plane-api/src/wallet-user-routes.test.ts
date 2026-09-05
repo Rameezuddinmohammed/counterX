@@ -125,7 +125,10 @@ class FakeWalletUserProvisioner implements WalletUserProvisionerLike {
     };
   }
 
-  async mintRuntimeCredential(_walletId: string, _agentId: string): Promise<RuntimeCredentialResult> {
+  async mintRuntimeCredential(
+    _walletId: string,
+    _agentId: string,
+  ): Promise<RuntimeCredentialResult> {
     if (this.runtimeCredential === undefined) {
       throw new Error("No runtime credential is configured for this deployment");
     }
