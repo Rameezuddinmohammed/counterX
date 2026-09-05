@@ -8,3 +8,5 @@
 # Auto-written by `next dev` (Next.js 16 "agent rules" feature) on every run
 AGENTS.md
 CLAUDE.md
+
+.vercel

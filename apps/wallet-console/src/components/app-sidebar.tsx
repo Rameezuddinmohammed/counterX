@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -31,7 +32,10 @@ import {
   Download,
   Settings,
   Wallet,
+  LogOut,
 } from "lucide-react";
+
+const LANDING_URL = process.env["NEXT_PUBLIC_LANDING_URL"] ?? "https://counter-landing-blond.vercel.app";
 
 const NAV_SECTIONS = [
   {
@@ -71,9 +75,36 @@ const NAV_SECTIONS = [
   },
 ] as const;
 
+interface SessionIdentity {
+  readonly walletId?: string;
+  readonly email?: string | null;
+  readonly name?: string | null;
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { collapsed } = useSidebar();
+  const [identity, setIdentity] = useState<SessionIdentity | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/session");
+        if (!response.ok) return;
+        const body = (await response.json()) as SessionIdentity;
+        if (!cancelled) setIdentity(body);
+      } catch {
+        // Sidebar falls back to a loading placeholder — non-fatal.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const displayName = identity?.name ?? identity?.email ?? "Wallet User";
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <Sidebar>
@@ -93,7 +124,9 @@ export function AppSidebar() {
           <div className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-secondary)] px-3 py-2">
             <Wallet className="h-4 w-4 text-[var(--brand-orange)]" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-[var(--foreground)] truncate">wlt-pilot-001</p>
+              <p className="text-xs font-medium text-[var(--foreground)] truncate">
+                {identity?.walletId ?? "…"}
+              </p>
               <div className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                 <span className="text-[10px] text-[var(--foreground-muted)]">Active</span>
@@ -125,14 +158,27 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-[var(--brand-orange)]/20 text-[var(--brand-orange)] text-xs">
-              WC
+              {initials}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--foreground)] truncate">Wallet User</p>
+              <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                {displayName}
+              </p>
               <p className="text-xs text-[var(--foreground-muted)] truncate">Pilot Mode</p>
             </div>
+          )}
+          {!collapsed && (
+            <a
+              href={`${LANDING_URL}/docs`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+              title="Docs"
+            >
+              <BookOpen className="h-4 w-4" />
+            </a>
           )}
           {!collapsed && (
             <Link
@@ -141,6 +187,15 @@ export function AppSidebar() {
             >
               <Settings className="h-4 w-4" />
             </Link>
+          )}
+          {!collapsed && (
+            <a
+              href="/auth/logout"
+              className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+              title="Log out"
+            >
+              <LogOut className="h-4 w-4" />
+            </a>
           )}
         </div>
       </SidebarFooter>
