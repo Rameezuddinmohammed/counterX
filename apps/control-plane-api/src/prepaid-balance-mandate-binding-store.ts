@@ -223,9 +223,15 @@ export class PrepaidBalanceMandateBindingService {
       expectedEnvironment: MANDATE_ENVELOPE_ENVIRONMENT,
     });
     if (!verifyResult.ok) {
+      // Same diagnostic forwarding as mandate-binding-store.ts — surface the
+      // specific reason from verifyEnvelope rather than the generic canonical
+      // fallback string, so the wallet UI shows something actionable.
       return {
         ok: false,
-        error: { code: "SIGNATURE_INVALID", message: verifyResult.error.message },
+        error: {
+          code: "SIGNATURE_INVALID",
+          message: `Envelope verification failed: ${verifyResult.error.detail}`,
+        },
       };
     }
 

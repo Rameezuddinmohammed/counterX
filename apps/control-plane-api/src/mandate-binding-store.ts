@@ -218,9 +218,17 @@ export class MandateBindingService {
       expectedEnvironment: MANDATE_ENVELOPE_ENVIRONMENT,
     });
     if (!verifyResult.ok) {
+      // verifyResult.error.detail is the specific diagnostic reason from
+      // verifyEnvelope (e.g. "Envelope has expired: current time is after
+      // expires_at", "Verifier is not in the envelope audience", etc.). Surface
+      // it directly so the wallet UI can show something actionable instead of
+      // the generic canonical fallback string.
       return {
         ok: false,
-        error: { code: "SIGNATURE_INVALID", message: verifyResult.error.message },
+        error: {
+          code: "SIGNATURE_INVALID",
+          message: `Envelope verification failed: ${verifyResult.error.detail}`,
+        },
       };
     }
 

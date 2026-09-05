@@ -547,7 +547,8 @@ describe("Verification", () => {
       const result = await verifyEnvelope(envelope, options);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.code).toBe("OUT_OF_RANGE");
+        expect(result.error.code).toBe("INVALID_FORMAT");
+        expect(result.error.detail).toContain("expired");
       }
     });
 
@@ -562,7 +563,8 @@ describe("Verification", () => {
       const result = await verifyEnvelope(envelope, options);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.code).toBe("OUT_OF_RANGE");
+        expect(result.error.code).toBe("INVALID_FORMAT");
+        expect(result.error.detail).toContain("not yet valid");
       }
     });
 
