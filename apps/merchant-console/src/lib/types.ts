@@ -233,6 +233,19 @@ export interface ShopifyConnectionStatus {
   readonly connected: boolean;
   readonly shopDomain?: string;
   readonly connectedAt?: string;
+  /**
+   * Whether this deployment has a Shopify OAuth app configured, i.e.
+   * whether the one-click "Connect Shopify" button can work at all. When
+   * false, the console shows the Admin API access token path instead of a
+   * button that would fail — see connectShopifyWithToken.
+   */
+  readonly oauthAvailable?: boolean;
+}
+
+/** Body of POST /control/v1/merchants/:merchantId/shopify/connection. */
+export interface ConnectShopifyWithTokenRequest {
+  readonly shopDomain: string;
+  readonly accessToken: string;
 }
 
 // ---------------------------------------------------------------------------

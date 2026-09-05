@@ -90,6 +90,26 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       .map((m) => m.trim())
       .filter((m) => m.length > 0);
 
+    // An EMPTY merchant allowlist is deny-all, not allow-all: the policy
+    // engine rejects every purchase against it with "Merchant allowlist is
+    // empty - no merchants are permitted" (packages/policy). This form used
+    // to invite exactly that ("leave blank for none yet"), so a mandate
+    // created without typing any merchant id looked active everywhere in
+    // this console while being incapable of authorizing a single purchase —
+    // confirmed against the real deployed policy engine on 2026-09-05, on a
+    // wallet holding two such dead mandates. Blocked here rather than
+    // loosening the deny-by-default semantics, which would silently widen
+    // every mandate already issued.
+    if (allowedMerchantIds.length === 0) {
+      setStep({
+        status: "error",
+        message:
+          "Add at least one merchant this agent may buy from. A mandate with no merchants " +
+          "listed blocks every purchase, so it would never be usable.",
+      });
+      return;
+    }
+
     try {
       // 1. Step-up: this whole flow is gated server-side by
       // payment.mandate.manage / identity.agent_key.manage, which require
@@ -335,7 +355,7 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-[var(--foreground)]">
-            Merchant allowlist (comma-separated Counter merchant IDs — leave blank for none yet)
+            Merchants this agent may buy from (comma-separated Counter merchant IDs)
           </label>
           <Input
             value={merchantAllowlist}
@@ -345,6 +365,10 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
             placeholder="ctr_merchant_..., ctr_merchant_..."
             disabled={busy}
           />
+          <p className="mt-1 text-xs text-[var(--foreground-muted)]">
+            Required. Your agent can only buy from the merchants you list here — leaving it empty
+            would block every purchase.
+          </p>
         </div>
 
         <Button

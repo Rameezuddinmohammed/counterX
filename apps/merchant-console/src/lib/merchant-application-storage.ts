@@ -5,17 +5,16 @@
  * resume across page loads and reloads within the SAME browser without
  * re-deriving the merchant id from a network call every time.
  *
- * KNOWN LIMITATION, disclosed rather than papered over: this can't yet be
- * replaced with "ask the server which application belongs to my session",
- * because doing so needs either a real merchant-scoped JWT (which a
- * freshly-provisioned session doesn't have — no Auth0 Post-Login Action
- * stamps merchant_user claims yet, see merchant-application-routes.ts's
- * header) or a new lookup-by-subject route this pass didn't build. A
- * different browser/device, or a cleared localStorage, means the wizard
- * shows "Request Access" again even though a merchant application already
- * exists for that Auth0 subject — provisionForAuth0Subject is idempotent
- * server-side, so clicking the button again is harmless (returns the SAME
- * merchant, 200 not 201), just not a seamless resume.
+ * NO LONGER the wizard's only source of the merchant id (2026-09-05): the
+ * Auth0 Post-Login Action that stamps merchant_user claims is live, so
+ * useWizardMerchantId (hooks/use-api.ts) reads the merchant id straight off
+ * the signed-in session's access token and treats this cache as a fallback
+ * only. That closed a real dead-end where a second device, a fresh browser
+ * profile, or cleared site data made every wizard step report "No
+ * application found yet" for an account that plainly existed — and where a
+ * stale id cached from a previous account silently pointed the wizard at
+ * the wrong merchant. The hook also rewrites this cache from the token on
+ * every load, so it self-heals rather than persisting a wrong value.
  */
 
 const STORAGE_KEY = "counter.merchantConsole.merchantApplicationId";

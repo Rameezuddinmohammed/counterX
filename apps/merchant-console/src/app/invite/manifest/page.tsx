@@ -16,34 +16,29 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Skeleton } from "@counter/ui";
 import { FileCheck2, PartyPopper } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient } from "@/hooks/use-api";
-import { getStoredMerchantId } from "@/lib/merchant-application-storage";
+import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { pilotCapabilityLabel, fulfillmentCapabilityLabel } from "@/lib/onboarding-labels";
 import type { WizardManifest } from "@/lib/types";
 
 const PERMISSIONS_NOT_READY_MESSAGE =
-  "Your session doesn't have merchant permissions yet. This step needs a one-time Auth0 " +
-  "configuration change on Counter's side (not yet done) before it can save — this is a known, " +
-  "tracked gap.";
+  "Your session isn't authorized for this merchant account. Sign out and sign back in — " +
+  "merchant permissions are attached at login, so a session that started before your account " +
+  "was set up won't have them until you log in again.";
 
 export default function ManifestPage() {
-  const [merchantId, setMerchantId] = useState<string | undefined>(undefined);
-  const [checkedStorage, setCheckedStorage] = useState(false);
+  const { merchantId, loading: merchantLoading } = useWizardMerchantId();
   const [manifest, setManifest] = useState<WizardManifest | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = getStoredMerchantId();
-    setMerchantId(id);
-    setCheckedStorage(true);
-    if (id !== undefined) {
-      void loadManifest(id);
-    } else {
+    if (merchantId !== undefined) {
+      void loadManifest(merchantId);
+    } else if (!merchantLoading) {
       setLoading(false);
     }
-  }, []);
+  }, [merchantId, merchantLoading]);
 
   async function loadManifest(id: string) {
     setLoading(true);
@@ -74,7 +69,7 @@ export default function ManifestPage() {
     setManifest(result.data);
   }
 
-  if (checkedStorage && merchantId === undefined) {
+  if (!merchantLoading && merchantId === undefined) {
     return (
       <PageWrapper>
         <Card>

@@ -25,19 +25,17 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from "@counter/ui";
 import { ShoppingBag, Plus, ArrowRight } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient } from "@/hooks/use-api";
-import { getStoredMerchantId } from "@/lib/merchant-application-storage";
+import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import type { ManualCatalogItem } from "@/lib/types";
 
 const PERMISSIONS_NOT_READY_MESSAGE =
-  "Your session doesn't have merchant permissions yet. This step needs a one-time Auth0 " +
-  "configuration change on Counter's side (not yet done) before it can save — this is a known, " +
-  "tracked gap, not something wrong with what you entered.";
+  "Your session isn't authorized for this merchant account. Sign out and sign back in — " +
+  "merchant permissions are attached at login, so a session that started before your account " +
+  "was set up won't have them until you log in again.";
 
 export default function CatalogConnectPage() {
   const router = useRouter();
-  const [merchantId, setMerchantId] = useState<string | undefined>(undefined);
-  const [checkedStorage, setCheckedStorage] = useState(false);
+  const { merchantId, loading: merchantLoading } = useWizardMerchantId();
   const [items, setItems] = useState<readonly ManualCatalogItem[]>([]);
   const [itemsError, setItemsError] = useState<string | null>(null);
 
@@ -51,13 +49,10 @@ export default function CatalogConnectPage() {
   const [finishError, setFinishError] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = getStoredMerchantId();
-    setMerchantId(id);
-    setCheckedStorage(true);
-    if (id !== undefined) {
-      void loadItems(id);
+    if (merchantId !== undefined) {
+      void loadItems(merchantId);
     }
-  }, []);
+  }, [merchantId]);
 
   async function loadItems(id: string) {
     const result = await getApiClient().listManualCatalogItems(id);
@@ -126,7 +121,7 @@ export default function CatalogConnectPage() {
     router.push("/invite");
   }
 
-  if (checkedStorage && merchantId === undefined) {
+  if (!merchantLoading && merchantId === undefined) {
     return (
       <PageWrapper>
         <Card>

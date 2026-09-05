@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "@/lib/api-client";
 import { createApiClient } from "@/lib/api-client";
 import { decodeAccessTokenClaims } from "@/lib/access-token-claims";
+import { getStoredMerchantId, setStoredMerchantId } from "@/lib/merchant-application-storage";
 
 // ---------------------------------------------------------------------------
 // Token provider (uses Auth0 session in production)
@@ -128,6 +129,54 @@ export function useCurrentMerchantId(): CurrentMerchant {
   }, []);
 
   return { merchantId, loading, error };
+}
+
+/**
+ * The merchant id the onboarding wizard should operate on.
+ *
+ * Prefers the merchant id stamped on the signed-in session's own access
+ * token (the authoritative one — control-plane-api enforces the same value
+ * server-side on every request), and falls back to the localStorage cache
+ * only while that token is still being fetched or if the session carries no
+ * merchant scope.
+ *
+ * Fixes a real dead-end found by clicking through the wizard in a browser
+ * (2026-09-05): every step read ONLY the localStorage cache, so a merchant
+ * on a second device, a fresh browser profile, or after clearing site data
+ * saw "No application found yet" on every step of a wizard whose account
+ * plainly existed — and a stale cached id from an earlier account silently
+ * pointed the whole wizard at the wrong merchant. The Auth0 Post-Login
+ * Action that stamps merchant_user claims is live now (verified against the
+ * real tenant, 2026-09-05), which is what makes the token usable as the
+ * source of truth here; the storage module's header documented its absence
+ * as the reason this wasn't already done.
+ */
+export function useWizardMerchantId(): CurrentMerchant {
+  const fromToken = useCurrentMerchantId();
+  const [storedMerchantId, setStoredFromCache] = useState<string | undefined>(undefined);
+  const [storageChecked, setStorageChecked] = useState(false);
+
+  useEffect(() => {
+    setStoredFromCache(getStoredMerchantId());
+    setStorageChecked(true);
+  }, []);
+
+  // Keep the cache in step with the session, so a stale id from a previous
+  // account can never outlive the login that replaced it.
+  useEffect(() => {
+    if (fromToken.merchantId !== undefined) {
+      setStoredMerchantId(fromToken.merchantId);
+    }
+  }, [fromToken.merchantId]);
+
+  const merchantId = fromToken.merchantId ?? storedMerchantId;
+  const loading = fromToken.loading || !storageChecked;
+
+  return {
+    merchantId,
+    loading,
+    error: loading || merchantId !== undefined ? null : fromToken.error,
+  };
 }
 
 // ---------------------------------------------------------------------------

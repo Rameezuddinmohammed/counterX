@@ -604,6 +604,23 @@ describe("scopeEnforcementPlugin", () => {
     expect(response.statusCode).toBe(403);
   });
 
+  it("lets a request that matched NO route reach the 404 handler instead of denying it", async () => {
+    // Deny-by-default exists to stop a REGISTERED route from being served
+    // without a declared permission (covered above). A request that matched
+    // no route at all has no handler that could ever run, so answering 403
+    // "not authorized" only misreported a path that does not exist —
+    // notably making an optional, unconfigured feature look like a
+    // permissions bug. Pinned here so the distinction cannot silently
+    // regress.
+    const token = await createTestToken();
+    const response = await server.inject({
+      method: "GET",
+      url: "/this-route-was-never-registered",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
   it("returns same 403 error format regardless of existence (anti-leak)", async () => {
     const token = await createTestToken();
     const r1 = await server.inject({

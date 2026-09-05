@@ -169,6 +169,11 @@ function resolveShopifyOAuthConfig(): ShopifyOAuthConfig | undefined {
 
 const shopifyOAuthConfig = resolveShopifyOAuthConfig();
 
+// Admin API version used for the merchant-token connect path's live
+// verification calls. Same env var the worker's connector already reads, so
+// one deployment never talks to two different Shopify API versions.
+const shopifyApiVersion = process.env["SHOPIFY_API_VERSION"]?.trim() || "2025-07";
+
 // Optional: approving a refund request (the merchant-facing relay decision)
 // needs the SAME Razorpay credentials — reusing razorpayKeyId/razorpayKeySecret
 // above rather than a third credential set. Missing them degrades
@@ -497,16 +502,22 @@ const serverOptions: CreateServerOptions = {
         ...(prepaidBalanceMandateBindingService !== undefined
           ? { prepaidBalanceMandateBindingService }
           : {}),
-        ...(shopifyOAuthConfig !== undefined
-          ? {
-              shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(
-                database,
-                runtimeEnvironment,
-                shopifyOAuthConfig,
-                createShopifyConnectedHandler(database, runtimeEnvironment),
-              ),
-            }
-          : {}),
+        // Registered whenever a database exists — NOT only when a Shopify
+        // OAuth app is configured. The merchant-supplied-token connect path
+        // and the read-only status route need no OAuth app at all, and
+        // gating the whole plugin on one meant a merchant with no Shopify
+        // app configured hit an unexplained 404 on the Shopify page with
+        // no way to connect a store (the state this deployment was
+        // actually in, found 2026-09-05). beginAuthorization/callback still
+        // fail loudly and specifically when no OAuth app is configured.
+        shopifyConnectionProvisioner: new ShopifyConnectionProvisioner(
+          database,
+          runtimeEnvironment,
+          shopifyOAuthConfig,
+          createShopifyConnectedHandler(database, runtimeEnvironment),
+          shopifyApiVersion,
+        ),
+        shopifyOAuthAvailable: shopifyOAuthConfig !== undefined,
         ...(razorpayRefundProvider !== undefined
           ? {
               refundRequestStore: new RefundRequestStore(

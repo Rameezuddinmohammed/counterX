@@ -41,9 +41,17 @@ export function clearRoutePermissions(): void {
   routePermissions.clear();
 }
 
-function getRouteKey(request: FastifyRequest): string {
-  const routerPath = request.routeOptions?.url ?? request.url;
-  return `${request.method}:${routerPath}`;
+function getRouteKey(request: FastifyRequest): string | undefined {
+  // `routeOptions.url` is the matched route PATTERN (e.g.
+  // "/control/v1/merchants/:merchantId/shopify/connection"). It is undefined
+  // when nothing matched at all and Fastify is on its way to the 404
+  // handler — root-level onRequest hooks run for that path too. Returning
+  // undefined here (rather than falling back to the concrete request.url,
+  // which can never be a registered permission key) is what lets the caller
+  // hand an unmatched request to the real 404 handler instead of answering
+  // a deny-by-default 403.
+  const routerPath = request.routeOptions?.url;
+  return routerPath === undefined ? undefined : `${request.method}:${routerPath}`;
 }
 
 export interface ScopeEnforcementOptions {
@@ -69,6 +77,18 @@ export const scopeEnforcementPlugin = fp(
       }
 
       const routeKey = getRouteKey(request);
+      if (routeKey === undefined) {
+        // No route matched this request at all, so there is no handler that
+        // could run and nothing to authorize — let Fastify's own 404 handler
+        // answer. Previously this fell through to the deny-by-default branch
+        // below and returned 403 "not authorized" for a path that simply does
+        // not exist, which actively misled debugging: an optional feature
+        // whose routes were never registered (self-serve Shopify connect,
+        // when SHOPIFY_OAUTH_* is unset) looked like a permissions bug on a
+        // route that was working fine. Deny-by-default still applies in full
+        // to every route that DOES exist but declares no permission.
+        return;
+      }
       const permConfig = routePermissions.get(routeKey);
 
       if (permConfig === undefined) {

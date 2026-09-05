@@ -190,6 +190,13 @@ export interface CreateServerOptions {
    */
   readonly shopifyConnectionProvisioner?: ShopifyConnectionProvisionerLike | undefined;
   /**
+   * Whether one-click Shopify OAuth connect is configured on this
+   * deployment. Reported to the merchant console on the connection-status
+   * route so it offers the connect path that can actually succeed. Defaults
+   * to true when omitted, preserving existing callers' behaviour.
+   */
+  readonly shopifyOAuthAvailable?: boolean | undefined;
+  /**
    * Only when present is /control/v1/merchants/*\/refund-requests
    * registered — same optional-feature pattern as walletUserProvisioner.
    */
@@ -428,6 +435,9 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.shopifyConnectionProvisioner !== undefined) {
     void server.register(shopifyConnectRoutesPlugin, {
       provisioner: options.shopifyConnectionProvisioner,
+      ...(options.shopifyOAuthAvailable !== undefined
+        ? { oauthAvailable: options.shopifyOAuthAvailable }
+        : {}),
     });
   }
 

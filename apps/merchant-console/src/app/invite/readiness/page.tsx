@@ -22,20 +22,18 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Skeleton } from "@counter/ui";
 import { ArrowRight, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient } from "@/hooks/use-api";
-import { getStoredMerchantId } from "@/lib/merchant-application-storage";
+import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { readinessCheckLabel, readinessCheckPassed } from "@/lib/onboarding-labels";
 import type { WizardReadinessSummary } from "@/lib/types";
 
 const PERMISSIONS_NOT_READY_MESSAGE =
-  "Your session doesn't have merchant permissions yet. This step needs a one-time Auth0 " +
-  "configuration change on Counter's side (not yet done) before it can check readiness — this " +
-  "is a known, tracked gap.";
+  "Your session isn't authorized for this merchant account. Sign out and sign back in — " +
+  "merchant permissions are attached at login, so a session that started before your account " +
+  "was set up won't have them until you log in again.";
 
 export default function ReadinessPage() {
   const router = useRouter();
-  const [merchantId, setMerchantId] = useState<string | undefined>(undefined);
-  const [checkedStorage, setCheckedStorage] = useState(false);
+  const { merchantId, loading: merchantLoading } = useWizardMerchantId();
   const [summary, setSummary] = useState<WizardReadinessSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,15 +55,12 @@ export default function ReadinessPage() {
   }, []);
 
   useEffect(() => {
-    const id = getStoredMerchantId();
-    setMerchantId(id);
-    setCheckedStorage(true);
-    if (id !== undefined) {
-      void runCheck(id);
+    if (merchantId !== undefined) {
+      void runCheck(merchantId);
     }
-  }, [runCheck]);
+  }, [merchantId, runCheck]);
 
-  if (checkedStorage && merchantId === undefined) {
+  if (!merchantLoading && merchantId === undefined) {
     return (
       <PageWrapper>
         <Card>
