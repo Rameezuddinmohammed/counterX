@@ -7,6 +7,7 @@ import type {
   KillSwitchRow,
   KillSwitchScope,
 } from "@counter/data";
+import { createCanonicalError } from "@counter/domain";
 import type { CanonicalError } from "@counter/domain";
 import type { Instant } from "@counter/domain";
 import type { FastifyInstance } from "fastify";
@@ -73,10 +74,7 @@ class FakeKillSwitchStore implements AsyncKillSwitchStore {
     now: Instant,
   ): Promise<{ ok: true; value: KillSwitchRow } | { ok: false; error: CanonicalError }> {
     if (this.rejectNextCall) {
-      return {
-        ok: false,
-        error: { kind: "canonical_error", code: "INTERNAL", category: "internal", message: "boom" },
-      };
+      return { ok: false, error: createCanonicalError("INTERNAL") };
     }
     const row: KillSwitchRow = {
       scope: input.scope,
