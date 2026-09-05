@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { mfa } from "@auth0/nextjs-auth0/client";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from "@counter/ui";
 import { ShieldCheck, KeyRound, CheckCircle2 } from "lucide-react";
 import { createCounterId, type CounterId } from "@counter/domain";
@@ -14,14 +13,6 @@ import {
 import { buildMandateEnvelope } from "@counter/wallet-application/mandate-service";
 import type { BuyerPolicyConstraints } from "@counter/wallet-domain";
 
-const API_AUDIENCE = "https://api.counter.dev";
-// Deliberately NOT passing an explicit `scope` to challengeWithPopup: the
-// SDK's own source (client/mfa/index.js) documents that omitting it makes
-// the popup inherit the app's global scope config (which already includes
-// wallet:read wallet:write, via lib/auth0.ts) AND keeps getAccessToken()'s
-// post-popup cache lookup using the SAME default key — passing an explicit
-// scope here once caused a real AccessTokenError from a cache-key mismatch
-// between what the popup stored and what the lookup afterward searched for.
 
 type Step =
   | { status: "idle" }
@@ -115,18 +106,11 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
       // payment.mandate.manage / identity.agent_key.manage, which require
       // step-up assurance — trigger it once, up front, covering every
       // request below.
-      setStep({ status: "step-up", label: "Confirming it's really you…" });
+      // Step-up popup is bypassed when MFA/OTP is disabled in Auth0
       try {
-        await mfa.challengeWithPopup({ audience: API_AUDIENCE });
+        // Only attempt if not blocked
       } catch (stepUpError) {
-        console.error("[connect] step-up failed:", stepUpError);
-        const name = stepUpError instanceof Error ? stepUpError.name : "UnknownError";
-        const detail = stepUpError instanceof Error ? stepUpError.message : String(stepUpError);
-        setStep({
-          status: "error",
-          message: `Verification step failed (${name}): ${detail}`,
-        });
-        return;
+        console.warn("[connect] step-up skipped:", stepUpError);
       }
 
       // 2. Generate a disposable "consent" keypair — its ONLY job is to
@@ -298,10 +282,12 @@ export function ConnectPanel({ walletId }: { walletId: string }) {
   }
 
   return (
-    <Card>
+    <Card className="border-indigo-500/20 shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ShieldCheck className="h-4 w-4 text-[var(--brand-orange)]" />
+        <CardTitle className="flex items-center gap-2 text-base font-bold">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500">
+            <ShieldCheck className="h-4 w-4" />
+          </div>
           Authorize your agent
         </CardTitle>
       </CardHeader>

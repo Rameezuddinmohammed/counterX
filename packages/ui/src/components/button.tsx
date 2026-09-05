@@ -8,24 +8,26 @@ import { cn } from "../lib/utils";
 // rounded SaaS pill. No border-radius, no active:scale bounce (a stamp
 // lands flat, it doesn't squash); hover deepens the seal color instead.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none text-sm font-medium tracking-tight transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold tracking-tight transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
   {
     variants: {
       variant: {
-        default: "bg-[var(--brand-red)] text-[#fbf9f4] hover:bg-[var(--brand-red-dark)]",
+        default:
+          "bg-indigo-600 text-white hover:bg-indigo-500 shadow-md shadow-indigo-500/20 border border-indigo-500/30",
         outline:
-          "border border-[var(--border)] bg-transparent text-[var(--foreground)] hover:bg-[var(--surface-secondary)] hover:border-[var(--border-secondary)]",
+          "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)] hover:border-[var(--border-secondary)] shadow-sm",
         ghost:
           "text-[var(--foreground-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]",
-        destructive: "bg-[var(--error)] text-[#fbf9f4] hover:bg-[var(--brand-red-dark)]",
-        link: "text-[var(--brand-red)] underline-offset-4 hover:underline p-0 h-auto",
+        destructive:
+          "bg-rose-600 text-white hover:bg-rose-500 shadow-md shadow-rose-500/20 border border-rose-500/30",
+        link: "text-[var(--brand-primary)] underline-offset-4 hover:underline p-0 h-auto active:scale-100",
         secondary:
-          "bg-[var(--surface-secondary)] text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--border)]",
+          "bg-[var(--surface-secondary)] text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--surface-hover)] shadow-sm",
       },
       size: {
         default: "h-10 px-4 py-2",
-        sm: "h-8 px-3 text-xs",
-        lg: "h-12 px-6 text-base",
+        sm: "h-8 px-3 text-xs rounded-lg",
+        lg: "h-12 px-6 text-base rounded-2xl",
         icon: "h-10 w-10",
       },
     },

@@ -15,6 +15,7 @@ import {
   DialogFooter,
   Button,
   Input,
+  Badge,
   toast,
 } from "@counter/ui";
 import { Power } from "lucide-react";
@@ -71,47 +72,82 @@ export default function KillSwitchPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <p
-            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
-            data-manifest-figure
-          >
-            Controls
-          </p>
-          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
-            Kill switch
-          </h1>
-          <p className="mt-1 text-[var(--foreground-secondary)]">
-            An emergency stop for your own store. When active, your agent-driven purchases are
-            halted before any payment or order is created — enforced for real at checkout.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-rose-600 dark:text-rose-400">
+                Emergency Safeguards
+              </span>
+              <span
+                className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                  active
+                    ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                    : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    active ? "bg-rose-500 animate-ping" : "bg-emerald-500"
+                  }`}
+                />
+                {active ? "Emergency Halt Engaged" : "Purchasing Active"}
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+              Store Kill Switch
+            </h1>
+            <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+              Instant circuit-breaker for your store. When active, all incoming agent purchases are
+              halted before an order or payment is ever created.
+            </p>
+          </div>
         </div>
 
         {loading ? (
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
         ) : error ? (
           <ErrorState message={error} />
         ) : (
-          <Card>
-            <CardContent className="flex items-center justify-between p-5">
+          <Card
+            className={`transition-all duration-200 shadow-md ${
+              active
+                ? "border-rose-500/40 bg-gradient-to-br from-rose-950/20 via-[var(--surface)] to-[var(--surface)]"
+                : "border-[var(--border)] hover:border-[var(--border-secondary)]"
+            }`}
+          >
+            <CardContent className="flex items-center justify-between p-6">
               <div className="flex items-center gap-4">
                 <div
-                  className={`rounded-lg p-2 ${active ? "bg-red-500/10" : "bg-[var(--surface-secondary)]"}`}
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition-colors ${
+                    active
+                      ? "bg-rose-500/15 border-rose-500/30 text-rose-500"
+                      : "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                  }`}
                 >
-                  <Power
-                    className={`h-5 w-5 ${active ? "text-red-500" : "text-[var(--foreground-muted)]"}`}
-                  />
+                  <Power className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="font-medium text-[var(--foreground)]">
-                    {active ? "Purchases halted" : "Purchases enabled"}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-base text-[var(--foreground)]">
+                      {active ? "AI Agent Orders Halted" : "Agent Purchases Fully Enabled"}
+                    </p>
+                    <Badge variant={active ? "error" : "success"}>
+                      {active ? "Halted" : "Standby"}
+                    </Badge>
+                  </div>
                   {active && data?.reason && (
-                    <p className="mt-0.5 text-xs text-red-500">{data.reason}</p>
+                    <p className="mt-1 text-xs font-medium text-rose-500 font-mono">
+                      Reason: {data.reason}
+                    </p>
                   )}
                   {active && data?.activatedAt && (
+                    <p className="mt-0.5 text-xs text-[var(--foreground-muted)] font-mono">
+                      Active since {new Date(data.activatedAt).toLocaleString()}
+                    </p>
+                  )}
+                  {!active && (
                     <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
-                      Since {new Date(data.activatedAt).toLocaleString()}
+                      Flip switch to immediately halt all agent-driven checkout flows.
                     </p>
                   )}
                 </div>

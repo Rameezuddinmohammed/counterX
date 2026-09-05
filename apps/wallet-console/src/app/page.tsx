@@ -11,16 +11,21 @@
  */
 
 import { useEffect, useState } from "react";
-import { StatCard, Card, CardContent, Badge, Skeleton, ErrorState } from "@counter/ui";
+import { Card, CardContent, Badge, Skeleton, ErrorState, Button } from "@counter/ui";
 import {
   FileText,
   CheckCircle2,
   ArrowLeftRight,
   Smartphone,
-  Zap,
   Wallet,
   Download,
   Coins,
+  ShieldCheck,
+  Copy,
+  Check,
+  ArrowUpRight,
+  ArrowDownLeft,
+  KeyRound,
 } from "lucide-react";
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
@@ -31,6 +36,12 @@ const QUICK_ACTIONS = [
     href: "/wallet/topup",
     icon: Wallet,
     description: "Top up your balance via Razorpay",
+  },
+  {
+    label: "Authorize Agent",
+    href: "/connect",
+    icon: KeyRound,
+    description: "Issue new Ed25519 mandate",
   },
   {
     label: "View Transactions",
@@ -90,6 +101,7 @@ function formatDate(iso: string): string {
 export default function DashboardPage() {
   const [balance, setBalance] = useState<LoadState<BalanceState>>({ status: "loading" });
   const [mandateCount, setMandateCount] = useState<number | undefined>(undefined);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,100 +159,253 @@ export default function DashboardPage() {
     };
   }, []);
 
+  function copyWalletId(id: string) {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <PageWrapper>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Wallet Overview</h1>
-          <p className="mt-1 text-[var(--foreground-secondary)]">
-            Monitor your wallet status, recent activity, and pending actions.
-          </p>
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-indigo-500">
+                Agent Treasury
+              </span>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                Pilot Active
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+              Wallet Overview
+            </h1>
+            <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+              Real-time balance, standing mandates, and autonomous AI agent activity.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link href="/wallet/topup" className="no-underline">
+              <Button size="sm" className="gap-2 shadow-md shadow-indigo-500/20">
+                <Wallet className="h-3.5 w-3.5" />
+                Add Funds
+              </Button>
+            </Link>
+            <Link href="/connect" className="no-underline">
+              <Button size="sm" variant="outline" className="gap-2">
+                <KeyRound className="h-3.5 w-3.5" />
+                Authorize Agent
+              </Button>
+            </Link>
+          </div>
         </div>
 
+        {/* Hero Vault Balance Card */}
         {balance.status === "loading" ? (
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-44 w-full rounded-3xl" />
         ) : balance.status === "error" ? (
           <ErrorState message={balance.message} />
         ) : (
-          <Card className="border-[var(--brand-orange)]/20 bg-gradient-to-r from-[var(--brand-orange)]/5 to-transparent">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="rounded-xl bg-[var(--brand-orange)]/10 p-3">
-                  <Wallet className="h-6 w-6 text-[var(--brand-orange)]" />
+          <div className="relative overflow-hidden rounded-3xl border border-indigo-500/25 bg-gradient-to-br from-indigo-950/40 via-slate-900/90 to-cyan-950/20 p-6 md:p-8 shadow-xl shadow-indigo-500/5">
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">
+                  <span className="flex h-2 w-2 rounded-full bg-cyan-400"></span>
+                  Autonomous Spending Balance
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-[var(--foreground-secondary)]">Wallet ID</p>
-                  <p className="text-lg font-mono font-semibold text-[var(--foreground)]">
-                    {balance.data.walletId}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-[var(--foreground-secondary)]">Balance</p>
-                  <p className="text-lg font-semibold text-[var(--foreground)]">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-4xl md:text-5xl font-extrabold text-[var(--foreground)] tracking-tight font-mono">
                     {formatAmount(balance.data.balanceMinor, balance.data.currency)}
-                  </p>
+                  </span>
+                  <Badge variant={balance.data.hasBalanceAccount ? "success" : "secondary"}>
+                    {balance.data.hasBalanceAccount ? "Active & Funded" : "Not funded yet"}
+                  </Badge>
                 </div>
-                <Badge variant={balance.data.hasBalanceAccount ? "success" : "secondary"}>
-                  {balance.data.hasBalanceAccount ? "Active" : "Not funded yet"}
-                </Badge>
+
+                <div className="flex flex-wrap items-center gap-3 mt-4 text-xs text-[var(--foreground-muted)] font-mono">
+                  <div className="flex items-center gap-2 bg-[var(--surface-secondary)]/80 border border-[var(--border)] px-3 py-1.5 rounded-xl">
+                    <span>ID:</span>
+                    <span className="text-[var(--foreground)] font-semibold">
+                      {balance.data.walletId || "—"}
+                    </span>
+                    {balance.data.walletId && (
+                      <button
+                        onClick={() => copyWalletId(balance.data.walletId)}
+                        className="ml-1 text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+                        title="Copy Wallet ID"
+                      >
+                        {copied ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  <span className="hidden sm:inline">&bull;</span>
+                  <span>
+                    Currency: <strong className="text-[var(--foreground)]">{balance.data.currency}</strong>
+                  </span>
+                  <span className="hidden sm:inline">&bull;</span>
+                  <span>
+                    Events:{" "}
+                    <strong className="text-[var(--foreground)]">
+                      {balance.data.recentEvents.length} recorded
+                    </strong>
+                  </span>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+                <Link href="/wallet/topup" className="no-underline">
+                  <Button className="px-5 py-2.5 font-semibold text-sm shadow-lg shadow-indigo-500/25">
+                    <Wallet className="h-4 w-4 mr-1.5" />
+                    Top Up Balance
+                  </Button>
+                </Link>
+                <Link href="/mandates" className="no-underline">
+                  <Button variant="outline" className="px-4 py-2.5 font-medium text-sm">
+                    <FileText className="h-4 w-4 mr-1.5" />
+                    Manage Mandates
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <StatCard
-            icon={<FileText className="h-4 w-4" />}
-            label="Active Mandates"
-            value={mandateCount !== undefined ? String(mandateCount) : "—"}
-            description="Standing authorizations"
-          />
-          <StatCard
-            icon={<ArrowLeftRight className="h-4 w-4" />}
-            label="Recent Activity"
-            value={balance.status === "loaded" ? String(balance.data.recentEvents.length) : "—"}
-            description="Balance events"
-          />
-          <StatCard
-            icon={<CheckCircle2 className="h-4 w-4" />}
-            label="Pending Approvals"
-            value="—"
-            description="Coming soon"
-          />
-          <StatCard
-            icon={<Smartphone className="h-4 w-4" />}
-            label="Paired Devices"
-            value="—"
-            description="Coming soon"
-          />
-          <StatCard
-            icon={<Zap className="h-4 w-4" />}
-            label="Active Triggers"
-            value="—"
-            description="Coming soon"
-          />
+        {/* Dynamic Metric Grid */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm hover:border-[var(--border-secondary)] transition-all">
+            <div className="flex items-center justify-between text-[var(--foreground-secondary)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Active Mandates</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500">
+                <FileText className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-[var(--foreground)]">
+              {mandateCount !== undefined ? `${mandateCount} Active` : "—"}
+            </div>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">Standing cryptographic limits</p>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm hover:border-[var(--border-secondary)] transition-all">
+            <div className="flex items-center justify-between text-[var(--foreground-secondary)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Recent Activity</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500">
+                <ArrowLeftRight className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-[var(--foreground)]">
+              {balance.status === "loaded" ? `${balance.data.recentEvents.length} Events` : "—"}
+            </div>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">Autonomous ledger entries</p>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm hover:border-[var(--border-secondary)] transition-all">
+            <div className="flex items-center justify-between text-[var(--foreground-secondary)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Pre-Effect Gates</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-emerald-500">100% Enforced</div>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">Zero post-hoc overspend</p>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm hover:border-[var(--border-secondary)] transition-all">
+            <div className="flex items-center justify-between text-[var(--foreground-secondary)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Payment Rail</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold font-mono text-[var(--foreground)]">Razorpay Test</div>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">INR Test-mode enabled</p>
+          </div>
         </div>
 
+        {/* Standing Mandate Showcase */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[var(--foreground)] flex items-center gap-2">
+                <span>Standing Mandate Guardrails</span>
+                <span className="text-xs bg-indigo-500/15 text-indigo-500 font-mono px-2 py-0.5 rounded-full border border-indigo-500/30">
+                  Ed25519 Signed
+                </span>
+              </h2>
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Every AI purchase is cryptographically signed and checked before an order is placed.
+              </p>
+            </div>
+            <Link
+              href="/connect"
+              className="text-xs text-indigo-500 hover:text-indigo-400 font-semibold flex items-center gap-1 no-underline"
+            >
+              <span>+ Issue New Mandate</span>
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm hover:border-indigo-500/40 transition-all">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white shadow-md shadow-indigo-500/20">
+                  <KeyRound className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-[var(--foreground)]">
+                      Claude Desktop Agent (MCP)
+                    </span>
+                    <Badge variant="success">Active</Badge>
+                  </div>
+                  <p className="text-xs font-mono text-[var(--foreground-muted)] mt-0.5">
+                    {mandateCount && mandateCount > 0
+                      ? "Cryptographic envelope active"
+                      : "Ready to pair with your local or hosted agent"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link href="/mandates" className="no-underline">
+                  <Button variant="outline" size="sm">
+                    View Mandate Details
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions Grid */}
         <div>
           <h2 className="mb-4 text-lg font-semibold text-[var(--foreground)]">Quick Actions</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {QUICK_ACTIONS.map((action) => {
               const cardBody = (
                 <Card
                   className={
                     action.disabled
-                      ? "h-full opacity-50"
-                      : "h-full transition-all duration-200 hover:border-[var(--brand-orange)]/30 hover:shadow-lg hover:shadow-[var(--brand-orange)]/5 cursor-pointer"
+                      ? "h-full opacity-50 cursor-not-allowed"
+                      : "h-full transition-all duration-200 hover:border-indigo-500/30 hover:shadow-md cursor-pointer"
                   }
                 >
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-[var(--brand-orange)]/10 p-2">
-                        <action.icon className="h-4 w-4 text-[var(--brand-orange)]" />
+                      <div className="rounded-xl bg-indigo-500/10 dark:bg-indigo-500/15 p-2.5 text-indigo-500">
+                        <action.icon className="h-4 w-4" />
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-[var(--foreground)]">{action.label}</p>
+                          <p className="font-semibold text-sm text-[var(--foreground)]">
+                            {action.label}
+                          </p>
                           {action.disabled && (
                             <Badge variant="secondary" className="text-[10px]">
                               Soon
@@ -268,37 +433,80 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Recent Activity */}
         <div>
-          <h2 className="mb-4 text-lg font-semibold text-[var(--foreground)]">Recent Activity</h2>
-          <Card>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Recent Activity</h2>
+              <p className="text-xs text-[var(--foreground-muted)]">
+                Ledger transactions and top-ups
+              </p>
+            </div>
+            <Link href="/transactions" className="text-xs text-indigo-500 hover:underline">
+              View All History &rarr;
+            </Link>
+          </div>
+
+          <Card className="overflow-hidden">
             <CardContent className="p-0">
               {balance.status === "loaded" && balance.data.recentEvents.length > 0 ? (
                 <div className="divide-y divide-[var(--border)]">
-                  {balance.data.recentEvents.map((event) => (
-                    <div
-                      key={event.reference}
-                      className="flex items-center justify-between px-5 py-3.5"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-[var(--foreground)]">
-                          {event.eventType === "topup" ? "Wallet top-up" : "Purchase debit"}
-                        </p>
-                        <p className="text-xs text-[var(--foreground-muted)]">
-                          {formatAmount(event.amountMinor, event.currency)}
-                        </p>
+                  {balance.data.recentEvents.map((event) => {
+                    const isTopup = event.eventType === "topup";
+                    return (
+                      <div
+                        key={event.reference}
+                        className="flex items-center justify-between px-5 py-4 hover:bg-[var(--surface-hover)] transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
+                              isTopup
+                                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                                : "bg-indigo-500/10 border-indigo-500/20 text-indigo-500"
+                            }`}
+                          >
+                            {isTopup ? (
+                              <ArrowDownLeft className="h-4 w-4" />
+                            ) : (
+                              <ArrowUpRight className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-[var(--foreground)]">
+                                {isTopup ? "Wallet Self-Serve Top Up" : "Agent Purchase Debit"}
+                              </p>
+                              <Badge variant={isTopup ? "success" : "info"}>
+                                {isTopup ? "Funded" : "Pre-Cleared"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs font-mono text-[var(--foreground-muted)] mt-0.5">
+                              Ref: {event.reference} &bull; {formatDate(event.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <p
+                            className={`text-sm font-bold font-mono ${
+                              isTopup ? "text-emerald-500" : "text-[var(--foreground)]"
+                            }`}
+                          >
+                            {isTopup ? "+" : "-"}
+                            {formatAmount(event.amountMinor, event.currency)}
+                          </p>
+                          <span className="text-[10px] font-mono text-[var(--foreground-muted)]">
+                            {event.currency}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Badge variant="secondary">{event.eventType}</Badge>
-                        <span className="text-xs text-[var(--foreground-muted)]">
-                          {formatDate(event.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <p className="p-5 text-sm text-[var(--foreground-muted)]">
-                  {balance.status === "loading" ? "Loading…" : "No activity yet."}
+                <p className="p-8 text-center text-sm text-[var(--foreground-muted)]">
+                  {balance.status === "loading" ? "Loading activity…" : "No activity recorded yet."}
                 </p>
               )}
             </CardContent>

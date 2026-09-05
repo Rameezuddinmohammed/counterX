@@ -78,7 +78,7 @@ export function TopBar({ onCommandPaletteOpen }: TopBarProps) {
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-lg p-1 hover:bg-[var(--surface-secondary)] transition-colors">
               <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-[var(--brand-orange)]/20 text-[var(--brand-orange)] text-xs">
+                <AvatarFallback className="bg-indigo-500/20 text-indigo-400 text-xs font-bold font-mono">
                   OP
                 </AvatarFallback>
               </Avatar>

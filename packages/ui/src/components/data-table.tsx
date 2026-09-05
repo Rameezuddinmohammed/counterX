@@ -53,7 +53,7 @@ export function DataTable<T extends Record<string, unknown>>({
 }: DataTableProps<T>) {
   return (
     <div
-      className={cn("overflow-hidden rounded-xl border border-[var(--border)]", className)}
+      className={cn("overflow-hidden rounded-2xl border border-[var(--border)] shadow-sm bg-[var(--surface)]", className)}
       {...props}
     >
       <div className="overflow-x-auto">
@@ -64,7 +64,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <th
                   key={column.key}
                   className={cn(
-                    "px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-[var(--foreground-muted)]",
+                    "px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-[var(--foreground-muted)]",
                     column.className,
                   )}
                 >
@@ -88,7 +88,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <tr
                   key={rowIndex}
                   className={cn(
-                    "transition-colors hover:bg-[var(--surface-secondary)]",
+                    "transition-colors hover:bg-[var(--surface-hover)]",
                     onRowClick && "cursor-pointer",
                   )}
                   onClick={() => onRowClick?.(item)}

@@ -212,12 +212,29 @@ function RuleSection(props: {
   children?: ReactNode;
 }) {
   return (
-    <Card>
+    <Card
+      className={`transition-all duration-200 ${
+        props.enabled
+          ? "border-indigo-500/30 bg-gradient-to-br from-indigo-950/10 via-[var(--surface)] to-[var(--surface)] shadow-sm"
+          : "opacity-80 hover:opacity-100"
+      }`}
+    >
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-medium text-[var(--foreground)]">{props.title}</p>
-            <p className="mt-0.5 text-sm text-[var(--foreground-muted)]">{props.description}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-bold text-sm text-[var(--foreground)]">{props.title}</p>
+              {props.enabled ? (
+                <Badge variant="success" className="text-[10px]">
+                  Enforced
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px]">
+                  Disabled
+                </Badge>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-[var(--foreground-muted)]">{props.description}</p>
           </div>
           <Switch checked={props.enabled} onCheckedChange={props.onToggle} />
         </div>
@@ -318,47 +335,50 @@ export default function PolicyPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border-secondary)] pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p
-              className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
-              data-manifest-figure
-            >
-              Controls
-            </p>
-            <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
-              Selling policy
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-cyan-600 dark:text-cyan-400">
+                Agent Guardrails
+              </span>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                Pre-Effect Enforcement
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+              Selling Policy Studio
             </h1>
-            <p className="mt-1 text-[var(--foreground-secondary)]">
-              Decide what your agent is allowed to sell and how — turn on the rules you want and
-              save. These rules are enforced for real at checkout.
+            <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+              Control what autonomous AI agents are authorized to browse and purchase from your catalog.
             </p>
           </div>
           <Button
             onClick={() => void handleSave()}
             disabled={saving || loading}
-            className="shrink-0"
+            className="shrink-0 shadow-md shadow-indigo-500/20"
           >
             <Save className="mr-2 h-4 w-4" />
-            {saving ? "Saving…" : "Save policy"}
+            {saving ? "Saving…" : "Save Policy"}
           </Button>
         </div>
 
         {loading ? (
           <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
           </div>
         ) : error ? (
           <ErrorState message={error} onRetry={refetch} />
         ) : (
           <>
-            <Card>
+            <Card className="border-indigo-500/20 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-4 w-4 text-[var(--brand-red)]" />
-                  In plain language
+                <CardTitle className="flex items-center gap-2 text-base font-bold">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500">
+                    <Shield className="h-4 w-4" />
+                  </div>
+                  Enforcement Summary
                 </CardTitle>
                 <CardDescription>
                   {data === null

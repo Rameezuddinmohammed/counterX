@@ -57,21 +57,19 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <Link href="/" className="flex items-center gap-2 no-underline">
-          <CounterLogo size={28} />
-          {!collapsed && <CounterWordmark className="h-5" />}
-        </Link>
-        {!collapsed && (
-          <div className="ml-2 flex items-center gap-1.5">
+        <div className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5 no-underline">
+            <CounterLogo size={24} />
+            {!collapsed && <CounterWordmark className="h-4.5" />}
+          </Link>
+          {!collapsed && (
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-          </div>
-        )}
-        <div className="ml-auto">
-          <SidebarToggle />
+          )}
         </div>
+        <SidebarToggle />
       </SidebarHeader>
 
       <SidebarContent>
@@ -92,24 +90,25 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-[var(--brand-orange)]/20 text-[var(--brand-orange)] text-xs">
+        <div className="flex items-center gap-2.5">
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarFallback className="bg-indigo-500/20 text-indigo-400 text-xs font-bold font-mono">
               OP
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--foreground)] truncate">Operator</p>
-              <p className="text-xs text-[var(--foreground-muted)] truncate">Platform Admin</p>
+              <p className="truncate text-xs font-semibold text-[var(--foreground)]">Operator</p>
+              <p className="truncate text-[11px] text-[var(--foreground-muted)]">Platform Admin</p>
             </div>
           )}
           {!collapsed && (
             <Link
               href="/settings"
-              className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+              className="rounded-lg p-1.5 text-[var(--foreground-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)] transition-colors"
+              title="Settings"
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-3.5 w-3.5" />
             </Link>
           )}
         </div>

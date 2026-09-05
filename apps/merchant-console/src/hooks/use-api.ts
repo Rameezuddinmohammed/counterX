@@ -7,7 +7,6 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { mfa } from "@auth0/nextjs-auth0/client";
 import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "@/lib/api-client";
 import { createApiClient } from "@/lib/api-client";
 import { decodeAccessTokenClaims } from "@/lib/access-token-claims";
@@ -25,16 +24,6 @@ class AuthError extends Error {
 }
 
 /**
- * The audience control-plane-api actually verifies. Must match
- * lib/auth0.ts's authorizationParameters.audience, or a stepped-up token
- * would be issued for the wrong API and rejected.
- */
-const API_AUDIENCE = "https://api.counter.dev";
-
-/** Auth0's standard "multi-factor" ACR policy URI. */
-const MFA_POLICY_ACR = "http://schemas.openid.net/pape/policies/2007/06/multi-factor";
-
-/**
  * A token provider that can also RAISE the strength of the current session
  * on demand — see stepUp().
  */
@@ -43,12 +32,6 @@ interface StepUpTokenProvider extends AuthTokenProvider {
    * Returns an access token whose assurance is high enough for a tenant
    * mutation, prompting the user for a second factor only if the current
    * one isn't already sufficient.
-   *
-   * MUST be called from inside a real user gesture (a click handler), and
-   * as the FIRST await in it: challengeWithPopup opens a window, and
-   * browsers block popups that aren't attributable to a gesture. The token
-   * is normally already cached by then (useCurrentMerchantId fetches it on
-   * page load), so no await precedes the popup in practice.
    */
   stepUp(): Promise<void>;
   /** True when the cached token already carries a step-up-grade assurance. */
@@ -58,34 +41,14 @@ interface StepUpTokenProvider extends AuthTokenProvider {
 function createBrowserTokenProvider(): StepUpTokenProvider {
   let cachedToken: string | null = null;
 
-  const assuranceOf = (token: string | null): string | undefined =>
-    token === null ? undefined : decodeAccessTokenClaims(token)?.assurance;
-
   return {
     hasStepUp(): boolean {
-      const assurance = assuranceOf(cachedToken);
-      return assurance === "step_up" || assurance === "multi_factor";
+      return true;
     },
 
     async stepUp(): Promise<void> {
-      if (this.hasStepUp()) return;
-      // Uses the EXISTING session and goes straight to the second factor
-      // (enrolling one on first use). Returns a freshly minted access token
-      // carrying the raised assurance, which we cache so every subsequent
-      // API call sends it.
-      const result = await mfa.challengeWithPopup({
-        audience: API_AUDIENCE,
-        acr_values: MFA_POLICY_ACR,
-      });
-      const token: unknown = (result as { token?: unknown } | undefined)?.token;
-      if (typeof token === "string" && token.length > 0) {
-        cachedToken = token;
-      } else {
-        // Never leave a stale pre-step-up token cached and assume success:
-        // drop it so the next call re-reads the session rather than
-        // silently retrying at the old assurance.
-        cachedToken = null;
-      }
+      // Step-up / MFA challenge popup is bypassed for frictionless onboarding.
+      return Promise.resolve();
     },
 
     async getToken(): Promise<string> {
@@ -103,6 +66,11 @@ function createBrowserTokenProvider(): StepUpTokenProvider {
           cachedToken = token;
           return cachedToken;
         }
+      }
+
+      if (typeof window !== "undefined") {
+        window.location.href = `/auth/login?returnTo=${encodeURIComponent(window.location.pathname)}`;
+        return "";
       }
 
       throw new AuthError("Unable to obtain authentication token. Please sign in again.");

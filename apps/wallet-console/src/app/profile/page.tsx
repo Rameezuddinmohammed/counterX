@@ -50,7 +50,7 @@ export default async function ProfilePage() {
           <CardContent className="p-6">
             <div className="flex items-center gap-6">
               <Avatar className="h-20 w-20">
-                <AvatarFallback className="bg-[var(--brand-orange)]/20 text-[var(--brand-orange)] text-2xl font-bold">
+                <AvatarFallback className="bg-indigo-500/20 text-indigo-400 text-2xl font-bold font-mono">
                   {initials}
                 </AvatarFallback>
               </Avatar>

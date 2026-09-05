@@ -149,52 +149,108 @@ export default function DashboardPage() {
   return (
     <PageWrapper>
       <div className="space-y-8">
-        <div className="border-b border-[var(--border-secondary)] pb-5">
-          <p
-            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
-            data-manifest-figure
-          >
-            Merchant console
-          </p>
-          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
-            Welcome back
-          </h1>
-          <p className="mt-1 text-[var(--foreground-secondary)]">
-            Here is an overview of your store's agent-facing account.
-          </p>
+        {/* Command Center Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-cyan-600 dark:text-cyan-400">
+                Merchant Gateway
+              </span>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Store Live
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+              Store Command Center
+            </h1>
+            <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+              Real-time monitoring of autonomous AI agent orders and store guardrails.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link href="/policy" className="no-underline">
+              <Button size="sm" variant="outline" className="gap-2">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Selling Policy
+              </Button>
+            </Link>
+            <Link href="/shopify" className="no-underline">
+              <Button size="sm" className="gap-2 shadow-md shadow-indigo-500/20">
+                <ShoppingBag className="h-3.5 w-3.5" />
+                Shopify Store
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {applicationState.data && applicationState.data.lifecycleState !== "ACTIVE" && (
-          <div className="border border-[var(--brand-red)]/30 bg-[var(--brand-red)]/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="border border-[var(--brand-red)]/40 p-2 text-[var(--brand-red)] bg-[var(--surface)]">
+          <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-500 border border-indigo-500/30">
                 <UserPlus className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-semibold text-sm text-[var(--foreground)]">
-                  Complete store onboarding
+                <p className="font-bold text-sm text-[var(--foreground)]">
+                  Complete Store Onboarding
                 </p>
-                <p className="text-xs text-[var(--foreground-muted)]">
-                  Finish setting up your catalog and capabilities to start accepting AI-agent
-                  purchases.
+                <p className="text-xs text-[var(--foreground-secondary)] mt-0.5">
+                  Finish setting up your catalog and capabilities to start accepting AI-agent purchases.
                 </p>
               </div>
             </div>
             <Link href="/invite" className="no-underline shrink-0">
-              <Button size="sm">
+              <Button size="sm" className="gap-1.5 shadow-sm">
                 Continue Setup
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </Link>
           </div>
         )}
 
+        {/* Hero Settlement Summary Banner */}
+        <div className="relative overflow-hidden rounded-3xl border border-cyan-500/25 bg-gradient-to-br from-cyan-950/30 via-slate-900/90 to-indigo-950/30 p-6 md:p-8 shadow-xl shadow-cyan-500/5">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">
+                <span className="flex h-2 w-2 rounded-full bg-cyan-400"></span>
+                Accounts Payable &bull; Escrowed by Counter
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl md:text-5xl font-extrabold text-[var(--foreground)] tracking-tight font-mono">
+                  {settlementValue}
+                </span>
+                <Badge variant="warning">Payout Pipeline Active</Badge>
+              </div>
+              <p className="mt-2.5 max-w-2xl text-xs text-[var(--foreground-secondary)] leading-relaxed">
+                {settlementValue === "—"
+                  ? "Amounts collected on your behalf will appear here once agents make purchases."
+                  : `Counter has collected ${settlementValue} on your behalf from completed agent purchases. Automated payouts to your own settlement account are being prepared — this is accounts payable owed to you.`}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 self-start lg:self-auto">
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                title="Automated payouts are coming soon"
+                className="cursor-not-allowed rounded-xl border border-[var(--border)] bg-[var(--surface)]/60 px-4 py-2.5 text-xs font-semibold text-[var(--foreground-muted)] opacity-70"
+              >
+                Request Payout (Coming Soon)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Metric Cards Grid */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatCard
             icon={<Receipt className="h-4 w-4" />}
             label="Total transactions"
             value={transactionsValue}
-            {...(transactionsError ? { description: transactionsError } : {})}
+            description={transactionsError || "Agent purchases executed"}
           />
           <StatCard
             icon={<IndianRupee className="h-4 w-4" />}
@@ -206,60 +262,26 @@ export default function DashboardPage() {
             icon={<ShieldCheck className="h-4 w-4" />}
             label="Active policy rules"
             value={activePoliciesValue}
-            {...(activePoliciesDescription ? { description: activePoliciesDescription } : {})}
+            description={activePoliciesDescription || "Pre-order enforcement rules"}
           />
         </div>
 
-        {/*
-          Deliberately worded as an amount OWED, not a balance the merchant
-          holds. Counter collects the buyer's payment into its own Razorpay
-          account today (wallet-topup-routes.ts uses the platform credentials),
-          so this is accounts payable, not stored value — calling it a "wallet"
-          would assert a custody relationship that does not exist and would need
-          a regulated partner to be true.
-        */}
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-semibold text-[var(--foreground)]">Settlement</h2>
-                  <Badge variant="warning">payout coming soon</Badge>
-                </div>
-                <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-secondary)]">
-                  {settlementValue === "—"
-                    ? "Amounts collected on your behalf will appear here once you have completed orders."
-                    : `Counter has collected ${settlementValue} on your behalf from completed agent purchases. Automated payouts to your own account are not enabled yet — this is what you're owed, not a stored balance.`}
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                title="Automated payouts are not available yet"
-                className="shrink-0 cursor-not-allowed border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground-muted)] opacity-60"
-              >
-                Request payout
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
+        {/* Quick Actions */}
         <div>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--foreground-secondary)]">
-            Quick actions
+            Store Controls &amp; Integrations
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {QUICK_ACTIONS.map((action) => (
               <Link key={action.href} href={action.href} className="no-underline">
-                <Card className="h-full cursor-pointer hover:border-[var(--brand-red)]/40">
+                <Card className="h-full cursor-pointer hover:border-indigo-500/40 hover:shadow-md transition-all">
                   <CardContent className="p-5">
-                    <div className="flex items-start gap-3">
-                      <div className="border border-[var(--border)] p-2 text-[var(--brand-red)]">
+                    <div className="flex items-start gap-3.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
                         <action.icon className="h-4 w-4" />
                       </div>
-                      <div>
-                        <p className="font-medium text-[var(--foreground)]">{action.label}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-[var(--foreground)]">{action.label}</p>
                         <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
                           {action.description}
                         </p>

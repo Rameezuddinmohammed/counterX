@@ -26,21 +26,25 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "border border-[var(--border)] bg-[var(--surface)] p-6 transition-colors duration-150 hover:border-[var(--border-secondary)]",
+        "rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm transition-all duration-200 hover:border-[var(--border-secondary)]",
         className,
       )}
       {...props}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center gap-2">
-            {icon && <span className="text-[var(--foreground-muted)]">{icon}</span>}
-            <p className="text-xs uppercase tracking-wider text-[var(--foreground-secondary)]">
+          <div className="flex items-center gap-2.5">
+            {icon && (
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
+                {icon}
+              </div>
+            )}
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground-secondary)]">
               {label}
             </p>
           </div>
           <p
-            className="mt-2 text-2xl font-semibold text-[var(--foreground)] font-mono"
+            className="mt-3 text-2xl font-bold font-mono tracking-tight text-[var(--foreground)]"
             data-manifest-figure
           >
             {value}
@@ -49,10 +53,10 @@ export function StatCard({
         {trend && (
           <div
             className={cn(
-              "flex items-center gap-1 border px-2 py-1 text-xs font-medium font-mono",
+              "flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold font-mono",
               trend.direction === "up"
-                ? "border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 text-[var(--clearance-teal)]"
-                : "border-[var(--brand-red)]/30 bg-[var(--brand-red)]/10 text-[var(--brand-red)]",
+                ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "border-rose-500/30 bg-rose-500/15 text-rose-600 dark:text-rose-400",
             )}
             data-manifest-figure
           >

@@ -27,9 +27,9 @@ function getStatusVariant(state: TransactionState) {
 const columns: DataTableColumn<Transaction>[] = [
   {
     key: "transactionId",
-    header: "ID",
+    header: "Transaction ID",
     cell: (item: Transaction) => (
-      <span className="font-mono text-xs" data-manifest-figure>
+      <span className="font-mono text-xs font-medium text-[var(--foreground)] bg-[var(--surface-secondary)] px-2.5 py-1 rounded-lg border border-[var(--border)]">
         {item.transactionId}
       </span>
     ),
@@ -38,31 +38,38 @@ const columns: DataTableColumn<Transaction>[] = [
     key: "amount",
     header: "Amount",
     cell: (item: Transaction) => (
-      <span className="font-mono font-semibold" data-manifest-figure>
-        {item.currency} {item.amount.toLocaleString()}
+      <span className="font-mono font-bold text-sm text-[var(--foreground)]">
+        {item.currency === "INR" ? "₹" : `${item.currency} `}
+        {item.amount.toLocaleString("en-IN")}
       </span>
     ),
   },
   {
     key: "currentState",
-    header: "Status",
+    header: "Clearance Status",
     cell: (item: Transaction) => (
-      <Badge variant={getStatusVariant(item.currentState)}>{item.currentState}</Badge>
+      <Badge variant={getStatusVariant(item.currentState)} className="capitalize font-semibold">
+        {item.currentState}
+      </Badge>
     ),
   },
   {
     key: "createdAt",
-    header: "Date",
+    header: "Timestamp",
     cell: (item: Transaction) => (
-      <span className="text-[var(--foreground-secondary)]">
-        {new Date(item.createdAt).toLocaleDateString()}
+      <span className="text-xs text-[var(--foreground-muted)] font-mono">
+        {new Date(item.createdAt).toLocaleString("en-IN")}
       </span>
     ),
   },
   {
     key: "method",
-    header: "Method",
-    cell: (item: Transaction) => <span className="capitalize">{item.method}</span>,
+    header: "Payment Rail",
+    cell: (item: Transaction) => (
+      <span className="capitalize text-xs font-semibold text-[var(--foreground-secondary)] bg-[var(--surface-secondary)] px-2 py-0.5 rounded-md border border-[var(--border)] font-mono">
+        {item.method}
+      </span>
+    ),
   },
 ];
 
@@ -86,19 +93,28 @@ export default function TransactionsPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div className="border-b border-[var(--border-secondary)] pb-5">
-          <p
-            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
-            data-manifest-figure
-          >
-            Payments
-          </p>
-          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
-            Transactions
-          </h1>
-          <p className="mt-1 text-[var(--foreground-secondary)]">
-            Every purchase an agent made against your store, cleared or otherwise.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-cyan-600 dark:text-cyan-400">
+                Audit Trail
+              </span>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/30">
+                CTP Verified
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+              Agent Transactions
+            </h1>
+            <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+              Every autonomous AI agent purchase executed against your Shopify store catalog.
+            </p>
+          </div>
+          {data && data.length > 0 && (
+            <Badge variant="secondary" className="self-start sm:self-auto font-mono text-xs px-3 py-1">
+              {data.length} Total Orders
+            </Badge>
+          )}
         </div>
         {loading ? (
           <div className="space-y-3">
