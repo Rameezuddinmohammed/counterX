@@ -25,8 +25,8 @@ function HostedConnectPanel({ remoteMcpUrl }: { remoteMcpUrl: string }) {
       </button>
       <p style={{ color: "var(--muted)" }}>
         Add this as a custom connector in your AI tool (in Claude: Settings → Connectors → Add
-        custom connector), then connect and log in when prompted — that&apos;s it. Your signing
-        key is held for you in Counter&apos;s vault; nothing to install or run.
+        custom connector), then connect and log in when prompted — that&apos;s it. Your signing key
+        is held for you in Counter&apos;s vault; nothing to install or run.
       </p>
     </div>
   );
