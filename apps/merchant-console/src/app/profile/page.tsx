@@ -9,11 +9,26 @@ import {
   AvatarFallback,
   Badge,
   Separator,
+  Skeleton,
 } from "@counter/ui";
 import { User, Mail, Shield, Clock, Globe } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import { useApi, useCurrentMerchantId } from "@/hooks/use-api";
+import type { ShopifyConnectionStatus } from "@/lib/types";
 
 export default function ProfilePage() {
+  const { merchantId } = useCurrentMerchantId();
+  const { data: shopify, loading: shopifyLoading } = useApi(
+    (client) =>
+      merchantId
+        ? client.getShopifyConnectionStatus(merchantId)
+        : Promise.resolve({
+            ok: true as const,
+            data: { connected: false } satisfies ShopifyConnectionStatus,
+          }),
+    [merchantId],
+  );
+
   return (
     <PageWrapper>
       <div className="space-y-6 max-w-3xl">
@@ -101,20 +116,26 @@ export default function ProfilePage() {
             <CardTitle>Connected Accounts</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-[#96BF48]/10 flex items-center justify-center">
-                  <span className="text-xs font-bold text-[#96BF48]">S</span>
+            {shopifyLoading ? (
+              <Skeleton className="h-14 w-full" />
+            ) : (
+              <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-[#96BF48]/10 flex items-center justify-center">
+                    <span className="text-xs font-bold text-[#96BF48]">S</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-[var(--foreground)]">Shopify</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">
+                      {shopify?.connected ? shopify.shopDomain : "Not connected"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--foreground)]">Shopify</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">
-                    store-pilot.myshopify.com
-                  </p>
-                </div>
+                <Badge variant={shopify?.connected ? "success" : "secondary"}>
+                  {shopify?.connected ? "Connected" : "Not connected"}
+                </Badge>
               </div>
-              <Badge variant="success">Connected</Badge>
-            </div>
+            )}
             <div className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3">
               <div className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -122,10 +143,10 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-[var(--foreground)]">Razorpay</p>
-                  <p className="text-xs text-[var(--foreground-muted)]">Test mode account</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">Payment configuration</p>
                 </div>
               </div>
-              <Badge variant="success">Connected</Badge>
+              <Badge variant="secondary">Coming soon</Badge>
             </div>
           </CardContent>
         </Card>

@@ -125,5 +125,5 @@ Each method produces a typed record with target, subject, verifier, evidence, ti
 - [Razorpay Adapter Manifest](./razorpay-adapter-manifest.md)
 - [Tax/Shipping Decision](./tax-shipping-decision.md)
 - [Verification Methods](./verification-methods.md)
-- [Requirements 4-5, 11](../../.kiro/specs/counter-merchant-agent/requirements.md)
-- [Design: Gate A decisions](../../.kiro/specs/counter-merchant-agent/design.md)
+- [Requirements 4-5, 11 (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/requirements.md)
+- [Design: Gate A decisions (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/design.md)

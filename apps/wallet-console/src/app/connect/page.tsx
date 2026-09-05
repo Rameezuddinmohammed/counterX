@@ -37,9 +37,9 @@ export default async function ConnectPage() {
           <>
             <p className="text-sm text-[var(--foreground-muted)]">
               Haven&apos;t connected your AI tool yet? Do that first at the onboarding site&apos;s{" "}
-              <span className="font-mono">/connect</span> page — it walks you through generating a
-              real signing key on your own machine and registering it. Come back here once you have
-              your agent ID.
+              <span className="font-mono">/connect</span> page — add the connector URL shown there
+              to your AI tool and log in; no local key needed. Come back here once you have your
+              agent ID.
             </p>
             <ConnectPanel walletId={walletId} />
           </>

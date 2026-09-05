@@ -6,4 +6,5 @@ node_modules
 pnpm-lock.yaml
 *.md
 .kiro/specs/**/*.meta.json
+.archive/kiro-specs/**/*.meta.json
 .tools

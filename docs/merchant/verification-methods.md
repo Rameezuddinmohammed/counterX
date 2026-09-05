@@ -230,6 +230,6 @@ All four verification methods must produce `VERIFIED` results before activation 
 
 ## References
 
-- [Requirements 4.4](../../.kiro/specs/counter-merchant-agent/requirements.md) - Activation verification
-- [Requirements 5.2](../../.kiro/specs/counter-merchant-agent/requirements.md) - Connector setup
-- [Design: Merchant ownership verification](../../.kiro/specs/counter-merchant-agent/design.md)
+- [Requirements 4.4 (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/requirements.md) - Activation verification
+- [Requirements 5.2 (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/requirements.md) - Connector setup
+- [Design: Merchant ownership verification (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/design.md)
