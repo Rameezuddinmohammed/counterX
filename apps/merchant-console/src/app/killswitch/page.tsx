@@ -5,7 +5,8 @@ import {
   Card,
   CardContent,
   Switch,
-  Badge,
+  Skeleton,
+  ErrorState,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -13,135 +14,140 @@ import {
   DialogDescription,
   DialogFooter,
   Button,
+  Input,
+  toast,
 } from "@counter/ui";
 import { Power } from "lucide-react";
-import { toast } from "@counter/ui";
 import { PageWrapper } from "@/components/page-wrapper";
-import type { KillSwitchState } from "@/lib/types";
-
-const INITIAL_SWITCHES: KillSwitchState[] = [
-  {
-    switchId: "ks-001",
-    name: "Payment Processing",
-    scope: "merchant",
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    reason: null,
-    affectedMerchants: [],
-  },
-  {
-    switchId: "ks-002",
-    name: "Order Fulfillment",
-    scope: "merchant",
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    reason: null,
-    affectedMerchants: [],
-  },
-  {
-    switchId: "ks-003",
-    name: "Webhook Delivery",
-    scope: "merchant",
-    active: true,
-    activatedBy: "system",
-    activatedAt: "2025-01-20T08:00:00Z",
-    reason: "Excessive failures detected",
-    affectedMerchants: ["merchant-pilot-001"],
-  },
-  {
-    switchId: "ks-004",
-    name: "Refund Processing",
-    scope: "global",
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    reason: null,
-    affectedMerchants: [],
-  },
-];
+import { getApiClient, useApi, useCurrentMerchantId } from "@/hooks/use-api";
+import type { MerchantKillSwitchState } from "@/lib/types";
 
 export default function KillSwitchPage() {
-  const [switches, setSwitches] = useState(INITIAL_SWITCHES);
-  const [confirmSwitch, setConfirmSwitch] = useState<KillSwitchState | null>(null);
+  const { merchantId, loading: merchantLoading, error: merchantError } = useCurrentMerchantId();
+  const {
+    data,
+    loading: switchLoading,
+    error: switchError,
+    refetch,
+  } = useApi<MerchantKillSwitchState | null>(
+    (client) =>
+      merchantId
+        ? client.getKillSwitch(merchantId)
+        : Promise.resolve({ ok: true, data: null as MerchantKillSwitchState | null }),
+    [merchantId],
+  );
 
-  const confirmToggle = () => {
-    if (!confirmSwitch) return;
-    setSwitches((prev) =>
-      prev.map((s) =>
-        s.switchId === confirmSwitch.switchId
-          ? {
-              ...s,
-              active: !s.active,
-              activatedBy: !s.active ? "user" : null,
-              activatedAt: !s.active ? new Date().toISOString() : null,
-            }
-          : s,
-      ),
-    );
-    toast.success(
-      `Kill switch "${confirmSwitch.name}" ${confirmSwitch.active ? "deactivated" : "activated"}`,
-    );
-    setConfirmSwitch(null);
-  };
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const loading = merchantLoading || switchLoading;
+  const error = merchantError ?? switchError;
+  const active = data?.active ?? false;
+
+  async function applyToggle(nextActive: boolean) {
+    if (merchantId === undefined) return;
+    setSaving(true);
+    try {
+      const client = getApiClient();
+      const result = await client.setKillSwitch(
+        merchantId,
+        nextActive,
+        nextActive ? reason.trim() || undefined : undefined,
+      );
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
+      toast.success(nextActive ? "Kill switch activated" : "Kill switch deactivated");
+      setReason("");
+      refetch();
+    } finally {
+      setSaving(false);
+      setConfirmOpen(false);
+    }
+  }
 
   return (
     <PageWrapper>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Kill Switches</h1>
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
+            Controls
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Kill switch
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
-            Emergency circuit breakers for critical system functions.
+            An emergency stop for your own store. When active, your agent-driven purchases are
+            halted before any payment or order is created — enforced for real at checkout.
           </p>
         </div>
-        <div className="space-y-3">
-          {switches.map((sw) => (
-            <Card key={sw.switchId}>
-              <CardContent className="flex items-center justify-between p-5">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`rounded-lg p-2 ${sw.active ? "bg-red-500/10" : "bg-[var(--surface-secondary)]"}`}
-                  >
-                    <Power
-                      className={`h-5 w-5 ${sw.active ? "text-red-500" : "text-[var(--foreground-muted)]"}`}
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-[var(--foreground)]">{sw.name}</p>
-                      <Badge variant={sw.scope === "global" ? "info" : "secondary"}>
-                        {sw.scope}
-                      </Badge>
-                    </div>
-                    {sw.active && sw.reason && (
-                      <p className="mt-0.5 text-xs text-red-500">{sw.reason}</p>
-                    )}
-                  </div>
+
+        {loading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : error ? (
+          <ErrorState message={error} />
+        ) : (
+          <Card>
+            <CardContent className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-4">
+                <div
+                  className={`rounded-lg p-2 ${active ? "bg-red-500/10" : "bg-[var(--surface-secondary)]"}`}
+                >
+                  <Power className={`h-5 w-5 ${active ? "text-red-500" : "text-[var(--foreground-muted)]"}`} />
                 </div>
-                <Switch checked={sw.active} onCheckedChange={() => setConfirmSwitch(sw)} />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Dialog open={!!confirmSwitch} onOpenChange={() => setConfirmSwitch(null)}>
+                <div>
+                  <p className="font-medium text-[var(--foreground)]">
+                    {active ? "Purchases halted" : "Purchases enabled"}
+                  </p>
+                  {active && data?.reason && (
+                    <p className="mt-0.5 text-xs text-red-500">{data.reason}</p>
+                  )}
+                  {active && data?.activatedAt && (
+                    <p className="mt-0.5 text-xs text-[var(--foreground-muted)]">
+                      Since {new Date(data.activatedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Switch
+                checked={active}
+                disabled={saving}
+                onCheckedChange={(next) => {
+                  if (next) {
+                    setConfirmOpen(true);
+                  } else {
+                    void applyToggle(false);
+                  }
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Confirm Kill Switch Toggle</DialogTitle>
+              <DialogTitle>Activate kill switch?</DialogTitle>
               <DialogDescription>
-                Are you sure you want to {confirmSwitch?.active ? "deactivate" : "activate"} the
-                kill switch?
+                Your agent will be unable to complete any purchase until you turn this back off.
               </DialogDescription>
             </DialogHeader>
+            <Input
+              placeholder="Reason (optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmSwitch(null)}>
+              <Button variant="outline" onClick={() => setConfirmOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                variant={confirmSwitch?.active ? "default" : "destructive"}
-                onClick={confirmToggle}
-              >
-                {confirmSwitch?.active ? "Deactivate" : "Activate"}
+              <Button variant="destructive" disabled={saving} onClick={() => void applyToggle(true)}>
+                Activate
               </Button>
             </DialogFooter>
           </DialogContent>

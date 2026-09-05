@@ -543,20 +543,18 @@ export interface Finding {
 }
 
 // ---------------------------------------------------------------------------
-// Kill Switches
+// Kill Switch — a merchant's own real, durable on/off gate over their own
+// store's agent-driven purchases (control-plane-api's
+// GET/POST /merchants/:merchantId/kill-switch, backed by the same durable
+// store the worker checks before any external effect). One switch per
+// merchant, not a list — there is no global or multi-switch concept on this
+// route.
 // ---------------------------------------------------------------------------
 
-export type KillSwitchScope = "merchant" | "global";
-
-export interface KillSwitchState {
-  readonly switchId: string;
-  readonly name: string;
-  readonly scope: KillSwitchScope;
+export interface MerchantKillSwitchState {
   readonly active: boolean;
-  readonly activatedBy: string | null;
-  readonly activatedAt: string | null;
   readonly reason: string | null;
-  readonly affectedMerchants: readonly string[];
+  readonly activatedAt: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -632,7 +630,7 @@ export interface MerchantConsoleState {
   readonly manifest: ManifestStatus | null;
   readonly transactions: readonly Transaction[];
   readonly findings: readonly Finding[];
-  readonly killSwitches: readonly KillSwitchState[];
+  readonly killSwitch: MerchantKillSwitchState | null;
   readonly audit: readonly AuditEntry[];
   readonly suspension: SuspensionStatus | null;
 }
