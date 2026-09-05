@@ -296,6 +296,19 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     name: APP_NAME,
     version,
     environment,
+    // Every merchant-console / wallet-console call to this API is a direct
+    // browser fetch() from a different origin, carrying an explicit
+    // Authorization: Bearer header the frontend attaches itself — never a
+    // cookie the browser sends automatically — so reflecting the request's
+    // own Origin doesn't leak credentials to a page that didn't ask for
+    // them (same justification as apps/remote-mcp's identical `cors: {
+    // origin: true }`, which fixed the equivalent bug there: a CORS
+    // preflight (OPTIONS) requires no credentials at all, but without this,
+    // the SAME authPlugin onRequest hook 401'd the preflight itself, so the
+    // browser never even sent the real request — confirmed live: merchant
+    // console's "Request Access" button failed with a bare "Failed to
+    // fetch", the browser's own generic message for a failed preflight).
+    cors: { origin: true },
     auth: {
       issuer: AUTH_ISSUER,
       audience: AUTH_AUDIENCE,
@@ -361,7 +374,21 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   // environments a durable store MUST be injected; local/test fall back to
   // in-memory.
   const transactionStore = resolveTransactionStore(environment, options);
-  void server.register(transactionRoutesPlugin, { store: transactionStore, environment });
+  // NOT `environment` (this file's NODE_ENV-taxonomy display string, e.g.
+  // "development"/"production") — that is a different vocabulary from the
+  // COUNTER_ENV-based partition the store itself was already correctly
+  // built with in main.ts (`createPostgresTransactionStore(database,
+  // runtimeEnvironment)`). Passing it here overrode that correct binding
+  // and queried `platform.counter_environment` with a value that isn't
+  // even a member of the enum outside prod-like setups where the two
+  // taxonomies happen to coincide ("production" in both) — confirmed live:
+  // this 500'd every transactions-list/settlement call with "invalid input
+  // value for enum platform.counter_environment" the moment NODE_ENV and
+  // COUNTER_ENV genuinely differed. Passing "" lets the store fall back to
+  // its own correctly-bound environment (see its `env = environment.length
+  // > 0 ? environment : storeEnvironment` guard) — the in-memory store
+  // ignores this parameter entirely, so this is safe there too.
+  void server.register(transactionRoutesPlugin, { store: transactionStore, environment: "" });
 
   // Self-serve wallet onboarding routes — only registered when a
   // provisioner is wired (see CreateServerOptions.walletUserProvisioner).

@@ -54,6 +54,10 @@ export function buildErrorResponse(error: CanonicalError): HttpErrorResponse {
 export const errorHandlerPlugin = fp(
   async (fastify: FastifyInstance): Promise<void> => {
     fastify.setErrorHandler((error: Error, _request: FastifyRequest, reply: FastifyReply) => {
+      if (process.env["DEBUG_ERROR_HANDLER"] === "1") {
+        // eslint-disable-next-line no-console
+        console.error("[DEBUG unhandled error]", error);
+      }
       // If it is a Fastify validation error (from JSON Schema validation)
       if ("validation" in error && Array.isArray((error as { validation: unknown }).validation)) {
         void reply.status(400).send({

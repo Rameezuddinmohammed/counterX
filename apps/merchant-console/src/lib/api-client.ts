@@ -269,7 +269,12 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       const response = await fetch(`${baseUrl}${path}`, {
         method,
         headers: {
-          "Content-Type": "application/json",
+          // Only set when there's an actual body: a JSON content-type on an
+          // empty/null body is a real bug (Fastify's JSON parser correctly
+          // rejects it as FST_ERR_CTP_EMPTY_JSON_BODY, surfaced to the
+          // caller as a generic, unhelpful 500) — confirmed live, this is
+          // exactly what broke the "Request Access" button's bodyless POST.
+          ...(body ? { "Content-Type": "application/json" } : {}),
           Authorization: `Bearer ${token}`,
           ...extraHeaders,
         },
