@@ -88,11 +88,9 @@ export async function merchantKillSwitchRoutesPlugin(
     const merchantId = params["merchantId"] ?? "";
 
     if (!verifyTenantAccess(request, merchantId)) {
-      void reply
-        .status(403)
-        .send({
-          error: { code: "FORBIDDEN", message: "Access denied for the requested merchant" },
-        });
+      void reply.status(403).send({
+        error: { code: "FORBIDDEN", message: "Access denied for the requested merchant" },
+      });
       return;
     }
 
@@ -147,11 +145,9 @@ export async function merchantKillSwitchRoutesPlugin(
     const merchantId = params["merchantId"] ?? "";
 
     if (!verifyTenantAccess(request, merchantId)) {
-      void reply
-        .status(403)
-        .send({
-          error: { code: "FORBIDDEN", message: "Access denied for the requested merchant" },
-        });
+      void reply.status(403).send({
+        error: { code: "FORBIDDEN", message: "Access denied for the requested merchant" },
+      });
       return;
     }
 

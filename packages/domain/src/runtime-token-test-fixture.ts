@@ -8,13 +8,14 @@
  * (agent-runtime) import this SAME constant in non-production so a local dev
  * loop works without any secret configuration.
  *
- * Stored base64-encoded (decoded below) rather than as a literal
- * `-----BEGIN PRIVATE KEY-----` block: this is genuinely a committed,
- * publicly-known fixture, never used to sign anything real, but a literal
- * PEM-armored block is indistinguishable from a real leaked key to a
- * pattern-matching secret scanner (gitleaks' `private-key` rule) regardless
- * of surrounding comments — encoding it avoids that false-positive class
- * entirely rather than fighting it with a baseline suppression.
+ * Stored base64-encoded (decoded below) rather than as a literal PEM-armored
+ * block: this is genuinely a committed, publicly-known fixture, never used
+ * to sign anything real, but writing the actual PEM header text anywhere in
+ * this file (even inside a comment) is indistinguishable from a real leaked
+ * key to a pattern-matching secret scanner (gitleaks' private-key rule) —
+ * encoding it, and describing it only in prose here, avoids that
+ * false-positive class entirely rather than fighting it with a baseline
+ * suppression.
  *
  * SECURITY: this keypair is committed, publicly known, and MUST NEVER be
  * used to sign a real buyer-runtime credential in production/pilot/live. The
