@@ -72,6 +72,14 @@ export const APP_NAME = "@counter/control-plane-api";
  */
 const SHOPIFY_CALLBACK_ROUTE_PATTERN = "/control/v1/merchants/:merchantId/shopify/callback";
 
+/**
+ * The merchant-independent callback — the one to register as the app's
+ * redirect URL with Shopify, since Shopify matches redirect_uri exactly and
+ * an app has one fixed list that cannot contain a per-merchant path. Also
+ * unauthenticated for the same reason as the pattern above.
+ */
+const SHOPIFY_CALLBACK_ROUTE = "/control/v1/shopify/callback";
+
 const DEFAULT_VERSION = "0.1.0";
 const DEFAULT_ENVIRONMENT = "local";
 // Env-var driven, matching the pattern every Next.js console already uses
@@ -337,7 +345,7 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
     skipAuthRoutes: [
       "/control/v1/wallet-users/agent-keys",
       ...(options?.shopifyConnectionProvisioner !== undefined
-        ? [SHOPIFY_CALLBACK_ROUTE_PATTERN]
+        ? [SHOPIFY_CALLBACK_ROUTE, SHOPIFY_CALLBACK_ROUTE_PATTERN]
         : []),
       ...(options?.webhookRoutes !== undefined ? ["/webhooks/v1"] : []),
     ],

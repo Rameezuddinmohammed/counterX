@@ -99,6 +99,29 @@ export async function shopifyConnectRoutesPlugin(
   // that 400s because no Shopify app is configured.
   const oauthAvailable = options.oauthAvailable ?? true;
 
+  async function handleShopifyCallback(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const rawQuery = request.query as Record<string, unknown>;
+    const query: Record<string, string | undefined> = {};
+    for (const key of Object.keys(rawQuery)) {
+      query[key] = firstQueryValue(rawQuery[key]);
+    }
+
+    try {
+      await provisioner.completeAuthorization(query);
+      void reply.redirect(`${returnUrl}?shopify=connected`, 302);
+    } catch (error) {
+      if (error instanceof ShopifyOAuthError) {
+        request.log.warn({ err: error }, "Shopify OAuth callback rejected");
+        void reply.redirect(`${returnUrl}?shopify=error`, 302);
+        return;
+      }
+      throw error;
+    }
+  }
+
   registerRoutePermission("GET:/control/v1/merchants/:merchantId/shopify/authorize", {
     permission: "identity.service_identity.manage",
   });
@@ -142,26 +165,28 @@ export async function shopifyConnectRoutesPlugin(
     },
   );
 
+  // Shopify requires redirect_uri to EXACTLY match one of the app's
+  // registered redirect URLs, and an app has one fixed list — it cannot
+  // contain a per-merchant path. The original callback below sits under
+  // /merchants/:merchantId/, which no single registered URL can match, so
+  // one-click connect could never have completed even with credentials
+  // configured. This merchant-independent path is the one to register with
+  // Shopify. Nothing is lost: the handler never used :merchantId anyway —
+  // the merchant is resolved from the single-use `state` nonce, which is
+  // also what makes that safe (a caller cannot name the merchant).
+  fastify.get(
+    "/control/v1/shopify/callback",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      await handleShopifyCallback(request, reply);
+    },
+  );
+
+  // Retained so an app already registered against the older per-merchant
+  // URL keeps working. Both funnel into the same handler.
   fastify.get(
     "/control/v1/merchants/:merchantId/shopify/callback",
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const rawQuery = request.query as Record<string, unknown>;
-      const query: Record<string, string | undefined> = {};
-      for (const key of Object.keys(rawQuery)) {
-        query[key] = firstQueryValue(rawQuery[key]);
-      }
-
-      try {
-        await provisioner.completeAuthorization(query);
-        void reply.redirect(`${returnUrl}?shopify=connected`, 302);
-      } catch (error) {
-        if (error instanceof ShopifyOAuthError) {
-          request.log.warn({ err: error }, "Shopify OAuth callback rejected");
-          void reply.redirect(`${returnUrl}?shopify=error`, 302);
-          return;
-        }
-        throw error;
-      }
+      await handleShopifyCallback(request, reply);
     },
   );
 

@@ -381,6 +381,52 @@ describe("shopify-connect routes", () => {
       });
     });
   });
+  describe("GET /control/v1/shopify/callback (merchant-independent redirect URL)", () => {
+    it("completes the connection with no Authorization header at all", async () => {
+      // This is the URL registered with Shopify. It must work unauthenticated
+      // (the merchant's browser arrives from Shopify carrying no Counter
+      // session) and must NOT live under /merchants/:merchantId/, because
+      // Shopify matches redirect_uri exactly against one fixed list and no
+      // single registered URL can contain a per-merchant path.
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/shopify/callback?code=abc&shop=${TEST_SHOP_DOMAIN}&state=xyz&hmac=deadbeef`,
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers["location"]).toContain("shopify=connected");
+    });
+
+    it("redirects with an error flag rather than rendering raw JSON to a browser tab", async () => {
+      const { jwks } = await getTestKeys();
+      const provisioner = new FakeShopifyConnectionProvisioner();
+      provisioner.nextCompleteResult = new ShopifyOAuthError("Callback HMAC verification failed");
+      server = createServer({
+        jwks,
+        environment: "test",
+        shopifyConnectionProvisioner: provisioner,
+      });
+      await server.ready();
+
+      const response = await server.inject({
+        method: "GET",
+        url: `/control/v1/shopify/callback?code=abc&shop=${TEST_SHOP_DOMAIN}&state=xyz&hmac=bad`,
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers["location"]).toContain("shopify=error");
+    });
+  });
+
   describe("POST /shopify/connection (merchant-supplied Admin API token)", () => {
     it("stores the connection and reports it connected", async () => {
       const { jwks } = await getTestKeys();
