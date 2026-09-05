@@ -120,7 +120,7 @@ export function SidebarItem({
       className={cn(
         "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-[var(--brand-orange)]/10 text-[var(--brand-orange)]"
+          ? "bg-[var(--brand-red)]/10 text-[var(--brand-red)]"
           : "text-[var(--foreground-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]",
         collapsed && "justify-center px-2",
         className,

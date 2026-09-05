@@ -26,7 +26,7 @@ function Toaster({ position = "bottom-right", richColors = true, expand = false 
           toast:
             "group border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] shadow-xl rounded-xl",
           description: "text-[var(--foreground-secondary)]",
-          actionButton: "bg-[var(--brand-orange)] text-white hover:bg-[var(--brand-orange-dark)]",
+          actionButton: "bg-[var(--brand-red)] text-white hover:bg-[var(--brand-red-dark)]",
           cancelButton: "bg-[var(--surface-secondary)] text-[var(--foreground-secondary)]",
         },
       }}

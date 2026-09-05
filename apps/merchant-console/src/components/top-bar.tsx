@@ -13,26 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@counter/ui";
-import { Search, Bell, User, Settings, LogOut } from "lucide-react";
+import { Search, User, LogOut } from "lucide-react";
 import type { BreadcrumbItem } from "@counter/ui";
-
-const ROUTE_LABELS: Record<string, string> = {
-  "/": "Dashboard",
-  "/shopify": "Shopify",
-  "/mapping": "Mapping",
-  "/manifest": "Manifest",
-  "/razorpay": "Razorpay",
-  "/transactions": "Transactions",
-  "/policy": "Policy",
-  "/killswitch": "Kill Switches",
-  "/suspension": "Suspension",
-  "/audit": "Audit",
-  "/findings": "Findings",
-  "/invite": "Invite",
-  "/readiness": "Readiness",
-  "/settings": "Settings",
-  "/profile": "Profile",
-};
+import { ROUTE_LABELS } from "@/lib/nav-config";
 
 interface TopBarProps {
   onCommandPaletteOpen: () => void;
@@ -53,32 +36,24 @@ export function TopBar({ onCommandPaletteOpen }: TopBarProps) {
       <Breadcrumbs items={breadcrumbs} />
 
       <div className="flex items-center gap-2">
-        {/* Command Palette Trigger */}
         <button
           onClick={onCommandPaletteOpen}
-          className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--foreground-muted)] hover:border-[var(--border-secondary)] hover:text-[var(--foreground)] transition-colors"
+          className="flex items-center gap-2 border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--foreground-muted)] hover:border-[var(--border-secondary)] hover:text-[var(--foreground)] transition-colors"
         >
           <Search className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Search...</span>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--foreground-muted)]">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 border border-[var(--border)] px-1.5 py-0.5 text-[10px] font-mono font-medium text-[var(--foreground-muted)]">
             &#8984;K
           </kbd>
         </button>
 
-        {/* Theme Toggle */}
         <ThemeToggle />
 
-        {/* Notifications */}
-        <button className="relative rounded-lg p-2 text-[var(--foreground-muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] transition-colors">
-          <Bell className="h-4 w-4" />
-        </button>
-
-        {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-lg p-1 hover:bg-[var(--surface-secondary)] transition-colors">
+            <button className="flex items-center gap-2 p-1 hover:bg-[var(--surface-secondary)] transition-colors">
               <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-[var(--brand-orange)]/20 text-[var(--brand-orange)] text-xs">
+                <AvatarFallback className="bg-[var(--brand-red)]/15 text-[var(--brand-red)] text-xs font-mono" data-manifest-figure>
                   MC
                 </AvatarFallback>
               </Avatar>
@@ -89,12 +64,6 @@ export function TopBar({ onCommandPaletteOpen }: TopBarProps) {
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />
                 Profile
-              </DropdownMenuItem>
-            </Link>
-            <Link href="/settings">
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
               </DropdownMenuItem>
             </Link>
             <DropdownMenuSeparator />

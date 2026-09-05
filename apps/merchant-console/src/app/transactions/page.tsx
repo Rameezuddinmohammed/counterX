@@ -28,13 +28,17 @@ const columns: DataTableColumn<Transaction>[] = [
   {
     key: "transactionId",
     header: "ID",
-    cell: (item: Transaction) => <span className="font-mono text-xs">{item.transactionId}</span>,
+    cell: (item: Transaction) => (
+      <span className="font-mono text-xs" data-manifest-figure>
+        {item.transactionId}
+      </span>
+    ),
   },
   {
     key: "amount",
     header: "Amount",
     cell: (item: Transaction) => (
-      <span className="font-semibold">
+      <span className="font-mono font-semibold" data-manifest-figure>
         {item.currency} {item.amount.toLocaleString()}
       </span>
     ),
@@ -82,10 +86,15 @@ export default function TransactionsPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Transactions</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+            Payments
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Transactions
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
-            View and monitor all transaction activity.
+            Every purchase an agent made against your store, cleared or otherwise.
           </p>
         </div>
         {loading ? (

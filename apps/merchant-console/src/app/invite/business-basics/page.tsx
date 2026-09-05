@@ -54,7 +54,7 @@ export default function BusinessBasicsPage() {
         <Card>
           <CardContent className="p-6 text-sm text-[var(--foreground-secondary)]">
             No application found yet.{" "}
-            <Link href="/invite" className="text-[var(--brand-orange)] underline">
+            <Link href="/invite" className="text-[var(--brand-red)] underline">
               Start from the beginning
             </Link>
             .
@@ -120,8 +120,13 @@ export default function BusinessBasicsPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Business basics</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+            Onboarding · Step 1 of 5
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Business basics
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Tell us about your business and how you fulfill orders.
           </p>
@@ -187,7 +192,7 @@ export default function BusinessBasicsPage() {
                   {FULFILLMENT_CAPABILITY_OPTIONS.map((option) => (
                     <label
                       key={option.value}
-                      className="flex items-start gap-2 rounded-lg border border-[var(--border)] p-3 text-sm text-[var(--foreground)] hover:border-[var(--brand-orange)]/40"
+                      className="flex items-start gap-2 border border-[var(--border)] p-3 text-sm text-[var(--foreground)] hover:border-[var(--brand-red)]/40"
                     >
                       <input
                         type="checkbox"
@@ -201,7 +206,7 @@ export default function BusinessBasicsPage() {
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-[var(--brand-red)]">{error}</p>}
 
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Saving…" : "Continue"}

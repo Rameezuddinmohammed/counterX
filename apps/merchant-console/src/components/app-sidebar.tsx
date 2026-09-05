@@ -16,61 +16,8 @@ import {
   AvatarFallback,
   useSidebar,
 } from "@counter/ui";
-import {
-  LayoutDashboard,
-  ShoppingBag,
-  ArrowLeftRight,
-  FileText,
-  CreditCard,
-  Receipt,
-  Shield,
-  Power,
-  AlertOctagon,
-  ClipboardList,
-  Search,
-  UserPlus,
-  Activity,
-  Settings,
-} from "lucide-react";
-
-const NAV_SECTIONS = [
-  {
-    title: "Overview",
-    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
-  },
-  {
-    title: "Commerce",
-    items: [
-      { href: "/shopify", label: "Shopify", icon: ShoppingBag },
-      { href: "/mapping", label: "Mapping", icon: ArrowLeftRight },
-      { href: "/manifest", label: "Manifest", icon: FileText },
-    ],
-  },
-  {
-    title: "Payments",
-    items: [
-      { href: "/razorpay", label: "Razorpay", icon: CreditCard },
-      { href: "/transactions", label: "Transactions", icon: Receipt },
-    ],
-  },
-  {
-    title: "Security",
-    items: [
-      { href: "/policy", label: "Policy", icon: Shield },
-      { href: "/killswitch", label: "Kill Switches", icon: Power },
-      { href: "/suspension", label: "Suspension", icon: AlertOctagon },
-    ],
-  },
-  {
-    title: "Admin",
-    items: [
-      { href: "/audit", label: "Audit", icon: ClipboardList },
-      { href: "/findings", label: "Findings", icon: Search },
-      { href: "/invite", label: "Invite", icon: UserPlus },
-      { href: "/readiness", label: "Readiness", icon: Activity },
-    ],
-  },
-] as const;
+import { Settings } from "lucide-react";
+import { NAV_SECTIONS } from "@/lib/nav-config";
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -80,8 +27,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <Link href="/" className="flex items-center gap-2 no-underline">
-          <CounterLogo size={28} />
-          {!collapsed && <CounterWordmark className="h-5" />}
+          <CounterLogo size={26} className="text-[var(--foreground)]" />
+          {!collapsed && <CounterWordmark size={22} className="text-[var(--foreground)]" />}
         </Link>
         <div className="ml-auto">
           <SidebarToggle />
@@ -108,20 +55,21 @@ export function AppSidebar() {
       <SidebarFooter>
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-[var(--brand-orange)]/20 text-[var(--brand-orange)] text-xs">
+            <AvatarFallback className="bg-[var(--brand-red)]/15 text-[var(--brand-red)] text-xs font-mono" data-manifest-figure>
               MC
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-[var(--foreground)] truncate">Merchant</p>
-              <p className="text-xs text-[var(--foreground-muted)] truncate">Pilot Mode</p>
+              <p className="text-xs text-[var(--foreground-muted)] truncate">Test mode</p>
             </div>
           )}
           {!collapsed && (
             <Link
-              href="/settings"
+              href="/profile"
               className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+              aria-label="Profile and settings"
             >
               <Settings className="h-4 w-4" />
             </Link>

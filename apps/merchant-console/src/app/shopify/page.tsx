@@ -103,20 +103,25 @@ export default function ShopifyPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Shopify Integration</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+            Commerce
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Shopify integration
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Connect your Shopify store using Shopify&apos;s own sign-in and approval screen.
           </p>
         </div>
 
         {callbackNotice === "connected" && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600">
+          <div className="border border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 px-4 py-3 text-sm text-[var(--clearance-teal)]">
             Shopify approved the connection. Refreshing status below.
           </div>
         )}
         {callbackNotice === "error" && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+          <div className="border border-[var(--brand-red)]/30 bg-[var(--brand-red)]/10 px-4 py-3 text-sm text-[var(--brand-red)]">
             Shopify did not complete the connection. Please try again.
           </div>
         )}
@@ -129,11 +134,13 @@ export default function ShopifyPage() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-[#96BF48]/10 p-3">
-                  <ShoppingBag className="h-6 w-6 text-[#96BF48]" />
+                <div className="border border-[var(--border)] p-3 text-[var(--foreground-secondary)]">
+                  <ShoppingBag className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="font-semibold text-[var(--foreground)]">{data.shopDomain}</p>
+                  <p className="font-semibold text-[var(--foreground)] font-mono" data-manifest-figure>
+                    {data.shopDomain}
+                  </p>
                   <div className="mt-1 flex items-center gap-2">
                     <Badge variant="success">
                       <CheckCircle className="mr-1 h-3 w-3" />
@@ -171,7 +178,9 @@ export default function ShopifyPage() {
                   Connect Shopify
                 </Button>
               </div>
-              {validationError && <p className="text-sm text-red-600">{validationError}</p>}
+              {validationError && (
+                <p className="text-sm text-[var(--brand-red)]">{validationError}</p>
+              )}
             </CardContent>
           </Card>
         )}

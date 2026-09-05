@@ -318,15 +318,20 @@ export default function PolicyPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--border-secondary)] pb-5">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--foreground)]">Selling Policy</h1>
+            <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+              Controls
+            </p>
+            <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+              Selling policy
+            </h1>
             <p className="mt-1 text-[var(--foreground-secondary)]">
               Decide what your agent is allowed to sell and how — turn on the rules you want and
               save. These rules are enforced for real at checkout.
             </p>
           </div>
-          <Button onClick={() => void handleSave()} disabled={saving || loading}>
+          <Button onClick={() => void handleSave()} disabled={saving || loading} className="shrink-0">
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Saving…" : "Save policy"}
           </Button>
@@ -345,7 +350,7 @@ export default function PolicyPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-4 w-4 text-[var(--brand-orange)]" />
+                  <Shield className="h-4 w-4 text-[var(--brand-red)]" />
                   In plain language
                 </CardTitle>
                 <CardDescription>

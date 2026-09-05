@@ -71,7 +71,7 @@ export default function ReadinessPage() {
         <Card>
           <CardContent className="p-6 text-sm text-[var(--foreground-secondary)]">
             No application found yet.{" "}
-            <Link href="/invite" className="text-[var(--brand-orange)] underline">
+            <Link href="/invite" className="text-[var(--brand-red)] underline">
               Start from the beginning
             </Link>
             .
@@ -94,8 +94,13 @@ export default function ReadinessPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Readiness check</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2" data-manifest-figure>
+            Onboarding · Step 4 of 5
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Readiness check
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Here&apos;s where things stand before you can run a test transaction.
           </p>
@@ -105,7 +110,7 @@ export default function ReadinessPage() {
           <Skeleton className="h-32 w-full" />
         ) : error && summary === null ? (
           <Card>
-            <CardContent className="p-6 text-sm text-red-600">{error}</CardContent>
+            <CardContent className="p-6 text-sm text-[var(--brand-red)]">{error}</CardContent>
           </Card>
         ) : summary !== null ? (
           <>
@@ -137,7 +142,7 @@ export default function ReadinessPage() {
                     Your catalog isn&apos;t confirmed yet.{" "}
                     <Link
                       href="/invite/catalog-review"
-                      className="text-[var(--brand-orange)] underline"
+                      className="text-[var(--brand-red)] underline"
                     >
                       Review your catalog
                     </Link>
@@ -147,7 +152,7 @@ export default function ReadinessPage() {
               </CardContent>
             </Card>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-[var(--brand-red)]">{error}</p>}
 
             <div className="flex gap-3">
               <Button
