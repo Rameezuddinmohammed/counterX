@@ -84,8 +84,8 @@ export default function PolicyPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)]">Policy</h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
-            Your spending policy is your mandates — a signed ceiling, merchant allowlist, and
-            expiry per agent. Manage them from{" "}
+            Your spending policy is your mandates — a signed ceiling, merchant allowlist, and expiry
+            per agent. Manage them from{" "}
             <a href="/mandates" className="underline">
               Mandates
             </a>

@@ -35,7 +35,8 @@ import {
   LogOut,
 } from "lucide-react";
 
-const LANDING_URL = process.env["NEXT_PUBLIC_LANDING_URL"] ?? "https://counter-landing-blond.vercel.app";
+const LANDING_URL =
+  process.env["NEXT_PUBLIC_LANDING_URL"] ?? "https://counter-landing-blond.vercel.app";
 
 const NAV_SECTIONS = [
   {
@@ -163,9 +164,7 @@ export function AppSidebar() {
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[var(--foreground)] truncate">
-                {displayName}
-              </p>
+              <p className="text-sm font-medium text-[var(--foreground)] truncate">{displayName}</p>
               <p className="text-xs text-[var(--foreground-muted)] truncate">Pilot Mode</p>
             </div>
           )}

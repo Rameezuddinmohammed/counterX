@@ -198,9 +198,7 @@ export default function DashboardPage() {
           <StatCard
             icon={<ArrowLeftRight className="h-4 w-4" />}
             label="Recent Activity"
-            value={
-              balance.status === "loaded" ? String(balance.data.recentEvents.length) : "—"
-            }
+            value={balance.status === "loaded" ? String(balance.data.recentEvents.length) : "—"}
             description="Balance events"
           />
           <StatCard
