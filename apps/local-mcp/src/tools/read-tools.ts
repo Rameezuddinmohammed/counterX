@@ -17,8 +17,12 @@
  * Capability Manifest (see MerchantDirectoryStore's own header in
  * agent-runtime for why that's an honest interim proxy, not the same as the
  * still-unbuilt operator-reviewed ACTIVATION_REVIEW -> ACTIVE gate).
- * product.details, quote.get, transaction.status, and receipt.verify all
- * map 1:1 onto real methods on that client and are wired for real below.
+ * product.search, product.details, quote.get, transaction.status, and
+ * receipt.verify all map 1:1 onto real methods on that client and are wired
+ * for real below. product.search calls the SAME `search()` method/route
+ * that already backed the real Shopify-connected catalog (agent-runtime's
+ * merchant-routes.ts `/search`) — it existed, fully implemented on both
+ * ends, with zero MCP tool ever calling it, until this pass.
  * `deps.walletClient` (WalletRuntimeClient) reaches control-plane-api's
  * wallet-scoped routes; notifications.list/invoices.get (Phase 2) and, as of
  * Phase 4 (wallet-dashboard backend), wallet.status (via getMandates,
@@ -285,6 +289,65 @@ export function registerReadTools(server: McpServer, deps?: ReadToolDependencies
             results: filtered.slice(0, effectiveLimit),
             total: filtered.length,
             limit: effectiveLimit,
+          });
+        });
+      } catch (error) {
+        return safeErrorResponse(error);
+      }
+    },
+  );
+
+  // product.search - List/search a merchant's real product catalog
+  server.tool(
+    "product.search",
+    "List or search the products a specific merchant sells. Use this before product.details " +
+      "(which needs a variant_id you don't have until you've seen the catalog).",
+    {
+      wallet_id: z.string().min(1).describe("The wallet ID"),
+      merchant_id: z.string().min(1).describe("The merchant ID (from merchant.list)"),
+      query: z
+        .string()
+        .max(200)
+        .optional()
+        .describe(
+          "Search text, e.g. a product name or keyword. Omit to list the merchant's catalog.",
+        ),
+      limit: z.number().int().min(1).max(25).optional().describe("Maximum results to return"),
+    },
+    async ({ wallet_id, merchant_id, query, limit }) => {
+      try {
+        return await withTimeout(async (_signal) => {
+          const effectiveLimit = limit ?? 10;
+          if (merchantClient === undefined) {
+            return jsonResponse({
+              wallet_id,
+              merchant_id,
+              results: [],
+              total_count: 0,
+            });
+          }
+          // An omitted query reaches agent-runtime's /search route as ""
+          // (see that route's own comment), which Shopify's product search
+          // treats as no filter at all — the merchant's whole catalog.
+          const result = await merchantClient.search(merchant_id, query ?? "", undefined, {
+            limit: effectiveLimit,
+          });
+          if (!result.ok) {
+            return jsonResponse({
+              wallet_id,
+              merchant_id,
+              results: [],
+              total_count: 0,
+              status: result.error.kind === "timeout" ? "indeterminate" : "unavailable",
+              reason: result.error.kind,
+            });
+          }
+          return jsonResponse({
+            wallet_id,
+            merchant_id,
+            results: result.value.results,
+            total_count: result.value.totalCount,
+            next_cursor: result.value.nextCursor,
           });
         });
       } catch (error) {
