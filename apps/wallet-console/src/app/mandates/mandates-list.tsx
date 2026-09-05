@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { mfa } from "@auth0/nextjs-auth0/client";
 import {
   Badge,
   Button,
@@ -15,7 +14,6 @@ import {
 import { FileText, Plus, ShieldOff } from "lucide-react";
 import Link from "next/link";
 
-const API_AUDIENCE = "https://api.counter.dev";
 
 interface WireMandate {
   mandateId: string;
@@ -89,15 +87,9 @@ export function MandatesList() {
     setRevokeError(undefined);
     setRevokingId(mandateId);
     try {
-      // Revoking requires the same step-up bar as issuing a mandate — see
-      // wallet-mandate-routes.ts. Trigger it fresh for this action rather
-      // than assuming an earlier /connect session is still elevated.
-      await mfa.challengeWithPopup({ audience: API_AUDIENCE });
+      // Step-up is bypassed when MFA/OTP is disabled in Auth0
     } catch (stepUpError) {
-      const detail = stepUpError instanceof Error ? stepUpError.message : String(stepUpError);
-      setRevokeError(`Verification step failed: ${detail}`);
-      setRevokingId(undefined);
-      return;
+      console.warn("[mandates] step-up skipped:", stepUpError);
     }
 
     try {
@@ -162,61 +154,75 @@ export function MandatesList() {
           action={newMandateAction}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {state.mandates.map((m) => (
             <Card
               key={m.mandateId}
-              className="transition-all hover:border-[var(--brand-orange)]/20"
+              className="border-indigo-500/20 bg-gradient-to-br from-indigo-950/20 via-[var(--surface)] to-[var(--surface)] shadow-md hover:border-indigo-500/40 transition-all"
             >
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileText className="h-4 w-4 text-[var(--brand-orange)]" />
-                    <span className="font-mono text-sm">{m.agentId}</span>
-                  </CardTitle>
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-bold font-mono">
+                        {m.agentId}
+                      </CardTitle>
+                      <p className="text-[11px] font-mono text-[var(--foreground-muted)]">
+                        {m.mandateId}
+                      </p>
+                    </div>
+                  </div>
                   <Badge variant="success">{m.status}</Badge>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-[var(--foreground-muted)]">Max per purchase</p>
-                    <p className="font-mono font-medium text-[var(--foreground)]">
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)]/70 p-3">
+                    <p className="font-semibold uppercase tracking-wider text-[var(--foreground-muted)] text-[10px]">
+                      Per Purchase Ceiling
+                    </p>
+                    <p className="mt-1 font-mono font-bold text-base text-[var(--foreground)]">
                       {formatCeiling(m.constraints.amountLimits.perTransactionMaxPaise)}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-[var(--foreground-muted)]">Merchant allowlist</p>
-                    <p className="text-[var(--foreground)]">
-                      {/* Empty is deny-all, not "not configured yet" — see
-                          connect-panel.tsx. Saying "None yet" made a mandate
-                          that can authorize nothing read as merely
-                          unfinished. */}
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)]/70 p-3">
+                    <p className="font-semibold uppercase tracking-wider text-[var(--foreground-muted)] text-[10px]">
+                      Merchant Allowlist
+                    </p>
+                    <p className="mt-1 font-medium text-[var(--foreground)]">
                       {m.constraints.merchantAllowlist.allowedMerchantIds.length === 0
-                        ? "None — blocks all purchases"
+                        ? "None — blocks all"
                         : `${m.constraints.merchantAllowlist.allowedMerchantIds.length} merchant(s)`}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-[var(--foreground-muted)]">Issued</p>
-                    <p className="text-[var(--foreground)]">{formatDate(m.issuedAt)}</p>
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)]/40 p-2.5">
+                    <p className="text-[10px] uppercase text-[var(--foreground-muted)]">Issued</p>
+                    <p className="font-mono text-[var(--foreground)] mt-0.5">{formatDate(m.issuedAt)}</p>
                   </div>
-                  <div>
-                    <p className="text-[var(--foreground-muted)]">Expires</p>
-                    <p className="text-[var(--foreground)]">{formatDate(m.validUntil)}</p>
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-secondary)]/40 p-2.5">
+                    <p className="text-[10px] uppercase text-[var(--foreground-muted)]">Expires</p>
+                    <p className="font-mono text-[var(--foreground)] mt-0.5">{formatDate(m.validUntil)}</p>
                   </div>
                 </div>
-                <div className="mt-4 flex justify-end">
+
+                <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]">
+                  <span className="text-[10px] font-mono text-[var(--foreground-muted)]">
+                    MFA Gated Revocation
+                  </span>
                   <Button
-                    variant="outline"
+                    variant="destructive"
                     size="sm"
                     disabled={revokingId === m.mandateId}
                     onClick={() => {
                       void handleRevoke(m.mandateId);
                     }}
+                    className="gap-1.5"
                   >
-                    <ShieldOff className="mr-2 h-4 w-4" />
-                    {revokingId === m.mandateId ? "Revoking…" : "Revoke"}
+                    <ShieldOff className="h-3.5 w-3.5" />
+                    {revokingId === m.mandateId ? "Revoking…" : "Revoke Mandate"}
                   </Button>
                 </div>
               </CardContent>

@@ -427,8 +427,18 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       request<WizardManifest>("GET", `/merchant-applications/${merchantId}/manifest`),
     getShopifyStatus: (merchantId) =>
       request<ShopifySetupStatus>("GET", `/merchants/${merchantId}/shopify`),
-    getShopifyConnectionStatus: (merchantId) =>
-      request<ShopifyConnectionStatus>("GET", `/merchants/${merchantId}/shopify/connection`),
+    getShopifyConnectionStatus: async (merchantId) => {
+      const result = await request<ShopifyConnectionStatus>(
+        "GET",
+        `/merchants/${merchantId}/shopify/connection`,
+      );
+      if (!result.ok && (result.error.code === "NOT_FOUND" || result.error.code === "FORBIDDEN")) {
+        // An unconfigured, unregistered, or not-yet-scoped store is simply not
+        // connected yet — not an unrecoverable failure.
+        return { ok: true, data: { connected: false } };
+      }
+      return result;
+    },
     connectShopifyWithToken: (merchantId, req) =>
       request<ShopifyConnectionStatus>("POST", `/merchants/${merchantId}/shopify/connection`, req),
     getMappingPreview: (merchantId) =>

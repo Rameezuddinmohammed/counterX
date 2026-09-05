@@ -505,6 +505,7 @@ export function registerWriteTools(server: McpServer, deps: WriteToolDependencie
             args.quote_id,
             args.payment_method,
             signedEnvelope,
+            { country: args.delivery_country },
           );
 
           if (!txResult.ok) {

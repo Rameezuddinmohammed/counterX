@@ -90,11 +90,11 @@ export default function OperationsDashboard() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {QUICK_ACTIONS.map((action) => (
               <Link key={action.href} href={action.href} className="no-underline">
-                <Card className="h-full transition-all duration-200 hover:border-[var(--brand-orange)]/30 hover:shadow-lg hover:shadow-[var(--brand-orange)]/5 cursor-pointer">
+                <Card className="h-full transition-all duration-200 hover:border-[var(--primary)]/30 hover:shadow-lg hover:shadow-[var(--primary)]/5 cursor-pointer">
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-[var(--brand-orange)]/10 p-2">
-                        <action.icon className="h-4 w-4 text-[var(--brand-orange)]" />
+                      <div className="rounded-lg bg-[var(--primary)]/10 p-2">
+                        <action.icon className="h-4 w-4 text-[var(--primary)]" />
                       </div>
                       <div>
                         <p className="font-medium text-[var(--foreground)]">{action.label}</p>

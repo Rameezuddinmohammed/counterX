@@ -34,6 +34,7 @@ import {
 } from "./client-errors.js";
 
 import type {
+  BillingAddress,
   ClientResult,
   ManifestVerificationResult,
   MerchantRuntimeClient,
@@ -254,6 +255,7 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
     quoteId: string,
     paymentMethod: string,
     signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
+    billingAddress?: BillingAddress,
   ): Promise<ClientResult<TransactionCreateResponse>> {
     const manifestCheck = await this.#ensureManifestVerified(merchantId);
     if (!manifestCheck.ok) {
@@ -267,6 +269,7 @@ export class HttpMerchantRuntimeClient implements MerchantRuntimeClient {
         quoteId,
         paymentMethod,
         ...(signedEnvelope !== undefined ? { ctpEnvelope: signedEnvelope } : {}),
+        ...(billingAddress !== undefined ? { billingAddress } : {}),
       }),
     });
 
@@ -698,6 +701,7 @@ export class InMemoryMerchantRuntimeClient implements MerchantRuntimeClient {
     quoteId: string,
     paymentMethod: string,
     signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
+    _billingAddress?: BillingAddress,
   ): Promise<ClientResult<TransactionCreateResponse>> {
     this.#lastCreateTransactionCall = { merchantId, quoteId, paymentMethod, signedEnvelope };
     const failure = this.#checkSimulatedFailure();

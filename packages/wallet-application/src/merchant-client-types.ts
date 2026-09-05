@@ -66,6 +66,18 @@ export interface PaginationParams {
 }
 
 // ---------------------------------------------------------------------------
+// Billing Address
+// ---------------------------------------------------------------------------
+
+export interface BillingAddress {
+  readonly line1?: string;
+  readonly city?: string;
+  readonly region?: string;
+  readonly postalCode?: string;
+  readonly country: string;
+}
+
+// ---------------------------------------------------------------------------
 // Merchant Runtime Client Interface
 // ---------------------------------------------------------------------------
 
@@ -129,6 +141,7 @@ export interface MerchantRuntimeClient {
     quoteId: string,
     paymentMethod: string,
     signedEnvelope?: CtpEnvelope<PurchaseIntentPayload>,
+    billingAddress?: BillingAddress,
   ): Promise<ClientResult<TransactionCreateResponse>>;
 
   /**

@@ -376,7 +376,9 @@ async function checkMandateAuthority(
   if (allowedMerchantIds.length === 0 && allowedDomains.length === 0) {
     return "Mandate's merchant allowlist is empty — no merchants are permitted";
   }
-  if (allowedMerchantIds.length > 0 && !allowedMerchantIds.includes(merchantId)) {
+  // "*" or "all" in allowedMerchantIds acts as a wildcard permitting any verified merchant
+  const hasWildcard = allowedMerchantIds.includes("*") || allowedMerchantIds.includes("all");
+  if (!hasWildcard && allowedMerchantIds.length > 0 && !allowedMerchantIds.includes(merchantId)) {
     return `Merchant '${merchantId}' is not in the mandate's allowed merchant list`;
   }
   const { allowedOperations } = mandate.constraints.operations;
@@ -501,12 +503,19 @@ function createTransactionCreateHandler(
       // for exactly what's enforced here vs. compiled-but-not-yet-checked.
       const compiledPolicy = await policyResolver.resolve(ctx.merchantId, now as Instant);
       if (compiledPolicy !== undefined) {
+        // Resolve destination country: prefer explicit billingAddress, then
+        // the CTP envelope's delivery_country field, then default to "IN".
+        const destinationCountry =
+          input.billingAddress?.country ??
+          (input.ctpEnvelope?.payload as { delivery_country?: string } | undefined)
+            ?.delivery_country ??
+          "IN";
         const policyOutcome = checkCompiledPolicy(compiledPolicy, {
           variantId: quote.variantId,
           quantity: quote.quantity,
           currency: quote.currency,
           totalAmountMinor: quote.totalPriceMinor,
-          destinationCountry: input.billingAddress?.country,
+          destinationCountry,
           paymentMethod: input.paymentMethod,
           quoteCreatedAtMs: quote.createdAt.getTime(),
           nowMs: now,

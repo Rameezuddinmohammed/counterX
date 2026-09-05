@@ -49,7 +49,16 @@
  *   node scripts/issue-and-bind-prepaid-mandate.mjs \
  *     --wallet-id ctr_wallet_... --agent-id ctr_agent_... --kid <kid> \
  *     [--principal-id ctr_actor_...] [--ceiling-minor 500000] [--valid-days 365] \
- *     [--merchant-id ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw]
+ *     [--merchant-id ctr_merchant_... | --merchant-store <name-or-domain> | (omit for wildcard)]
+ *
+ * Merchant resolution (in order of priority):
+ *   --merchant-id   Use a specific ctr_merchant_... ID (existing behaviour)
+ *   --merchant-store  Resolve merchant ID by shop domain or display name from
+ *                     the database (merchant.shopify_connections.shop_domain or
+ *                     merchant.capability_manifests.display_name), case-insensitive
+ *   (omit both)     Defaults to "*" — a wildcard that grants authority over
+ *                   ANY verified Counter merchant, so the user never needs to
+ *                   know a merchant ID at all.
  *
  * SECURITY: never prints the private key. Reads DATABASE_URL from .env,
  * same as every other script here.
@@ -90,18 +99,68 @@ const agentId = args["agent-id"];
 const kid = args["kid"];
 if (!walletId || !agentId || !kid) {
   console.error(
-    "Usage: node issue-and-bind-prepaid-mandate.mjs --wallet-id <id> --agent-id <id> --kid <kid> [--principal-id <id>] [--ceiling-minor 500000] [--valid-days 365] [--merchant-id ctr_merchant_...]",
+    "Usage: node issue-and-bind-prepaid-mandate.mjs --wallet-id <id> --agent-id <id> --kid <kid> [--principal-id <id>] [--ceiling-minor 500000] [--valid-days 365] [--merchant-id ctr_merchant_... | --merchant-store <name-or-domain>]",
   );
   process.exit(1);
 }
 const principalId = args["principal-id"] ?? `ctr_actor_${walletId.replace(/^ctr_wallet_/, "")}`;
 const ceilingMinor = BigInt(args["ceiling-minor"] ?? "500000"); // paise; PILOT.md per-transaction max = Rs 5,000
 const validDays = Number(args["valid-days"] ?? "365");
-const merchantId = args["merchant-id"] ?? "ctr_merchant_BwcHBwcHBwcHBwcHBwcHBw"; // apps/worker/src/boot.ts pilotMerchantId()
+// --merchant-store: name or domain to resolve → merchant ID from DB
+const merchantStore = args["merchant-store"];
+// --merchant-id: explicit ID overrides everything; omit both for wildcard "*"
+let merchantId = args["merchant-id"] ?? (merchantStore ? null : "*");
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
 const environment = process.env.COUNTER_ENV ?? "test";
+
+// Resolve merchant ID from --merchant-store name/domain if provided
+if (merchantStore && !merchantId) {
+  const { PostgresDatabase } = await importFromRepo("packages/data/dist/database.js");
+  const resolveDb = new PostgresDatabase(databaseUrl);
+  try {
+    // Try shop_domain match first (exact, case-insensitive)
+    const domainRows = await resolveDb.pool.query(
+      `SELECT merchant_id FROM merchant.shopify_connections
+       WHERE environment = $1 AND LOWER(shop_domain) = LOWER($2)
+       LIMIT 1`,
+      [environment, merchantStore],
+    );
+    if (domainRows.rows.length > 0) {
+      merchantId = domainRows.rows[0].merchant_id;
+      console.log(`Resolved merchant store '${merchantStore}' → ${merchantId} (by shop_domain)`);
+    } else {
+      // Try display name / slug match in capability_manifests
+      const nameRows = await resolveDb.pool.query(
+        `SELECT merchant_id FROM merchant.capability_manifests
+         WHERE environment = $1 AND LOWER(display_name) = LOWER($2)
+         LIMIT 1`,
+        [environment, merchantStore],
+      );
+      if (nameRows.rows.length > 0) {
+        merchantId = nameRows.rows[0].merchant_id;
+        console.log(
+          `Resolved merchant store '${merchantStore}' → ${merchantId} (by display_name)`,
+        );
+      }
+    }
+  } finally {
+    await resolveDb.close();
+  }
+  if (!merchantId) {
+    throw new Error(
+      `No merchant found matching '${merchantStore}' — check shop_domain or display_name in the DB`,
+    );
+  }
+}
+
+// At this point merchantId is either a specific ID or "*" (wildcard)
+console.log(
+  merchantId === "*"
+    ? "Creating wildcard mandate (any verified Counter merchant)"
+    : `Creating mandate for merchant: ${merchantId}`,
+);
 
 const keyStorePath = process.env.COUNTER_WALLET_KEYSTORE_PATH;
 let passphrase = process.env.COUNTER_WALLET_KEYSTORE_PASSPHRASE;

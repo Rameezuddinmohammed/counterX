@@ -7,6 +7,12 @@ primary_region = "sin"
   [build.args]
     BUILD_TARGET = "apps/agent-runtime"
 
+[env]
+  # Platform environment — selects the correct DB partition (test vs production).
+  # Also set as a Fly secret so it survives `fly secrets unset --all`; keep in
+  # sync with the Fly secret value.
+  COUNTER_ENV = "test"
+
 [http_service]
   internal_port = 8080
   force_https = true

@@ -118,6 +118,10 @@ function sendHandlerError(reply: FastifyReply, error: HandlerError, correlationI
       // A CTP-signed envelope was present but failed verification (bad
       // signature, unknown/revoked key, or didn't match this request).
       // Never echoes the reason's internal detail beyond a stable message.
+      reply.log.warn(
+        { reason: (error as { reason?: string }).reason },
+        "transaction authorization denied",
+      );
       void reply.status(401).send({
         error: { code: "UNAUTHORIZED", message: "The signed authorization could not be verified" },
       });

@@ -186,26 +186,30 @@ export default function ShopifyPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div className="border-b border-[var(--border-secondary)] pb-5">
-          <p
-            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
-            data-manifest-figure
-          >
-            Commerce
-          </p>
-          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
-            Shopify integration
-          </h1>
-          <p className="mt-1 text-[var(--foreground-secondary)]">
-            Connect your Shopify store so AI agents can browse your products and place real orders.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs uppercase font-bold tracking-wider text-cyan-600 dark:text-cyan-400">
+                Commerce Integration
+              </span>
+              <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/30">
+                Shopify
+              </span>
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+              Shopify Integration
+            </h1>
+            <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+              Connect your Shopify store so autonomous AI agents can browse your catalog and place real orders.
+            </p>
+          </div>
         </div>
 
         {appState && appState !== "ACTIVE" && (
-          <div className="border border-[var(--brand-red)]/30 bg-[var(--brand-red)]/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
             <div>
-              <p className="text-sm font-medium text-[var(--foreground)]">Onboarding in progress</p>
-              <p className="text-xs text-[var(--foreground-muted)]">
+              <p className="text-sm font-bold text-[var(--foreground)]">Onboarding in progress</p>
+              <p className="text-xs text-[var(--foreground-secondary)] mt-0.5">
                 {data?.connected
                   ? "Your Shopify store is connected. You can now review your catalog in Step 3."
                   : "Connect your Shopify store here to complete Step 2 of the setup wizard."}
@@ -215,64 +219,61 @@ export default function ShopifyPage() {
               href={data?.connected ? "/invite/catalog-review" : "/invite/catalog-connect"}
               className="no-underline shrink-0"
             >
-              <Button size="sm" variant={data?.connected ? "default" : "outline"}>
+              <Button size="sm" variant={data?.connected ? "default" : "outline"} className="gap-1.5">
                 {data?.connected ? "Continue to Step 3: Review Catalog" : "Return to Setup Wizard"}
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </Link>
           </div>
         )}
 
         {callbackNotice === "connected" && (
-          <div className="border border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 px-4 py-3 text-sm text-[var(--clearance-teal)]">
-            Store connected. Your products are being imported now — this can take a minute for a
-            large catalog.
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Store connected successfully. Products are synchronizing with your Counter agent catalog.
           </div>
         )}
         {callbackNotice === "error" && (
-          <div className="border border-[var(--brand-red)]/30 bg-[var(--brand-red)]/10 px-4 py-3 text-sm text-[var(--brand-red)]">
-            Shopify did not complete the connection. Please try again.
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-semibold text-rose-600 dark:text-rose-400">
+            Shopify did not complete the connection. Please verify your shop domain and try again.
           </div>
         )}
 
         {loading ? (
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
         ) : error ? (
           <ErrorState message={error} onRetry={refetch} />
         ) : data?.connected ? (
-          <Card>
+          <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-950/10 via-[var(--surface)] to-[var(--surface)] shadow-lg">
             <CardContent className="p-6">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="border border-[var(--border)] p-3 text-[var(--foreground-secondary)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                     <ShoppingBag className="h-6 w-6" />
                   </div>
                   <div>
-                    <p
-                      className="font-semibold text-[var(--foreground)] font-mono"
-                      data-manifest-figure
-                    >
-                      {data.shopDomain}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-base text-[var(--foreground)] font-mono">
+                        {data.shopDomain}
+                      </p>
                       <Badge variant="success">
                         <CheckCircle className="mr-1 h-3 w-3" />
-                        Connected
+                        Connected &bull; Active
                       </Badge>
-                      {data.connectedAt && (
-                        <span className="text-xs text-[var(--foreground-muted)]">
-                          Since {new Date(data.connectedAt).toLocaleString()}
-                        </span>
-                      )}
                     </div>
+                    {data.connectedAt && (
+                      <p className="text-xs text-[var(--foreground-muted)] font-mono mt-1">
+                        Connected on {new Date(data.connectedAt).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {appState && appState !== "ACTIVE" && (
                   <Link href="/invite/catalog-review" className="no-underline">
-                    <Button size="sm">
-                      Continue Setup: Review Catalog
-                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    <Button size="sm" className="gap-1.5 shadow-sm">
+                      Continue to Catalog Review
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   </Link>
                 )}
