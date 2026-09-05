@@ -12,7 +12,16 @@ primary_region = "sin"
   force_https = true
   auto_start_machines = true
   auto_stop_machines = true
-  min_machines_running = 0
+  # Keep one machine warm. This service is called from INSIDE an MCP tool
+  # handler, which aborts at 30s (DEFAULT_TIMEOUT_MS in
+  # apps/local-mcp/src/tools/read-tools.ts, and the same value in
+  # HttpMerchantRuntimeClient). A measured cold start from scale-to-zero took
+  # 88.5s, so with min_machines_running = 0 the FIRST merchant.list / quote.get
+  # after any idle period times out and surfaces to the buyer's agent as a
+  # broken tool rather than as a waking service. Costs one always-on
+  # shared-cpu-1x/256MB instead of scaling to zero -- a deliberate trade of
+  # money for not failing the first call.
+  min_machines_running = 1
 
 [[vm]]
   size = "shared-cpu-1x"
