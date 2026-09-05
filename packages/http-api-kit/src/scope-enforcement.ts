@@ -111,9 +111,28 @@ export const scopeEnforcementPlugin = fp(
       }
 
       if (!assurancePermits(actorContext.assurance, permConfig.permission)) {
-        const error = createCanonicalError("UNAUTHORIZED");
+        // Deliberately DISTINGUISHED from the permission failures above.
+        // The actor genuinely holds this permission; only the strength of
+        // their current sign-in falls short, and that is something they can
+        // fix themselves by re-authenticating. Collapsing it into the same
+        // opaque "not authorized" made a completely ordinary situation — a
+        // brand-new merchant whose plain social login stamped
+        // assurance "session" trying to save any onboarding step — look
+        // like a broken permission system, with no hint that signing in
+        // again was the answer (hit for real, 2026-09-05).
+        //
+        // Safe to disclose: this describes the CALLER'S OWN session, never
+        // another tenant's data or the existence of a resource, so it
+        // leaks nothing the caller does not already know about themselves.
+        // Mirrors OAuth's own `insufficient_user_authentication`
+        // (RFC 9470 step-up authentication challenge).
         void reply.status(403).send({
-          error: { code: error.code, message: error.message },
+          error: {
+            code: "STEP_UP_REQUIRED",
+            message:
+              "This action needs stronger sign-in verification than your current session has. " +
+              "Sign out and sign in again to continue.",
+          },
         });
         return reply;
       }
