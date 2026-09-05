@@ -144,9 +144,10 @@ const razorpayRecurringProvider =
  * DATABASE_URL, this is never treated as a fail-loud requirement in
  * production, because that would take the ENTIRE control-plane-api down
  * (policy/transaction routes included) over one still-optional feature.
- * Absent config simply means /control/v1/merchants/:merchantId/shopify/*
- * is not registered at all (see index.ts's shopifyConnectionProvisioner
- * option) — the same graceful-absence shape as walletUserProvisioner.
+ * Absent config now only disables the one-click OAuth pair
+ * (authorize/callback). The connection-status route and the
+ * merchant-supplied-token connect route stay registered, because neither
+ * needs a Shopify app — see index.ts's shopifyConnectionProvisioner option.
  */
 const DEFAULT_SHOPIFY_OAUTH_SCOPES = "read_products,read_orders,write_orders";
 
@@ -158,14 +159,33 @@ function resolveShopifyOAuthConfig(): ShopifyOAuthConfig | undefined {
 
   if (!clientId || !clientSecret || !redirectUri) {
     console.log(
-      `[${APP_NAME}] Shopify OAuth app credentials not configured ` +
-        `(SHOPIFY_OAUTH_CLIENT_ID/SHOPIFY_OAUTH_CLIENT_SECRET/SHOPIFY_OAUTH_REDIRECT_URI) — ` +
-        `self-serve Shopify connect routes are not registered.`,
+      `[${APP_NAME}] No Shopify OAuth app configured ` +
+        `(SHOPIFY_OAUTH_CLIENT_ID/SHOPIFY_OAUTH_CLIENT_SECRET/SHOPIFY_OAUTH_REDIRECT_URI), ` +
+        `so one-click "Connect with Shopify" is unavailable. Merchants can still connect a ` +
+        `store with their own Admin API access token — those routes ARE registered.`,
     );
     return undefined;
   }
   return { clientId, clientSecret, redirectUri, scopes };
 }
+
+/**
+ * Whether finishing the onboarding wizard makes a merchant live immediately,
+ * with no human approval step. Defaults to ON.
+ *
+ * Founder decision, 2026-09-05. The operator-approval gate it replaces had
+ * no reachable implementation — nothing issues operator-kind claims, so the
+ * approve route was uncallable from any screen and the only way to make a
+ * merchant live was running scripts/approve-merchant-activation.mjs by
+ * hand. That made "sign up and be live in one sitting" impossible.
+ *
+ * Set MERCHANT_AUTO_ACTIVATE=false to restore manual review: merchants then
+ * stop at ACTIVATION_REVIEW exactly as before, and an operator (today, that
+ * script) approves them. Worth doing before signup is opened beyond a
+ * controlled pilot — with this on, anyone who completes the wizard can sell.
+ */
+const merchantAutoActivate =
+  (process.env["MERCHANT_AUTO_ACTIVATE"]?.trim().toLowerCase() ?? "true") !== "false";
 
 const shopifyOAuthConfig = resolveShopifyOAuthConfig();
 
@@ -494,6 +514,7 @@ const serverOptions: CreateServerOptions = {
                 database,
                 runtimeEnvironment,
                 readinessService,
+                merchantAutoActivate,
               ),
             }
           : {}),

@@ -43,7 +43,7 @@ import {
 } from "@counter/ui";
 import { ShoppingBag, CheckCircle, KeyRound, ExternalLink } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { useApi, useCurrentMerchantId, getApiClient } from "@/hooks/use-api";
+import { ensureStepUp, getApiClient, useApi, useCurrentMerchantId } from "@/hooks/use-api";
 import type { ShopifyConnectionStatus } from "@/lib/types";
 
 const CONTROL_PLANE_BASE_URL =
@@ -131,6 +131,16 @@ export default function ShopifyPage() {
     if (trimmed === null) return;
     if (accessToken.trim().length === 0) {
       setConnectError("Paste the Admin API access token from your custom app.");
+      return;
+    }
+
+    // Raise the session's assurance before the write — connecting a store is
+    // a tenant mutation the API gates behind a second factor. First await in
+    // the handler so the popup stays attributable to the user's click.
+    try {
+      await ensureStepUp();
+    } catch {
+      setConnectError("Verification was not completed, so the store was not connected.");
       return;
     }
 

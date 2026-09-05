@@ -22,7 +22,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from "@counter/ui";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
+import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { FULFILLMENT_CAPABILITY_OPTIONS } from "@/lib/onboarding-labels";
 import type { FulfillmentCapability } from "@/lib/types";
 
@@ -90,6 +90,17 @@ export default function BusinessBasicsPage() {
       return;
     }
 
+    // Raise the session's assurance before the write. Every save here is a
+    // tenant mutation, which the API gates behind a second factor; without
+    // this a normal login is refused with no way forward. Must precede any
+    // other await so the popup stays attributable to the user's click.
+    try {
+      await ensureStepUp();
+    } catch {
+      setError("Verification was not completed, so nothing was saved. Please try again.");
+
+      return;
+    }
     setSubmitting(true);
     const result = await getApiClient().updateBusinessBasics(merchantId, {
       legalEntityName: legalEntityName.trim(),

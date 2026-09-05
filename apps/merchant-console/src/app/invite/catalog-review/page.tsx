@@ -22,7 +22,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from "@counter/ui";
 import { ShoppingBag, ArrowRight, PackageCheck } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
+import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import type { ManualCatalogItem } from "@/lib/types";
 
 const PERMISSIONS_NOT_READY_MESSAGE =
@@ -56,6 +56,17 @@ export default function CatalogReviewPage() {
 
   async function handleConfirm() {
     if (merchantId === undefined) return;
+    // Raise the session's assurance before the write. Every save here is a
+    // tenant mutation, which the API gates behind a second factor; without
+    // this a normal login is refused with no way forward. Must precede any
+    // other await so the popup stays attributable to the user's click.
+    try {
+      await ensureStepUp();
+    } catch {
+      setConfirmError("Verification was not completed, so nothing was saved. Please try again.");
+
+      return;
+    }
     setConfirming(true);
     setConfirmError(null);
     const result = await getApiClient().confirmCatalog(merchantId);

@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { mfa } from "@auth0/nextjs-auth0/client";
 import type { ApiResult, AuthTokenProvider, MerchantApiClient } from "@/lib/api-client";
 import { createApiClient } from "@/lib/api-client";
 import { decodeAccessTokenClaims } from "@/lib/access-token-claims";
@@ -23,10 +24,70 @@ class AuthError extends Error {
   }
 }
 
-function createBrowserTokenProvider(): AuthTokenProvider {
+/**
+ * The audience control-plane-api actually verifies. Must match
+ * lib/auth0.ts's authorizationParameters.audience, or a stepped-up token
+ * would be issued for the wrong API and rejected.
+ */
+const API_AUDIENCE = "https://api.counter.dev";
+
+/** Auth0's standard "multi-factor" ACR policy URI. */
+const MFA_POLICY_ACR = "http://schemas.openid.net/pape/policies/2007/06/multi-factor";
+
+/**
+ * A token provider that can also RAISE the strength of the current session
+ * on demand — see stepUp().
+ */
+interface StepUpTokenProvider extends AuthTokenProvider {
+  /**
+   * Returns an access token whose assurance is high enough for a tenant
+   * mutation, prompting the user for a second factor only if the current
+   * one isn't already sufficient.
+   *
+   * MUST be called from inside a real user gesture (a click handler), and
+   * as the FIRST await in it: challengeWithPopup opens a window, and
+   * browsers block popups that aren't attributable to a gesture. The token
+   * is normally already cached by then (useCurrentMerchantId fetches it on
+   * page load), so no await precedes the popup in practice.
+   */
+  stepUp(): Promise<void>;
+  /** True when the cached token already carries a step-up-grade assurance. */
+  hasStepUp(): boolean;
+}
+
+function createBrowserTokenProvider(): StepUpTokenProvider {
   let cachedToken: string | null = null;
 
+  const assuranceOf = (token: string | null): string | undefined =>
+    token === null ? undefined : decodeAccessTokenClaims(token)?.assurance;
+
   return {
+    hasStepUp(): boolean {
+      const assurance = assuranceOf(cachedToken);
+      return assurance === "step_up" || assurance === "multi_factor";
+    },
+
+    async stepUp(): Promise<void> {
+      if (this.hasStepUp()) return;
+      // Uses the EXISTING session and goes straight to the second factor
+      // (enrolling one on first use). Returns a freshly minted access token
+      // carrying the raised assurance, which we cache so every subsequent
+      // API call sends it.
+      const result = await mfa.challengeWithPopup({
+        audience: API_AUDIENCE,
+        acr_values: MFA_POLICY_ACR,
+      });
+      const token: unknown = (result as { token?: unknown } | undefined)?.token;
+      if (typeof token === "string" && token.length > 0) {
+        cachedToken = token;
+      } else {
+        // Never leave a stale pre-step-up token cached and assume success:
+        // drop it so the next call re-reads the session rather than
+        // silently retrying at the old assurance.
+        cachedToken = null;
+      }
+    },
+
     async getToken(): Promise<string> {
       if (cachedToken) return cachedToken;
 
@@ -56,14 +117,42 @@ function createBrowserTokenProvider(): AuthTokenProvider {
 // Singleton API client
 // ---------------------------------------------------------------------------
 
-let tokenProviderInstance: AuthTokenProvider | null = null;
+let tokenProviderInstance: StepUpTokenProvider | null = null;
 let apiClientInstance: MerchantApiClient | null = null;
 
-function getTokenProvider(): AuthTokenProvider {
+function getTokenProvider(): StepUpTokenProvider {
   if (!tokenProviderInstance) {
     tokenProviderInstance = createBrowserTokenProvider();
   }
   return tokenProviderInstance;
+}
+
+/**
+ * Raises the current session's assurance if it isn't already high enough
+ * for a tenant mutation, then resolves. Call this as the FIRST await inside
+ * a click handler that is about to save something.
+ *
+ * Why every write needs it: packages/authorization/src/assurance.ts gates
+ * identity.scope.manage / identity.service_identity.manage (which is every
+ * save in this console — business basics, catalog, manifest, Shopify
+ * connect, policy, kill switch) behind multi_factor/step_up, while an
+ * ordinary social login only ever produces "session". Without this a
+ * brand-new merchant was refused on EVERY step with an opaque
+ * "Access denied" and no way forward — the single blocker that made
+ * self-serve onboarding impossible (2026-09-05).
+ *
+ * Deliberately prompts at the moment of the action rather than forcing a
+ * second factor on every login: reading the console needs no step-up, and
+ * an ordinary sign-in shouldn't be interrupted. This mirrors
+ * wallet-console's connect-panel, the same mechanism already proven in
+ * production for mandate creation. An earlier attempt to request the
+ * step-up at LOGIN instead broke sign-in outright — see lib/auth0.ts.
+ *
+ * Throws if the user dismisses or fails the challenge, so callers should
+ * surface the message rather than proceeding as though the save will work.
+ */
+export async function ensureStepUp(): Promise<void> {
+  await getTokenProvider().stepUp();
 }
 
 export function getApiClient(): MerchantApiClient {

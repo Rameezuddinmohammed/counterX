@@ -16,7 +16,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Skeleton } from "@counter/ui";
 import { FileCheck2, PartyPopper } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
-import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
+import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { pilotCapabilityLabel, fulfillmentCapabilityLabel } from "@/lib/onboarding-labels";
 import type { WizardManifest } from "@/lib/types";
 
@@ -53,6 +53,17 @@ export default function ManifestPage() {
 
   async function handleGenerate() {
     if (merchantId === undefined) return;
+    // Raise the session's assurance before the write. Every save here is a
+    // tenant mutation, which the API gates behind a second factor; without
+    // this a normal login is refused with no way forward. Must precede any
+    // other await so the popup stays attributable to the user's click.
+    try {
+      await ensureStepUp();
+    } catch {
+      setError("Verification was not completed, so nothing was saved. Please try again.");
+
+      return;
+    }
     setGenerating(true);
     setError(null);
     const result = await getApiClient().confirmWizardManifest(merchantId);

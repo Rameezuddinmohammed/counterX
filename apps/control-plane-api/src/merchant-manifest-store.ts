@@ -27,8 +27,14 @@
  * ACTIVATION_REVIEW to ACTIVE is a separate, operator-authenticated step —
  * see merchant-activation-routes.ts.
  */
-import type { Environment, MerchantId, MerchantUserId } from "@counter/domain";
-import { instantFromEpochMilliseconds, parseCounterId, type Instant } from "@counter/domain";
+import type { Environment, MerchantId, MerchantUserId, OperatorId } from "@counter/domain";
+import {
+  createCounterId,
+  instantFromEpochMilliseconds,
+  parseCounterId,
+  type Instant,
+} from "@counter/domain";
+import { randomBytes } from "node:crypto";
 import type { TransactionalDatabase } from "@counter/data";
 import {
   generateManifest,
@@ -81,6 +87,31 @@ export class MerchantManifestStore implements MerchantManifestStoreLike {
     private readonly database: TransactionalDatabase,
     private readonly environment: Environment,
     private readonly readinessService: MerchantReadinessServiceLike,
+    /**
+     * When true, a merchant that reaches ACTIVATION_REVIEW by confirming its
+     * manifest is advanced straight to ACTIVE in the SAME transaction, with
+     * no human approval step.
+     *
+     * This is a deliberate product decision (founder, 2026-09-05), not an
+     * oversight: the operator-approval gate had no reachable implementation
+     * — nothing in the system issues operator-kind claims, so the approve
+     * route could not be called by any human through any screen, and the
+     * ONLY way a merchant could go live was an admin running
+     * scripts/approve-merchant-activation.mjs by hand. That made self-serve
+     * onboarding impossible to finish in one sitting, which is the whole
+     * point of the wizard.
+     *
+     * What it means: anyone who completes the wizard can sell on the
+     * platform without review. Acceptable for the pilot; revisit before
+     * opening signup to strangers. Turning it off restores the previous
+     * behaviour exactly — the merchant stops at ACTIVATION_REVIEW and waits
+     * for an approval — so this is a switch, not a demolition.
+     *
+     * Every guard that mattered still runs: readiness must have passed with
+     * no blocking checks to reach SANDBOX_READY at all, and the transition
+     * below still goes through the real state machine, never a raw UPDATE.
+     */
+    private readonly autoActivate: boolean = false,
   ) {}
 
   async generateAndPersist(merchantId: string): Promise<PersistedManifest> {
@@ -215,11 +246,41 @@ export class MerchantManifestStore implements MerchantManifestStoreLike {
             `Failed to transition merchant ${merchantId} to ACTIVATION_REVIEW after manifest confirmation: ${transition.error.message}`,
           );
         }
+        let finalState = transition.value.toState;
+        let finalVersion = transition.value.version;
+
+        // ACTIVATION_REVIEW -> ACTIVE, still in the SAME transaction and
+        // still through the real state machine. See the autoActivate field's
+        // doc comment for why this exists and what it gives up.
+        if (this.autoActivate) {
+          const operatorId = createCounterId("operator", randomBytes(16));
+          if (!operatorId.ok) {
+            throw new Error("Failed to derive an operator id for automatic activation");
+          }
+          const activation = transitionMerchantLifecycle({
+            merchantId: parsedMerchantId.value as MerchantId,
+            currentState: finalState,
+            targetState: "ACTIVE",
+            actor: { kind: "operator", id: operatorId.value as OperatorId },
+            reason: "automatic activation on readiness (no manual review configured)",
+            occurredAt: nowInstant(),
+            evidenceDigest: manifest.signatureDigest,
+            currentVersion: finalVersion,
+          });
+          if (!activation.ok) {
+            throw new Error(
+              `Failed to auto-activate merchant ${merchantId}: ${activation.error.message}`,
+            );
+          }
+          finalState = activation.value.toState;
+          finalVersion = activation.value.version;
+        }
+
         await session.query(
           `UPDATE merchant.onboarding_applications
               SET lifecycle_state = $3, lifecycle_version = $4, updated_at = $5
             WHERE environment = $1 AND merchant_id = $2`,
-          [this.environment, merchantId, transition.value.toState, transition.value.version, now],
+          [this.environment, merchantId, finalState, finalVersion, now],
         );
       }
 
