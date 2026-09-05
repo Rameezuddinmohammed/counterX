@@ -39,8 +39,7 @@ import { OnboardingStepper } from "@/components/onboarding-stepper";
 import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import type { ManualCatalogItem, ShopifyConnectionStatus } from "@/lib/types";
 
-const CONTROL_PLANE_BASE_URL =
-  process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "https://counter-control-plane-api.fly.dev/control/v1";
+const CONTROL_PLANE_BASE_URL = process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "/control/v1";
 
 const SHOP_DOMAIN_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 
@@ -50,9 +49,11 @@ const PERMISSIONS_NOT_READY_MESSAGE =
   "was set up won't have them until you log in again.";
 
 function shopifyAuthorizeUrl(merchantId: string, shopDomain: string): string {
-  const url = new URL(
-    `${CONTROL_PLANE_BASE_URL}/merchants/${encodeURIComponent(merchantId)}/shopify/authorize`,
-  );
+  const base =
+    CONTROL_PLANE_BASE_URL.startsWith("http://") || CONTROL_PLANE_BASE_URL.startsWith("https://")
+      ? CONTROL_PLANE_BASE_URL
+      : `${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}${CONTROL_PLANE_BASE_URL}`;
+  const url = new URL(`${base}/merchants/${encodeURIComponent(merchantId)}/shopify/authorize`);
   url.searchParams.set("shop", shopDomain);
   return url.toString();
 }
