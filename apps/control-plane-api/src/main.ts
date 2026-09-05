@@ -50,7 +50,10 @@ import {
   type ShopifyOAuthConfig,
 } from "./shopify-connection-store.js";
 import { RefundRequestStore } from "./refund-request-store.js";
-import { MerchantApplicationProvisioner } from "./merchant-application-store.js";
+import {
+  MerchantApplicationProvisioner,
+  type MerchantApplicationProvisionerLike,
+} from "./merchant-application-store.js";
 import { MerchantPaymentConnectionStore } from "./merchant-payment-connection-store.js";
 import { MerchantWebhookEndpointStore } from "./merchant-webhook-endpoint-store.js";
 import { createFulfillmentWebhookHandler } from "./fulfillment-webhook-handler.js";
@@ -243,6 +246,7 @@ const readinessService =
 function createShopifyConnectedHandler(
   postgresDatabase: PostgresDatabase,
   targetEnvironment: Environment,
+  merchantApplicationProvisioner?: MerchantApplicationProvisionerLike,
 ): (input: { merchantId: string; shopDomain: string; accessToken: string }) => void {
   const cursorStore = new PostgresCursorStore(postgresDatabase, targetEnvironment);
   const productRepo = new PostgresProductRepository(postgresDatabase, targetEnvironment);
@@ -251,6 +255,17 @@ function createShopifyConnectedHandler(
   const inventoryRepo = new PostgresInventoryRepository(postgresDatabase, targetEnvironment);
 
   return (input): void => {
+    // Advance the onboarding wizard application from CONNECTING -> MAPPING if
+    // one exists and is currently in CONNECTING state. Safe and idempotent:
+    // markCatalogConnected checks that a real active connection exists, and
+    // no-ops if already past CONNECTING.
+    if (merchantApplicationProvisioner !== undefined) {
+      void merchantApplicationProvisioner
+        .markCatalogConnected(input.merchantId)
+        .catch((_error: unknown) => {
+          // Safe to ignore if merchant has no onboarding application or is already past CONNECTING.
+        });
+    }
     const client = createHttpGraphQLClient({
       shopDomain: input.shopDomain,
       accessToken: input.accessToken,
@@ -466,6 +481,11 @@ if (webhookRoutesOptions === undefined) {
   );
 }
 
+const merchantApplicationProvisioner =
+  database !== undefined
+    ? new MerchantApplicationProvisioner(database, runtimeEnvironment)
+    : undefined;
+
 const serverOptions: CreateServerOptions = {
   logger: true,
   environment,
@@ -479,10 +499,7 @@ const serverOptions: CreateServerOptions = {
           runtimeEnvironment,
           runtimeCredentialConfig,
         ),
-        merchantApplicationProvisioner: new MerchantApplicationProvisioner(
-          database,
-          runtimeEnvironment,
-        ),
+        ...(merchantApplicationProvisioner !== undefined ? { merchantApplicationProvisioner } : {}),
         merchantActivationStore: new MerchantActivationStore(database, runtimeEnvironment),
         merchantPaymentConnectionStore: new MerchantPaymentConnectionStore(
           database,
@@ -535,7 +552,11 @@ const serverOptions: CreateServerOptions = {
           database,
           runtimeEnvironment,
           shopifyOAuthConfig,
-          createShopifyConnectedHandler(database, runtimeEnvironment),
+          createShopifyConnectedHandler(
+            database,
+            runtimeEnvironment,
+            merchantApplicationProvisioner,
+          ),
           shopifyApiVersion,
         ),
         shopifyOAuthAvailable: shopifyOAuthConfig !== undefined,

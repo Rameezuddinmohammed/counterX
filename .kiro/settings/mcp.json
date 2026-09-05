@@ -1,16 +1,34 @@
 {
   "mcpServers": {
+    "auth0": {
+      "command": "npx",
+      "args": ["-y", "@auth0/auth0-mcp-server", "run", "--read-only"],
+      "env": {
+        "DEBUG": "auth0-mcp"
+      },
+      "disabled": false,
+      "autoApprove": ["*"]
+    },
+    "pollinations": {
+      "command": "npx",
+      "args": ["-y", "@fastmcp-me/mcpollinations"],
+      "disabled": false,
+      "autoApprove": ["*"]
+    },
     "shopify-storefront-dev": {
-      "url": "https://counter-test-store-rswqyftp.myshopify.com/api/ucp/mcp"
+      "url": "https://counter-test-store-rswqyftp.myshopify.com/api/ucp/mcp",
+      "disabled": true
     },
     "razorpay-test": {
       "url": "https://mcp.razorpay.com/mcp",
       "headers": {
         "Authorization": "Basic ${RAZORPAY_TEST_MERCHANT_TOKEN}"
-      }
+      },
+      "disabled": true
     },
     "aws-mcp": {
-      "url": "https://aws-mcp.us-east-1.api.aws/mcp"
+      "url": "https://aws-mcp.us-east-1.api.aws/mcp",
+      "disabled": true
     }
   }
 }

@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from "@counter/ui";
 import { PageWrapper } from "@/components/page-wrapper";
+import { OnboardingStepper } from "@/components/onboarding-stepper";
 import { ensureStepUp, getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { FULFILLMENT_CAPABILITY_OPTIONS } from "@/lib/onboarding-labels";
 import type { FulfillmentCapability } from "@/lib/types";
@@ -124,6 +125,8 @@ export default function BusinessBasicsPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
+        <OnboardingStepper currentStep={1} />
+
         <div className="border-b border-[var(--border-secondary)] pb-5">
           <p
             className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"

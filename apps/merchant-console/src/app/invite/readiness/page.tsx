@@ -22,6 +22,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge, Skeleton } from "@counter/ui";
 import { ArrowRight, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import { OnboardingStepper } from "@/components/onboarding-stepper";
 import { getApiClient, useWizardMerchantId } from "@/hooks/use-api";
 import { readinessCheckLabel, readinessCheckPassed } from "@/lib/onboarding-labels";
 import type { WizardReadinessSummary } from "@/lib/types";
@@ -89,6 +90,8 @@ export default function ReadinessPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
+        <OnboardingStepper currentStep={4} />
+
         <div className="border-b border-[var(--border-secondary)] pb-5">
           <p
             className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"

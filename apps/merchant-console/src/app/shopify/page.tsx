@@ -30,6 +30,7 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -41,7 +42,7 @@ import {
   Skeleton,
   ErrorState,
 } from "@counter/ui";
-import { ShoppingBag, CheckCircle, KeyRound, ExternalLink } from "lucide-react";
+import { ShoppingBag, CheckCircle, KeyRound, ExternalLink, ArrowRight } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 import { ensureStepUp, getApiClient, useApi, useCurrentMerchantId } from "@/hooks/use-api";
 import type { ShopifyConnectionStatus } from "@/lib/types";
@@ -84,6 +85,17 @@ export default function ShopifyPage() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [callbackNotice, setCallbackNotice] = useState<"connected" | "error" | null>(null);
+  const [appState, setAppState] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (merchantId) {
+      void getApiClient()
+        .getMerchantApplication(merchantId)
+        .then((res) => {
+          if (res.ok) setAppState(res.data.lifecycleState);
+        });
+    }
+  }, [merchantId]);
 
   // Reflect the redirect back from the OAuth callback (?shopify=connected|error).
   useEffect(() => {
@@ -93,11 +105,14 @@ export default function ShopifyPage() {
       setCallbackNotice(outcome);
       window.history.replaceState(null, "", window.location.pathname);
       if (outcome === "connected") {
+        if (merchantId) {
+          void getApiClient().markCatalogConnected(merchantId);
+        }
         refetch();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [merchantId]);
 
   function validatedShopDomain(): string | null {
     const trimmed = shopDomain.trim().toLowerCase();
@@ -158,6 +173,8 @@ export default function ShopifyPage() {
       setConnectError(result.error.message);
       return;
     }
+
+    void getApiClient().markCatalogConnected(merchantId);
     setAccessToken("");
     setCallbackNotice("connected");
     refetch();
@@ -183,6 +200,28 @@ export default function ShopifyPage() {
           </p>
         </div>
 
+        {appState && appState !== "ACTIVE" && (
+          <div className="border border-[var(--brand-red)]/30 bg-[var(--brand-red)]/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">Onboarding in progress</p>
+              <p className="text-xs text-[var(--foreground-muted)]">
+                {data?.connected
+                  ? "Your Shopify store is connected. You can now review your catalog in Step 3."
+                  : "Connect your Shopify store here to complete Step 2 of the setup wizard."}
+              </p>
+            </div>
+            <Link
+              href={data?.connected ? "/invite/catalog-review" : "/invite/catalog-connect"}
+              className="no-underline shrink-0"
+            >
+              <Button size="sm" variant={data?.connected ? "default" : "outline"}>
+                {data?.connected ? "Continue to Step 3: Review Catalog" : "Return to Setup Wizard"}
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {callbackNotice === "connected" && (
           <div className="border border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 px-4 py-3 text-sm text-[var(--clearance-teal)]">
             Store connected. Your products are being imported now — this can take a minute for a
@@ -202,29 +241,40 @@ export default function ShopifyPage() {
         ) : data?.connected ? (
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="border border-[var(--border)] p-3 text-[var(--foreground-secondary)]">
-                  <ShoppingBag className="h-6 w-6" />
-                </div>
-                <div>
-                  <p
-                    className="font-semibold text-[var(--foreground)] font-mono"
-                    data-manifest-figure
-                  >
-                    {data.shopDomain}
-                  </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Badge variant="success">
-                      <CheckCircle className="mr-1 h-3 w-3" />
-                      Connected
-                    </Badge>
-                    {data.connectedAt && (
-                      <span className="text-xs text-[var(--foreground-muted)]">
-                        Since {new Date(data.connectedAt).toLocaleString()}
-                      </span>
-                    )}
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="border border-[var(--border)] p-3 text-[var(--foreground-secondary)]">
+                    <ShoppingBag className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p
+                      className="font-semibold text-[var(--foreground)] font-mono"
+                      data-manifest-figure
+                    >
+                      {data.shopDomain}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant="success">
+                        <CheckCircle className="mr-1 h-3 w-3" />
+                        Connected
+                      </Badge>
+                      {data.connectedAt && (
+                        <span className="text-xs text-[var(--foreground-muted)]">
+                          Since {new Date(data.connectedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {appState && appState !== "ACTIVE" && (
+                  <Link href="/invite/catalog-review" className="no-underline">
+                    <Button size="sm">
+                      Continue Setup: Review Catalog
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -1,11 +1,24 @@
 "use client";
 
-import { StatCard, Card, CardContent, Badge } from "@counter/ui";
-import { Receipt, ShieldCheck, ShoppingBag, Landmark, IndianRupee } from "lucide-react";
+import { StatCard, Card, CardContent, Badge, Button } from "@counter/ui";
+import {
+  Receipt,
+  ShieldCheck,
+  ShoppingBag,
+  Landmark,
+  IndianRupee,
+  UserPlus,
+  ArrowRight,
+} from "lucide-react";
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
 import { useApi, useCurrentMerchantId } from "@/hooks/use-api";
-import type { PolicyConfigView, SettlementSummary, Transaction } from "@/lib/types";
+import type {
+  MerchantApplicationStatus,
+  PolicyConfigView,
+  SettlementSummary,
+  Transaction,
+} from "@/lib/types";
 
 // control-plane-api's transaction list endpoint has no separate "total count"
 // field — it returns a page of transactions (default limit 50, hard max 200;
@@ -85,6 +98,13 @@ export default function DashboardPage() {
         : Promise.resolve({ ok: true, data: null as SettlementSummary | null }),
     [merchantId],
   );
+  const applicationState = useApi<MerchantApplicationStatus | null>(
+    (client) =>
+      merchantId
+        ? client.getMerchantApplication(merchantId)
+        : Promise.resolve({ ok: true, data: null as MerchantApplicationStatus | null }),
+    [merchantId],
+  );
 
   const transactions = transactionsState.data ?? [];
   const policyRuleCount = policyState.data?.policy.rules.length ?? 0;
@@ -143,6 +163,31 @@ export default function DashboardPage() {
             Here is an overview of your store's agent-facing account.
           </p>
         </div>
+
+        {applicationState.data && applicationState.data.lifecycleState !== "ACTIVE" && (
+          <div className="border border-[var(--brand-red)]/30 bg-[var(--brand-red)]/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="border border-[var(--brand-red)]/40 p-2 text-[var(--brand-red)] bg-[var(--surface)]">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-[var(--foreground)]">
+                  Complete store onboarding
+                </p>
+                <p className="text-xs text-[var(--foreground-muted)]">
+                  Finish setting up your catalog and capabilities to start accepting AI-agent
+                  purchases.
+                </p>
+              </div>
+            </div>
+            <Link href="/invite" className="no-underline shrink-0">
+              <Button size="sm">
+                Continue Setup
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatCard
