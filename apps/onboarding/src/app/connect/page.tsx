@@ -10,6 +10,12 @@ const NAMESPACE = "https://counter.dev/";
 // convention as CONTROL_PLANE_URL in ../api/setup-token/route.ts.
 const REMOTE_MCP_URL = process.env["REMOTE_MCP_URL"] ?? "https://counter-remote-mcp.fly.dev";
 
+// Same env-var-with-fallback convention as REMOTE_MCP_URL above. This page
+// never linked anywhere else in the product — a new signup had a wallet and
+// an MCP connector but no way to find where to fund it or manage it
+// afterward. wallet-console is that place.
+const WALLET_CONSOLE_URL = process.env["WALLET_CONSOLE_URL"] ?? "https://wallet-console.vercel.app";
+
 export default async function ConnectPage() {
   const session = await auth0.getSession();
   // proxy.ts already redirects unauthenticated requests to /auth/login before
@@ -33,7 +39,19 @@ export default async function ConnectPage() {
           : " We couldn't find your wallet yet — try logging out and back in."}
       </p>
       {walletId !== undefined && (
-        <ConnectPanel walletId={walletId} remoteMcpUrl={`${REMOTE_MCP_URL}/mcp`} />
+        <>
+          <ConnectPanel walletId={walletId} remoteMcpUrl={`${REMOTE_MCP_URL}/mcp`} />
+          <div className="panel">
+            <p style={{ margin: 0, color: "var(--muted)" }}>Next: fund your wallet</p>
+            <p style={{ color: "var(--muted)" }}>
+              Add money via Razorpay test mode and manage mandates, transactions, and devices from
+              your wallet dashboard.
+            </p>
+            <a className="button" href={WALLET_CONSOLE_URL}>
+              Go to your wallet dashboard →
+            </a>
+          </div>
+        </>
       )}
       <p style={{ marginTop: "2rem" }}>
         <a href="/auth/logout" style={{ color: "var(--muted)" }}>
