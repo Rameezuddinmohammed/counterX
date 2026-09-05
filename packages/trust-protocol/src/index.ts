@@ -82,7 +82,7 @@ export type { Signer } from "./sign.js";
 export { InMemorySigner, signEnvelope, derivePublicKey } from "./sign.js";
 
 // Verification
-export type { VerifyOptions, NonceStore } from "./verify.js";
+export type { VerifyOptions, NonceStore, VerifyError } from "./verify.js";
 export {
   verifyEnvelope,
   validateEnvelopeSchema,
