@@ -7,43 +7,35 @@
  * stored in the session is a JWT control-plane-api will accept, not an
  * opaque default token.
  *
- * STEP-UP AT LOGIN (added 2026-09-05, fixing a total onboarding blocker):
- * every consequential thing this console does — saving business basics,
- * connecting a catalog, confirming a manifest, connecting Shopify, editing
- * policy, flipping the kill switch — is a tenant mutation, and
+ * DO NOT add `acr_values` here to force a step-up at login. It was tried on
+ * 2026-09-05 and REVERTED the same day because it broke sign-in outright:
+ * MFA did run (Auth0's logs show a real TOTP enrolment and success), but the
+ * shared "Counter Console" Post-Login Action then returned WITHOUT stamping
+ * any identity claims, so the session came back with no merchant scope at
+ * all and the console reported "Your session isn't scoped to a merchant
+ * account" — strictly worse than the problem it was meant to fix.
+ *
+ * That Action triggers the challenge and returns early, relying on Auth0
+ * re-running it afterwards to stamp claims on the second pass. That resume
+ * works for wallet-console (which asks for the step-up via
+ * mfa.challengeWithPopup against an ALREADY-authenticated session) but not
+ * for a first-time login that also has to enrol a factor. Until the Action
+ * itself is made resume-safe, this app must not request a step-up at login.
+ *
+ * The underlying problem this was trying to solve is still open and real:
+ * nearly every write in this console is a tenant mutation, and
  * packages/authorization/src/assurance.ts requires multi_factor/step_up for
- * those. A plain social login stamps assurance "session", so a brand-new
- * merchant was refused on EVERY save with an opaque "Access denied", while
- * accounts that happened to have completed an MFA challenge in
- * wallet-console (which triggers one explicitly for mandate creation) sailed
- * through — making the failure look random. Confirmed against the real
- * tenant: Auth0's own login log for a fresh merchant shows a Google login
- * with no MFA prompt at all, and that session's writes 403'd while its reads
- * succeeded.
- *
- * Requesting the multi-factor ACR here makes the shared "Counter Console"
- * Post-Login Action run its existing challenge/enrollment branch (it already
- * reads event.transaction.acr_values and calls challengeWithAny /
- * enrollWithAny), so the session is stamped "step_up" and the merchant can
- * actually complete onboarding. Chosen over lowering the assurance bar on
- * these routes, which would have weakened a real money-adjacent
- * authorization boundary for every caller rather than fixing the sign-in.
- *
- * wallet-console solves the same problem differently — a targeted
- * mfa.challengeWithPopup() at the moment of the sensitive action — because
- * it runs the browser SPA SDK and only two of its actions need step-up. This
- * app is server-rendered and nearly all of its actions need it, so asking
- * once at login is both simpler and less interruptive here.
+ * those, while a plain social login stamps "session". So a brand-new
+ * merchant is refused on every save — surfaced honestly as STEP_UP_REQUIRED
+ * ("sign out and sign in again") by scope-enforcement, rather than the old
+ * opaque "Access denied". See that fix in
+ * packages/http-api-kit/src/scope-enforcement.ts.
  */
 import { Auth0Client } from "@auth0/nextjs-auth0/server";
-
-/** Auth0's standard "multi-factor" ACR policy URI. */
-const MFA_POLICY_ACR = "http://schemas.openid.net/pape/policies/2007/06/multi-factor";
 
 export const auth0 = new Auth0Client({
   authorizationParameters: {
     audience: process.env["AUTH0_AUDIENCE"] ?? "https://api.counter.dev",
     scope: "openid profile email merchant:read merchant:write",
-    acr_values: MFA_POLICY_ACR,
   },
 });
