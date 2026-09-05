@@ -363,18 +363,22 @@ export async function merchantRoutesPlugin(
       return;
     }
     const body = request.body as Record<string, unknown> | undefined;
-    const validationError = validateBody(body, ["query"]);
-    if (validationError !== undefined) {
-      sendValidationError(reply, validationError, "query");
+    if (body === null || body === undefined || typeof body !== "object") {
+      sendValidationError(reply, "Request body is required", "query");
       return;
     }
     const typedBody = body as {
-      query: string;
+      query?: string;
       filters?: Record<string, unknown>;
       pagination?: { limit: number; cursor?: string };
     };
+    // query is deliberately OPTIONAL here (unlike other required-field
+    // routes' use of validateBody): an omitted/empty query means "list the
+    // catalog", not "malformed request" — Shopify's product search applies
+    // no filter for an empty query string, per searchCatalog -> the
+    // underlying PRODUCTS_LIST_QUERY's own `query` filter semantics.
     const result = await handlers.search.handle(ctx, {
-      query: typedBody.query,
+      query: typedBody.query ?? "",
       filters: typedBody.filters,
       pagination: typedBody.pagination,
     });

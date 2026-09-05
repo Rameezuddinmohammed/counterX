@@ -107,7 +107,11 @@ describe("merchant routes", () => {
   });
 
   describe("validation errors - 400", () => {
-    it("POST /search without query returns 400", async () => {
+    it("POST /search without query lists the catalog (empty query = no filter), not 400", async () => {
+      // Deliberate contract: an omitted query means "list this merchant's
+      // catalog" (product.search's whole reason for existing — a caller
+      // browsing what a merchant sells has no keyword yet), not a malformed
+      // request. Only a genuinely non-object body is rejected below.
       const { jwks } = await getTestKeys();
       server = createServer({ jwks, environment: "test", allowMockHandlers: true });
       await server.ready();
@@ -118,6 +122,22 @@ describe("merchant routes", () => {
         url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/search`,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         payload: {},
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body) as { results: unknown[]; totalCount: number };
+      expect(body.totalCount).toBe(1);
+    });
+
+    it("POST /search with no body at all returns 400", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+      await server.ready();
+
+      const token = await createTestToken();
+      const response = await server.inject({
+        method: "POST",
+        url: `/runtime/v1/merchants/${TEST_MERCHANT_ID}/search`,
+        headers: { authorization: `Bearer ${token}` },
       });
       expect(response.statusCode).toBe(400);
       const body = JSON.parse(response.body) as { error: { code: string; message: string } };
