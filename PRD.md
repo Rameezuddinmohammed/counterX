@@ -397,11 +397,10 @@ The pilot succeeds only when evidence shows:
 ## 22. Document authority
 
 - `PRD.md` is the umbrella product authority.
-- `.kiro/specs/counter-merchant-agent/requirements.md` defines Counter Merchant requirements.
-- `.kiro/specs/counter-agent-wallet/requirements.md` defines Counter Agent Wallet requirements.
+- `.archive/kiro-specs/counter-merchant-agent/requirements.md` and `.archive/kiro-specs/counter-agent-wallet/requirements.md` recorded pre-implementation requirements for Counter Merchant and Counter Agent Wallet — retired, historical; see `HANDOFF.md` for current state.
 - `TRUST-PROTOCOL.md` defines shared canonical trust objects and invariants.
 - `PILOT.md` defines the exact private pilot profile and gates.
 - `CONFORMANCE.md` defines adapter roles and evidence required for compatibility claims.
-- `PLAN.md` defines delivery sequence.
+- `.archive/PLAN.md` recorded the original delivery sequence — retired, historical; see `HANDOFF.md` for current state.
 
 At version 3.1, foundation tasks 1–3 have repository implementation and the shared foundation is `In Progress`; merchant, Wallet, protocol, adapter, and provider capabilities remain `Planned` unless their exact evidence gates say otherwise. Documentation alone is not implementation evidence. If code, evidence, or external access conflicts with a document, the affected capability remains Planned/In Progress until the discrepancy and affected tests are resolved.

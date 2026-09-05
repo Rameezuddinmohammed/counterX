@@ -127,7 +127,7 @@ Each evolution requires a new Gate decision, readiness validation, and Capabilit
 
 ## References
 
-- [Requirements 6.9](../../.kiro/specs/counter-merchant-agent/requirements.md) - Freshness and stale data policy
-- [Requirements 7.1](../../.kiro/specs/counter-merchant-agent/requirements.md) - Merchant configuration
-- [Design: Quote service](../../.kiro/specs/counter-merchant-agent/design.md)
+- [Requirements 6.9 (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/requirements.md) - Freshness and stale data policy
+- [Requirements 7.1 (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/requirements.md) - Merchant configuration
+- [Design: Quote service (retired, historical)](../../.archive/kiro-specs/counter-merchant-agent/design.md)
 - [Shopify Tax API](https://shopify.dev/docs/api/admin-graphql/2025-07/objects/TaxLine)
