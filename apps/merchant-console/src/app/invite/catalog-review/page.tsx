@@ -74,7 +74,11 @@ export default function CatalogReviewPage() {
       );
       return;
     }
-    router.push("/invite/payment-connect");
+    // confirmCatalog transitions MAPPING -> VERIFYING, and invite/page.tsx's
+    // own resolveNextStep already sends VERIFYING straight to readiness (it
+    // "surfaces whichever step is still missing" itself) — payment-connect is
+    // no longer a required wizard step, see merchant-readiness-store.ts.
+    router.push("/invite/readiness");
   }
 
   if (checkedStorage && merchantId === undefined) {

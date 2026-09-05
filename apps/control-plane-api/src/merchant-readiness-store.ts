@@ -318,6 +318,26 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
         acceptedLimitation: null,
       };
     } else {
+      // DELIBERATE PRODUCT DECISION (buildathon demo, revisit before any real
+      // pilot cohort): payment_configured no longer BLOCKS activation when no
+      // Razorpay connection exists. Rationale, confirmed directly with the
+      // founder — every merchant in this deployment shares ONE platform-level
+      // Razorpay account (see wallet-topup-routes.ts / boot.ts's own
+      // documented single-pilot-merchant credential), and no purchase path
+      // today settles a real payment into a merchant's own connected account
+      // anyway: the prepaid-balance branch in apps/worker/src/real-lifecycle.ts
+      // debits an internal ledger with no Razorpay call at all. Requiring a
+      // per-merchant Razorpay connection before going live was therefore
+      // gating on a promise ("you will receive money through this") the
+      // system does not keep yet — see the Pending Settlement card
+      // (apps/merchant-console/src/app/page.tsx) for the honest statement of
+      // what actually happens to collected funds instead.
+      //
+      // AcceptedLimitation, not Advisory: this is a KNOWN, NAMED gap being
+      // knowingly proceeded past, not a healthy check. It still shows up in
+      // readiness output and keeps a real reason string, so a later session
+      // re-tightening this for a genuine multi-merchant-with-real-settlement
+      // pilot finds a labeled decision here, not a silently vanished check.
       paymentCheck = {
         merchantId: typedMerchantId,
         checkKind: "payment_configured",
@@ -326,8 +346,10 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
           paymentProviderVersion: "none",
           configuredAt: neverConfiguredExpiry(),
         },
-        expiresAt: neverConfiguredExpiry(),
-        acceptedLimitation: null,
+        expiresAt: null,
+        acceptedLimitation:
+          "No per-merchant settlement account required for this deployment — Counter " +
+          "collects buyer payments centrally and settlement is pending (see Pending Settlement)",
       };
     }
 
