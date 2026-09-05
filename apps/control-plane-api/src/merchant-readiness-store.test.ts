@@ -140,7 +140,7 @@ describe("MerchantReadinessService", () => {
     expect(result.versionBindings.protocolVersion).toBe("0.1");
   });
 
-  it("synthesizes and persists a default policy when none exists yet", async () => {
+  it("synthesizes and persists a real, permissive default policy when none exists yet", async () => {
     const database = new FakeDatabase();
     database.app = {
       lifecycle_state: "VERIFYING",
@@ -162,8 +162,13 @@ describe("MerchantReadinessService", () => {
 
     const persisted = await policyStore.get(TEST_MERCHANT_ID);
     expect(persisted).toBeDefined();
-    expect(persisted?.config.policyVersion).toBe("1.0.0-default");
-    expect(persisted?.config.rules).toHaveLength(1);
+    expect(persisted?.config.version).toBe(1);
+    // Real typed rules — inr-only + india-destination:["IN"] — not the old
+    // invented {category:"fulfillment", constraint:"allow"} shape.
+    expect(persisted?.config.rules.map((r) => r.kind).sort()).toEqual([
+      "india-destination",
+      "inr-only",
+    ]);
   });
 
   it("does not re-transition once already SANDBOX_READY (idempotent)", async () => {

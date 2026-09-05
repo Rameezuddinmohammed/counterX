@@ -22,6 +22,9 @@
       "path": "../../packages/merchant-contracts"
     },
     {
+      "path": "../../packages/merchant-policy"
+    },
+    {
       "path": "../../packages/workflow"
     },
     {

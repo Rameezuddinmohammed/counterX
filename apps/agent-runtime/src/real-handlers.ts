@@ -41,6 +41,11 @@ import type { WalletMandate } from "@counter/wallet-domain";
 import { getCatalogVariant, searchCatalog } from "./shopify-catalog.js";
 import { buildQuote } from "./quote-builder.js";
 import { PostgresCtpKeyRegistry } from "@counter/data";
+import {
+  checkCompiledPolicy,
+  createPostgresMerchantPolicyResolver,
+  type MerchantPolicyResolver,
+} from "./policy-enforcement.js";
 import { TransactionReadModel, STEP_CANCEL, STEP_MARK_PAID } from "./transaction-read-model.js";
 import { MerchantDirectoryStore } from "./merchant-directory-store.js";
 import {
@@ -388,6 +393,7 @@ function createTransactionCreateHandler(
   database: TransactionalDatabase,
   environment: Environment,
   jobRepository: AsyncJobRepository,
+  policyResolver: MerchantPolicyResolver,
 ): TransactionCreateHandler {
   const quoteStore = new PostgresQuoteStore(database, environment);
   const ctpKeyRegistry = new PostgresCtpKeyRegistry(database, environment);
@@ -487,6 +493,42 @@ function createTransactionCreateHandler(
           return errResult({ kind: "unauthorized" as const, reason: mandateDenial });
         }
         boundMandateId = mandateId;
+      }
+
+      // Merchant policy check: fail BEFORE the quote is consumed or any job
+      // is enqueued (this codebase's "money-affecting checks run before the
+      // external effect" invariant) — see policy-enforcement.ts's header
+      // for exactly what's enforced here vs. compiled-but-not-yet-checked.
+      const compiledPolicy = await policyResolver.resolve(ctx.merchantId, now as Instant);
+      if (compiledPolicy !== undefined) {
+        const policyOutcome = checkCompiledPolicy(compiledPolicy, {
+          variantId: quote.variantId,
+          quantity: quote.quantity,
+          currency: quote.currency,
+          totalAmountMinor: quote.totalPriceMinor,
+          destinationCountry: input.billingAddress?.country,
+          paymentMethod: input.paymentMethod,
+          quoteCreatedAtMs: quote.createdAt.getTime(),
+          nowMs: now,
+        });
+        if (policyOutcome.kind === "deny") {
+          return errResult({ kind: "unauthorized" as const, reason: policyOutcome.reason });
+        }
+        if (policyOutcome.kind === "review_required") {
+          const reviewIdResult = createCounterId(
+            "policy-decision",
+            crypto.getRandomValues(new Uint8Array(16)),
+          );
+          if (!reviewIdResult.ok) {
+            throw new Error("Failed to derive review id");
+          }
+          return errResult({
+            kind: "review_required" as const,
+            reviewId: reviewIdResult.value,
+            reason: policyOutcome.reason,
+            blockingRuleIds: ["merchant_review_threshold"],
+          });
+        }
       }
 
       const consumeResult = await quoteStore.markConsumed(input.quoteId);
@@ -926,6 +968,7 @@ export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
   const connectionStore = new MerchantShopifyConnectionStore(deps.database, deps.environment);
   const apiVersion = deps.shopifyApiVersion?.trim() || DEFAULT_SHOPIFY_API_VERSION;
   const shopifyResolver = new MerchantShopifyConnectorResolver(connectionStore, apiVersion);
+  const policyResolver = createPostgresMerchantPolicyResolver(deps.database, deps.environment);
 
   return {
     capability: createCapabilityHandler(shopifyResolver),
@@ -939,6 +982,7 @@ export function createRealHandlers(deps: RealHandlerDeps): MerchantHandlers {
       deps.database,
       deps.environment,
       deps.jobRepository,
+      policyResolver,
     ),
     transactionStatus: createTransactionStatusHandler(
       new TransactionReadModel(deps.database, deps.environment),

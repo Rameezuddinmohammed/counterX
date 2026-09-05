@@ -13,16 +13,18 @@
  */
 import { randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { createCounterId } from "@counter/domain";
-import type { CounterId, Environment } from "@counter/domain";
+import { createCounterId, instantFromEpochMilliseconds } from "@counter/domain";
+import type { CounterId, Environment, Instant } from "@counter/domain";
 import {
   PostgresDatabase,
   PostgresQuoteStore,
   PostgresMandateRepository,
   PostgresRevocationStore,
   PostgresJobRepository,
+  PostgresPolicyStore,
 } from "@counter/data";
 import type { BuyerPolicyConstraints, WalletMandate } from "@counter/wallet-domain";
+import { serializeRuleSet, type MerchantPolicyRuleSet } from "@counter/merchant-policy";
 import {
   buildUnsignedEnvelope,
   signEnvelope,
@@ -31,7 +33,14 @@ import {
   getTestPrivateKeyA,
   type PurchaseIntentPayload,
 } from "@counter/trust-protocol";
+import { createPostgresMerchantPolicyResolver } from "./policy-enforcement.js";
 import { __testing } from "./real-handlers.js";
+
+function instant(ms: number): Instant {
+  const result = instantFromEpochMilliseconds(ms);
+  if (!result.ok) throw new Error("Failed to derive an Instant");
+  return result.value;
+}
 
 const databaseUrl =
   process.env["TEST_DATABASE_URL"]?.trim() || process.env["DATABASE_URL"]?.trim() || undefined;
@@ -72,14 +81,28 @@ databaseDescribe(
     const mandateRepo = new PostgresMandateRepository(database, ENVIRONMENT);
     const revocationStore = new PostgresRevocationStore(database, ENVIRONMENT);
     const jobRepository = new PostgresJobRepository(database, ENVIRONMENT);
-    const handler = __testing.createTransactionCreateHandler(database, ENVIRONMENT, jobRepository);
+    const policyStore = new PostgresPolicyStore(database, ENVIRONMENT);
+    const policyResolver = createPostgresMerchantPolicyResolver(database, ENVIRONMENT);
+    const handler = __testing.createTransactionCreateHandler(
+      database,
+      ENVIRONMENT,
+      jobRepository,
+      policyResolver,
+    );
 
     const writtenWalletIds: string[] = [];
     const writtenMandateIds: string[] = [];
     const writtenQuoteIds: string[] = [];
     const writtenJobIds: string[] = [];
+    const writtenPolicyMerchantIds: string[] = [];
 
     afterAll(async () => {
+      for (const merchantId of writtenPolicyMerchantIds) {
+        await database.query(
+          `DELETE FROM merchant.policy_configs WHERE environment = $1 AND merchant_id = $2`,
+          [ENVIRONMENT, merchantId],
+        );
+      }
       for (const jobId of writtenJobIds) {
         await database.query(`DELETE FROM runtime.jobs WHERE environment = $1 AND id = $2`, [
           ENVIRONMENT,
@@ -472,5 +495,134 @@ databaseDescribe(
       },
       databaseHookTimeout,
     );
+
+    describe("merchant policy enforcement (real Postgres, no CTP envelope needed)", () => {
+      async function seedPolicyMerchantQuote(
+        merchantId: string,
+        totalPriceMinor: bigint,
+      ): Promise<string> {
+        const quoteId = `ctr_quote_${randomBytes(8).toString("hex")}`;
+        await quoteStore.save({
+          id: quoteId,
+          merchantId,
+          variantId: "gid://shopify/ProductVariant/policy-test",
+          quantity: 1,
+          unitPriceMinor: totalPriceMinor,
+          totalPriceMinor,
+          currency: "INR",
+          ctpDigest: `sha256:${randomBytes(32).toString("hex")}`,
+          quoteContent: { note: "policy-enforcement integration test fixture" },
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 600_000),
+        });
+        writtenQuoteIds.push(quoteId);
+        return quoteId;
+      }
+
+      async function seedPolicy(merchantId: string, ruleSet: MerchantPolicyRuleSet): Promise<void> {
+        const result = await policyStore.set(merchantId, serializeRuleSet(ruleSet), undefined);
+        if (!result.ok) throw new Error(`Failed to seed policy: ${result.error.message}`);
+        writtenPolicyMerchantIds.push(merchantId);
+      }
+
+      it(
+        "denies a transaction whose destination falls outside the merchant's india-destination rule",
+        async () => {
+          const merchantIdResult = createCounterId("merchant", randomBytes(16));
+          if (!merchantIdResult.ok) throw new Error("failed to derive test merchant id");
+          const merchantId = merchantIdResult.value;
+
+          await seedPolicy(merchantId, {
+            version: 1,
+            merchantId,
+            rules: [{ kind: "india-destination", allowedDestinations: ["IN"] }],
+            effectiveFrom: instant(Date.now() - 60_000),
+            effectiveUntil: instant(Date.now() + 86_400_000),
+          });
+          const quoteId = await seedPolicyMerchantQuote(merchantId, 50_000n);
+
+          const result = await handler.handle(
+            {
+              merchantId,
+              correlationId: "corr-policy-deny",
+              idempotencyKey: undefined,
+              version: "v1",
+              callerWalletId: undefined,
+            },
+            {
+              quoteId,
+              paymentMethod: "upi",
+              billingAddress: {
+                line1: "1 Main St",
+                city: "New York",
+                postalCode: "10001",
+                country: "US",
+              },
+              ctpEnvelope: undefined,
+            },
+          );
+
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error.kind).toBe("unauthorized");
+          }
+          // Denied BEFORE the quote was consumed — the buyer can retry.
+          const stillUnconsumed = await quoteStore.get(quoteId);
+          expect(stillUnconsumed.ok && stillUnconsumed.value?.consumedAt).toBeUndefined();
+        },
+        databaseHookTimeout,
+      );
+
+      it(
+        "allows and enqueues a transaction that satisfies the merchant's configured policy",
+        async () => {
+          const merchantIdResult = createCounterId("merchant", randomBytes(16));
+          if (!merchantIdResult.ok) throw new Error("failed to derive test merchant id");
+          const merchantId = merchantIdResult.value;
+
+          await seedPolicy(merchantId, {
+            version: 1,
+            merchantId,
+            rules: [{ kind: "india-destination", allowedDestinations: ["IN"] }],
+            effectiveFrom: instant(Date.now() - 60_000),
+            effectiveUntil: instant(Date.now() + 86_400_000),
+          });
+          const quoteId = await seedPolicyMerchantQuote(merchantId, 50_000n);
+
+          const result = await handler.handle(
+            {
+              merchantId,
+              correlationId: "corr-policy-allow",
+              idempotencyKey: undefined,
+              version: "v1",
+              callerWalletId: undefined,
+            },
+            {
+              quoteId,
+              paymentMethod: "upi",
+              billingAddress: {
+                line1: "1 MG Road",
+                city: "Bengaluru",
+                postalCode: "560001",
+                country: "IN",
+              },
+              ctpEnvelope: undefined,
+            },
+          );
+
+          expect(result.ok).toBe(true);
+          const jobs = await database.query<{ id: string }>(
+            `SELECT id FROM runtime.jobs
+              WHERE environment = $1 AND type = 'transaction.lifecycle'
+                AND payload_reference::jsonb ->> 'amountMinor' = '50000'
+              ORDER BY created_at DESC LIMIT 1`,
+            [ENVIRONMENT],
+          );
+          expect(jobs.rows).toHaveLength(1);
+          writtenJobIds.push(jobs.rows[0]!.id);
+        },
+        databaseHookTimeout,
+      );
+    });
   },
 );

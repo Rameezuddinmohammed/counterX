@@ -62,6 +62,9 @@ importers:
       '@counter/merchant-contracts':
         specifier: workspace:0.1.0
         version: link:../../packages/merchant-contracts
+      '@counter/merchant-policy':
+        specifier: workspace:0.1.0
+        version: link:../../packages/merchant-policy
       '@counter/payment-sdk':
         specifier: workspace:0.1.0
         version: link:../../packages/payment-sdk
@@ -111,6 +114,9 @@ importers:
       '@counter/merchant-application':
         specifier: workspace:0.1.0
         version: link:../../packages/merchant-application
+      '@counter/merchant-policy':
+        specifier: workspace:0.1.0
+        version: link:../../packages/merchant-policy
       '@counter/payment-sdk':
         specifier: workspace:0.1.0
         version: link:../../packages/payment-sdk

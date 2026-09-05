@@ -18,8 +18,11 @@ import {
   deriveTransactionState,
   BUYER_REF_UNAVAILABLE,
   METHOD_UNKNOWN,
+  SETTLED_STATE,
+  SETTLEMENT_SCAN_CAP,
   type OrderedStep,
   type OwnedTransaction,
+  type SettlementSummary,
   type Transaction,
   type TransactionListOptions,
   type TransactionReadStore,
@@ -49,10 +52,40 @@ interface StepRow extends SqlRow {
   readonly completed_at: Date | null;
 }
 
-interface AmountRow extends SqlRow {
+/**
+ * Aggregated spend-ledger amount for one transaction reference.
+ *
+ * `row_count` is carried separately because SUM over zero rows COALESCEs to 0,
+ * which is indistinguishable from a genuine zero total — and those two cases
+ * need different handling (fall back to the durable intent's own amount vs.
+ * report zero).
+ */
+interface AmountSumRow extends SqlRow {
   readonly amount_minor: string;
-  readonly currency: string;
+  readonly row_count: number;
 }
+
+/**
+ * One intent row per transaction_id — the newest.
+ *
+ * `runtime.workflow_intents` has no uniqueness guarantee on transaction_id, and
+ * the worker can legitimately write more than one intent row for a single
+ * transaction (a retry after an indeterminate outcome, for instance). Selecting
+ * from the table directly therefore emitted the SAME transaction twice in a
+ * list, and would double-count it in any total. DISTINCT ON keeps the latest.
+ *
+ * Expects $1 = environment and $2 = merchantId. Callers supply their own outer
+ * ORDER BY, because DISTINCT ON forces its own leading sort key
+ * (transaction_id) that is not the order any caller actually wants.
+ */
+const DEDUPED_INTENTS_CTE = `
+  WITH latest_intents AS (
+    SELECT DISTINCT ON (transaction_id)
+           transaction_id, scope_id, status, created_at, authority_context
+      FROM runtime.workflow_intents
+     WHERE environment = $1 AND scope_kind = 'merchant' AND scope_id = $2
+     ORDER BY transaction_id, created_at DESC
+  )`;
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -71,9 +104,8 @@ function readAuthorityString(authorityContext: unknown, key: string): string | u
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function readAuthorityAmount(
-  authorityContext: unknown,
-): { amount: number; currency: "INR" } | undefined {
+/** Minor units straight from the durable intent — no float round-trip. */
+function readAuthorityAmountMinor(authorityContext: unknown): bigint | undefined {
   if (authorityContext === null || typeof authorityContext !== "object") {
     return undefined;
   }
@@ -88,7 +120,7 @@ function readAuthorityAmount(
   ) {
     return undefined;
   }
-  return { amount: minorToMajor(BigInt(amountMinor)), currency: "INR" };
+  return BigInt(amountMinor);
 }
 
 export function createPostgresTransactionStore(
@@ -111,39 +143,51 @@ export function createPostgresTransactionStore(
     }));
   }
 
-  async function loadAmount(
+  /**
+   * Total reserved spend for one transaction, in INTEGER minor units.
+   *
+   * Aggregates rather than picking a row. The previous version was
+   * `ORDER BY id ASC LIMIT 1`, which silently returned only ONE reservation
+   * when a single transaction reference had several spend_ledger rows (the
+   * ledger is keyed `(environment, wallet, reference)`, so a multi-wallet
+   * reference legitimately produces more than one) — under-reporting the
+   * amount, and picking arbitrarily among equals. Summing is both deterministic
+   * and correct for the single-row case that is normal today.
+   */
+  async function loadAmountMinor(
     transactionId: string,
     environment: string,
     authorityContext: unknown,
-  ): Promise<{ amount: number; currency: "INR" }> {
-    const result = await database.query<AmountRow>(
-      `SELECT amount_minor, currency
+  ): Promise<bigint> {
+    const result = await database.query<AmountSumRow>(
+      `SELECT COALESCE(SUM(amount_minor), 0)::text AS amount_minor,
+              COUNT(*)::int AS row_count
          FROM runtime.spend_ledger
-        WHERE environment = $1 AND reference = $2
-        ORDER BY id ASC
-        LIMIT 1`,
+        WHERE environment = $1 AND reference = $2`,
       [environment, transactionId],
     );
     const row = result.rows[0];
-    if (row === undefined) {
+    if (row === undefined || row.row_count === 0) {
       // The worker writes the intended amount into the durable transaction
       // spine before it calls a provider. This preserves an honest amount for
       // an in-flight/indeterminate transaction when the spend reservation is
       // absent or has not been committed yet.
-      return readAuthorityAmount(authorityContext) ?? { amount: 0, currency: "INR" };
+      return readAuthorityAmountMinor(authorityContext) ?? 0n;
     }
-    // The front-end type pins currency to 'INR'; the runtime limits are also
-    // denominated in INR. We surface INR regardless of the stored code.
-    return { amount: minorToMajor(BigInt(row.amount_minor)), currency: "INR" };
+    return BigInt(row.amount_minor);
   }
 
   async function assemble(intent: IntentRow, environment: string): Promise<Transaction> {
     const orderedSteps = await loadSteps(intent.transaction_id, environment);
-    const { amount, currency } = await loadAmount(
+    const amountMinor = await loadAmountMinor(
       intent.transaction_id,
       environment,
       intent.authority_context,
     );
+    // The front-end type pins currency to 'INR'; the runtime limits are also
+    // denominated in INR. We surface INR regardless of the stored code.
+    const amount = minorToMajor(amountMinor);
+    const currency = "INR" as const;
     const createdAt = toIso(intent.created_at);
 
     const currentState = deriveTransactionState(intent.status, orderedSteps);
@@ -174,9 +218,9 @@ export function createPostgresTransactionStore(
     ): Promise<readonly Transaction[]> {
       const env = environment.length > 0 ? environment : storeEnvironment;
       const intents = await database.query<IntentRow>(
-        `SELECT transaction_id, scope_id, status, created_at, authority_context
-           FROM runtime.workflow_intents
-          WHERE environment = $1 AND scope_kind = 'merchant' AND scope_id = $2
+        `${DEDUPED_INTENTS_CTE}
+         SELECT transaction_id, scope_id, status, created_at, authority_context
+           FROM latest_intents
           ORDER BY created_at DESC
           LIMIT $3 OFFSET $4`,
         [env, merchantId, options.limit, options.offset],
@@ -204,6 +248,52 @@ export function createPostgresTransactionStore(
       }
       const transaction = await assemble(intent, env);
       return { merchantId: intent.scope_id, transaction };
+    },
+
+    /**
+     * See {@link SettlementSummary}. Derived on every call; nothing is stored.
+     *
+     * The `settled` test deliberately reuses deriveTransactionState rather than
+     * re-expressing "has a completed markPaid, no declined step, intent not
+     * failed" as a SQL predicate. Two copies of that rule in two languages is
+     * exactly how a money total drifts away from the state the UI shows for the
+     * same transaction. The cost is the same N+1 query shape list() already has,
+     * bounded by SETTLEMENT_SCAN_CAP.
+     *
+     * Totals accumulate in bigint minor units — never a float.
+     */
+    async settlementSummary(merchantId: string, environment: string): Promise<SettlementSummary> {
+      const env = environment.length > 0 ? environment : storeEnvironment;
+      // Fetch one more than the cap purely to detect truncation honestly.
+      const intents = await database.query<IntentRow>(
+        `${DEDUPED_INTENTS_CTE}
+         SELECT transaction_id, scope_id, status, created_at, authority_context
+           FROM latest_intents
+          ORDER BY created_at DESC
+          LIMIT $3`,
+        [env, merchantId, SETTLEMENT_SCAN_CAP + 1],
+      );
+
+      const truncated = intents.rows.length > SETTLEMENT_SCAN_CAP;
+      const scanned = truncated ? intents.rows.slice(0, SETTLEMENT_SCAN_CAP) : intents.rows;
+
+      let pendingMinor = 0n;
+      let orderCount = 0;
+      for (const intent of scanned) {
+        const orderedSteps = await loadSteps(intent.transaction_id, env);
+        if (deriveTransactionState(intent.status, orderedSteps) !== SETTLED_STATE) {
+          continue;
+        }
+        pendingMinor += await loadAmountMinor(intent.transaction_id, env, intent.authority_context);
+        orderCount += 1;
+      }
+
+      return {
+        pendingMinor: pendingMinor.toString(),
+        currency: "INR",
+        orderCount,
+        truncated,
+      };
     },
   };
 }

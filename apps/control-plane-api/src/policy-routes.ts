@@ -1,49 +1,51 @@
 /**
  * Policy management routes for the control plane API.
  *
- * Provides POST/GET /control/v1/merchants/:merchantId/policy endpoints
- * for configuring and querying merchant-specific policy rules.
+ * Provides POST/GET /control/v1/merchants/:merchantId/policy endpoints for
+ * configuring and querying a merchant's REAL, typed policy rule set.
+ *
+ * TYPE RECONCILIATION (disclosed judgment call): this route used to define
+ * its own loose, semantically-empty API-layer shape
+ * ({ruleId, category, constraint, parameters, enabled}), disconnected from
+ * @counter/merchant-policy's real 12-rule discriminated union
+ * (MerchantPolicyRuleConfig / MerchantPolicyRuleSet) and backed by a
+ * createDefaultPolicyCompiler() that only counted enabled rules — it never
+ * actually compiled or validated anything about products, categories,
+ * prices, or refunds. This route now uses the real typed union directly as
+ * its wire contract (translated to/from JSON via policy-wire.ts, since JSON
+ * cannot carry a bigint Money.amountMinor or a branded Instant), and its
+ * compiler is real: compileMerchantPolicy()/validateRuleSet() from
+ * @counter/merchant-policy, not a hand-rolled stand-in.
+ *
+ * Verified before choosing this over a translation-layer approach: the only
+ * callers of this route/these types were (1) merchant-readiness-store.ts's
+ * internal default-policy synthesis (updated alongside this file) and (2)
+ * apps/merchant-console's demo /policy page and its dashboard card (both
+ * updated alongside this file) — no external caller depends on the old
+ * loose wire shape, so there was nothing to preserve a translation layer
+ * for.
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getCorrelationId, getActorContext, registerRoutePermission } from "@counter/http-api-kit";
+import type { Instant } from "@counter/domain";
+import {
+  compileMerchantPolicy,
+  parseRuleSetBody,
+  renderPolicySummary,
+  serializeRuleSet,
+  validateRuleSet,
+  type CompiledMerchantPolicy,
+  type MerchantPolicyRuleSet,
+} from "@counter/merchant-policy";
 
-// ---------------------------------------------------------------------------
-// Control-plane policy types (API-layer representations)
-// ---------------------------------------------------------------------------
-
-export interface MerchantPolicyRule {
-  readonly ruleId: string;
-  readonly category: string;
-  readonly constraint: string;
-  readonly parameters: Record<string, unknown>;
-  readonly enabled: boolean;
-}
-
-export interface MerchantPolicyConfig {
-  readonly merchantId: string;
-  readonly policyVersion: string;
-  readonly rules: readonly MerchantPolicyRule[];
-  readonly effectiveFrom: string;
-  readonly effectiveUntil: string | null;
-}
-
-export interface CompiledPolicyResult {
-  readonly success: boolean;
-  readonly constraintCount: number;
-  readonly compiledAt: string;
-}
-
-export interface PolicyValidationResult {
-  readonly valid: boolean;
-  readonly errors: readonly string[];
-}
+export type { MerchantPolicyRuleSet } from "@counter/merchant-policy";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface PolicyStoreEntry {
-  readonly config: MerchantPolicyConfig;
+  readonly config: MerchantPolicyRuleSet;
   readonly version: number;
 }
 
@@ -56,14 +58,19 @@ export interface PolicyStore {
    */
   set(
     merchantId: string,
-    config: MerchantPolicyConfig,
+    config: MerchantPolicyRuleSet,
     expectedVersion: number | undefined,
   ): Promise<{ readonly success: boolean; readonly currentVersion: number }>;
 }
 
+export interface PolicyValidationResult {
+  readonly valid: boolean;
+  readonly errors: readonly string[];
+}
+
 export interface PolicyCompiler {
-  compile(config: MerchantPolicyConfig): CompiledPolicyResult;
-  validate(config: MerchantPolicyConfig): PolicyValidationResult;
+  compile(ruleSet: MerchantPolicyRuleSet, now: Instant): ReturnType<typeof compileMerchantPolicy>;
+  validate(ruleSet: MerchantPolicyRuleSet): PolicyValidationResult;
 }
 
 export interface PolicyRoutesOptions {
@@ -83,7 +90,7 @@ export function createInMemoryPolicyStore(): PolicyStore {
     },
     async set(
       merchantId: string,
-      config: MerchantPolicyConfig,
+      config: MerchantPolicyRuleSet,
       expectedVersion: number | undefined,
     ): Promise<{ readonly success: boolean; readonly currentVersion: number }> {
       const existing = policies.get(merchantId);
@@ -101,56 +108,23 @@ export function createInMemoryPolicyStore(): PolicyStore {
   };
 }
 
+/**
+ * Real compiler: compile() calls @counter/merchant-policy's
+ * compileMerchantPolicy() (structural validation + ambiguity detection +
+ * MerchantPolicyConstraints construction); validate() calls its
+ * validateRuleSet(). Neither reinvents rule semantics — both delegate
+ * entirely to the already-tested package.
+ */
 export function createDefaultPolicyCompiler(): PolicyCompiler {
   return {
-    compile(config: MerchantPolicyConfig): CompiledPolicyResult {
-      const enabledRules = config.rules.filter((r) => r.enabled);
-      return {
-        success: true,
-        constraintCount: enabledRules.length,
-        compiledAt: new Date().toISOString(),
-      };
+    compile(ruleSet: MerchantPolicyRuleSet, now: Instant) {
+      return compileMerchantPolicy(ruleSet, now);
     },
-    validate(config: MerchantPolicyConfig): PolicyValidationResult {
-      const errors: string[] = [];
-      if (config.rules.length === 0) {
-        errors.push("At least one policy rule is required");
-      }
-      for (const rule of config.rules) {
-        if (rule.ruleId === "") {
-          errors.push("Rule ID must not be empty");
-        }
-        if (rule.category === "") {
-          errors.push("Rule category must not be empty");
-        }
-      }
-      return {
-        valid: errors.length === 0,
-        errors,
-      };
+    validate(ruleSet: MerchantPolicyRuleSet): PolicyValidationResult {
+      const errors = validateRuleSet(ruleSet);
+      return { valid: errors.length === 0, errors };
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// Validation helpers
-// ---------------------------------------------------------------------------
-
-function validatePolicyBody(body: unknown): string | undefined {
-  if (body === null || body === undefined || typeof body !== "object") {
-    return "Request body is required";
-  }
-  const obj = body as Record<string, unknown>;
-  if (typeof obj["policyVersion"] !== "string" || obj["policyVersion"] === "") {
-    return "Field 'policyVersion' is required";
-  }
-  if (!Array.isArray(obj["rules"])) {
-    return "Field 'rules' must be an array";
-  }
-  if (typeof obj["effectiveFrom"] !== "string" || obj["effectiveFrom"] === "") {
-    return "Field 'effectiveFrom' is required";
-  }
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +144,18 @@ function verifyTenantAccess(request: FastifyRequest, merchantId: string): boolea
     return scope.merchantId === merchantId;
   }
   return false;
+}
+
+function summarize(compiled: CompiledMerchantPolicy): {
+  readonly version: number;
+  readonly compiledAt: string;
+  readonly summary: readonly string[];
+} {
+  return {
+    version: compiled.version,
+    compiledAt: new Date(compiled.compiledAt).toISOString(),
+    summary: renderPolicySummary(compiled),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -209,42 +195,14 @@ export async function policyRoutesPlugin(
     }
 
     const correlationId = getCorrelationId(request);
-    const body = request.body as Record<string, unknown> | undefined;
 
-    const validationError = validatePolicyBody(body);
-    if (validationError !== undefined) {
+    const parsedBody = parseRuleSetBody(request.body);
+    if (Array.isArray(parsedBody)) {
       void reply.status(400).send({
         error: {
           code: "INVALID_FORMAT",
-          message: validationError,
-        },
-      });
-      return;
-    }
-
-    const typedBody = body as {
-      policyVersion: string;
-      rules: MerchantPolicyRule[];
-      effectiveFrom: string;
-      effectiveUntil?: string | null;
-    };
-
-    const config: MerchantPolicyConfig = {
-      merchantId,
-      policyVersion: typedBody.policyVersion,
-      rules: typedBody.rules,
-      effectiveFrom: typedBody.effectiveFrom,
-      effectiveUntil: typedBody.effectiveUntil ?? null,
-    };
-
-    // Validate first
-    const validationResult = compiler.validate(config);
-    if (!validationResult.valid) {
-      void reply.status(400).send({
-        error: {
-          code: "INVALID_FORMAT",
-          message: "Policy validation failed",
-          details: { errors: validationResult.errors },
+          message: parsedBody[0] ?? "Invalid policy body",
+          details: { errors: parsedBody },
         },
       });
       return;
@@ -267,11 +225,60 @@ export async function policyRoutesPlugin(
       expectedVersion = parsed;
     }
 
-    // Compile
-    const compiled = compiler.compile(config);
+    // The rule set's own declared `version` (embedded in the compiled
+    // policy's `source` label, and in validateRuleSet's version>0 check) is
+    // assigned here from the store's current version — a merchant/UI never
+    // supplies it directly, since the store's optimistic-concurrency counter
+    // is already the one authoritative version number for this resource.
+    // This read-then-write has a narrow, disclosed race: if another writer's
+    // store.set() lands between this get() and this request's own store.set()
+    // below, the *label* embedded in this request's compiled preview could be
+    // stale — but the actual conflict check (expectedVersion vs. the store's
+    // real current version) still happens atomically inside store.set(),
+    // so a race here can produce at worst a cosmetically-off version label,
+    // never a lost update or a bypassed If-Match check. Acceptable for a
+    // single-editor-per-merchant pilot; revisit if concurrent policy editors
+    // become real.
+    const existing = await store.get(merchantId);
+    const candidateVersion = (existing?.version ?? 0) + 1;
+
+    const ruleSet: MerchantPolicyRuleSet = {
+      version: candidateVersion,
+      merchantId,
+      rules: parsedBody.rules,
+      effectiveFrom: parsedBody.effectiveFrom,
+      effectiveUntil: parsedBody.effectiveUntil,
+    };
+
+    // Validate first
+    const validationResult = compiler.validate(ruleSet);
+    if (!validationResult.valid) {
+      void reply.status(400).send({
+        error: {
+          code: "INVALID_FORMAT",
+          message: "Policy validation failed",
+          details: { errors: validationResult.errors },
+        },
+      });
+      return;
+    }
+
+    // Compile (also catches cross-rule ambiguity — multiple rules on the
+    // same dimension — which validate() alone does not check).
+    const now = Date.now() as Instant;
+    const compiled = compiler.compile(ruleSet, now);
+    if (!compiled.ok) {
+      void reply.status(400).send({
+        error: {
+          code: compiled.error.code,
+          message: compiled.error.message,
+        },
+      });
+      return;
+    }
 
     // Store with optimistic concurrency
-    const storeResult = await store.set(merchantId, config, expectedVersion);
+    const storeResult = await store.set(merchantId, ruleSet, expectedVersion);
     if (!storeResult.success) {
       void reply.status(409).send({
         error: {
@@ -286,12 +293,15 @@ export async function policyRoutesPlugin(
       return;
     }
 
-    void reply.status(201).header("etag", String(storeResult.currentVersion)).send({
-      merchantId,
-      policyVersion: config.policyVersion,
-      compiled,
-      correlationId,
-    });
+    void reply
+      .status(201)
+      .header("etag", String(storeResult.currentVersion))
+      .send({
+        merchantId,
+        policyVersion: String(ruleSet.version),
+        compiled: summarize(compiled.value),
+        correlationId,
+      });
   });
 
   // GET - Retrieve current policy
@@ -322,9 +332,15 @@ export async function policyRoutesPlugin(
       return;
     }
 
+    const now = Date.now() as Instant;
+    const compiled = compiler.compile(entry.config, now);
+
     void reply.header("etag", String(entry.version)).send({
       merchantId,
-      policy: entry.config,
+      policy: serializeRuleSet(entry.config),
+      // Plain-language summary of what's actually enforced — a
+      // non-technical merchant reads this, not the raw typed rules.
+      summary: compiled.ok ? renderPolicySummary(compiled.value) : [],
       correlationId,
     });
   });

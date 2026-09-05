@@ -283,27 +283,117 @@ export interface PolicySimulationResult {
 }
 
 // ---------------------------------------------------------------------------
-// Policy Configuration (matches the REAL backend shape returned by
-// GET /control/v1/merchants/:merchantId/policy — see
-// apps/control-plane-api/src/policy-routes.ts. This is distinct from
-// PolicySimulationResult above, which describes a policy *simulation* run
-// that has no backing route in control-plane-api today.)
+// Policy Configuration (matches the REAL backend wire shape returned/accepted
+// by GET/POST /control/v1/merchants/:merchantId/policy — see
+// apps/control-plane-api/src/policy-routes.ts and
+// packages/merchant-policy/src/wire.ts. This mirrors
+// @counter/merchant-policy's real typed 12-rule discriminated union
+// (MerchantPolicyRuleConfig) exactly, hand-copied rather than imported:
+// this app deliberately has no dependency on @counter/domain or
+// @counter/merchant-policy (see this file's own header — it talks to
+// control-plane-api over HTTP only, never touches domain packages
+// directly), so bigint/branded-Instant fields are represented the same
+// JSON-safe way the wire codec represents them: Money.amountMinor and
+// DecimalQuantity.value as decimal strings, Instant as ISO-8601 strings.
+// Distinct from PolicySimulationResult above, which described a policy
+// *simulation* concept that never had a backing route in control-plane-api.
 // ---------------------------------------------------------------------------
 
-export interface MerchantPolicyRule {
-  readonly ruleId: string;
-  readonly category: string;
-  readonly constraint: string;
-  readonly parameters: Record<string, unknown>;
-  readonly enabled: boolean;
+export interface WireMoney {
+  readonly amountMinor: string;
+  readonly currency: string;
 }
 
-export interface MerchantPolicyConfig {
+export interface WireDecimalQuantity {
+  readonly value: string;
+  readonly unit: string;
+}
+
+/** The platform's supported payment rails — mirrors packages/policy/src/types.ts's PaymentMethod exactly. */
+export type PolicyPaymentMethod =
+  | "upi"
+  | "card"
+  | "netbanking"
+  | "wallet"
+  | "bank_transfer"
+  | "bnpl";
+
+export type MerchantPolicyRuleConfig =
+  | { readonly kind: "product-allowlist"; readonly products: readonly string[] }
+  | { readonly kind: "category-allowlist"; readonly categories: readonly string[] }
+  | { readonly kind: "inr-only" }
+  | { readonly kind: "quantity-limit"; readonly maxQuantity: WireDecimalQuantity }
+  | { readonly kind: "count-limit"; readonly maxCount: number; readonly windowDurationMs: number }
+  | { readonly kind: "india-destination"; readonly allowedDestinations: readonly string[] }
+  | {
+      readonly kind: "operating-window";
+      readonly allowedFrom: string;
+      readonly allowedUntil: string;
+    }
+  | { readonly kind: "freshness-requirement"; readonly maxAgeMs: number }
+  | { readonly kind: "payment-path"; readonly allowedMethods: readonly PolicyPaymentMethod[] }
+  | { readonly kind: "review-threshold"; readonly thresholdAmount: WireMoney }
+  | {
+      readonly kind: "cancellation-policy";
+      readonly allowedWithinMs: number;
+      readonly refundPercentage: number;
+    }
+  | {
+      readonly kind: "refund-policy";
+      readonly maxRefundWindowMs: number;
+      readonly partialRefundAllowed: boolean;
+    };
+
+export type PolicyRuleKind = MerchantPolicyRuleConfig["kind"];
+
+/** All 12 real rule kinds, in the same order as @counter/merchant-policy's RULE_KINDS. */
+export const POLICY_RULE_KINDS: readonly PolicyRuleKind[] = [
+  "product-allowlist",
+  "category-allowlist",
+  "inr-only",
+  "quantity-limit",
+  "count-limit",
+  "india-destination",
+  "operating-window",
+  "freshness-requirement",
+  "payment-path",
+  "review-threshold",
+  "cancellation-policy",
+  "refund-policy",
+];
+
+export interface MerchantPolicyRuleSet {
   readonly merchantId: string;
-  readonly policyVersion: string;
-  readonly rules: readonly MerchantPolicyRule[];
+  readonly version: number;
+  readonly rules: readonly MerchantPolicyRuleConfig[];
   readonly effectiveFrom: string;
   readonly effectiveUntil: string | null;
+}
+
+/** GET response body. */
+export interface PolicyConfigView {
+  readonly merchantId: string;
+  readonly policy: MerchantPolicyRuleSet;
+  /** Plain-language lines from @counter/merchant-policy's renderPolicySummary() — what a non-technical merchant reads, not the raw rule JSON. */
+  readonly summary: readonly string[];
+}
+
+/** What POST accepts — no merchantId (from the URL) or version (server-assigned). */
+export interface SavePolicyRequest {
+  readonly rules: readonly MerchantPolicyRuleConfig[];
+  readonly effectiveFrom: string;
+  readonly effectiveUntil: string | null;
+}
+
+/** POST response body. */
+export interface PolicySaveResult {
+  readonly merchantId: string;
+  readonly policyVersion: string;
+  readonly compiled: {
+    readonly version: number;
+    readonly compiledAt: string;
+    readonly summary: readonly string[];
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +502,24 @@ export interface Transaction {
   readonly method: string;
   readonly createdAt: string;
   readonly transitions: readonly TransactionStateTransition[];
+}
+
+/**
+ * What Counter has collected from buyers on this merchant's behalf and has not
+ * yet paid out. Mirrors control-plane-api's SettlementSummary exactly.
+ *
+ * This is an amount OWED to the merchant, derived from their settled
+ * transactions — NOT a stored balance the merchant holds with Counter, and not
+ * a withdrawable instrument. Label it accordingly in the UI: "pending
+ * settlement", never "wallet" or "balance".
+ */
+export interface SettlementSummary {
+  /** Integer INR paise as a decimal string — parse with BigInt, never Number. */
+  readonly pendingMinor: string;
+  readonly currency: "INR";
+  readonly orderCount: number;
+  /** True when the server hit its scan cap, so the total is a floor, not exact. */
+  readonly truncated: boolean;
 }
 
 // ---------------------------------------------------------------------------

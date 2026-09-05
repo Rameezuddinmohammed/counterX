@@ -22,6 +22,9 @@
       "path": "../../packages/merchant-application"
     },
     {
+      "path": "../../packages/merchant-policy"
+    },
+    {
       "path": "../../packages/payment-sdk"
     },
     {

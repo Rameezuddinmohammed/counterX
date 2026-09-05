@@ -81,9 +81,10 @@ export default function ReadinessPage() {
     );
   }
 
-  const paymentBlocking = summary?.checks.some(
-    (check) => check.checkKind === "payment_configured" && check.status === "Blocking",
-  );
+  // payment_configured is never Blocking now — see merchant-readiness-store.ts's
+  // comment on why (no per-merchant settlement account is required for this
+  // deployment). Kept out of this page's blocking-link logic accordingly;
+  // AcceptedLimitation still renders correctly via readinessCheckPassed().
   const catalogBlocking = summary?.checks.some(
     (check) =>
       (check.checkKind === "connector_health" || check.checkKind === "mapping_freshness") &&
@@ -131,18 +132,6 @@ export default function ReadinessPage() {
                   </div>
                 ))}
 
-                {paymentBlocking && (
-                  <p className="text-sm text-[var(--foreground-secondary)]">
-                    Payments aren&apos;t connected yet.{" "}
-                    <Link
-                      href="/invite/payment-connect"
-                      className="text-[var(--brand-orange)] underline"
-                    >
-                      Connect payments
-                    </Link>
-                    .
-                  </p>
-                )}
                 {catalogBlocking && (
                   <p className="text-sm text-[var(--foreground-secondary)]">
                     Your catalog isn&apos;t confirmed yet.{" "}
