@@ -103,6 +103,23 @@ const STEP_DRAFT = "shopify.draft";
 const STEP_FINALIZE = "shopify.finalize";
 const STEP_MARK_PAID = "shopify.markPaid";
 
+/**
+ * The single derived state that means "Counter collected, merchant not yet paid"
+ * — see {@link SettlementSummary}. Named once so the settlement total and
+ * deriveTransactionState can never drift apart on the state's spelling.
+ */
+export const SETTLED_STATE: TransactionState = "settled";
+
+/**
+ * Upper bound on how many of a merchant's transactions a settlement scan will
+ * examine. Deliberately bounded rather than unbounded: the scan is O(n) queries
+ * per transaction (same N+1 shape as list(), see this file's header), so an
+ * unbounded scan on a busy merchant would be a slow query on a dashboard route.
+ * Hitting the cap sets `truncated`, so the number is reported as a floor rather
+ * than being silently wrong.
+ */
+export const SETTLEMENT_SCAN_CAP = 1000;
+
 /** True for the durable pre-claim guard rows, which are NOT user-visible. */
 export function isClaimStep(step: string): boolean {
   return step.endsWith(".claim");
@@ -241,6 +258,48 @@ export interface OwnedTransaction {
   readonly transaction: Transaction;
 }
 
+/**
+ * What Counter has collected from buyers on this merchant's behalf and has not
+ * yet paid out.
+ *
+ * DERIVED, never stored. There is deliberately no merchant balance table and no
+ * merchant-side credit/debit path. A stored merchant balance would be custody
+ * on the merchant side as well, which `~/.claude/plans/the-mandate-pivot.md`
+ * explicitly considered and rejected ("a materially bigger regulatory lift
+ * (custody on *both* sides)"). This is an accounts-payable VIEW over
+ * transactions that already exist in the read model — an amount owed, not an
+ * instrument the merchant holds. Do not "optimise" it into a balance column.
+ *
+ * COUNTED: transactions whose derived state is `settled`, i.e. the worker
+ * completed the `shopify.markPaid` leg. That is precisely the point Counter has
+ * told the merchant's own store the order is paid while the funds sit in
+ * Counter's account — wallet-topup-routes.ts credits the PLATFORM Razorpay
+ * credentials (`RAZORPAY_KEY_ID`), not the merchant's connected account, and
+ * real-lifecycle.ts's prepaid branch makes no payment-provider call at all. So
+ * markPaid is also the point the debt to the merchant becomes real.
+ *
+ * NOT COUNTED: `authorized`/`captured` (in flight, no markPaid yet, nothing
+ * collected), `failed`, and `refunded`/`disputed` — which the current lifecycle
+ * never derives at all (see deriveTransactionState's own note).
+ *
+ * Amounts are integer minor units carried as strings, so no float rounding can
+ * enter a money total on its way to the client. `Transaction.amount` is a
+ * MAJOR-unit float and is deliberately NOT summed.
+ */
+export interface SettlementSummary {
+  /** Integer INR paise as a decimal string. Never a float. */
+  readonly pendingMinor: string;
+  readonly currency: "INR";
+  /** How many settled transactions the total is composed of. */
+  readonly orderCount: number;
+  /**
+   * True when the scan hit its safety cap, so the total is a floor rather than
+   * the whole truth. A truncated total must never be presented as exact — this
+   * repo's "no silent consequential failure" rule, applied to a money figure.
+   */
+  readonly truncated: boolean;
+}
+
 export interface TransactionReadStore {
   list(
     merchantId: string,
@@ -248,6 +307,8 @@ export interface TransactionReadStore {
     environment: string,
   ): Promise<readonly Transaction[]>;
   get(transactionId: string, environment: string): Promise<OwnedTransaction | undefined>;
+  /** See {@link SettlementSummary} — derived, never a stored merchant balance. */
+  settlementSummary(merchantId: string, environment: string): Promise<SettlementSummary>;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,6 +346,27 @@ export function createInMemoryTransactionStore(
         return Promise.resolve(undefined);
       }
       return Promise.resolve({ merchantId: txn.merchantId, transaction: txn });
+    },
+    settlementSummary(merchantId, _environment): Promise<SettlementSummary> {
+      const all = byMerchant.get(merchantId) ?? [];
+      let pendingMinor = 0n;
+      let orderCount = 0;
+      for (const txn of all.slice(0, SETTLEMENT_SCAN_CAP)) {
+        if (txn.currentState !== SETTLED_STATE) {
+          continue;
+        }
+        // Seeded Transactions carry MAJOR-unit floats, so this direction is
+        // lossy by construction; the Postgres store reads minor units straight
+        // out of the ledger and never round-trips through a float.
+        pendingMinor += BigInt(Math.round(txn.amount * 100));
+        orderCount += 1;
+      }
+      return Promise.resolve({
+        pendingMinor: pendingMinor.toString(),
+        currency: "INR",
+        orderCount,
+        truncated: all.length > SETTLEMENT_SCAN_CAP,
+      });
     },
   };
 }
@@ -344,6 +426,7 @@ export interface TransactionRoutesOptions {
 
 const LIST_ROUTE = "/control/v1/merchants/:merchantId/transactions";
 const GET_ROUTE = "/control/v1/transactions/:transactionId";
+const SETTLEMENT_ROUTE = "/control/v1/merchants/:merchantId/settlement";
 
 export async function transactionRoutesPlugin(
   fastify: FastifyInstance,
@@ -353,6 +436,9 @@ export async function transactionRoutesPlugin(
 
   registerRoutePermission(`GET:${LIST_ROUTE}`, { permission: "identity.scope.read" });
   registerRoutePermission(`GET:${GET_ROUTE}`, { permission: "identity.scope.read" });
+  // Read-only: identity.scope.read, same as the two routes above. This exposes
+  // no new authority — it is an aggregate over rows the caller can already list.
+  registerRoutePermission(`GET:${SETTLEMENT_ROUTE}`, { permission: "identity.scope.read" });
 
   // GET list — merchant-scoped, tenant isolation enforced up-front.
   fastify.get(LIST_ROUTE, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -395,5 +481,25 @@ export async function transactionRoutesPlugin(
     }
 
     void reply.send(owned.transaction);
+  });
+
+  // GET pending settlement — what Counter has collected for this merchant and
+  // has not paid out. Derived, never a stored balance (see SettlementSummary).
+  // 403 on tenant mismatch, matching LIST_ROUTE above rather than GET_ROUTE's
+  // existence-hiding 404: the merchantId is supplied by the caller in the path,
+  // so there is no other merchant's identifier to keep secret here.
+  fastify.get(SETTLEMENT_ROUTE, async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = request.params as Record<string, string>;
+    const merchantId = params["merchantId"] ?? "";
+
+    if (!verifyTenantAccess(request, merchantId)) {
+      void reply.status(403).send({
+        error: { code: "FORBIDDEN", message: "Access denied for the requested merchant" },
+      });
+      return;
+    }
+
+    const summary = await store.settlementSummary(merchantId, environment);
+    void reply.send(summary);
   });
 }

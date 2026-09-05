@@ -210,6 +210,13 @@ describe("policy store environment gating", () => {
     const injectedTransactions = {
       list: () => Promise.resolve([]),
       get: () => Promise.resolve(undefined),
+      settlementSummary: () =>
+        Promise.resolve({
+          pendingMinor: "0",
+          currency: "INR" as const,
+          orderCount: 0,
+          truncated: false,
+        }),
     };
     expect(() => {
       server = createServer({

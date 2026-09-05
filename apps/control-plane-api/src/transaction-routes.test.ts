@@ -375,3 +375,168 @@ describe("buildTransitions", () => {
     expect(transitions.map((t) => t.to)).toEqual(["initiated", "failed"]);
   });
 });
+
+// --- Pending settlement (derived, NOT a stored merchant balance) ---
+
+// Deliberately a separate seed from SEED above: this one mixes states, because
+// the whole point of the summary is that it counts ONLY what was collected.
+const SETTLEMENT_SEED: Transaction[] = [
+  txn({
+    transactionId: "txn-s-settled-1",
+    merchantId: MERCHANT_A,
+    amount: 1500,
+    currentState: "settled",
+  }),
+  txn({
+    transactionId: "txn-s-settled-2",
+    merchantId: MERCHANT_A,
+    amount: 24.5, // exercises a non-integer major amount -> 2450 minor
+    currentState: "settled",
+  }),
+  txn({
+    transactionId: "txn-s-captured",
+    merchantId: MERCHANT_A,
+    amount: 9999,
+    currentState: "captured", // in flight, nothing collected yet
+  }),
+  txn({
+    transactionId: "txn-s-authorized",
+    merchantId: MERCHANT_A,
+    amount: 8888,
+    currentState: "authorized",
+  }),
+  txn({
+    transactionId: "txn-s-failed",
+    merchantId: MERCHANT_A,
+    amount: 7777,
+    currentState: "failed",
+  }),
+  txn({
+    transactionId: "txn-s-other-merchant",
+    merchantId: MERCHANT_B,
+    amount: 6666,
+    currentState: "settled",
+  }),
+];
+
+function serverWithSettlementSeed(jwks: ReturnType<typeof createLocalJWKSet>): FastifyInstance {
+  return createServer({
+    jwks,
+    environment: "test",
+    transactionStore: createInMemoryTransactionStore(SETTLEMENT_SEED),
+  });
+}
+
+describe("GET /control/v1/merchants/:merchantId/settlement", () => {
+  let server: FastifyInstance | undefined;
+
+  afterEach(async () => {
+    await server?.close();
+    server = undefined;
+  });
+
+  it("totals ONLY settled transactions, in integer minor units", async () => {
+    const { jwks } = await getTestKeys();
+    server = serverWithSettlementSeed(jwks);
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/control/v1/merchants/${MERCHANT_A}/settlement`,
+      headers: { authorization: `Bearer ${await createTokenForMerchant(MERCHANT_A)}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    // 1500.00 + 24.50 = 1524.50 -> 152450 paise. captured/authorized/failed
+    // contribute nothing, and merchant B's settled order is not included.
+    expect(response.json()).toEqual({
+      pendingMinor: "152450",
+      currency: "INR",
+      orderCount: 2,
+      truncated: false,
+    });
+  });
+
+  it("does not leak another merchant's settled total", async () => {
+    const { jwks } = await getTestKeys();
+    server = serverWithSettlementSeed(jwks);
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/control/v1/merchants/${MERCHANT_B}/settlement`,
+      headers: { authorization: `Bearer ${await createTokenForMerchant(MERCHANT_B)}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ pendingMinor: "666600", orderCount: 1 });
+  });
+
+  it("returns 403 when a merchant asks for another merchant's settlement", async () => {
+    const { jwks } = await getTestKeys();
+    server = serverWithSettlementSeed(jwks);
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/control/v1/merchants/${MERCHANT_B}/settlement`,
+      headers: { authorization: `Bearer ${await createTokenForMerchant(MERCHANT_A)}` },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("returns 401 without a token", async () => {
+    const { jwks } = await getTestKeys();
+    server = serverWithSettlementSeed(jwks);
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/control/v1/merchants/${MERCHANT_A}/settlement`,
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("reports zero (not an error) for a merchant with nothing collected", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({
+      jwks,
+      environment: "test",
+      transactionStore: createInMemoryTransactionStore([]),
+    });
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/control/v1/merchants/${MERCHANT_A}/settlement`,
+      headers: { authorization: `Bearer ${await createTokenForMerchant(MERCHANT_A)}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      pendingMinor: "0",
+      currency: "INR",
+      orderCount: 0,
+      truncated: false,
+    });
+  });
+
+  it("never sums a float: the total is a string of integer minor units", async () => {
+    const { jwks } = await getTestKeys();
+    server = serverWithSettlementSeed(jwks);
+    await server.ready();
+
+    const response = await server.inject({
+      method: "GET",
+      url: `/control/v1/merchants/${MERCHANT_A}/settlement`,
+      headers: { authorization: `Bearer ${await createTokenForMerchant(MERCHANT_A)}` },
+    });
+
+    const body = response.json() as { pendingMinor: unknown };
+    expect(typeof body.pendingMinor).toBe("string");
+    // Parses cleanly as an integer — no ".5", no "1524.4999999999998".
+    expect(/^[0-9]+$/u.test(body.pendingMinor as string)).toBe(true);
+  });
+});

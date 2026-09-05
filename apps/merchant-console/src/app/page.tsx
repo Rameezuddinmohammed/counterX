@@ -1,11 +1,19 @@
 "use client";
 
 import { StatCard, Card, CardContent, Badge } from "@counter/ui";
-import { Receipt, Shield, Activity, Search, ShoppingBag, CreditCard, FileText } from "lucide-react";
+import {
+  Receipt,
+  Shield,
+  Search,
+  ShoppingBag,
+  CreditCard,
+  FileText,
+  IndianRupee,
+} from "lucide-react";
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
 import { useApi, useCurrentMerchantId } from "@/hooks/use-api";
-import type { PolicyConfigView, Transaction } from "@/lib/types";
+import type { PolicyConfigView, SettlementSummary, Transaction } from "@/lib/types";
 
 // control-plane-api's transaction list endpoint has no separate "total count"
 // field — it returns a page of transactions (default limit 50, hard max 200;
@@ -46,6 +54,27 @@ function formatCappedCount(count: number, cap: number): string {
   return count >= cap ? `${count}+` : count.toLocaleString();
 }
 
+/**
+ * Formats integer INR paise for display.
+ *
+ * Parses with BigInt, not Number: the server sends minor units as a string
+ * precisely so a money total never round-trips through a float, and undoing that
+ * here with Number() would reintroduce the drift the API was shaped to avoid.
+ */
+function formatInrFromMinor(minor: string): string {
+  let value: bigint;
+  try {
+    value = BigInt(minor);
+  } catch {
+    return "—";
+  }
+  const negative = value < 0n;
+  const abs = negative ? -value : value;
+  const rupees = abs / 100n;
+  const paise = abs % 100n;
+  return `${negative ? "-" : ""}₹${rupees.toLocaleString("en-IN")}.${paise.toString().padStart(2, "0")}`;
+}
+
 export default function DashboardPage() {
   const { merchantId, loading: merchantLoading, error: merchantError } = useCurrentMerchantId();
 
@@ -63,26 +92,43 @@ export default function DashboardPage() {
         : Promise.resolve({ ok: true, data: null as PolicyConfigView | null }),
     [merchantId],
   );
+  const settlementState = useApi<SettlementSummary | null>(
+    (client) =>
+      merchantId
+        ? client.getSettlementSummary(merchantId)
+        : Promise.resolve({ ok: true, data: null as SettlementSummary | null }),
+    [merchantId],
+  );
 
   const transactions = transactionsState.data ?? [];
-  const settledCount = transactions.filter((t) => t.currentState === "settled").length;
   const policyRuleCount = policyState.data?.policy.rules.length ?? 0;
 
   const transactionsLoading = merchantLoading || transactionsState.loading;
   const transactionsError = merchantError ?? transactionsState.error;
   const policyLoading = merchantLoading || policyState.loading;
   const policyError = merchantError ?? policyState.error;
+  const settlementLoading = merchantLoading || settlementState.loading;
+  const settlementError = merchantError ?? settlementState.error;
+  const settlement = settlementState.data;
 
   const transactionsValue = transactionsLoading
     ? "…"
     : transactionsError
       ? "—"
       : formatCappedCount(transactions.length, TRANSACTIONS_FETCH_LIMIT);
-  const settledValue = transactionsLoading
+  const settlementValue = settlementLoading
     ? "…"
-    : transactionsError
+    : settlementError || settlement === null
       ? "—"
-      : settledCount.toLocaleString();
+      : formatInrFromMinor(settlement.pendingMinor);
+  // Never present a capped scan as an exact figure — see SettlementSummary.truncated.
+  const settlementDescription = settlementError
+    ? "Could not load"
+    : settlement === null
+      ? undefined
+      : settlement.truncated
+        ? `At least ${settlement.orderCount.toLocaleString()} orders — total is a floor`
+        : `From ${settlement.orderCount.toLocaleString()} ${settlement.orderCount === 1 ? "order" : "orders"}`;
   const activePoliciesValue = policyLoading
     ? "…"
     : policyError
@@ -112,9 +158,10 @@ export default function DashboardPage() {
             {...(transactionsError ? { description: transactionsError } : {})}
           />
           <StatCard
-            icon={<Activity className="h-4 w-4" />}
-            label="Settled Transactions"
-            value={settledValue}
+            icon={<IndianRupee className="h-4 w-4" />}
+            label="Pending Settlement"
+            value={settlementValue}
+            {...(settlementDescription ? { description: settlementDescription } : {})}
           />
           <StatCard
             icon={<Shield className="h-4 w-4" />}
@@ -129,6 +176,41 @@ export default function DashboardPage() {
             description="Not yet available"
           />
         </div>
+
+        {/*
+          Deliberately worded as an amount OWED, not a balance the merchant
+          holds. Counter collects the buyer's payment into its own Razorpay
+          account today (wallet-topup-routes.ts uses the platform credentials),
+          so this is accounts payable, not stored value — calling it a "wallet"
+          would assert a custody relationship that does not exist and would need
+          a regulated partner to be true.
+        */}
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-[var(--foreground)]">Settlement</h2>
+                  <Badge variant="secondary">coming soon</Badge>
+                </div>
+                <p className="mt-1 max-w-2xl text-sm text-[var(--foreground-secondary)]">
+                  {settlementValue === "—"
+                    ? "Amounts collected on your behalf will appear here once you have completed orders."
+                    : `Counter has collected ${settlementValue} on your behalf from completed agent purchases. Automated payouts to your own Razorpay account are not enabled yet.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                title="Automated payouts are not available yet"
+                className="shrink-0 cursor-not-allowed rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--foreground-muted)] opacity-60"
+              >
+                Request payout
+              </button>
+            </div>
+          </CardContent>
+        </Card>
 
         <div>
           <h2 className="mb-4 text-lg font-semibold text-[var(--foreground)]">Quick Actions</h2>

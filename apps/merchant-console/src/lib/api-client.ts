@@ -27,6 +27,7 @@ import type {
   RazorpayStatus,
   ReadinessStatus,
   ShopifyConnectionStatus,
+  SettlementSummary,
   ShopifySetupStatus,
   SuspensionStatus,
   Transaction,
@@ -214,6 +215,8 @@ export interface MerchantApiClient {
     opts?: ListOptions,
   ): Promise<ApiResult<readonly Transaction[]>>;
   getTransaction(transactionId: string): Promise<ApiResult<Transaction>>;
+  /** What Counter has collected for this merchant and not yet paid out. Derived, not a balance. */
+  getSettlementSummary(merchantId: string): Promise<ApiResult<SettlementSummary>>;
 
   // Findings
   listFindings(merchantId: string, opts?: ListOptions): Promise<ApiResult<readonly Finding[]>>;
@@ -447,6 +450,8 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
       ),
     getTransaction: (transactionId) =>
       request<Transaction>("GET", `/transactions/${transactionId}`),
+    getSettlementSummary: (merchantId) =>
+      request<SettlementSummary>("GET", `/merchants/${merchantId}/settlement`),
     listFindings: (merchantId, opts) =>
       request<readonly Finding[]>(
         "GET",

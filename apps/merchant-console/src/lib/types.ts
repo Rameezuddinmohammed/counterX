@@ -504,6 +504,24 @@ export interface Transaction {
   readonly transitions: readonly TransactionStateTransition[];
 }
 
+/**
+ * What Counter has collected from buyers on this merchant's behalf and has not
+ * yet paid out. Mirrors control-plane-api's SettlementSummary exactly.
+ *
+ * This is an amount OWED to the merchant, derived from their settled
+ * transactions — NOT a stored balance the merchant holds with Counter, and not
+ * a withdrawable instrument. Label it accordingly in the UI: "pending
+ * settlement", never "wallet" or "balance".
+ */
+export interface SettlementSummary {
+  /** Integer INR paise as a decimal string — parse with BigInt, never Number. */
+  readonly pendingMinor: string;
+  readonly currency: "INR";
+  readonly orderCount: number;
+  /** True when the server hit its scan cap, so the total is a floor, not exact. */
+  readonly truncated: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Findings & Reconciliation
 // ---------------------------------------------------------------------------
