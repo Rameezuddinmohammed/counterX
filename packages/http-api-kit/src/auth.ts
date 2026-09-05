@@ -6,13 +6,31 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { createCanonicalError } from "@counter/domain";
 
 export interface AuthPluginOptions {
   readonly issuer: string;
   readonly audience: string;
   readonly jwks: JWTVerifyGetKey | string;
+  /**
+   * An optional second trusted issuer, checked when the token's own `iss`
+   * claim matches `secondaryIssuer.issuer` rather than `issuer` above —
+   * added for control-plane-api's self-signed buyer-runtime credentials
+   * (apps/control-plane-api/src/wallet-user-store.ts's mintRuntimeCredential)
+   * alongside the existing Auth0-issued tokens every other actor still uses.
+   * Dispatch reads the token's `iss` claim WITHOUT verifying the signature
+   * first (jose's decodeJwt, a plain base64 decode) purely to pick which key
+   * source to verify against — the actual signature/issuer/audience check
+   * below still runs in full against the matched source, so a forged `iss`
+   * claim gains nothing: it just gets verified against the wrong key and
+   * rejected. Kept deliberately narrow (exactly two sources) rather than a
+   * general N-issuer list.
+   */
+  readonly secondaryIssuer?: {
+    readonly issuer: string;
+    readonly jwks: JWTVerifyGetKey | string;
+  };
   readonly skipRoutes?: readonly string[];
   /**
    * When set, every 401 response carries a
@@ -90,7 +108,9 @@ function isSkipped(request: FastifyRequest, skipRoutes: readonly string[]): bool
 
 export const authPlugin = fp(
   async (fastify: FastifyInstance, options: AuthPluginOptions): Promise<void> => {
-    const getKey = resolveJwks(options.jwks);
+    const primaryKey = resolveJwks(options.jwks);
+    const secondaryKey =
+      options.secondaryIssuer !== undefined ? resolveJwks(options.secondaryIssuer.jwks) : undefined;
     const { issuer, audience, resourceMetadataUrl } = options;
     const skipRoutes = options.skipRoutes ?? [];
 
@@ -121,9 +141,27 @@ export const authPlugin = fp(
 
       const token = authorization.slice(7);
 
+      // Dispatch on the token's OWN claimed issuer, purely to pick which key
+      // source to verify against — see AuthPluginOptions.secondaryIssuer's
+      // docs for why an unverified peek here is safe.
+      let matched: { readonly getKey: JWTVerifyGetKey; readonly issuer: string } = {
+        getKey: primaryKey,
+        issuer,
+      };
+      if (secondaryKey !== undefined && options.secondaryIssuer !== undefined) {
+        try {
+          if (decodeJwt(token).iss === options.secondaryIssuer.issuer) {
+            matched = { getKey: secondaryKey, issuer: options.secondaryIssuer.issuer };
+          }
+        } catch {
+          // Fall through with the primary source — jwtVerify below will
+          // reject the malformed token with the standard error path.
+        }
+      }
+
       try {
-        const { payload } = await jwtVerify(token, getKey, {
-          issuer,
+        const { payload } = await jwtVerify(token, matched.getKey, {
+          issuer: matched.issuer,
           audience,
           algorithms: ["RS256"],
         });

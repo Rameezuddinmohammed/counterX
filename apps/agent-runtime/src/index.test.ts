@@ -120,6 +120,71 @@ describe("@counter/agent-runtime", () => {
     expect(body.status).toBe("operational");
   });
 
+  it("accepts a token from the second, non-Auth0 issuer (control-plane-api's self-signed buyer-runtime credentials)", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+    await server.ready();
+
+    const { RUNTIME_TOKEN_TEST_PRIVATE_KEY_PEM, RUNTIME_TOKEN_TEST_KID } = await import(
+      "@counter/domain"
+    );
+    const { importPKCS8 } = await import("jose");
+    const privateKey = await importPKCS8(RUNTIME_TOKEN_TEST_PRIVATE_KEY_PEM, "RS256");
+    const now = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({
+      [`${CLAIMS_NAMESPACE}actor_kind`]: "service",
+      [`${CLAIMS_NAMESPACE}environment`]: "test",
+      [`${CLAIMS_NAMESPACE}assurance`]: "service_authenticated",
+      [`${CLAIMS_NAMESPACE}scope`]: { kind: "wallet", walletId: "ctr_wallet_test123" },
+      [`${CLAIMS_NAMESPACE}roles`]: ["service.identity"],
+    })
+      .setProtectedHeader({ alg: "RS256", kid: RUNTIME_TOKEN_TEST_KID })
+      .setIssuer("https://runtime.counter.dev/")
+      .setAudience(TEST_AUDIENCE)
+      .setSubject("ctr_wallet_test123")
+      .setIssuedAt(now)
+      .setExpirationTime(now + 3600)
+      .sign(privateKey);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/runtime/v1/status",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("rejects a token from the runtime-token issuer signed by the WRONG key", async () => {
+    const { jwks } = await getTestKeys();
+    server = createServer({ jwks, environment: "test", allowMockHandlers: true });
+    await server.ready();
+
+    // Signed with a freshly generated key, not the trusted runtime-token
+    // fixture — must not verify even though it claims the trusted issuer.
+    const { privateKey: wrongKey } = await generateKeyPair("RS256");
+    const now = Math.floor(Date.now() / 1000);
+    const forgedToken = await new SignJWT({
+      [`${CLAIMS_NAMESPACE}actor_kind`]: "service",
+      [`${CLAIMS_NAMESPACE}environment`]: "test",
+      [`${CLAIMS_NAMESPACE}assurance`]: "service_authenticated",
+      [`${CLAIMS_NAMESPACE}scope`]: { kind: "wallet", walletId: "ctr_wallet_forged" },
+      [`${CLAIMS_NAMESPACE}roles`]: ["service.identity"],
+    })
+      .setProtectedHeader({ alg: "RS256" })
+      .setIssuer("https://runtime.counter.dev/")
+      .setAudience(TEST_AUDIENCE)
+      .setIssuedAt(now)
+      .setExpirationTime(now + 3600)
+      .sign(wrongKey);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/runtime/v1/status",
+      headers: { authorization: `Bearer ${forgedToken}` },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
   it("POST /webhooks/v1/test-adapter accepts raw body without auth", async () => {
     const { jwks } = await getTestKeys();
     const testHandler: WebhookHandler = async (_request, reply) => {

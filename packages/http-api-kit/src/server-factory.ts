@@ -26,6 +26,11 @@ export interface ServerFactoryOptions {
     readonly jwks: JWTVerifyGetKey | string;
     /** See AuthPluginOptions.resourceMetadataUrl. */
     readonly resourceMetadataUrl?: string;
+    /** See AuthPluginOptions.secondaryIssuer. */
+    readonly secondaryIssuer?: {
+      readonly issuer: string;
+      readonly jwks: JWTVerifyGetKey | string;
+    };
   };
   readonly health?: {
     readonly readinessChecker?: ReadinessChecker;
@@ -117,6 +122,9 @@ export function createHttpServer(options: ServerFactoryOptions): FastifyInstance
     skipRoutes,
     ...(options.auth.resourceMetadataUrl !== undefined
       ? { resourceMetadataUrl: options.auth.resourceMetadataUrl }
+      : {}),
+    ...(options.auth.secondaryIssuer !== undefined
+      ? { secondaryIssuer: options.auth.secondaryIssuer }
       : {}),
   });
   void server.register(actorExtractionPlugin, { skipRoutes: actorSkipRoutes });

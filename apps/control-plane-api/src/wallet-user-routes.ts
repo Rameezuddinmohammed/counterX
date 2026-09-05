@@ -150,7 +150,7 @@ export async function walletUserRoutesPlugin(
       // that write already durably succeeded above.
       let runtimeCredential: { runtimeUrl: string; runtimeAuthToken: string } | undefined;
       try {
-        const credential = await provisioner.mintRuntimeCredential();
+        const credential = await provisioner.mintRuntimeCredential(walletId, result.agentId);
         runtimeCredential = {
           runtimeUrl: credential.runtimeUrl,
           runtimeAuthToken: credential.runtimeAuthToken,

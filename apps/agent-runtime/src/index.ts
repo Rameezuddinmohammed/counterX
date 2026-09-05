@@ -8,7 +8,10 @@
  * error mapping, scope enforcement, health checks, webhooks, and OpenAPI).
  */
 import type { FastifyInstance } from "fastify";
-import type { JWTVerifyGetKey } from "jose";
+import { importSPKI, type JWTVerifyGetKey } from "jose";
+import {
+  RUNTIME_TOKEN_TEST_PUBLIC_KEY_PEM,
+} from "@counter/domain";
 import {
   createHttpServer,
   attachGracefulShutdown,
@@ -48,6 +51,35 @@ const AUTH_ISSUER = withTrailingSlash(
   `https://${process.env["AUTH0_DOMAIN"] ?? "dev-jzw3etjxnn3svs56.us.auth0.com"}`,
 );
 const AUTH_AUDIENCE = process.env["AUTH0_AUDIENCE"] ?? "https://api.counter.dev";
+
+// Second trusted issuer: control-plane-api's own self-signed buyer-runtime
+// credentials (apps/control-plane-api/src/wallet-user-store.ts's
+// mintRuntimeCredential), alongside Auth0 for every other actor. The public
+// key is base64-encoded PEM, matching the private key's encoding on the
+// signing side (env-var-safe, no newline/quoting hazard). Outside
+// production this falls back to the same public, non-secret test fixture
+// control-plane-api's signer falls back to, so a local dev loop or test
+// server works with zero configuration — see
+// packages/domain/src/runtime-token-test-fixture.ts's docs.
+const RUNTIME_TOKEN_ISSUER = process.env["COUNTER_RUNTIME_TOKEN_ISSUER"] || "https://runtime.counter.dev/";
+
+/** Resolves the runtime-token public key: real key when configured, the public test fixture only outside production. */
+function resolveRuntimeTokenPublicKeyPem(environment: string): string | undefined {
+  const encoded = process.env["COUNTER_RUNTIME_TOKEN_PUBLIC_KEY_BASE64"];
+  if (encoded !== undefined && encoded.trim().length > 0) {
+    return Buffer.from(encoded, "base64").toString("utf8");
+  }
+  return environment === "production" ? undefined : RUNTIME_TOKEN_TEST_PUBLIC_KEY_PEM;
+}
+
+/** Lazily imports and caches a PEM public key as a JWTVerifyGetKey. */
+function createLocalPemKeyGetter(pem: string): JWTVerifyGetKey {
+  let cached: ReturnType<typeof importSPKI> | undefined;
+  return (async () => {
+    cached ??= importSPKI(pem, "RS256");
+    return cached;
+  }) as JWTVerifyGetKey;
+}
 
 export interface CreateServerOptions {
   readonly version?: string | undefined;
@@ -133,6 +165,7 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   const environment = options?.environment ?? DEFAULT_ENVIRONMENT;
 
   const jwks: JWTVerifyGetKey | string = options?.jwks ?? `${AUTH_ISSUER}.well-known/jwks.json`;
+  const runtimeTokenPublicKeyPem = resolveRuntimeTokenPublicKeyPem(environment);
 
   const serverOptions: ServerFactoryOptions = {
     name: APP_NAME,
@@ -142,6 +175,14 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
       issuer: AUTH_ISSUER,
       audience: AUTH_AUDIENCE,
       jwks,
+      ...(runtimeTokenPublicKeyPem !== undefined
+        ? {
+            secondaryIssuer: {
+              issuer: RUNTIME_TOKEN_ISSUER,
+              jwks: createLocalPemKeyGetter(runtimeTokenPublicKeyPem),
+            },
+          }
+        : {}),
     },
     ...(environment !== "production"
       ? { openApi: { title: "Counter Agent Runtime API", version } }

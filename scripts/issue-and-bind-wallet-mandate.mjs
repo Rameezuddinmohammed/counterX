@@ -306,10 +306,26 @@ try {
     environment,
     razorpayRecurringProvider,
   );
+  // Same ownership check apps/control-plane-api/src/main.ts wires into the
+  // real HTTP route's MandateBindingService (checkAgentOwnership) — added by
+  // the Mandate Pivot's "separate consent key from operating key" change
+  // (2026-09-04) after this script was last touched, so the constructor call
+  // below had drifted out of sync with the service's now-4-argument shape.
+  const agentOwnershipCheck = async (checkedWalletId, checkedAgentId) => {
+    const result = await database.query(
+      `SELECT 1 FROM identity.actors
+        WHERE environment = $1 AND actor_kind = 'registered_agent' AND actor_id = $2
+          AND owner_scope_kind = 'wallet' AND owner_scope_id = $3 AND status = 'active'`,
+      [environment, checkedAgentId, checkedWalletId],
+    );
+    return result.rows.length > 0;
+  };
+
   const mandateBindingService = new MandateBindingService(
     mandateRepo,
     keyRegistry,
     recurringMandateProvisioner,
+    agentOwnershipCheck,
   );
 
   const bindResult = await mandateBindingService.bind(walletId, signedResult.value, new Date());

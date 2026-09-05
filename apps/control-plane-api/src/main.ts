@@ -28,6 +28,7 @@ import {
   PostgresCtpKeyRegistry,
   PostgresWalletBalanceStore,
   PostgresBuyerNotificationStore,
+  PostgresKillSwitchStore,
 } from "@counter/data";
 import { createHttpGraphQLClient, CatalogSyncService } from "@counter/shopify-connector";
 import { WalletRevocationService } from "@counter/wallet-application";
@@ -57,6 +58,7 @@ import { MerchantReadinessService } from "./merchant-readiness-store.js";
 import { MerchantManifestStore } from "./merchant-manifest-store.js";
 import { MerchantActivationStore } from "./merchant-activation-store.js";
 import { requireControlPlaneSigner } from "./control-plane-signer-env.js";
+import { requireRuntimeTokenSigner } from "./runtime-token-signer-env.js";
 import { MandateBindingService } from "./mandate-binding-store.js";
 import { PrepaidBalanceMandateBindingService } from "./prepaid-balance-mandate-binding-store.js";
 
@@ -101,23 +103,23 @@ if (!runtimeEnvironmentResult.ok) {
 }
 const runtimeEnvironment: Environment = runtimeEnvironmentResult.value;
 
-// Optional: self-serve buyers only get a fully working connect command when
-// this deployment has the shared merchant-runtime M2M credential configured
-// (see RuntimeCredentialConfig's docs in wallet-user-store.ts for the
-// deliberate shared-credential trade-off this makes). Missing it degrades
-// gracefully — key registration still works, the local script just falls
-// back to printing "ask Counter for these two values".
-const runtimeM2mClientId = process.env["AGENT_RUNTIME_M2M_CLIENT_ID"];
-const runtimeM2mClientSecret = process.env["AGENT_RUNTIME_M2M_CLIENT_SECRET"];
-const runtimeCredentialConfig: RuntimeCredentialConfig | undefined =
-  runtimeM2mClientId !== undefined && runtimeM2mClientSecret !== undefined
-    ? {
-        clientId: runtimeM2mClientId,
-        clientSecret: runtimeM2mClientSecret,
-        runtimeUrl:
-          process.env["COUNTER_AGENT_RUNTIME_URL"] || "https://counter-agent-runtime.fly.dev",
-      }
-    : undefined;
+// Self-serve buyers get a real, correctly wallet-scoped runtime credential
+// self-signed by THIS deployment's own key (see runtime-token-signer-env.ts
+// and RuntimeCredentialConfig's docs in wallet-user-store.ts) — replaces an
+// earlier design that called a single shared Auth0 M2M application, which
+// could only ever stamp one hardcoded scope for every buyer. Unconditional
+// (not feature-gated): requireRuntimeTokenSigner falls back to the public
+// test fixture outside production, and fails loud at boot in a prod-like
+// deployment with no real key configured — same fail-closed shape as
+// requireControlPlaneSigner just above.
+const runtimeTokenSigner = requireRuntimeTokenSigner(process.env, IN_MEMORY_ELIGIBLE);
+const runtimeCredentialConfig: RuntimeCredentialConfig = {
+  signerKid: runtimeTokenSigner.kid,
+  signerPrivateKeyPem: runtimeTokenSigner.privateKeyPem,
+  isFixtureSigner: runtimeTokenSigner.isFixture,
+  issuer: process.env["RUNTIME_TOKEN_ISSUER"] || "https://runtime.counter.dev/",
+  runtimeUrl: process.env["COUNTER_AGENT_RUNTIME_URL"] || "https://counter-agent-runtime.fly.dev",
+};
 
 // Optional: recurring payment mandates (UPI Autopay / e-mandate) need the
 // same Razorpay test-mode credentials the worker already uses for one-shot
@@ -470,6 +472,7 @@ const serverOptions: CreateServerOptions = {
           database,
           runtimeEnvironment,
         ),
+        merchantKillSwitchStore: new PostgresKillSwitchStore(database, runtimeEnvironment),
         buyerNotificationStore: new PostgresBuyerNotificationStore(database, runtimeEnvironment),
         // Phase 4 (wallet-dashboard backend): both walletBalanceStore and
         // mandateRepo above already exist unconditionally whenever database

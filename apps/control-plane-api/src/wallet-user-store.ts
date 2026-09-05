@@ -22,6 +22,7 @@
  * its SHA-256 hash.
  */
 import { randomBytes, createHash } from "node:crypto";
+import { SignJWT, importPKCS8 } from "jose";
 import type { Environment } from "@counter/domain";
 import { createCounterId, parseCounterId } from "@counter/domain";
 import type { TransactionalDatabase } from "@counter/data";
@@ -45,23 +46,20 @@ export interface AgentKeyResult {
 }
 
 /**
- * Credentials for the ONE shared merchant-runtime M2M client
- * ("Counter Agent Runtime (M2M)") this deployment already uses for the
- * founder's own real MCP entrypoint. Reused here — not a new Auth0 app —
- * because its Credentials Exchange Action already stamps exactly the
- * merchant-scoped claims apps/agent-runtime expects.
- *
- * KNOWN LIMITATION (tracked in the onboarding plan, not silently papered
- * over): every self-serve buyer's AI gets a token from this SAME shared
- * client. purchase.execute stays individually safe (gated by each buyer's
- * own signature), but in principle any holder could call cancel/refund on
- * a transaction that isn't theirs. Acceptable for a test-mode pilot with a
- * small number of real users; scoping this down per-buyer is real follow-up
- * work, not solved here.
+ * Configuration for control-plane-api's own self-signed buyer-runtime
+ * credentials. Replaces an earlier design that called Auth0's client-
+ * credentials grant against ONE shared M2M application — that Action could
+ * only ever stamp a single hardcoded scope, so every self-serve buyer's AI
+ * shared the exact same wallet identity. Self-signing per real wallet at
+ * registration time (see mintRuntimeCredential below) fixes this: each
+ * wallet gets a token correctly scoped to itself, with no per-wallet Auth0
+ * application and no manual Action edits.
  */
 export interface RuntimeCredentialConfig {
-  readonly clientId: string;
-  readonly clientSecret: string;
+  readonly signerKid: string;
+  readonly signerPrivateKeyPem: string;
+  readonly isFixtureSigner: boolean;
+  readonly issuer: string;
   readonly runtimeUrl: string;
 }
 
@@ -87,12 +85,13 @@ export interface WalletUserProvisionerLike {
     publicKeyBase64Url: string,
   ): Promise<AgentKeyResult>;
   /**
-   * Mints a merchant-runtime access token so a freshly self-served agent can
-   * actually reach a merchant, not just register a key. Throws if this
-   * deployment has no runtime credential configured — callers should treat
-   * that as an optional, gracefully-degradable step (see wallet-user-routes.ts).
+   * Mints a merchant-runtime access token, correctly scoped to `walletId`,
+   * so a freshly self-served agent can actually reach a merchant as itself
+   * — not just register a key. Throws if this deployment has no runtime
+   * signer configured — callers should treat that as an optional,
+   * gracefully-degradable step (see wallet-user-routes.ts).
    */
-  mintRuntimeCredential(): Promise<RuntimeCredentialResult>;
+  mintRuntimeCredential(walletId: string, agentId: string): Promise<RuntimeCredentialResult>;
 }
 
 function requireCounterId(
@@ -110,8 +109,8 @@ function hashToken(rawToken: string): string {
   return createHash("sha256").update(rawToken, "utf8").digest("hex");
 }
 
-const AUTH0_TOKEN_URL = "https://dev-jzw3etjxnn3svs56.us.auth0.com/oauth/token";
 const RUNTIME_AUDIENCE = "https://api.counter.dev";
+const RUNTIME_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 export class WalletUserProvisioner implements WalletUserProvisionerLike {
   constructor(
@@ -253,29 +252,39 @@ export class WalletUserProvisioner implements WalletUserProvisionerLike {
     return { agentId, keyId };
   }
 
-  /** See RuntimeCredentialConfig's docs for the shared-credential trade-off this makes. */
-  async mintRuntimeCredential(): Promise<RuntimeCredentialResult> {
+  /**
+   * Self-signs a short-lived RS256 JWT scoped to THIS wallet, using the same
+   * `https://counter.dev/` claim shape apps/agent-runtime's actor-extraction
+   * already understands (actor_kind "service", role "service.identity",
+   * scope {kind: "wallet", walletId}) — nothing in the authorization layer
+   * needed to change, only who mints the token and what it's scoped to.
+   */
+  async mintRuntimeCredential(walletId: string, agentId: string): Promise<RuntimeCredentialResult> {
     if (this.runtimeCredentialConfig === undefined) {
       throw new Error("No runtime credential is configured for this deployment");
     }
-    const { clientId, clientSecret, runtimeUrl } = this.runtimeCredentialConfig;
+    const { signerKid, signerPrivateKeyPem, issuer, runtimeUrl } = this.runtimeCredentialConfig;
 
-    const response = await fetch(AUTH0_TOKEN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        audience: RUNTIME_AUDIENCE,
-        grant_type: "client_credentials",
-      }),
-    });
-    if (!response.ok) {
-      throw new Error("Could not mint a merchant-runtime credential");
-    }
+    const privateKey = await importPKCS8(signerPrivateKeyPem, "RS256");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + RUNTIME_TOKEN_TTL_MS);
 
-    const body = (await response.json()) as { access_token: string; expires_in: number };
-    const expiresAt = new Date(Date.now() + body.expires_in * 1000).toISOString();
-    return { runtimeUrl, runtimeAuthToken: body.access_token, expiresAt };
+    const runtimeAuthToken = await new SignJWT({
+      "https://counter.dev/actor_kind": "service",
+      "https://counter.dev/environment": this.environment,
+      "https://counter.dev/assurance": "service_authenticated",
+      "https://counter.dev/scope": { kind: "wallet", walletId },
+      "https://counter.dev/roles": ["service.identity"],
+      agent_id: agentId,
+    })
+      .setProtectedHeader({ alg: "RS256", kid: signerKid })
+      .setIssuer(issuer)
+      .setAudience(RUNTIME_AUDIENCE)
+      .setSubject(walletId)
+      .setIssuedAt(Math.floor(now.getTime() / 1000))
+      .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
+      .sign(privateKey);
+
+    return { runtimeUrl, runtimeAuthToken, expiresAt: expiresAt.toISOString() };
   }
 }
