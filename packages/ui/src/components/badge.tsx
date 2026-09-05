@@ -3,17 +3,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2",
+  "inline-flex items-center rounded-none border px-2.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-2",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-[var(--brand-orange)] text-white",
+        default: "border-transparent bg-[var(--brand-red)] text-white",
         secondary:
           "border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--foreground-secondary)]",
-        success: "border-transparent bg-emerald-500/15 text-emerald-500",
-        warning: "border-transparent bg-amber-500/15 text-amber-600",
-        error: "border-transparent bg-red-500/15 text-red-600",
-        info: "border-transparent bg-blue-500/15 text-blue-600",
+        success: "border-transparent bg-[var(--clearance-teal)]/15 text-[var(--clearance-teal)]",
+        warning: "border-transparent bg-[var(--manifest-ochre)]/15 text-[var(--manifest-ochre)]",
+        error: "border-transparent bg-[var(--brand-red)]/15 text-[var(--brand-red)]",
+        info: "border-transparent bg-[var(--clearance-teal)]/15 text-[var(--clearance-teal)]",
         outline: "border-[var(--border)] text-[var(--foreground-secondary)]",
       },
     },

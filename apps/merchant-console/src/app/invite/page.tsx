@@ -117,8 +117,16 @@ export default function InvitePage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Sell on Counter</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
+            Onboarding
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Sell on Counter
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Set up your business to accept AI-agent purchases.
           </p>
@@ -128,8 +136,8 @@ export default function InvitePage() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-[var(--brand-orange)]/10 p-3">
-                  <UserPlus className="h-6 w-6 text-[var(--brand-orange)]" />
+                <div className="border border-[var(--border)] p-3 text-[var(--brand-red)]">
+                  <UserPlus className="h-6 w-6" />
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-[var(--foreground)]">Get started</p>
@@ -140,7 +148,7 @@ export default function InvitePage() {
                 </div>
                 <Button onClick={() => void handleRequestAccess()}>Request Access</Button>
               </div>
-              {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+              {error && <p className="mt-4 text-sm text-[var(--brand-red)]">{error}</p>}
             </CardContent>
           </Card>
         ) : loading && status === null ? (
@@ -153,12 +161,17 @@ export default function InvitePage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="rounded-lg bg-[var(--brand-orange)]/10 p-3">
-                      <UserPlus className="h-6 w-6 text-[var(--brand-orange)]" />
+                    <div className="border border-[var(--border)] p-3 text-[var(--brand-red)]">
+                      <UserPlus className="h-6 w-6" />
                     </div>
                     <div>
                       <p className="font-semibold text-[var(--foreground)]">Your application</p>
-                      <p className="text-sm text-[var(--foreground-muted)]">{status.merchantId}</p>
+                      <p
+                        className="text-sm text-[var(--foreground-muted)] font-mono"
+                        data-manifest-figure
+                      >
+                        {status.merchantId}
+                      </p>
                     </div>
                   </div>
                   <Badge variant={status.approvalStatus === "rejected" ? "error" : "success"}>

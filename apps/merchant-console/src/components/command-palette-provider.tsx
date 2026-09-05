@@ -10,44 +10,9 @@ import {
   CommandGroup,
   CommandItem,
 } from "@counter/ui";
-import {
-  LayoutDashboard,
-  ShoppingBag,
-  ArrowLeftRight,
-  FileText,
-  CreditCard,
-  Receipt,
-  Shield,
-  Power,
-  AlertOctagon,
-  ClipboardList,
-  Search,
-  UserPlus,
-  Activity,
-  Settings,
-  User,
-  Moon,
-  Sun,
-} from "lucide-react";
+import { User, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-
-const NAV_COMMANDS = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Shopify", href: "/shopify", icon: ShoppingBag },
-  { label: "Mapping", href: "/mapping", icon: ArrowLeftRight },
-  { label: "Manifest", href: "/manifest", icon: FileText },
-  { label: "Razorpay", href: "/razorpay", icon: CreditCard },
-  { label: "Transactions", href: "/transactions", icon: Receipt },
-  { label: "Policy", href: "/policy", icon: Shield },
-  { label: "Kill Switches", href: "/killswitch", icon: Power },
-  { label: "Suspension", href: "/suspension", icon: AlertOctagon },
-  { label: "Audit", href: "/audit", icon: ClipboardList },
-  { label: "Findings", href: "/findings", icon: Search },
-  { label: "Invite", href: "/invite", icon: UserPlus },
-  { label: "Readiness", href: "/readiness", icon: Activity },
-  { label: "Settings", href: "/settings", icon: Settings },
-  { label: "Profile", href: "/profile", icon: User },
-];
+import { NAV_ITEMS } from "@/lib/nav-config";
 
 interface CommandPaletteProviderProps {
   children: React.ReactNode;
@@ -96,12 +61,16 @@ export function CommandPaletteProvider({
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Navigation">
-            {NAV_COMMANDS.map((cmd) => (
+            {NAV_ITEMS.map((cmd) => (
               <CommandItem key={cmd.href} onSelect={() => handleNavigate(cmd.href)}>
                 <cmd.icon className="mr-2 h-4 w-4" />
                 <span>{cmd.label}</span>
               </CommandItem>
             ))}
+            <CommandItem onSelect={() => handleNavigate("/profile")}>
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </CommandItem>
           </CommandGroup>
           <CommandGroup heading="Actions">
             <CommandItem onSelect={handleToggleTheme}>

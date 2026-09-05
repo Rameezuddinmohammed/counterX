@@ -58,6 +58,8 @@ import type { MerchantManifestStoreLike } from "./merchant-manifest-store.js";
 import { merchantActivationRoutesPlugin } from "./merchant-activation-routes.js";
 import type { MerchantActivationStoreLike } from "./merchant-activation-store.js";
 import { webhookRoutesPlugin, type WebhookRoutesOptions } from "./webhook-routes.js";
+import { merchantKillSwitchRoutesPlugin } from "./merchant-kill-switch-routes.js";
+import type { AsyncKillSwitchStore } from "@counter/data";
 
 export const APP_NAME = "@counter/control-plane-api";
 
@@ -263,6 +265,14 @@ export interface CreateServerOptions {
    * optional-feature pattern as every other provisioner above.
    */
   readonly webhookRoutes?: WebhookRoutesOptions | undefined;
+  /**
+   * Only when present is /control/v1/merchants/:merchantId/kill-switch
+   * registered — a merchant's own real, durable halt switch over the SAME
+   * runtime.kill_switches store the worker's checkout path already
+   * consults (apps/worker/src/boot.ts's createPostgresKillSwitchGatePort).
+   * Same optional-feature pattern as merchantPaymentConnectionStore.
+   */
+  readonly merchantKillSwitchStore?: AsyncKillSwitchStore | undefined;
 }
 
 /**
@@ -415,6 +425,13 @@ export function createServer(options?: CreateServerOptions): FastifyInstance {
   if (options?.merchantPaymentConnectionStore !== undefined) {
     void server.register(merchantPaymentConnectionRoutesPlugin, {
       store: options.merchantPaymentConnectionStore,
+    });
+  }
+
+  // Merchant-scoped kill switch — only registered when a store is wired.
+  if (options?.merchantKillSwitchStore !== undefined) {
+    void server.register(merchantKillSwitchRoutesPlugin, {
+      store: options.merchantKillSwitchStore,
     });
   }
 

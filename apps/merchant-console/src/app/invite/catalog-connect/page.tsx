@@ -132,7 +132,7 @@ export default function CatalogConnectPage() {
         <Card>
           <CardContent className="p-6 text-sm text-[var(--foreground-secondary)]">
             No application found yet.{" "}
-            <Link href="/invite" className="text-[var(--brand-orange)] underline">
+            <Link href="/invite" className="text-[var(--brand-red)] underline">
               Start from the beginning
             </Link>
             .
@@ -145,8 +145,16 @@ export default function CatalogConnectPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Connect your catalog</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
+            Onboarding · Step 2 of 5
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Connect your catalog
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Connect Shopify, or add a few items manually to get started.
           </p>
@@ -193,16 +201,16 @@ export default function CatalogConnectPage() {
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="Description (optional)"
               />
-              {addItemError && <p className="text-sm text-red-600">{addItemError}</p>}
+              {addItemError && <p className="text-sm text-[var(--brand-red)]">{addItemError}</p>}
               <Button type="submit" variant="outline" disabled={addingItem}>
                 <Plus className="mr-2 h-3.5 w-3.5" />
                 {addingItem ? "Adding…" : "Add item"}
               </Button>
             </form>
 
-            {itemsError && <p className="text-sm text-red-600">{itemsError}</p>}
+            {itemsError && <p className="text-sm text-[var(--brand-red)]">{itemsError}</p>}
             {items.length > 0 && (
-              <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+              <div className="divide-y divide-[var(--border)] border border-[var(--border)]">
                 {items.map((item) => (
                   <div key={item.itemId} className="flex items-center justify-between px-4 py-2.5">
                     <div>
@@ -221,7 +229,7 @@ export default function CatalogConnectPage() {
           </CardContent>
         </Card>
 
-        {finishError && <p className="text-sm text-red-600">{finishError}</p>}
+        {finishError && <p className="text-sm text-[var(--brand-red)]">{finishError}</p>}
         <Button onClick={() => void handleFinish()} disabled={finishing}>
           {finishing ? "Checking…" : "Continue"}
           <ArrowRight className="ml-2 h-3.5 w-3.5" />

@@ -87,7 +87,7 @@ export default function CatalogReviewPage() {
         <Card>
           <CardContent className="p-6 text-sm text-[var(--foreground-secondary)]">
             No application found yet.{" "}
-            <Link href="/invite" className="text-[var(--brand-orange)] underline">
+            <Link href="/invite" className="text-[var(--brand-red)] underline">
               Start from the beginning
             </Link>
             .
@@ -100,8 +100,16 @@ export default function CatalogReviewPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Review your catalog</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
+            Onboarding · Step 3 of 5
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Review your catalog
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             Take one last look before we start verifying your setup.
           </p>
@@ -111,15 +119,15 @@ export default function CatalogReviewPage() {
           <CardHeader>
             <CardTitle>
               <div className="flex items-center gap-2">
-                <PackageCheck className="h-4 w-4 text-[var(--brand-orange)]" />
+                <PackageCheck className="h-4 w-4 text-[var(--brand-red)]" />
                 What we have on file
               </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {itemsError && <p className="text-sm text-red-600">{itemsError}</p>}
+            {itemsError && <p className="text-sm text-[var(--brand-red)]">{itemsError}</p>}
             {items.length > 0 ? (
-              <div className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+              <div className="divide-y divide-[var(--border)] border border-[var(--border)]">
                 {items.map((item) => (
                   <div key={item.itemId} className="flex items-center justify-between px-4 py-2.5">
                     <div>
@@ -147,7 +155,7 @@ export default function CatalogReviewPage() {
           </CardContent>
         </Card>
 
-        {confirmError && <p className="text-sm text-red-600">{confirmError}</p>}
+        {confirmError && <p className="text-sm text-[var(--brand-red)]">{confirmError}</p>}
         <Button onClick={() => void handleConfirm()} disabled={confirming}>
           {confirming ? "Confirming…" : "Confirm and continue"}
           <ArrowRight className="ml-2 h-3.5 w-3.5" />

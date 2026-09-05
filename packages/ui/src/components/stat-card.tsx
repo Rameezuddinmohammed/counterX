@@ -26,7 +26,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 transition-all duration-200 hover:border-[var(--border-secondary)]",
+        "border border-[var(--border)] bg-[var(--surface)] p-6 transition-colors duration-150 hover:border-[var(--border-secondary)]",
         className,
       )}
       {...props}
@@ -35,18 +35,26 @@ export function StatCard({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             {icon && <span className="text-[var(--foreground-muted)]">{icon}</span>}
-            <p className="text-sm font-medium text-[var(--foreground-secondary)]">{label}</p>
+            <p className="text-xs uppercase tracking-wider text-[var(--foreground-secondary)]">
+              {label}
+            </p>
           </div>
-          <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">{value}</p>
+          <p
+            className="mt-2 text-2xl font-semibold text-[var(--foreground)] font-mono"
+            data-manifest-figure
+          >
+            {value}
+          </p>
         </div>
         {trend && (
           <div
             className={cn(
-              "flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
+              "flex items-center gap-1 border px-2 py-1 text-xs font-medium font-mono",
               trend.direction === "up"
-                ? "bg-emerald-500/10 text-emerald-500"
-                : "bg-red-500/10 text-red-500",
+                ? "border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 text-[var(--clearance-teal)]"
+                : "border-[var(--brand-red)]/30 bg-[var(--brand-red)]/10 text-[var(--brand-red)]",
             )}
+            data-manifest-figure
           >
             {trend.direction === "up" ? (
               <TrendingUp className="h-3 w-3" />

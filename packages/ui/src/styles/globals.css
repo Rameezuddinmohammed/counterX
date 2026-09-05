@@ -1,58 +1,77 @@
 @import "tailwindcss";
 
 /*
- * Counter Brand Design System
- * Bold orange accent on dark backgrounds, Linear-inspired clean layout
- * Warm orange gradients with glass-morphism effects
+ * Counter Design System — "The Manifest"
+ *
+ * Direction contract: .impeccable/surfaces/apps-landing.md (seed 4c02ca8d).
+ * A mandate is a manifest — declared, sealed, and cleared before anything
+ * crosses the border. Ledger-column composition, ruled hairlines, tabular
+ * figures. Never cards-on-a-grid, never gradient/glassmorphism decoration.
+ *
+ * This file is the single shared token layer for all four apps (landing,
+ * merchant-console, wallet-console, operations-console) — none of them
+ * override these values locally. Change here, changes everywhere.
  */
 
 :root {
-  /* Brand Colors */
-  --brand-orange: #f97316;
-  --brand-orange-light: #fb923c;
-  --brand-orange-dark: #ea580c;
-  --brand-orange-50: #fff7ed;
-  --brand-orange-100: #ffedd5;
-  --brand-orange-200: #fed7aa;
-  --brand-orange-900: #7c2d12;
+  /* Brand — seal red (declared / primary action), never orange */
+  --brand-red: #c62828;
+  --brand-red-light: #e35353;
+  --brand-red-dark: #8e1c1c;
 
-  /* Light Mode */
-  --background: #ffffff;
-  --background-secondary: #f9fafb;
-  --surface: #ffffff;
-  --surface-secondary: #f3f4f6;
-  --foreground: #111827;
-  --foreground-secondary: #6b7280;
-  --foreground-muted: #9ca3af;
-  --border: #e5e7eb;
-  --border-secondary: #d1d5db;
-  --ring: #f97316;
+  /* Clearance teal — verified / cleared / success */
+  --clearance-teal: #0f8b8d;
+  --clearance-teal-light: #3aa9ab;
+  --clearance-teal-dark: #0a5f60;
 
-  /* Semantic */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #3b82f6;
+  /* Manifest ochre — pending / advisory, never destructive */
+  --manifest-ochre: #b9852f;
+  --manifest-ochre-light: #d4a24f;
+
+  /* Light Mode — a paper ledger, not a white SaaS canvas */
+  --background: #f4f1ea;
+  --background-secondary: #ebe6da;
+  --surface: #fbf9f4;
+  --surface-secondary: #efeade;
+  --foreground: #1a1815;
+  --foreground-secondary: #5c574c;
+  --foreground-muted: #8a8474;
+  --border: #d8d0bd;
+  --border-secondary: #c4bba3;
+  --ring: var(--brand-red);
+
+  /* Semantic — mapped to the manifest's own vocabulary */
+  --success: var(--clearance-teal);
+  --warning: var(--manifest-ochre);
+  --error: var(--brand-red);
+  --info: #3d6b8a;
+
+  /* Type: Space Grotesk for declarative display, Plex Sans for reading
+     body, Plex Mono for every number/ID/amount — a manifest never lets
+     figures sit in a proportional face. */
+  --font-display: var(--font-space-grotesk), "Space Grotesk", ui-sans-serif, system-ui;
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", ui-sans-serif, system-ui;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
 
 .dark {
-  /* Dark Mode - Linear-inspired */
-  --background: #0a0a0f;
-  --background-secondary: #0f0f15;
-  --surface: #141419;
-  --surface-secondary: #1c1c24;
-  --foreground: #f9fafb;
-  --foreground-secondary: #9ca3af;
-  --foreground-muted: #6b7280;
-  --border: #23232d;
-  --border-secondary: #2d2d3a;
-  --ring: #f97316;
+  /* Dark Mode — indigo-black ledger ground, not near-black neutral */
+  --background: #0b0e14;
+  --background-secondary: #10141c;
+  --surface: #141922;
+  --surface-secondary: #1b212c;
+  --foreground: #eae6da;
+  --foreground-secondary: #a3a08f;
+  --foreground-muted: #6c6a5f;
+  --border: #262c38;
+  --border-secondary: #333a48;
+  --ring: var(--brand-red-light);
 
   /* Semantic */
-  --success: #34d399;
-  --warning: #fbbf24;
-  --error: #f87171;
-  --info: #60a5fa;
+  --success: var(--clearance-teal-light);
+  --warning: var(--manifest-ochre-light);
+  --error: var(--brand-red-light);
+  --info: #6b9bbd;
 }
 
 /* Base styles */
@@ -63,9 +82,57 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans);
   font-feature-settings:
     "rlig" 1,
     "calt" 1;
+}
+
+/* Tabular figures everywhere a number appears — this is the one rule the
+   whole visual world hangs on. Amounts, ids, and timestamps never reflow
+   digit-by-digit as they update. */
+.font-mono,
+[data-manifest-figure] {
+  font-family: var(--font-mono);
+  font-feature-settings:
+    "tnum" 1,
+    "zero" 1;
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Browser surfaces carry the design too — selection, caret, focus ring,
+   scrollbar. Left un-themed, these are the tell that a page was assembled
+   rather than built (craft-floor.md). */
+::selection {
+  background-color: var(--brand-red);
+  color: #fbf9f4;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-secondary);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-muted);
 }
 
 /* Scrollbar styling for dark mode */
@@ -87,93 +154,30 @@ body {
   background: var(--foreground-muted);
 }
 
-/* Orange gradient utility */
-.gradient-orange {
-  background: linear-gradient(135deg, #f97316, #ea580c);
-}
-
-.gradient-orange-light {
-  background: linear-gradient(135deg, #fb923c, #f97316);
-}
-
-/* Glass morphism */
-.glass {
-  background: rgba(20, 20, 25, 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-}
-
-.glass-light {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-}
-
-/* Animation utilities */
-@keyframes fade-in {
+/* Manifest stamp — the one authored motion this world owns. A clearance
+   or decline snaps into place like a rubber stamp landing, not a fade. */
+@keyframes stamp-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: scale(1.15) rotate(-2deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.97) rotate(0.5deg);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: scale(1) rotate(0deg);
   }
 }
 
-@keyframes fade-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(4px);
-  }
+.animate-stamp-in {
+  animation: stamp-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
+@media (prefers-reduced-motion: reduce) {
+  .animate-stamp-in {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
   }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes pulse-orange {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
-}
-
-.animate-scale-in {
-  animation: scale-in 0.2s ease-out;
-}
-
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out;
-}
-
-.animate-pulse-orange {
-  animation: pulse-orange 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

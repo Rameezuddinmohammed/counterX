@@ -12,7 +12,7 @@ import type {
   BusinessBasicsRequest,
   Finding,
   InvitationStatus,
-  KillSwitchState,
+  MerchantKillSwitchState,
   ManifestStatus,
   ManualCatalogItem,
   ManualCatalogItemRequest,
@@ -94,13 +94,6 @@ export interface RunReadinessCheckRequest {
 export interface ActivateManifestRequest {
   readonly merchantId: string;
   readonly manifestId: string;
-}
-
-export interface ToggleKillSwitchRequest {
-  readonly switchId: string;
-  readonly active: boolean;
-  readonly reason: string;
-  readonly actorId: string;
 }
 
 export interface SuspendMerchantRequest {
@@ -221,9 +214,14 @@ export interface MerchantApiClient {
   // Findings
   listFindings(merchantId: string, opts?: ListOptions): Promise<ApiResult<readonly Finding[]>>;
 
-  // Kill Switches
-  listKillSwitches(merchantId: string): Promise<ApiResult<readonly KillSwitchState[]>>;
-  toggleKillSwitch(req: ToggleKillSwitchRequest): Promise<ApiResult<KillSwitchState>>;
+  // Kill Switch (real backend — GET/POST /merchants/:merchantId/kill-switch).
+  // One switch per merchant, not a list.
+  getKillSwitch(merchantId: string): Promise<ApiResult<MerchantKillSwitchState>>;
+  setKillSwitch(
+    merchantId: string,
+    active: boolean,
+    reason?: string,
+  ): Promise<ApiResult<MerchantKillSwitchState>>;
 
   // Audit
   listAuditEntries(
@@ -457,10 +455,13 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
         "GET",
         `/merchants/${merchantId}/findings?limit=${opts?.limit ?? 50}&offset=${opts?.offset ?? 0}`,
       ),
-    listKillSwitches: (merchantId) =>
-      request<readonly KillSwitchState[]>("GET", `/merchants/${merchantId}/killswitches`),
-    toggleKillSwitch: (req) =>
-      request<KillSwitchState>("POST", `/killswitches/${req.switchId}/toggle`, req),
+    getKillSwitch: (merchantId) =>
+      request<MerchantKillSwitchState>("GET", `/merchants/${merchantId}/kill-switch`),
+    setKillSwitch: (merchantId, active, reason) =>
+      request<MerchantKillSwitchState>("POST", `/merchants/${merchantId}/kill-switch`, {
+        active,
+        ...(reason !== undefined ? { reason } : {}),
+      }),
     listAuditEntries: (merchantId, opts) =>
       request<readonly AuditEntry[]>(
         "GET",

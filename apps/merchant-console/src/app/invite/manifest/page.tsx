@@ -80,7 +80,7 @@ export default function ManifestPage() {
         <Card>
           <CardContent className="p-6 text-sm text-[var(--foreground-secondary)]">
             No application found yet.{" "}
-            <Link href="/invite" className="text-[var(--brand-orange)] underline">
+            <Link href="/invite" className="text-[var(--brand-red)] underline">
               Start from the beginning
             </Link>
             .
@@ -93,8 +93,16 @@ export default function ManifestPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)]">Confirm what you can do</h1>
+        <div className="border-b border-[var(--border-secondary)] pb-5">
+          <p
+            className="font-mono text-xs uppercase tracking-widest text-[var(--foreground-muted)] mb-2"
+            data-manifest-figure
+          >
+            Onboarding · Step 5 of 5
+          </p>
+          <h1 className="font-display text-2xl font-semibold text-[var(--foreground)]">
+            Confirm what you can do
+          </h1>
           <p className="mt-1 text-[var(--foreground-secondary)]">
             This is the record of exactly what your store is set up to handle.
           </p>
@@ -106,8 +114,8 @@ export default function ManifestPage() {
           <>
             <Card>
               <CardContent className="flex items-center gap-4 p-6">
-                <div className="rounded-lg bg-emerald-500/10 p-3">
-                  <PartyPopper className="h-6 w-6 text-emerald-600" />
+                <div className="border border-[var(--clearance-teal)]/30 bg-[var(--clearance-teal)]/10 p-3">
+                  <PartyPopper className="h-6 w-6 text-[var(--clearance-teal)]" />
                 </div>
                 <div>
                   <p className="font-semibold text-[var(--foreground)]">You&apos;re set up</p>
@@ -156,7 +164,7 @@ export default function ManifestPage() {
             <CardHeader>
               <CardTitle>
                 <div className="flex items-center gap-2">
-                  <FileCheck2 className="h-4 w-4 text-[var(--brand-orange)]" />
+                  <FileCheck2 className="h-4 w-4 text-[var(--brand-red)]" />
                   Ready to confirm
                 </div>
               </CardTitle>
@@ -165,7 +173,7 @@ export default function ManifestPage() {
               <p className="text-sm text-[var(--foreground-secondary)]">
                 You&apos;ve passed the readiness check. Confirm to generate your capability record.
               </p>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-[var(--brand-red)]">{error}</p>}
               <Button onClick={() => void handleGenerate()} disabled={generating}>
                 {generating ? "Confirming…" : "Confirm your capabilities"}
               </Button>
