@@ -1,0 +1,36 @@
+{
+  "name": "@counter/crypto-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solana devnet settlement adapter: real on-chain buyer-to-merchant transfer, bounded by an on-chain spending delegation. Hackathon-scoped — see src/index.ts's header for what's deliberately not built yet.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@counter/domain": "workspace:0.1.0",
+    "@counter/payment-sdk": "workspace:0.1.0",
+    "@solana-program/system": "0.13.0",
+    "@solana-program/token": "0.15.0",
+    "@solana/errors": "7.1.1",
+    "@solana/kit": "7.1.1",
+    "@solana/kit-plugin-rpc": "0.15.0",
+    "@solana/kit-plugin-signer": "0.13.0",
+    "@solana/program-client-core": "7.1.1",
+    "@solana/subscriptions": "0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3",
+    "vitest": "3.0.7"
+  }
+}
