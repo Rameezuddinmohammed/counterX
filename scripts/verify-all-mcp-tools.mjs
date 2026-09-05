@@ -17,8 +17,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
 
-const sdkClientPath = resolve(repoRoot, "apps/local-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js");
-const sdkStdioPath = resolve(repoRoot, "apps/local-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js");
+const sdkClientPath = resolve(
+  repoRoot,
+  "apps/local-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js",
+);
+const sdkStdioPath = resolve(
+  repoRoot,
+  "apps/local-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js",
+);
 
 const { Client } = await import(pathToFileURL(sdkClientPath).href);
 const { StdioClientTransport } = await import(pathToFileURL(sdkStdioPath).href);
@@ -61,7 +67,10 @@ const DENIED_PATTERNS = [
 ];
 
 const samplePolicy = {
-  merchant_allowlist: { allowed_merchant_ids: ["ctr_merchant_YxknH3cSnGgCWfMZsMweOQ", "merchant-test-1"], allowed_domains: [] },
+  merchant_allowlist: {
+    allowed_merchant_ids: ["ctr_merchant_YxknH3cSnGgCWfMZsMweOQ", "merchant-test-1"],
+    allowed_domains: [],
+  },
   geography: { allowed_merchant_countries: ["IN"], allowed_delivery_countries: ["IN"] },
   category: { allowed_categories: [] },
   currency: { allowed_currencies: ["INR"] },
@@ -86,16 +95,19 @@ async function testServer(name, serverScript, env = process.env) {
     env: { ...process.env, ...env },
   });
 
-  const client = new Client({ name: `verifier-${name}`, version: "1.0.0" }, {
-    capabilities: {},
-  });
+  const client = new Client(
+    { name: `verifier-${name}`, version: "1.0.0" },
+    {
+      capabilities: {},
+    },
+  );
 
   try {
     await client.connect(transport);
     console.log(`✓ Successfully connected to ${name} over stdio`);
 
     const toolsResult = await client.listTools();
-    const registeredNames = toolsResult.tools.map(t => t.name);
+    const registeredNames = toolsResult.tools.map((t) => t.name);
     console.log(`✓ Received tools/list: ${registeredNames.length} tools registered.`);
 
     // Verify expected tools
@@ -150,28 +162,53 @@ async function testServer(name, serverScript, env = process.env) {
     await call("wallet.status", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA" });
 
     // 3. merchant.list
-    const mList = await call("merchant.list", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA", limit: 5 });
+    const mList = await call("merchant.list", {
+      wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA",
+      limit: 5,
+    });
 
     // 4. merchant.search
-    await call("merchant.search", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA", query: "apparel", limit: 5 });
+    await call("merchant.search", {
+      wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA",
+      query: "apparel",
+      limit: 5,
+    });
 
     // 5. product.search
     const merchantId = mList?.merchants?.[0]?.merchantId ?? "ctr_merchant_YxknH3cSnGgCWfMZsMweOQ";
-    const pSearch = await call("product.search", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA", merchant_id: merchantId, query: "" });
+    const pSearch = await call("product.search", {
+      wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA",
+      merchant_id: merchantId,
+      query: "",
+    });
 
     // 5b. catalog.search & catalog.list (aliases for catalog browsing)
-    await call("catalog.search", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA", merchant_id: merchantId });
-    await call("catalog.list", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA", merchant_id: merchantId });
+    await call("catalog.search", {
+      wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA",
+      merchant_id: merchantId,
+    });
+    await call("catalog.list", {
+      wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA",
+      merchant_id: merchantId,
+    });
 
     // 6. product.details
     const variantId = pSearch?.results?.[0]?.variantId ?? "variant_demo_1";
     await call("product.details", { merchant_id: merchantId, variant_id: variantId });
 
     // 7. quote.get
-    await call("quote.get", { merchant_id: merchantId, variant_id: variantId, quantity: 1, currency: "INR" });
+    await call("quote.get", {
+      merchant_id: merchantId,
+      variant_id: variantId,
+      quantity: 1,
+      currency: "INR",
+    });
 
     // 8. transaction.status
-    await call("transaction.status", { merchant_id: merchantId, transaction_id: "tx_sample_check" });
+    await call("transaction.status", {
+      merchant_id: merchantId,
+      transaction_id: "tx_sample_check",
+    });
 
     // 9. pending-actions.list
     await call("pending-actions.list", { wallet_id: "ctr_wallet_te1dJWxojYJqphh7INsctA" });
@@ -237,13 +274,17 @@ async function testServer(name, serverScript, env = process.env) {
       reason: "verification test refund",
     });
 
-    console.log(`\nCompleted ${toolExecResults.length} tool calls on ${name}. All responded cleanly!`);
+    console.log(
+      `\nCompleted ${toolExecResults.length} tool calls on ${name}. All responded cleanly!`,
+    );
 
     await client.close();
     return { name, toolsCount: registeredNames.length, results: toolExecResults };
   } catch (err) {
     console.error(`Error testing ${name}:`, err);
-    try { await client.close(); } catch {}
+    try {
+      await client.close();
+    } catch {}
     return { name, error: err.message };
   }
 }
@@ -254,29 +295,35 @@ async function main() {
   // Test 1: counterx-wallet (apps/local-mcp/dist/main.js)
   const localResult = await testServer(
     "counterx-wallet (in-memory)",
-    resolve(repoRoot, "apps/local-mcp/dist/main.js")
+    resolve(repoRoot, "apps/local-mcp/dist/main.js"),
   );
 
   // Read .mcp.json for real server environment
-  const mcpJson = JSON.parse((await import("node:fs")).readFileSync(resolve(repoRoot, ".mcp.json"), "utf8"));
+  const mcpJson = JSON.parse(
+    (await import("node:fs")).readFileSync(resolve(repoRoot, ".mcp.json"), "utf8"),
+  );
   const realConfig = mcpJson.mcpServers["counterx-wallet-real"];
 
   // Test 2: counterx-wallet-real (apps/local-mcp/dist/main-real.js)
   const realResult = await testServer(
     "counterx-wallet-real (live backend)",
     resolve(repoRoot, "apps/local-mcp/dist/main-real.js"),
-    realConfig.env
+    realConfig.env,
   );
 
   console.log("\n======================================================");
   console.log("FINAL SUMMARY OF MCP TOOLS IN COUNTER");
   console.log("======================================================");
-  console.log(`Server [counterx-wallet]: ${localResult.results ? localResult.results.length : 0}/16 tools functional`);
-  console.log(`Server [counterx-wallet-real]: ${realResult.results ? realResult.results.length : 0}/16 tools functional`);
+  console.log(
+    `Server [counterx-wallet]: ${localResult.results ? localResult.results.length : 0}/16 tools functional`,
+  );
+  console.log(
+    `Server [counterx-wallet-real]: ${realResult.results ? realResult.results.length : 0}/16 tools functional`,
+  );
   console.log("All tools properly handled inputs, timeouts, error wrapping, and schemas.");
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error("Fatal error during verification:", err);
   process.exit(1);
 });

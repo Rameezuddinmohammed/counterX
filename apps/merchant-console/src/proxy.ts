@@ -30,6 +30,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Clear accumulated Auth0 transaction cookies (__txn_*). Each aborted login
+  // or challenge leaves an encrypted ~800-byte cookie behind. If they accumulate,
+  // the Cookie header sent to localhost:3000 blows past 8KB-16KB and triggers
+  // HTTP 431 (Request Header Fields Too Large).
+  for (const cookie of request.cookies.getAll()) {
+    if (cookie.name.startsWith("__txn_")) {
+      authResponse.cookies.delete(cookie.name);
+    }
+  }
+
   return authResponse;
 }
 
