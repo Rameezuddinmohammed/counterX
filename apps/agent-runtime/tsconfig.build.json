@@ -21,6 +21,9 @@
       "path": "../../packages/merchant-contracts/tsconfig.build.json"
     },
     {
+      "path": "../../packages/merchant-policy/tsconfig.build.json"
+    },
+    {
       "path": "../../packages/workflow/tsconfig.build.json"
     },
     {

@@ -5,7 +5,7 @@ import { Receipt, Shield, Activity, Search, ShoppingBag, CreditCard, FileText } 
 import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
 import { useApi, useCurrentMerchantId } from "@/hooks/use-api";
-import type { MerchantPolicyConfig, Transaction } from "@/lib/types";
+import type { PolicyConfigView, Transaction } from "@/lib/types";
 
 // control-plane-api's transaction list endpoint has no separate "total count"
 // field — it returns a page of transactions (default limit 50, hard max 200;
@@ -29,10 +29,10 @@ const QUICK_ACTIONS = [
     description: "Payment processing setup",
   },
   {
-    label: "Run Policy Check",
+    label: "Configure Policy",
     href: "/policy",
     icon: Shield,
-    description: "Simulate policy rules",
+    description: "What your agent can sell",
   },
   {
     label: "View Manifest",
@@ -56,18 +56,17 @@ export default function DashboardPage() {
         : Promise.resolve({ ok: true, data: [] as readonly Transaction[] }),
     [merchantId],
   );
-  const policyState = useApi<MerchantPolicyConfig | null>(
+  const policyState = useApi<PolicyConfigView | null>(
     (client) =>
       merchantId
         ? client.getPolicyConfig(merchantId)
-        : Promise.resolve({ ok: true, data: null as MerchantPolicyConfig | null }),
+        : Promise.resolve({ ok: true, data: null as PolicyConfigView | null }),
     [merchantId],
   );
 
   const transactions = transactionsState.data ?? [];
   const settledCount = transactions.filter((t) => t.currentState === "settled").length;
-  const policyRules = policyState.data?.rules ?? [];
-  const activeRuleCount = policyRules.filter((r) => r.enabled).length;
+  const policyRuleCount = policyState.data?.policy.rules.length ?? 0;
 
   const transactionsLoading = merchantLoading || transactionsState.loading;
   const transactionsError = merchantError ?? transactionsState.error;
@@ -88,14 +87,12 @@ export default function DashboardPage() {
     ? "…"
     : policyError
       ? "—"
-      : activeRuleCount.toLocaleString();
+      : policyRuleCount.toLocaleString();
   const activePoliciesDescription = policyError
     ? "Could not load"
     : !policyLoading && policyState.data === null
       ? "No policy configured yet"
-      : !policyLoading && policyRules.length > activeRuleCount
-        ? `${policyRules.length} rule(s) total`
-        : undefined;
+      : undefined;
 
   return (
     <PageWrapper>

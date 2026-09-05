@@ -18,8 +18,10 @@ import type {
   ManualCatalogItemRequest,
   MappingPreview,
   MerchantApplicationStatus,
-  MerchantPolicyConfig,
+  PolicyConfigView,
+  PolicySaveResult,
   PolicySimulationResult,
+  SavePolicyRequest,
   ProvisionMerchantApplicationResponse,
   RazorpayConnectRequest,
   RazorpayStatus,
@@ -42,6 +44,7 @@ export type ApiErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "VALIDATION"
+  | "CONFLICT"
   | "RATE_LIMITED"
   | "SERVER_ERROR"
   | "NETWORK_ERROR";
@@ -180,10 +183,19 @@ export interface MerchantApiClient {
   runPolicySimulation(req: RunPolicySimulationRequest): Promise<ApiResult<PolicySimulationResult>>;
   getLastSimulation(merchantId: string): Promise<ApiResult<PolicySimulationResult | null>>;
 
-  // Policy Configuration (real backend — GET /merchants/:merchantId/policy).
-  // Returns null (not an error) when the merchant has no policy configured
-  // yet, mirroring control-plane-api's 404 "No policy configured" response.
-  getPolicyConfig(merchantId: string): Promise<ApiResult<MerchantPolicyConfig | null>>;
+  // Policy Configuration (real backend — GET/POST /merchants/:merchantId/policy).
+  // getPolicyConfig returns null (not an error) when the merchant has no
+  // policy configured yet, mirroring control-plane-api's 404 "No policy
+  // configured" response. savePolicyConfig's expectedVersion (when passed)
+  // is sent as the If-Match header for optimistic-concurrency conflict
+  // detection — a stale write surfaces as ApiErrorCode "CONFLICT", not a
+  // generic server error.
+  getPolicyConfig(merchantId: string): Promise<ApiResult<PolicyConfigView | null>>;
+  savePolicyConfig(
+    merchantId: string,
+    req: SavePolicyRequest,
+    expectedVersion?: number,
+  ): Promise<ApiResult<PolicySaveResult>>;
 
   // Razorpay
   getRazorpayStatus(merchantId: string): Promise<ApiResult<RazorpayStatus>>;
@@ -242,7 +254,12 @@ export interface ApiClientConfig {
 export function createApiClient(config: ApiClientConfig): MerchantApiClient {
   const { baseUrl, tokenProvider, timeout = 30_000 } = config;
 
-  async function request<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
+  async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<ApiResult<T>> {
     try {
       const token = await tokenProvider.getToken();
       const controller = new AbortController();
@@ -253,6 +270,7 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          ...extraHeaders,
         },
         body: body ? JSON.stringify(body) : null,
         signal: controller.signal,
@@ -277,6 +295,19 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
         return {
           ok: false,
           error: { code: "NOT_FOUND", message: "Resource not found", retryable: false },
+        };
+      }
+      if (response.status === 409) {
+        let message = "This policy was changed by someone else — reload and try again";
+        try {
+          const parsed = (await response.json()) as { error?: { message?: string } };
+          message = parsed.error?.message ?? message;
+        } catch {
+          // Body wasn't JSON — keep the default message.
+        }
+        return {
+          ok: false,
+          error: { code: "CONFLICT", message, retryable: false },
         };
       }
       if (response.status === 429) {
@@ -371,11 +402,10 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
     getLastSimulation: (merchantId) =>
       request<PolicySimulationResult | null>("GET", `/merchants/${merchantId}/policy/simulation`),
     getPolicyConfig: async (merchantId) => {
-      const result = await request<{
-        readonly merchantId: string;
-        readonly policy: MerchantPolicyConfig;
-        readonly correlationId: string;
-      }>("GET", `/merchants/${merchantId}/policy`);
+      const result = await request<PolicyConfigView & { readonly correlationId: string }>(
+        "GET",
+        `/merchants/${merchantId}/policy`,
+      );
       if (!result.ok) {
         // No policy configured yet is an expected, non-error state — not a
         // failure the UI should surface as "could not load".
@@ -384,8 +414,22 @@ export function createApiClient(config: ApiClientConfig): MerchantApiClient {
         }
         return result;
       }
-      return { ok: true, data: result.data.policy };
+      return {
+        ok: true,
+        data: {
+          merchantId: result.data.merchantId,
+          policy: result.data.policy,
+          summary: result.data.summary,
+        },
+      };
     },
+    savePolicyConfig: (merchantId, req, expectedVersion) =>
+      request<PolicySaveResult>(
+        "POST",
+        `/merchants/${merchantId}/policy`,
+        req,
+        expectedVersion !== undefined ? { "If-Match": String(expectedVersion) } : undefined,
+      ),
     getRazorpayStatus: (merchantId) =>
       request<RazorpayStatus>("GET", `/merchants/${merchantId}/razorpay`),
     getReadinessStatus: (merchantId) =>

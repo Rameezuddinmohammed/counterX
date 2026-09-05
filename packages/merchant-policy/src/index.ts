@@ -50,3 +50,14 @@ export {
   detectVersionTransition,
   isMonotonicHistory,
 } from "./versioning.js";
+
+// Wire (JSON-safe) encoding — the one shared codec between control-plane-api
+// (policy CRUD + storage) and agent-runtime (checkout-time enforcement).
+export type { ParsedRuleSetBody, StoredRuleSet, WireRuleConfig, WireRuleSet } from "./wire.js";
+export {
+  parseRuleConfig,
+  parseRuleSetBody,
+  ruleSetFromStored,
+  serializeRuleConfig,
+  serializeRuleSet,
+} from "./wire.js";

@@ -55,17 +55,11 @@ async function createTestToken(claims: Record<string, unknown> = {}): Promise<st
     .sign(privateKey);
 }
 
+// Wire body for the REAL typed rule union (see policy-wire.ts). "products"
+// deliberately omitted from most cases — category-allowlist is the one
+// exercised here since it needs no exotic value type.
 const VALID_POLICY_BODY = {
-  policyVersion: "1.0.0",
-  rules: [
-    {
-      ruleId: "rule_amount_limit",
-      category: "transaction",
-      constraint: "max_amount",
-      parameters: { maxAmount: 10000, currency: "USD" },
-      enabled: true,
-    },
-  ],
+  rules: [{ kind: "category-allowlist", categories: ["electronics"] }],
   effectiveFrom: "2024-01-01T00:00:00.000Z",
   effectiveUntil: null,
 };
@@ -153,7 +147,7 @@ describe("policy routes", () => {
         payload: VALID_POLICY_BODY,
       });
       expect(response.statusCode).toBe(201);
-      expect((await store.get(TEST_MERCHANT_ID))?.config.policyVersion).toBe("1.0.0");
+      expect((await store.get(TEST_MERCHANT_ID))?.config.rules).toHaveLength(1);
     });
 
     it("GET /policy still succeeds with only identity.scope.read", async () => {
@@ -209,24 +203,6 @@ describe("policy routes", () => {
   });
 
   describe("validation", () => {
-    it("POST /policy without policyVersion returns 400", async () => {
-      const { jwks } = await getTestKeys();
-      server = createServer({ jwks, environment: "test" });
-      await server.ready();
-
-      const token = await createTestToken();
-      const response = await server.inject({
-        method: "POST",
-        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        payload: { rules: [], effectiveFrom: "2024-01-01T00:00:00.000Z" },
-      });
-      expect(response.statusCode).toBe(400);
-      const body = JSON.parse(response.body) as { error: { code: string; message: string } };
-      expect(body.error.code).toBe("INVALID_FORMAT");
-      expect(body.error.message).toContain("policyVersion");
-    });
-
     it("POST /policy without rules array returns 400", async () => {
       const { jwks } = await getTestKeys();
       server = createServer({ jwks, environment: "test" });
@@ -237,11 +213,30 @@ describe("policy routes", () => {
         method: "POST",
         url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        payload: { policyVersion: "1.0.0", effectiveFrom: "2024-01-01T00:00:00.000Z" },
+        payload: { effectiveFrom: "2024-01-01T00:00:00.000Z" },
       });
       expect(response.statusCode).toBe(400);
-      const body = JSON.parse(response.body) as { error: { code: string } };
+      const body = JSON.parse(response.body) as { error: { code: string; message: string } };
       expect(body.error.code).toBe("INVALID_FORMAT");
+      expect(body.error.message).toContain("rules");
+    });
+
+    it("POST /policy without effectiveFrom returns 400", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test" });
+      await server.ready();
+
+      const token = await createTestToken();
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: { rules: [{ kind: "inr-only" }] },
+      });
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body) as { error: { code: string; message: string } };
+      expect(body.error.code).toBe("INVALID_FORMAT");
+      expect(body.error.message).toContain("effectiveFrom");
     });
 
     it("POST /policy with empty rules returns 400 validation failure", async () => {
@@ -255,7 +250,6 @@ describe("policy routes", () => {
         url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         payload: {
-          policyVersion: "1.0.0",
           rules: [],
           effectiveFrom: "2024-01-01T00:00:00.000Z",
         },
@@ -266,12 +260,69 @@ describe("policy routes", () => {
       };
       expect(body.error.code).toBe("INVALID_FORMAT");
       expect(body.error.message).toBe("Policy validation failed");
-      expect(body.error.details.errors).toContain("At least one policy rule is required");
+      expect(body.error.details.errors).toContain("Rule set must contain at least one rule");
+    });
+
+    it("POST /policy with an unknown rule kind returns 400", async () => {
+      const { jwks } = await getTestKeys();
+      server = createServer({ jwks, environment: "test" });
+      await server.ready();
+
+      const token = await createTestToken();
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: {
+          rules: [{ kind: "not-a-real-rule-kind" }],
+          effectiveFrom: "2024-01-01T00:00:00.000Z",
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body) as { error: { code: string; message: string } };
+      expect(body.error.code).toBe("INVALID_FORMAT");
+      expect(body.error.message).toContain("Unknown rule kind");
+    });
+
+    it("POST /policy with two rules on the same dimension (ambiguous) returns 400", async () => {
+      const { jwks } = await getTestKeys();
+      const store = createInMemoryPolicyStore();
+      server = createServer({ jwks, environment: "test", policyStore: store });
+      await server.ready();
+
+      const token = await createTestToken();
+      const response = await server.inject({
+        method: "POST",
+        url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        payload: {
+          rules: [
+            { kind: "category-allowlist", categories: ["electronics"] },
+            { kind: "category-allowlist", categories: ["books"] },
+          ],
+          effectiveFrom: "2024-01-01T00:00:00.000Z",
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body) as { error: { code: string; message: string } };
+      // NOTE: compileMerchantPolicy's own ambiguity message ("Ambiguous:
+      // multiple rules on dimension...") is real, but @counter/domain's
+      // createCanonicalError deliberately discards caller-supplied
+      // message/details at that boundary (see errors.ts's
+      // CanonicalErrorInputFor doc comment: "Internal diagnostic text is
+      // intentionally discarded") — so only the fixed POLICY_DENIED
+      // message/code survive to this response. Flagged as a real,
+      // pre-existing @counter/merchant-policy limitation in this session's
+      // report; not fixed here (would mean changing compiler.ts's error
+      // contract, out of this pass's scope).
+      expect(body.error.code).toBe("POLICY_DENIED");
+      // The write must not have persisted the ambiguous policy.
+      expect(await store.get(TEST_MERCHANT_ID)).toBeUndefined();
     });
   });
 
   describe("successful operations", () => {
-    it("POST /policy creates policy and returns compiled result", async () => {
+    it("POST /policy creates policy and returns a real compiled summary", async () => {
       const { jwks } = await getTestKeys();
       const store = createInMemoryPolicyStore();
       server = createServer({ jwks, environment: "test", policyStore: store });
@@ -288,17 +339,17 @@ describe("policy routes", () => {
       const body = JSON.parse(response.body) as {
         merchantId: string;
         policyVersion: string;
-        compiled: { success: boolean; constraintCount: number };
+        compiled: { version: number; compiledAt: string; summary: string[] };
         correlationId: string;
       };
       expect(body.merchantId).toBe(TEST_MERCHANT_ID);
-      expect(body.policyVersion).toBe("1.0.0");
-      expect(body.compiled.success).toBe(true);
-      expect(body.compiled.constraintCount).toBe(1);
+      expect(body.policyVersion).toBe("1");
+      expect(body.compiled.version).toBe(1);
+      expect(body.compiled.summary).toContain("Allowed categories: electronics");
       expect(body.correlationId).toBeDefined();
     });
 
-    it("GET /policy returns stored policy", async () => {
+    it("GET /policy returns stored policy and a plain-language summary", async () => {
       const { jwks } = await getTestKeys();
       const store = createInMemoryPolicyStore();
       server = createServer({ jwks, environment: "test", policyStore: store });
@@ -323,12 +374,14 @@ describe("policy routes", () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body) as {
         merchantId: string;
-        policy: { merchantId: string; policyVersion: string; rules: unknown[] };
+        policy: { merchantId: string; version: number; rules: unknown[] };
+        summary: string[];
         correlationId: string;
       };
       expect(body.merchantId).toBe(TEST_MERCHANT_ID);
-      expect(body.policy.policyVersion).toBe("1.0.0");
+      expect(body.policy.version).toBe(1);
       expect(body.policy.rules).toHaveLength(1);
+      expect(body.summary).toContain("Allowed categories: electronics");
     });
 
     it("GET /policy returns 404 when no policy configured", async () => {
@@ -349,7 +402,7 @@ describe("policy routes", () => {
   });
 
   describe("compilation", () => {
-    it("compiles policy with correct constraint count", async () => {
+    it("compiles a review-threshold rule (Money round-trips through the wire correctly)", async () => {
       const { jwks } = await getTestKeys();
       const store = createInMemoryPolicyStore();
       const compiler = createDefaultPolicyCompiler();
@@ -367,30 +420,26 @@ describe("policy routes", () => {
         url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         payload: {
-          ...VALID_POLICY_BODY,
           rules: [
-            ...VALID_POLICY_BODY.rules,
             {
-              ruleId: "rule_velocity",
-              category: "fraud",
-              constraint: "velocity_check",
-              parameters: { window: 3600 },
-              enabled: true,
-            },
-            {
-              ruleId: "rule_disabled",
-              category: "test",
-              constraint: "noop",
-              parameters: {},
-              enabled: false,
+              kind: "review-threshold",
+              thresholdAmount: { amountMinor: "500000", currency: "INR" },
             },
           ],
+          effectiveFrom: "2024-01-01T00:00:00.000Z",
         },
       });
       expect(response.statusCode).toBe(201);
-      const body = JSON.parse(response.body) as { compiled: { constraintCount: number } };
-      // Only enabled rules count
-      expect(body.compiled.constraintCount).toBe(2);
+      const body = JSON.parse(response.body) as { compiled: { summary: string[] } };
+      expect(body.compiled.summary).toContain("Review required above: 500000 minor units (INR)");
+
+      const stored = await store.get(TEST_MERCHANT_ID);
+      const rule = stored?.config.rules[0];
+      expect(rule?.kind).toBe("review-threshold");
+      if (rule?.kind === "review-threshold") {
+        // Round-tripped back to a real bigint, not a JSON-mangled number.
+        expect(rule.thresholdAmount.amountMinor).toBe(500000n);
+      }
     });
   });
 
@@ -422,7 +471,10 @@ describe("policy routes", () => {
           "content-type": "application/json",
           "if-match": "1",
         },
-        payload: { ...VALID_POLICY_BODY, policyVersion: "2.0.0" },
+        payload: {
+          rules: [{ kind: "category-allowlist", categories: ["books"] }],
+          effectiveFrom: "2024-01-01T00:00:00.000Z",
+        },
       });
       expect(response2.statusCode).toBe(201);
       expect(response2.headers["etag"]).toBe("2");
@@ -453,7 +505,10 @@ describe("policy routes", () => {
           "content-type": "application/json",
           "if-match": "0",
         },
-        payload: { ...VALID_POLICY_BODY, policyVersion: "2.0.0" },
+        payload: {
+          rules: [{ kind: "category-allowlist", categories: ["books"] }],
+          effectiveFrom: "2024-01-01T00:00:00.000Z",
+        },
       });
       expect(response.statusCode).toBe(409);
       const body = JSON.parse(response.body) as {
@@ -489,7 +544,10 @@ describe("policy routes", () => {
         method: "POST",
         url: `/control/v1/merchants/${TEST_MERCHANT_ID}/policy`,
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        payload: { ...VALID_POLICY_BODY, policyVersion: "2.0.0" },
+        payload: {
+          rules: [{ kind: "category-allowlist", categories: ["books"] }],
+          effectiveFrom: "2024-01-01T00:00:00.000Z",
+        },
       });
       expect(response.statusCode).toBe(201);
     });

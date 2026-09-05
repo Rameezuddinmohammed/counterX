@@ -29,18 +29,26 @@
  *  - policy_compiled: reuses the SAME PolicyStore/PolicyCompiler instances
  *    createServer() already wires into policy-routes.ts (passed in here by
  *    reference, not a second compiler). If the merchant has no policy
- *    configured yet, this compiles and PERSISTS a sensible default —
- *    one rule per Step-1 goods type, allow-by-default — into that SAME
- *    store, so it becomes visible through the existing
- *    GET /control/v1/merchants/:merchantId/policy route too, not a shadow
- *    copy. This is a real, disclosed judgment call: a hand-authored policy
- *    is likely more correct than this synthesized default, but refusing
- *    readiness entirely for every self-serve merchant until they hand-author
- *    one (a route/UI that does not exist anywhere in this codebase yet)
- *    would make Step 5 permanently unreachable for the wizard this task is
- *    building. The synthesized default is intentionally permissive
- *    (allow-by-default per declared goods type) — narrowing it is real
- *    follow-up work.
+ *    configured yet, this compiles and PERSISTS a sensible default — a
+ *    real @counter/merchant-policy MerchantPolicyRuleSet, not an invented
+ *    shape — into that SAME store, so it becomes visible through the
+ *    existing GET /control/v1/merchants/:merchantId/policy route too, not a
+ *    shadow copy. The default rule set is `inr-only` + `india-destination:
+ *    ["IN"]` — the least-restrictive REAL rule combination expressible in
+ *    the typed 12-rule union that still says something true (this pilot is
+ *    INR/India-only everywhere else too, e.g. quote-builder.ts's hardcoded
+ *    country: "IN") — with no product/category/quantity/payment-path
+ *    restriction. This is a real, disclosed judgment call: a hand-authored
+ *    policy is likely more correct than this synthesized default, but
+ *    refusing readiness entirely for every self-serve merchant until they
+ *    hand-author one would make Step 5 permanently unreachable for the
+ *    wizard this task is building. Narrowing the default is real follow-up
+ *    work. (Earlier revision of this file tied the default to the
+ *    merchant's declared goods types via an invented
+ *    {category:"fulfillment", constraint:"allow"} shape that had no
+ *    counterpart in the real typed rule union — dropped along with that
+ *    fake shape; goods-type-scoped policy is real follow-up work, not
+ *    something this pass silently drops in favor of.)
  *
  *  - payment_configured: sourced from merchant.payment_connections (Step
  *    4's own-gateway Razorpay verification). Not configured -> Blocking.
@@ -64,6 +72,7 @@
 import type { Environment, MerchantId, MerchantUserId } from "@counter/domain";
 import {
   instantFromEpochMilliseconds,
+  MAX_INSTANT_EPOCH_MILLISECONDS,
   sha256Digest,
   parseCounterId,
   SystemClock,
@@ -81,7 +90,8 @@ import {
   type MerchantLifecycleState,
 } from "@counter/merchant-application";
 import { CTP_VERSION } from "@counter/trust-protocol";
-import type { PolicyStore, PolicyCompiler, MerchantPolicyConfig } from "./policy-routes.js";
+import type { MerchantPolicyRuleSet } from "@counter/merchant-policy";
+import type { PolicyStore, PolicyCompiler } from "./policy-routes.js";
 
 export interface ReadinessCheckView {
   readonly checkKind: ReadinessCheckKind;
@@ -114,7 +124,6 @@ export interface MerchantReadinessServiceLike {
 const CONNECTOR_VERSION_SHOPIFY = "shopify-oauth@1";
 const CONNECTOR_VERSION_MANUAL = "manual-catalog@1";
 const PAYMENT_PROVIDER_VERSION_RAZORPAY_BYO = "razorpay-byo@1";
-const DEFAULT_POLICY_VERSION = "1.0.0-default";
 
 function toInstant(dateLike: string | Date | number): Instant {
   const ms = dateLike instanceof Date ? dateLike.getTime() : new Date(dateLike).getTime();
@@ -182,8 +191,6 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
     if (!isMerchantLifecycleState(application.lifecycle_state)) {
       throw new Error("Corrupt onboarding application row: invalid lifecycle_state");
     }
-    const goodsTypes = application.goods_types ?? [];
-
     const shopifyRow = await this.database.query<{ connected_at: string | Date }>(
       `SELECT connected_at FROM merchant.shopify_connections
         WHERE environment = $1 AND merchant_id = $2 AND status = 'active'`,
@@ -294,7 +301,6 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
     const { check: policyCheck, policyVersion } = await this.#evaluatePolicy(
       typedMerchantId,
       merchantId,
-      goodsTypes,
     );
 
     // ── payment_configured ──────────────────────────────────────────────
@@ -404,48 +410,36 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
   async #evaluatePolicy(
     typedMerchantId: MerchantId,
     merchantId: string,
-    goodsTypes: readonly string[],
   ): Promise<{ check: ReadinessCheck; policyVersion: string }> {
     let entry = await this.policyStore.get(merchantId);
 
     if (entry === undefined) {
-      // No policy configured yet: compile+persist a sensible, permissive
-      // default derived from Step 1's goods-type selection — see this
-      // file's header for the full disclosure of this judgment call.
-      const defaultConfig: MerchantPolicyConfig = {
+      // No policy configured yet: compile+persist a real, permissive
+      // default — see this file's header for the full disclosure of this
+      // judgment call and why inr-only + india-destination:["IN"] is the
+      // chosen "no meaningful restriction yet" baseline.
+      const nowResult = instantFromEpochMilliseconds(Date.now());
+      const maxInstantResult = instantFromEpochMilliseconds(MAX_INSTANT_EPOCH_MILLISECONDS);
+      if (!nowResult.ok || !maxInstantResult.ok) {
+        throw new Error("Failed to derive instants for the default policy rule set");
+      }
+      const defaultRuleSet: MerchantPolicyRuleSet = {
+        version: 1,
         merchantId,
-        policyVersion: DEFAULT_POLICY_VERSION,
-        rules:
-          goodsTypes.length > 0
-            ? goodsTypes.map((goodsType) => ({
-                ruleId: `default-allow-${goodsType}`,
-                category: "fulfillment",
-                constraint: "allow",
-                parameters: { goodsType },
-                enabled: true,
-              }))
-            : [
-                {
-                  ruleId: "default-allow-all",
-                  category: "fulfillment",
-                  constraint: "allow",
-                  parameters: {},
-                  enabled: true,
-                },
-              ],
-        effectiveFrom: new Date().toISOString(),
-        effectiveUntil: null,
+        rules: [{ kind: "inr-only" }, { kind: "india-destination", allowedDestinations: ["IN"] }],
+        effectiveFrom: nowResult.value,
+        effectiveUntil: maxInstantResult.value,
       };
-      const validation = this.policyCompiler.validate(defaultConfig);
+      const validation = this.policyCompiler.validate(defaultRuleSet);
       if (validation.valid) {
-        const setResult = await this.policyStore.set(merchantId, defaultConfig, undefined);
-        entry = { config: defaultConfig, version: setResult.currentVersion };
+        const setResult = await this.policyStore.set(merchantId, defaultRuleSet, undefined);
+        entry = { config: defaultRuleSet, version: setResult.currentVersion };
       }
     }
 
     if (entry === undefined) {
-      // Could not even synthesize a valid default (e.g. no goods types on
-      // file) — honestly Blocking rather than silently passing.
+      // Could not even synthesize a valid default — honestly Blocking
+      // rather than silently passing.
       return {
         policyVersion: "none",
         check: {
@@ -463,18 +457,19 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
       };
     }
 
+    const policyVersionLabel = String(entry.config.version);
     const validation = this.policyCompiler.validate(entry.config);
     if (!validation.valid) {
       return {
-        policyVersion: entry.config.policyVersion,
+        policyVersion: policyVersionLabel,
         check: {
           merchantId: typedMerchantId,
           checkKind: "policy_compiled",
           evidence: {
             kind: "policy_compiled",
-            policyVersion: entry.config.policyVersion,
+            policyVersion: policyVersionLabel,
             compiledAt: neverConfiguredExpiry(),
-            policyDigest: sha256Digest(new TextEncoder().encode(entry.config.policyVersion)),
+            policyDigest: sha256Digest(new TextEncoder().encode(policyVersionLabel)),
           },
           expiresAt: neverConfiguredExpiry(),
           acceptedLimitation: null,
@@ -482,19 +477,50 @@ export class MerchantReadinessService implements MerchantReadinessServiceLike {
       };
     }
 
-    const compiled = this.policyCompiler.compile(entry.config);
+    const compiled = this.policyCompiler.compile(entry.config, nowInstant());
+    if (!compiled.ok) {
+      // Structurally valid but ambiguous (e.g. two rules on the same
+      // dimension) — honestly Blocking, same treatment as a failed
+      // validate() above.
+      return {
+        policyVersion: policyVersionLabel,
+        check: {
+          merchantId: typedMerchantId,
+          checkKind: "policy_compiled",
+          evidence: {
+            kind: "policy_compiled",
+            policyVersion: policyVersionLabel,
+            compiledAt: neverConfiguredExpiry(),
+            policyDigest: sha256Digest(new TextEncoder().encode(policyVersionLabel)),
+          },
+          expiresAt: neverConfiguredExpiry(),
+          acceptedLimitation: null,
+        },
+      };
+    }
+    // A compiled policy's constraints always carry bigint Money fields
+    // (maxAmount/minAmount are always populated — see compiler.ts's
+    // defaults) and the rule set itself may too (review-threshold) —
+    // JSON.stringify throws on a raw bigint, so this needs the same
+    // bigint-safe replacer pattern used elsewhere in this codebase (e.g.
+    // packages/data/src/quote-store.ts's bigintSafeReplacer).
     const policyDigest = sha256Digest(
-      new TextEncoder().encode(JSON.stringify({ config: entry.config, compiled })),
+      new TextEncoder().encode(
+        JSON.stringify(
+          { config: entry.config, compiled: compiled.value },
+          (_key, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
+        ),
+      ),
     );
     return {
-      policyVersion: entry.config.policyVersion,
+      policyVersion: policyVersionLabel,
       check: {
         merchantId: typedMerchantId,
         checkKind: "policy_compiled",
         evidence: {
           kind: "policy_compiled",
-          policyVersion: entry.config.policyVersion,
-          compiledAt: toInstant(compiled.compiledAt),
+          policyVersion: policyVersionLabel,
+          compiledAt: compiled.value.compiledAt,
           policyDigest,
         },
         expiresAt: null,
