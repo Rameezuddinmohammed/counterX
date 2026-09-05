@@ -16,7 +16,10 @@ import { auth0 } from "./lib/auth0";
 
 export async function proxy(request: NextRequest) {
   const authResponse = await auth0.middleware(request);
-  if (request.nextUrl.pathname.startsWith("/auth/")) {
+  if (
+    request.nextUrl.pathname.startsWith("/auth/") ||
+    request.nextUrl.pathname.startsWith("/control/")
+  ) {
     return authResponse;
   }
 

@@ -158,9 +158,7 @@ export async function ensureStepUp(): Promise<void> {
 export function getApiClient(): MerchantApiClient {
   if (!apiClientInstance) {
     apiClientInstance = createApiClient({
-      baseUrl:
-        process.env["NEXT_PUBLIC_API_BASE_URL"] ??
-        "https://counter-control-plane-api.fly.dev/control/v1",
+      baseUrl: process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "/control/v1",
       tokenProvider: getTokenProvider(),
       timeout: 15_000,
     });
