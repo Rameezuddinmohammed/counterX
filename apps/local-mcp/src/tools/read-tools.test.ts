@@ -235,6 +235,51 @@ describe("read-tools: real client wiring", () => {
     expect((result["results"] as Array<{ title: string }>)[0]?.title).toBe("Real Shirt");
   });
 
+  it("catalog.search and catalog.list work as aliases for product.search", async () => {
+    const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
+    merchantClient.setManifest("merchant-1", {
+      valid: true,
+      merchantId: "merchant-1",
+      environment: "sandbox",
+      verifiedDomains: [],
+      merchantCountry: "IN",
+      capabilities: [],
+      healthStatus: "healthy",
+    });
+    merchantClient.setSearchResponse("merchant-1", {
+      merchantId: "merchant-1",
+      results: [
+        {
+          variantId: "variant-1",
+          title: "Catalog Pants",
+          price: { amount: "2999", currency: "INR" },
+          available: true,
+        },
+      ],
+      nextCursor: null,
+      totalCount: 1,
+    });
+
+    const { client } = await connectedClient({ merchantClient });
+    const searchRes = textOf(
+      await client.callTool({
+        name: "catalog.search",
+        arguments: { wallet_id: "wallet-1", merchant_id: "merchant-1" },
+      }),
+    );
+    expect(searchRes["total_count"]).toBe(1);
+    expect((searchRes["results"] as Array<{ title: string }>)[0]?.title).toBe("Catalog Pants");
+
+    const listRes = textOf(
+      await client.callTool({
+        name: "catalog.list",
+        arguments: { wallet_id: "wallet-1", merchant_id: "merchant-1" },
+      }),
+    );
+    expect(listRes["total_count"]).toBe(1);
+    expect((listRes["results"] as Array<{ title: string }>)[0]?.title).toBe("Catalog Pants");
+  });
+
   it("quote.get returns real data from the client", async () => {
     const merchantClient = new InMemoryMerchantRuntimeClient("sandbox");
     merchantClient.setManifest("merchant-1", {
